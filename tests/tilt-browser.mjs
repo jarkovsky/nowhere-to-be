@@ -5,7 +5,7 @@ import { mkdir } from 'node:fs/promises';
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const errors = [];
 const url = process.env.GAME_URL || 'http://localhost:5173';
-const read = page => page.evaluate(() => window.__littleWilds.getState());
+const read = page => page.evaluate(() => window.__nowhereToBe.getState());
 await mkdir('artifacts', { recursive: true });
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -27,7 +27,7 @@ try {
   assert.equal(await page.evaluate(() => window.motionRequests), 0);
   await openMenu(page);
   await page.getByRole('button', { name: /Tilt steering/ }).click();
-  await page.waitForFunction(() => window.__littleWilds.getState().tilt.enabled);
+  await page.waitForFunction(() => window.__nowhereToBe.getState().tilt.enabled);
   assert.equal(await page.evaluate(() => window.motionRequests), 1);
   await page.evaluate(() => window.wheelReading(0));
   assert.equal((await read(page)).tilt.ready, true);

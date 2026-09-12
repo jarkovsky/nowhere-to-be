@@ -2,6 +2,7 @@ export const DEFAULT_CRUISE_SPEED=8;
 export const MIN_CRUISE_SPEED=4;
 export const MAX_CRUISE_SPEED=11;
 export const controlSpeed=value=>Number.isFinite(value)?Math.max(MIN_CRUISE_SPEED,Math.min(MAX_CRUISE_SPEED,value)):DEFAULT_CRUISE_SPEED;
+// Save keys keep the game's original name so existing saves survive the rename.
 const KEY='little-wilds-controls-v1';
 export function createControlPreferences(storage){
   let data={cruiseSpeed:DEFAULT_CRUISE_SPEED,tilt:null};

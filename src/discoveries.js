@@ -29,6 +29,7 @@ export function bridgeHeight(x,z){
   return terrainHeight(x,z)+.24+Math.sin((along/BRIDGE.length+.5)*Math.PI)*1.5;
 }
 export const drivingHeight=(x,z)=>bridgeHeight(x,z)??terrainHeight(x,z);
+// Save keys keep the game's original name so existing saves survive the rename.
 export const SAVE_KEY='little-wilds-adventures-v1';
 export const COLORS={orange:'#d16b38',sage:'#72947d',blue:'#659eaf',berry:'#ac6075',yellow:'#dfbb57'};
 export function createJournal(storage){

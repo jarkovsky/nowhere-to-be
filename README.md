@@ -1,8 +1,8 @@
-# Little Wilds
+# Nowhere to Be
 
 A calm, low-poly driving game that runs in the browser. I made it for my son and me to take turns exploring a mountain valley in a little off-roader. There are no installs, accounts, timers or scores, and nothing to win.
 
-![Little Wilds welcome screen over a low-poly alpine valley](screenshots/welcome.jpg)
+![Nowhere to Be welcome screen over a low-poly alpine valley](screenshots/welcome.jpg)
 
 <p>
   <img src="screenshots/meadow.jpg" width="32%" alt="Orange off-roader on the trail past sheep and deer">

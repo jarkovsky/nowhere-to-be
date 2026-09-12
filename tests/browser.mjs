@@ -5,7 +5,7 @@ import { mkdir } from 'node:fs/promises';
 const browser=await chromium.launch({channel:'chrome',headless:true});
 const errors=[];
 const captureErrors=page=>page.on('pageerror',error=>errors.push(error.message));
-const read=page=>page.evaluate(()=>window.__littleWilds.getState());
+const read=page=>page.evaluate(()=>window.__nowhereToBe.getState());
 const url=process.env.GAME_URL||'http://localhost:5173';
 await mkdir('artifacts',{recursive:true});
 try {
