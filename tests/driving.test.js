@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createCarState,stepDriving,resetCar} from '../src/driving.js';
+import {SPAWN,terrainHeight,LAKE,lakeDistance} from '../src/terrain.js';
+const simulate=(state,input,seconds)=>{for(let t=0;t<seconds;t+=1/60)stepDriving(state,input,1/60);};
+test('accelerates gently, moves forward, and automatically stops on release',()=>{const s=createCarState();simulate(s,{forward:true},2);assert.ok(s.speed>10&&s.speed<=13);assert.ok(s.z<SPAWN.z-10);simulate(s,{},3);assert.equal(s.speed,0);});
+test('left and right steer oppositely; reverse remains controllable',()=>{const a=createCarState(),b=createCarState();simulate(a,{forward:true,left:true},1);simulate(b,{forward:true,right:true},1);assert.ok(a.heading>SPAWN.heading);assert.ok(b.heading<SPAWN.heading);const c=createCarState();simulate(c,{backward:true},1);assert.ok(c.z>SPAWN.z);assert.ok(c.speed<0);});
+test('little explorer cruises slowly and brake overrides auto-drive',()=>{const s=createCarState();simulate(s,{explorer:true},2);assert.ok(s.speed>5&&s.speed<=6);simulate(s,{explorer:true,brake:true},1.5);assert.equal(s.speed,0);});
+test('lake shoreline prevents entry and allows reversing away',()=>{const s={...createCarState(),x:LAKE.x,z:LAKE.z+LAKE.rz*1.2,heading:0};simulate(s,{forward:true},4);assert.ok(lakeDistance(s.x,s.z)>=1.10);assert.ok(terrainHeight(s.x,s.z)>=LAKE.y+.7);const z=s.z;simulate(s,{backward:true},2);assert.ok(s.z>z+3);});
+test('world boundary stops car without trapping reverse',()=>{const s={...createCarState(),x:0,z:354,heading:Math.PI};simulate(s,{forward:true},3);assert.ok(Math.hypot(s.x,s.z)<=355);simulate(s,{backward:true},2);assert.ok(s.z<350);});
+test('obstacles cannot be driven through',()=>{const s={...createCarState(),x:0,z:80,heading:0};for(let i=0;i<180;i++)stepDriving(s,{forward:true},1/60,[{x:0,z:74,radius:2}]);assert.ok(Math.hypot(s.x,s.z-74)>=3.05-.001);});
+test('reset rescues the car and preserves total trip distance',()=>{const s=createCarState();simulate(s,{forward:true,left:true},2);const d=s.distance;resetCar(s);assert.equal(s.x,SPAWN.x);assert.equal(s.z,SPAWN.z);assert.equal(s.speed,0);assert.equal(s.distance,d);});
+test('terrain heights remain finite throughout the driving area',()=>{for(let x=-355;x<=355;x+=7)for(let z=-355;z<=355;z+=7)assert.ok(Number.isFinite(terrainHeight(x,z)));});

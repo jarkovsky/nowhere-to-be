@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#e8e5d6" />
+    <meta name="description" content="A little car. A big outdoors. A peaceful, playful mountain driving adventure for explorers of every age." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Little Wilds — take the scenic route</title>
+  </head>
+  <body>
+    <canvas id="world" aria-label="Your little car in an alpine valley"></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+    <header class="header">
+      <a class="wordmark" href="./" aria-label="Little Wilds home"><svg viewBox="0 0 42 30" aria-hidden="true"><path d="M2 26 15 5l8 13 5-9 12 17H2Z"/><path d="m10 13 5 3 4-4"/></svg><span>little wilds</span></a>
+      <div class="location"><span class="live-dot"></span> ALPINE VALLEY <span class="location-separator">/</span> FREE ROAM</div>
+      <nav class="tools" aria-label="Game controls">
+        <button id="sky" class="icon-button" aria-label="Change sky (currently automatic)" title="Change the sky"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg></button>
+        <button id="sound" class="icon-button" aria-label="Turn sound on" aria-pressed="false" title="Sound"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path id="sound-waves" d="m16 9 6 6m0-6-6 6"/></svg></button>
+        <button id="help" class="icon-button" aria-label="How to play" title="How to play"><span class="help-icon">?</span></button>
+        <button id="pause" class="icon-button" aria-label="Pause game" title="Pause (Esc)" disabled><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg></button>
+      </nav>
+    </header>
+    <main id="welcome" class="welcome">
+      <div class="eyebrow"><span></span> A SMALL ADVENTURE</div>
+      <h1>A little car.<br>A big <em>outdoors.</em></h1>
+      <p>Nowhere to be. Nothing to beat.<br>Just you, the mountains, and the scenic route.</p>
+      <button id="start" class="primary-button" disabled><span id="start-label">Growing the mountains…</span><span aria-hidden="true">↗</span></button>
+      <div class="welcome-note"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m3 11 4 4 10-10"/></svg> For little explorers & grown-up daydreamers</div>
+    </main>
+    <div class="landscape-caption" id="landscape-caption"><span>01 / YOUR FIRST ADVENTURE</span><strong>The long way home.</strong><span>A little room to wander.</span></div>
+    <div id="hud" class="hud" hidden>
+      <div class="drive-panel">
+        <button id="explorer" class="explorer-button" aria-pressed="false"><span class="mode-icon">✳</span><span><strong>Little explorer</strong><small id="mode-caption">Auto-drive off</small></span><span class="switch" aria-hidden="true"></span></button>
+        <button id="home" class="home-button" title="Back to the meadow (R)"><svg viewBox="0 0 24 24"><path d="m3 11 9-8 9 8M6 9v12h12V9M10 21v-7h4v7"/></svg><span>Back to the meadow</span><kbd>R</kbd></button>
+      </div>
+      <div class="adventure-tools" aria-label="Your adventure">
+        <button id="scrapbook"><span aria-hidden="true">▤</span> Scrapbook <small id="sticker-count">0 / 8</small></button>
+        <button id="customize"><span aria-hidden="true">✿</span> My car</button>
+        <button id="horn" aria-label="Play friendly horn (H)"><span aria-hidden="true">♫</span> Beep <kbd>H</kbd></button>
+      </div>
+      <div class="trail-note" id="trail-note">Follow a little curiosity.</div>
+      <button id="camp-action" class="camp-action" hidden>⛺ Park &amp; watch the stars</button>
+      <div class="driving-hints" id="driving-hints"><span><kbd>↑</kbd> Go</span><span><kbd>←</kbd><kbd>→</kbd> Steer</span><span><kbd>↓</kbd> Reverse</span><span><kbd>space</kbd> Brake</span></div>
+      <div class="journey"><span class="journey-label">TAKE YOUR TIME</span><div><strong id="speed">0</strong><span>km/h</span></div><span class="journey-distance"><span id="distance">0</span> m of fresh air</span></div>
+    </div>
+    <div id="touch-controls" class="touch-controls" hidden aria-label="Touch driving controls">
+      <div class="touch-steering"><button data-control="left" aria-label="Steer left">←</button><button data-control="right" aria-label="Steer right">→</button></div>
+      <div class="touch-pedals"><button data-control="backward" aria-label="Reverse">↓</button><button data-control="brake" aria-label="Brake">■</button><button class="go" data-control="forward" aria-label="Drive forward">↑</button></div>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <footer id="welcome-footer"><span>GO SLOW. LOOK AROUND.</span><span>Made for the joy of getting a little lost <span class="footer-flower">✳</span></span></footer>
+    <dialog id="menu" aria-labelledby="menu-title">
+      <button id="close-menu" class="dialog-close" aria-label="Close menu">×</button>
+      <div class="eyebrow">NO RUSH, LITTLE EXPLORER</div>
+      <h2 id="menu-title">A moment in the meadow.</h2>
+      <p>Follow the trail or find your own way.<br>There are no races, timers, or wrong turns. Watch for wildlife, passing rain, and a sky that slowly changes.</p>
+      <p class="sky-help">The sun button lets you skip to sunset, night, rain, or daylight. Headlights turn on by themselves.</p>
+      <div class="control-list"><div><span>Go / reverse</span><span><kbd>↑</kbd> <kbd>↓</kbd> or <kbd>W</kbd> <kbd>S</kbd></span></div><div><span>Steer</span><span><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd></span></div><div><span>Brake</span><kbd>space</kbd></div><div><span>Return to meadow / saved camp</span><kbd>R</kbd></div><div><span>Friendly horn</span><kbd>H</kbd></div><div><span>Scrapbook / My car</span><span><kbd>B</kbd> / <kbd>C</kbd></span></div></div>
+      <div class="explorer-explanation"><strong>Small hands? Try Little explorer.</strong><p>Turn it on in the bottom corner. The car drives slowly by itself. You only need to steer! Hold brake to stop.</p></div>
+      <button id="resume" class="primary-button"><span>Back to the fresh air</span><span aria-hidden="true">↗</span></button>
+    </dialog>
+    <dialog id="adventure-dialog" class="adventure-dialog" aria-labelledby="adventure-title">
+      <button id="close-adventure" class="dialog-close" aria-label="Close adventure book">×</button>
+      <div class="eyebrow" id="adventure-eyebrow">LITTLE THINGS, LOVELY MEMORIES</div>
+      <h2 id="adventure-title">Our discovery scrapbook.</h2>
+      <div id="book-panel">
+        <p class="book-intro">Pictures from our wanderings. Find a little place, meet a new friend, keep a memory.</p>
+        <div class="book-tabs" role="group" aria-label="Scrapbook pages"><button data-page="places" aria-pressed="true">Places we found</button><button data-page="animals" aria-pressed="false">Friends we met</button></div>
+        <div id="sticker-grid" class="sticker-grid"></div>
+        <p class="book-footnote" id="save-note">Kept in this browser, ready for your next adventure.</p>
+      </div>
+      <div id="car-panel" hidden>
+        <div class="car-preview" aria-hidden="true"><svg viewBox="0 0 240 115"><path d="M14 103h212" stroke="#c1c9ac" stroke-width="2"/><g fill="var(--car-color)"><path d="M48 81V51h35V22h89l21 29h14v30z"/><path d="M28 55h60v27H28z"/></g><path d="M87 27h36v25H87zm42 0h38l16 25h-54z" fill="#85a9a8"/><path d="M81 21h95" stroke="#f5e9c9" stroke-width="8"/><path d="M24 83h189" stroke="#f5e9c9" stroke-width="8"/><circle cx="65" cy="87" r="19" fill="#3e4d41"/><circle cx="65" cy="87" r="10" fill="#eaddbb"/><circle cx="175" cy="87" r="19" fill="#3e4d41"/><circle cx="175" cy="87" r="10" fill="#eaddbb"/></svg><span id="decoration-preview"></span></div>
+        <fieldset><legend>A colour for your travels</legend><div id="color-options" class="color-options"></div></fieldset>
+        <fieldset><legend>A little travelling companion</legend><div class="choice-row"><button data-decoration="none" aria-pressed="true">Just us</button><button data-decoration="flag" aria-pressed="false">⚑ A flag</button><button data-decoration="teddy" aria-pressed="false">🧸 Teddy</button></div></fieldset>
+        <fieldset><legend>Your friendly hello <span>Tap to listen</span></legend><div class="choice-row horn-options"><button data-horn="beep" aria-pressed="true">Little beep</button><button data-horn="bicycle" aria-pressed="false">Bicycle bell</button><button data-horn="quack" aria-pressed="false">Quack!</button><button data-horn="twinkle" aria-pressed="false">Twinkle</button></div></fieldset>
+        <p class="book-footnote">Your car, just the way you like it. Saved as you choose.</p>
+      </div>
+    </dialog>
+    <section id="camp-evening" class="camp-evening" hidden aria-label="Evening at camp">
+      <span class="eyebrow">OUR LITTLE HOME UNDER THE STARS</span><h2>Stay a little longer.</h2><p>The fire is warm. Tomorrow can wait.</p><button id="next-outing" class="primary-button"><span>Start the next outing</span><span aria-hidden="true">↗</span></button><button id="camp-book" class="text-button">Look through our scrapbook</button>
+    </section>
+    <div id="error" class="error" hidden><h2>The mountains couldn’t load.</h2><p>This game needs a browser with WebGL graphics enabled. Try a current version of Chrome, Safari, or Firefox.</p><button onclick="location.reload()">Try again</button></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
