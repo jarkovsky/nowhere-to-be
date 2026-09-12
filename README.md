@@ -1,6 +1,18 @@
 # Little Wilds
 
-A small, peaceful browser driving game: one customisable off-roader, a low-poly alpine valley, pine woods, a lake, and a winding trail. Ducks cross the trail, sheep graze, deer wander, and a rabbit retreats to its burrow; a five-minute sky cycle brings sunset, stars, fireflies, and passing rain. Built for grown-ups and little explorers to take turns together.
+A calm, low-poly driving game that runs in the browser. I made it for my son and me to take turns exploring a mountain valley in a little off-roader. There are no installs, accounts, timers or scores, and nothing to win.
+
+![Little Wilds welcome screen over a low-poly alpine valley](screenshots/welcome.jpg)
+
+<p>
+  <img src="screenshots/meadow.jpg" width="32%" alt="Orange off-roader on the trail past sheep and deer">
+  <img src="screenshots/campsite.jpg" width="32%" alt="Night at the lakeside campsite with a fire and a waterfall">
+  <img src="screenshots/snow.jpg" width="32%" alt="Tire tracks in the snow near the mountain tunnel">
+</p>
+
+Follow the trail to a bridge, a waterfall, a mountain tunnel and a hidden campsite, collecting stickers for a scrapbook along the way. Sheep, deer, ducks and a rabbit live in the valley, and a five-minute sky cycle brings sunset, stars and passing rain. Drive with the keyboard, the on-screen touch buttons, or by tilting a phone or tablet like a steering wheel.
+
+Everything you see and hear is generated in code with Three.js and Web Audio. There are no model, texture or sound files.
 
 ## Run
 
@@ -73,13 +85,16 @@ Drive through the shallow puddles near the southern trail, crunchy autumn leaves
 
 - `src/main.js` — game loop, follow camera, UI, keyboard and pointer input.
 - `src/tilt.js` — optional sensor permission, screen-relative wheel angle, calibration, and steering smoothing.
+- `src/controls.js` — saved control preferences (cruise speed, tilt).
 - `src/driving.js` — renderer-independent driving and collision rules.
 - `src/terrain.js` — deterministic terrain, shared triangle interpolation, trail and spawn.
 - `src/world.js` — procedural landscape, instanced vegetation, lake and cabin.
 - `src/car.js` — original procedural off-roader model.
 - `src/suspension.js` — four-wheel ground contact, terrain pitch/roll, independent suspension.
 - `src/atmosphere.js` — day/night cycle, weather, stars, fireflies, headlights.
-- `src/wildlife.js` — occasional deer and rabbit encounters.
+- `src/habitats.js` — where the deer, ducks and rabbit live and the routes they walk.
+- `src/wildlife.js` — animal models and their walking, grazing and burrow animations.
+- `src/boundaries.js` — fence marking the edge of the valley.
 - `src/audio.js` — optional Web Audio engine, wind, surface sounds, and four friendly horns.
 - `src/discoveries.js` — landmark coordinates, bridge contact surface, and saved journal.
 - `src/landmarks.js` — bridge, mountain tunnel, waterfall, signs, camp, and fire.
@@ -88,4 +103,4 @@ Drive through the shallow puddles near the southern trail, crunchy autumn leaves
 - `src/style.css` — responsive game interface.
 - `tests/driving.test.js` — driving, rescue, collision, boundary and terrain checks.
 
-The supplied `visuals/` images are inspiration only and are not distributed as game assets. All game geometry is generated in code. This is a deliberately small first prototype: one local player, one landscape, arcade driving, and browser-local saved discoveries. WebGL is required; keyboard and touch are supported.
+This is a deliberately small first prototype: one local player, one landscape, arcade driving, and browser-local saved discoveries. WebGL is required; keyboard and touch are supported.
