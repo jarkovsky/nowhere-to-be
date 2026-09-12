@@ -11,7 +11,9 @@ export function stepDriving(state, input, dt, obstacles = []) {
   const rate = input.brake ? 7 : target === 0 ? 3.2 : 1.3;
   state.speed += (target - state.speed) * (1 - Math.exp(-rate * dt));
   if (Math.abs(state.speed) < .025) state.speed = 0;
-  const steer = Number(input.left || 0) - Number(input.right || 0);
+  // Touch/keyboard steering takes priority whenever either arrow is held.
+  const analog = Number.isFinite(input.tilt) ? Math.max(-1, Math.min(1, input.tilt)) : 0;
+  const steer = input.left || input.right ? Number(Boolean(input.left)) - Number(Boolean(input.right)) : analog;
   state.steering += (steer - state.steering) * (1 - Math.exp(-9 * dt));
   state.heading += state.steering * Math.min(Math.abs(state.speed) / 4, 1) * Math.sign(state.speed) * 1.15 * dt;
   const oldX = state.x, oldZ = state.z;

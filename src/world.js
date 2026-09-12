@@ -1,3 +1,5 @@
+import { habitatClearance } from './habitats.js';
+import { buildBoundary, boundaryClearance } from './boundaries.js';
 import * as THREE from 'three';
 import { WORLD_SIZE, SEGMENTS, CELL, heights, terrainHeight, LAKE, lakeDistance, randomGenerator, roadDistance, roadPoint, SPAWN } from './terrain.js';
 import { reservedScenery, buildLandmarks } from './landmarks.js';
@@ -62,7 +64,7 @@ export function buildWorld(scene) {
   const trees=[];
   for(let i=0;i<1900;i++){
     const x=(rand()-.5)*1000,z=(rand()-.5)*1000,d=Math.hypot(x,z);
-    if(reservedScenery(x,z)||d>490||d<30||lakeDistance(x,z)<1.28||roadDistance(x,z)<9||Math.hypot(x-SPAWN.x,z-SPAWN.z)<15)continue;
+    if(boundaryClearance(x,z)||habitatClearance(x,z)||reservedScenery(x,z)||d>490||d<30||lakeDistance(x,z)<1.28||roadDistance(x,z)<9||Math.hypot(x-SPAWN.x,z-SPAWN.z)<15)continue;
     if(Math.sin(x*.034)*Math.cos(z*.042)<-.28&&rand()<.9)continue;
     trees.push({x,z,y:terrainHeight(x,z),s: .65+rand()*1.0,rotation:rand()*Math.PI});
   }
@@ -80,7 +82,7 @@ export function buildWorld(scene) {
   const rocks=[];
   for(let i=0;i<290;i++){
     const x=(rand()-.5)*700,z=(rand()-.5)*700;
-    if(reservedScenery(x,z)||lakeDistance(x,z)<1.13||roadDistance(x,z)<7||Math.hypot(x-SPAWN.x,z-SPAWN.z)<12)continue;
+    if(boundaryClearance(x,z)||habitatClearance(x,z)||reservedScenery(x,z)||lakeDistance(x,z)<1.13||roadDistance(x,z)<7||Math.hypot(x-SPAWN.x,z-SPAWN.z)<12)continue;
     rocks.push({x,z,s:.5+rand()*2.4});
   }
   const rockMesh=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,0),mat('#999f88'),rocks.length);
@@ -98,5 +100,6 @@ export function buildWorld(scene) {
     const post=new THREE.Mesh(new THREE.BoxGeometry(.20,1.1,.20),postMat);post.position.set(x,terrainHeight(x,z)+.55,z);post.castShadow=true;scene.add(post);
   }
   const landmarks=buildLandmarks(scene,obstacles);
-  return { obstacles, ripples, landmarks };
+  const boundary=buildBoundary(scene);
+  return { obstacles, ripples, landmarks, boundary };
 }

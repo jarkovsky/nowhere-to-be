@@ -1,5 +1,6 @@
 // The rendered mesh and the car share this triangular height field.
 export const WORLD_SIZE = 1600;
+export const VALLEY_RADIUS = 355;
 export const SEGMENTS = 240;
 export const CELL = WORLD_SIZE / SEGMENTS;
 export const LAKE = { x: 93, z: -54, rx: 61, rz: 44, y: -2.2 };

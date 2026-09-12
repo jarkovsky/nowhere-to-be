@@ -22,6 +22,6 @@ export function createAudio() {
       else {note(523,now,.24,'triangle');note(659,now,.24,'triangle');}
     },
     surface(kind){if(!enabled||!context)return;const source=context.createBufferSource(),filter=context.createBiquadFilter(),gain=context.createGain();source.buffer=noise;filter.type='bandpass';filter.frequency.value=kind==='leaves'?2200:kind==='snow'?700:450;gain.gain.setValueAtTime(kind==='leaves'?.07:.045,context.currentTime);gain.gain.exponentialRampToValueAtTime(.001,context.currentTime+.17);source.connect(filter);filter.connect(gain);gain.connect(master);source.start();source.stop(context.currentTime+.18);source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};},
-    update(speed,active){if(context){engine.frequency.setTargetAtTime(40+Math.abs(speed)*5,context.currentTime,.1);engineGain.gain.setTargetAtTime(active?.035+Math.abs(speed)*.003:0,context.currentTime,.15);master.gain.setTargetAtTime(enabled&&active?.6:0,context.currentTime,.15);}},
+    update(speed,active,preview=false){if(context){engine.frequency.setTargetAtTime(40+Math.abs(speed)*5,context.currentTime,.1);engineGain.gain.setTargetAtTime(active?.035+Math.abs(speed)*.003:0,context.currentTime,.15);master.gain.setTargetAtTime(enabled&&(active||preview)?.6:0,context.currentTime,.15);}},
   };
 }

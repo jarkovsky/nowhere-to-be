@@ -1,7 +1,6 @@
 import * as THREE from 'three';
-import { terrainHeight, lakeDistance, randomGenerator } from './terrain.js';
-import { trailSite } from './discoveries.js';
-const rand=randomGenerator(7721);
+import { terrainHeight } from './terrain.js';
+import { HABITATS, BURROW, animalJourney } from './habitats.js';
 function animal(kind){
   const root=new THREE.Group(),body=new THREE.Group();root.add(body);
   const fur=new THREE.MeshStandardMaterial({color:kind==='deer'?'#ad8962':'#dfd3b6',roughness:1,flatShading:true});
@@ -34,59 +33,59 @@ function animal(kind){
   return {root,body,legs,kind};
 }
 export function createWildlife(scene,obstacles,onDiscovery,onSticker=()=>{}){
-  const animals=[animal('deer'),animal('deer'),animal('ducks'),animal('ducks'),animal('ducks'),animal('ducks')];
-  for(const a of animals){a.root.visible=false;scene.add(a.root);}
+  const groups=HABITATS.map(site=>({...site,walking:false,animals:Array.from({length:site.count},(_,i)=>{
+    const a=animal(site.kind);a.root.scale.setScalar(site.kind==='deer'&&i===1?.78:site.kind==='ducks'&&i>0?.55:1);scene.add(a.root);return a;
+  })}));
+  const animals=groups.flatMap(group=>group.animals);
   const sheep=Array.from({length:4},(_,i)=>{const a=animal('sheep');a.root.position.set(-47+i*3,terrainHeight(-47+i*3,91+i%2*4),91+i%2*4);a.root.rotation.y=i*.7;scene.add(a.root);return a;});
-  const rabbit=animal('rabbit'),burrow={x:-161,z:38};scene.add(rabbit.root);
-  const hole=new THREE.Mesh(new THREE.CircleGeometry(.9,18),new THREE.MeshStandardMaterial({color:'#3e3b30',side:THREE.DoubleSide}));hole.rotation.x=-Math.PI/2;hole.position.set(burrow.x,terrainHeight(burrow.x,burrow.z)+.1,burrow.z);scene.add(hole);
-  let rabbitPhase=0,rabbitWait=0,rabbitHidden=false;
-  let time=0,nextEncounter=7,encounter=0,active=null,seen=new Set();
-  function clearRoute(start,end){
-    for(let i=0;i<=16;i++){const t=i/16,x=start.x+(end.x-start.x)*t,z=start.z+(end.z-start.z)*t;if(lakeDistance(x,z)<1.28||Math.hypot(x,z)>345)return false;}
-    const dx=end.x-start.x,dz=end.z-start.z,den=dx*dx+dz*dz;
-    return !obstacles.some(o=>{const t=THREE.MathUtils.clamp(((o.x-start.x)*dx+(o.z-start.z)*dz)/den,0,1);return Math.hypot(o.x-start.x-dx*t,o.z-start.z-dz*t)<o.radius+.7;});
+  const rabbit=animal('rabbit');scene.add(rabbit.root);
+  const hole=new THREE.Mesh(new THREE.CircleGeometry(1.05,18),new THREE.MeshStandardMaterial({color:'#3e3b30',side:THREE.DoubleSide}));hole.rotation.x=-Math.PI/2;hole.position.set(BURROW.x,terrainHeight(BURROW.x,BURROW.z)+.1,BURROW.z);scene.add(hole);
+  let time=0,encounters=0,rabbitProgress=0,rabbitWait=0,rabbitReturning=false;
+  const seen=new Set();
+  function discover(kind){if(!seen.has(kind)){seen.add(kind);onSticker(kind);onDiscovery?.(kind);}}
+  function placeRabbit(){
+    const p=rabbitProgress,x=BURROW.x-7*(1-p),z=BURROW.z+2*(1-p);
+    const underground=THREE.MathUtils.smoothstep(p,.72,1);
+    rabbit.root.position.set(x,terrainHeight(x,z)+Math.abs(Math.sin(time*9))*.25*(1-underground)-underground*1.9,z);
+    rabbit.root.rotation.y=Math.atan2(2,7)+(rabbitReturning?Math.PI:0);
+    rabbit.body.rotation.z=-Math.sin(underground*Math.PI)*.3;
   }
-  function spawn(state){
-    for(let attempt=0;attempt<12;attempt++){
-      const heading=state.heading+(rand()-.5)*1.3,forward=23+rand()*15,side=attempt%2?-1:1,s=Math.sin(heading),c=Math.cos(heading);
-      const cx=state.x-s*forward,cz=state.z-c*forward;
-      const start={x:cx-c*23*side,z:cz+s*23*side},end={x:cx+c*23*side,z:cz-s*23*side};
-      if(!clearRoute(start,end))continue;
-      const kind=encounter++%2?'ducks':'deer';
-      active={kind,start,end,begin:time,duration:kind==='deer'?12:10};
-      
-      return;
-    }
+  function placeGroup(group){
+    const dx=group.end.x-group.start.x,dz=group.end.z-group.start.z;
+    const phase=animalJourney(time,group.wait,group.duration);
+    if(phase.walking&&!group.walking)encounters++;
+    group.walking=phase.walking;
+    group.animals.forEach((a,i)=>{
+      // Members keep their size and wait at the ends instead of vanishing.
+      const journey=animalJourney(Math.max(0,time-i*.65),group.wait,group.duration);
+      const x=group.start.x+dx*journey.progress,z=group.start.z+dz*journey.progress+i*.65;
+      a.root.position.set(x,terrainHeight(x,z)+(journey.walking?Math.abs(Math.sin(time*5-i))*.065:0),z);
+      a.root.rotation.y=Math.atan2(-dz,dx)+(journey.returning?Math.PI:0);
+      if(a.kind==='deer'){
+        a.legs.forEach((leg,j)=>leg.rotation.z=journey.walking?Math.sin(time*7+(j===0||j===3?0:Math.PI))*.42:0);
+        a.body.rotation.z=journey.walking?0:-.1+Math.sin(time*.8+i)*.04;
+      }else a.body.rotation.z=Math.sin(time*(journey.walking?7:1)+i)*(journey.walking?.1:.025);
+    });
   }
+  groups.forEach(placeGroup);placeRabbit();
   return {
-    getState:()=>({time,encounters:encounter,active:active?.kind??null,visible:animals.filter(a=>a.root.visible).length,sheep:sheep.length,rabbitHidden}),
+    getState:()=>({time,encounters,active:groups.find(g=>g.walking)?.kind??null,visible:animals.length,sheep:sheep.length,rabbitHidden:rabbitProgress>=1,rabbitProgress,
+      animals:animals.map(a=>({kind:a.kind,x:a.root.position.x,y:a.root.position.y,z:a.root.position.z,scale:a.root.scale.x,visible:a.root.visible})),
+      rabbit:{x:rabbit.root.position.x,y:rabbit.root.position.y,z:rabbit.root.position.z,scale:rabbit.root.scale.x}}),
     update(dt,state,playing){
       if(!playing)return;time+=dt;
-      for(const [i,a] of sheep.entries()){a.legs[0].rotation.z=-.3+Math.sin(time*1.2+i)*.22;a.root.position.y=terrainHeight(a.root.position.x,a.root.position.z)+Math.sin(time*1.5+i)*.025;if(Math.hypot(state.x-a.root.position.x,state.z-a.root.position.z)<24&&!seen.has('sheep')){seen.add('sheep');onSticker('sheep');}}
-      const near=Math.hypot(state.x-burrow.x,state.z-burrow.z)<25;
-      if(near&&!seen.has('rabbit')){seen.add('rabbit');onSticker('rabbit');}
-      if(near&&!rabbitHidden)rabbitPhase=Math.min(1,rabbitPhase+dt*.25);
-      if(rabbitPhase>=1){rabbitHidden=true;rabbitWait+=dt;if(!near&&rabbitWait>8){rabbitHidden=false;rabbitPhase=0;rabbitWait=0;}}
-      rabbit.root.visible=!rabbitHidden;
-      const rx=burrow.x-7*(1-rabbitPhase),rz=burrow.z+2*(1-rabbitPhase);rabbit.root.position.set(rx,terrainHeight(rx,rz)+Math.abs(Math.sin(time*9))*.3,rz);rabbit.root.rotation.y=Math.atan2(2,7);rabbit.root.scale.setScalar(Math.min(1,(1-rabbitPhase)*6));
-
-      if(!active&&time>=nextEncounter){spawn(state);nextEncounter=time+28+rand()*15;}
-      if(!active)return;
-      const {start,end,begin,duration,kind}=active,dx=end.x-start.x,dz=end.z-start.z;
-      let index=0;
-      for(const a of animals){
-        if(a.kind!==kind){a.root.visible=false;continue;}
-        const t=(time-begin-index*.65)/duration;index++;
-        a.root.visible=t>=0&&t<=1;if(!a.root.visible)continue;
-        const x=start.x+dx*t,z=start.z+dz*t;
-        if(Math.hypot(x-state.x,z-state.z)<30&&!seen.has(kind)){seen.add(kind);onDiscovery(kind==='deer'?'Some deer are out for a stroll.':'Make way for the ducklings!');onSticker(kind);}
-        const hop=kind==='rabbit'?Math.abs(Math.sin((time-begin)*7-index))*.30:Math.abs(Math.sin((time-begin)*5-index))*.065;
-        a.root.position.set(x,terrainHeight(x,z)+hop,z);a.root.rotation.y=Math.atan2(-dz,dx);
-        a.root.scale.setScalar(Math.min(1,t*8,(1-t)*8)*(kind==='deer'&&index===2?.78:kind==='ducks'&&index>1?.55:1));
-        if(kind==='deer')a.legs.forEach((leg,i)=>leg.rotation.z=Math.sin(time*7+(i===0||i===3?0:Math.PI))*.42);
-        else a.body.rotation.z=Math.sin(time*7)*.10;
+      for(const [i,a] of sheep.entries()){a.legs[0].rotation.z=-.3+Math.sin(time*1.2+i)*.22;a.root.position.y=terrainHeight(a.root.position.x,a.root.position.z)+Math.sin(time*1.5+i)*.025;if(Math.hypot(state.x-a.root.position.x,state.z-a.root.position.z)<24)discover('sheep');}
+      const distance=Math.hypot(state.x-BURROW.x,state.z-BURROW.z),near=distance<25;
+      if(near&&rabbitProgress<.95)discover('rabbit');
+      if(near){rabbitReturning=false;rabbitWait=0;rabbitProgress=Math.min(1,rabbitProgress+dt*.25);}
+      else if(rabbitProgress>0){
+        rabbitWait+=dt;
+        if(distance>32&&rabbitWait>8)rabbitReturning=true;
+        if(rabbitReturning)rabbitProgress=Math.max(0,rabbitProgress-dt*.25);
       }
-      if(time-begin>duration+2){active=null;for(const a of animals)a.root.visible=false;}
+      placeRabbit();
+      groups.forEach(placeGroup);
+      for(const a of animals)if(Math.hypot(state.x-a.root.position.x,state.z-a.root.position.z)<30)discover(a.kind);
     }
   };
 }

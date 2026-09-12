@@ -11,37 +11,56 @@ import { createWildlife } from './wildlife.js';
 import { createSurfaces } from './surfaces.js';
 import { createJournal, STICKERS, PLACES, CAMP, COLORS, TUNNEL, SURFACES, drivingHeight } from './discoveries.js';
 import { stickerArt } from './stickers.js';
+import { createTiltSteering } from './tilt.js';
 
 const $=id=>document.getElementById(id);
 const state=createCarState(), keys=new Set(), pointers=new Map();
 let atmosphere,wildlife,surfaces;
 let storage;try{storage=window.localStorage;}catch{/* Private browsing: session memories still work. */}
 const journal=createJournal(storage);
-let camping=false,bookPage='places',hintTime=0;
+let camping=false,bookPage='places',adventureFromMenu=false;
 if(journal.get().camp)Object.assign(state,CAMP);
 
-let started=false, paused=false, explorer=false, renderer, scene, camera, car, world, lastTime=0, toastTimer, elapsed=0, borderMessageAt=-10;
+let started=false, paused=false, explorer=false, renderer, scene, camera, car, world, lastTime=0, elapsed=0;
 const sound=createAudio();
 const menu=$('menu');
-function toast(message){$('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),4200);}
-function clearInput(){keys.clear();pointers.clear();document.querySelectorAll('[data-control]').forEach(b=>b.classList.remove('pressed'));}
-function openMenu(){if(adventure.open)return;clearInput();paused=true;state.speed=0;if(!menu.open)menu.showModal();}
-function closeMenu(){menu.close();paused=false;clearInput();}
-function goHome(){camping=false;document.body.classList.remove('camping');$('camp-evening').hidden=true;resetCar(state);if(journal.get().camp)Object.assign(state,CAMP);clearInput();if(camera){updateCar(0);snapCamera();}toast(journal.get().camp?'Back at our campsite. Ready for another wander?':'Back in the meadow. A new little adventure?');}
-$('start').addEventListener('click',()=>{
-  started=true;document.body.classList.add('playing');$('welcome').hidden=true;$('welcome-footer').hidden=true;$('landscape-caption').hidden=true;$('hud').hidden=false;$('touch-controls').hidden=false;$('pause').disabled=false;
-  $('start').blur();clearInput();toast(matchMedia('(pointer:coarse)').matches?'Hold ↑ to go. Hold an arrow to steer.':'Use the arrow keys or WASD. Let go to slow down.');
+const tilt=createTiltSteering(window,updateTiltUI);
+function updateTiltUI(info){
+  $('tilt-toggle').setAttribute('aria-pressed',String(info.enabled));
+  $('tilt-toggle').disabled=info.pending;
+  $('tilt-caption').textContent={off:'Off · turn your device to steer',permission:'Allow motion access…',waiting:'Hold like a wheel. Finding center…',centering:'Hold comfortably. Finding center…',ready:'On · turn gently left or right',upright:'Lift the screen a little to steer',insecure:'Needs a secure HTTPS game link',unsupported:'Motion isn’t supported here',denied:'Motion access was not allowed',unavailable:'No motion readings. Try again.'}[info.status];
+  $('tilt-center').hidden=!info.enabled;
+  if(['insecure','unsupported','denied','unavailable'].includes(info.status)){
+    state.speed=0;clearInput();
+    reportIssue({insecure:'Tilt needs HTTPS. Open a secure game link; arrow controls still work here.',unsupported:'This device has no available motion controls. You can use the arrows.',denied:'Motion access wasn’t allowed. You can try again or use the arrows.',unavailable:'No motion readings arrived. Try Tilt steering again, or use the arrows.'}[info.status]);
+  }
+}
+$('tilt-toggle').addEventListener('click',()=>{
+  clearInput();state.speed=0;state.steering=0;$('menu-feedback').hidden=true;
+  if(tilt.getState().enabled)tilt.disable();else tilt.enable();
+  $('tilt-toggle').blur();
 });
-$('explorer').addEventListener('click',()=>{explorer=!explorer;$('explorer').setAttribute('aria-pressed',String(explorer));$('mode-caption').textContent=explorer?'Auto-drive on · just steer':'Auto-drive off';$('explorer').blur();toast(explorer?'Little explorer is on. Just steer! Hold brake to stop.':'You’re in the driving seat. Hold ↑ to go.');});
-$('sky').addEventListener('click',()=>{const preset=atmosphere?.cycle();if(!preset)return;$('sky').setAttribute('aria-label',`Change sky (currently ${preset})`);toast(preset==='automatic'?'Let the sky wander. Day, dusk, and night will pass.':{sunset:'A golden evening in the valley.',night:'Stars above. Headlights on. Look out for fireflies.',rain:'Just a little passing rain.',day:'Hello again, sunshine.'}[preset]);$('sky').blur();});
-$('home').addEventListener('click',()=>{goHome();$('home').blur();});
-$('help').addEventListener('click',openMenu);$('pause').addEventListener('click',openMenu);$('close-menu').addEventListener('click',closeMenu);$('resume').addEventListener('click',closeMenu);
+$('tilt-center').addEventListener('click',()=>{clearInput();state.steering=0;tilt.center();$('tilt-center').blur();});
+function reportIssue(message){$('menu-feedback').textContent=message;$('menu-feedback').hidden=false;}
+function clearInput(){tilt.center();keys.clear();pointers.clear();document.querySelectorAll('[data-control]').forEach(b=>b.classList.remove('pressed'));}
+function openMenu(){if(!started||adventure.open)return;clearInput();paused=true;state.speed=0;$('camp-action').hidden=camping||Math.hypot(state.x-CAMP.x,state.z-CAMP.z)>20;$('camp-evening').hidden=!camping;$('pause').setAttribute('aria-expanded','true');if(!menu.open)menu.showModal();}
+
+function closeMenu(){menu.close();paused=false;clearInput();$('pause').setAttribute('aria-expanded','false');}
+function goHome(){camping=false;document.body.classList.remove('camping');$('camp-evening').hidden=true;resetCar(state);if(journal.get().camp)Object.assign(state,CAMP);clearInput();if(camera){updateCar(0);snapCamera();}}
+$('start').addEventListener('click',()=>{
+  started=true;document.body.classList.add('playing');$('welcome').hidden=true;$('welcome-footer').hidden=true;$('landscape-caption').hidden=true;$('touch-controls').hidden=false;$('pause').hidden=false;
+  $('start').blur();clearInput();
+});
+$('explorer').addEventListener('click',()=>{explorer=!explorer;$('explorer').setAttribute('aria-pressed',String(explorer));$('mode-caption').textContent=explorer?'Auto-drive on · just steer':'Auto-drive off';$('explorer').blur();});
+$('sky').addEventListener('click',()=>{const preset=atmosphere?.cycle();if(preset)$('sky').setAttribute('aria-label',`Change sky (currently ${preset})`);$('sky').blur();});
+$('home').addEventListener('click',()=>{goHome();closeMenu();});
+$('pause').addEventListener('click',openMenu);$('close-menu').addEventListener('click',closeMenu);$('resume').addEventListener('click',closeMenu);
 menu.addEventListener('cancel',e=>{e.preventDefault();closeMenu();});
 menu.addEventListener('click',e=>{if(e.target===menu){const r=menu.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeMenu();}});
-$('sound').addEventListener('click',async()=>{try{const enabled=await sound.toggle();$('sound').setAttribute('aria-pressed',String(enabled));$('sound').setAttribute('aria-label',enabled?'Turn sound off':'Turn sound on');$('sound-waves').setAttribute('d',enabled?'M15 8c3 2 3 6 0 8m3-11c5 4 5 10 0 14':'m16 9 6 6m0-6-6 6');$('sound').blur();}catch{toast('Sound is unavailable in this browser. You can still explore.');}});
+$('sound').addEventListener('click',async()=>{try{const enabled=await sound.toggle();$('sound').setAttribute('aria-pressed',String(enabled));$('sound').setAttribute('aria-label',enabled?'Turn sound off':'Turn sound on');$('sound-waves').setAttribute('d',enabled?'M15 8c3 2 3 6 0 8m3-11c5 4 5 10 0 14':'m16 9 6 6m0-6-6 6');$('sound').blur();}catch{reportIssue('Sound is unavailable in this browser.');}});
 const adventure=$('adventure-dialog');
-function saveChoices(patch){const saved=journal.save(patch);if(!saved)toast('We’ll keep these memories for this outing. Browser saving is unavailable.');renderChoices();}
-function discover(id){if(!journal.discover(id))return;const sticker=STICKERS.find(s=>s.id===id);$('sticker-count').textContent=`${journal.get().found.length} / ${STICKERS.length}`;toast(`${sticker.icon} ${sticker.name} — a new sticker for our scrapbook!`);}
+function saveChoices(patch){const saved=journal.save(patch);if(!saved)reportIssue('We’ll keep these memories for this outing. Browser saving is unavailable.');renderChoices();}
+function discover(id){if(!journal.discover(id))return;$('sticker-count').textContent=`${journal.get().found.length} / ${STICKERS.length}`;}
 function renderBook(){
   const found=journal.get().found;
   $('sticker-grid').innerHTML=STICKERS.filter(s=>bookPage==='places'?PLACES.some(p=>p.id===s.id):!PLACES.some(p=>p.id===s.id)).map(s=>{const unlocked=found.includes(s.id);return `<article class="sticker-card ${unlocked?'':'locked'}">${unlocked?`<span class="found-tag">FOUND TOGETHER</span>${stickerArt(s.id)}`:'<div class="unfound-picture" aria-hidden="true">?</div>'}<strong>${s.name}</strong><p>${unlocked?s.story:s.hint}</p></article>`;}).join('');
@@ -52,22 +71,22 @@ function renderChoices(){
   document.querySelector('.car-preview').style.setProperty('--car-color',COLORS[choices.color]);$('decoration-preview').textContent={none:'',flag:'⚑',teddy:'🧸'}[choices.decoration];
   for(const type of ['color','decoration','horn'])document.querySelectorAll(`[data-${type}]`).forEach(b=>{const active=b.dataset[type]===choices[type];b.setAttribute('aria-pressed',String(active));if(type==='color')b.textContent=active?'✓':'';});
   $('sticker-count').textContent=`${choices.found.length} / ${STICKERS.length}`;
-  $('home').querySelector('span').textContent=choices.camp?'Back to our campsite':'Back to the meadow';$('home').title=choices.camp?'Back to our campsite (R)':'Back to the meadow (R)';
+  $('home').querySelector('span').textContent=choices.camp?'Back to our campsite':'Back to the meadow';
 }
-function openAdventure(panel){clearInput();paused=true;state.speed=0;$('book-panel').hidden=panel!=='book';$('car-panel').hidden=panel!=='car';$('adventure-title').textContent=panel==='book'?'Our discovery scrapbook.':'A car that feels like us.';$('adventure-eyebrow').textContent=panel==='book'?'LITTLE THINGS, LOVELY MEMORIES':'PACK A LITTLE PERSONALITY';renderBook();renderChoices();if(!adventure.open)adventure.showModal();}
-function closeAdventure(){adventure.close();paused=false;clearInput();}
+function openAdventure(panel){adventureFromMenu=menu.open;if(menu.open)menu.close();$('pause').setAttribute('aria-expanded','true');clearInput();paused=true;state.speed=0;$('book-panel').hidden=panel!=='book';$('car-panel').hidden=panel!=='car';$('adventure-title').textContent=panel==='book'?'Our discovery scrapbook.':'A car that feels like us.';$('adventure-eyebrow').textContent=panel==='book'?'LITTLE THINGS, LOVELY MEMORIES':'PACK A LITTLE PERSONALITY';renderBook();renderChoices();if(!adventure.open)adventure.showModal();}
+function closeAdventure(){adventure.close();if(adventureFromMenu)openMenu();else{paused=false;clearInput();$('pause').setAttribute('aria-expanded','false');}}
 $('close-adventure').addEventListener('click',closeAdventure);adventure.addEventListener('cancel',e=>{e.preventDefault();closeAdventure();});
 $('scrapbook').addEventListener('click',()=>openAdventure('book'));$('camp-book').addEventListener('click',()=>openAdventure('book'));$('customize').addEventListener('click',()=>openAdventure('car'));
 for(const button of document.querySelectorAll('[data-page]'))button.addEventListener('click',()=>{bookPage=button.dataset.page;document.querySelectorAll('[data-page]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));renderBook();});
 $('color-options').innerHTML=Object.entries(COLORS).map(([name,color])=>`<button data-color="${name}" style="--swatch:${color}" aria-label="${name[0].toUpperCase()+name.slice(1)} car" aria-pressed="false"></button>`).join('');
 for(const type of ['color','decoration','horn'])for(const button of document.querySelectorAll(`[data-${type}]`))button.addEventListener('click',()=>{saveChoices({[type]:button.dataset[type]});if(type==='horn')honk();});
-async function honk(){try{await sound.horn(journal.get().horn);$('sound').setAttribute('aria-pressed','true');$('sound').setAttribute('aria-label','Turn sound off');$('sound-waves').setAttribute('d','M15 8c3 2 3 6 0 8m3-11c5 4 5 10 0 14');}catch{toast('Sound is unavailable in this browser.');}}
+async function honk(){try{await sound.horn(journal.get().horn);$('sound').setAttribute('aria-pressed','true');$('sound').setAttribute('aria-label','Turn sound off');$('sound-waves').setAttribute('d','M15 8c3 2 3 6 0 8m3-11c5 4 5 10 0 14');}catch{reportIssue('Sound is unavailable in this browser.');}}
 $('horn').addEventListener('click',()=>{honk();$('horn').blur();});
 $('camp-action').addEventListener('click',()=>{
   if(Math.hypot(state.x-CAMP.x,state.z-CAMP.z)>20||Math.abs(state.speed)>.8)return;
-  camping=true;state.speed=0;clearInput();Object.assign(state,CAMP);updateCar(0);discover('campsite');saveChoices({camp:true});atmosphere.setPreset('night');$('sky').setAttribute('aria-label','Change sky (currently night)');document.body.classList.add('camping');$('camp-evening').hidden=false;$('camp-action').hidden=true;snapCamera();
+  camping=true;state.speed=0;clearInput();Object.assign(state,CAMP);updateCar(0);discover('campsite');saveChoices({camp:true});atmosphere.setPreset('night');$('sky').setAttribute('aria-label','Change sky (currently night)');document.body.classList.add('camping');$('camp-evening').hidden=false;$('camp-action').hidden=true;snapCamera();closeMenu();
 });
-$('next-outing').addEventListener('click',()=>{goHome();atmosphere.setPreset('day');$('sky').setAttribute('aria-label','Change sky (currently day)');toast('A fresh morning. Which way shall we wander?');});
+$('next-outing').addEventListener('click',()=>{goHome();atmosphere.setPreset('day');$('sky').setAttribute('aria-label','Change sky (currently day)');closeMenu();});
 renderChoices();
 const controlCodes=['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD','Space'];
 window.addEventListener('keydown',e=>{
@@ -81,14 +100,14 @@ window.addEventListener('keydown',e=>{
   if(controlCodes.includes(e.code)){e.preventDefault();keys.add(e.code);}
 });
 window.addEventListener('keyup',e=>keys.delete(e.code));
-window.addEventListener('blur',()=>{clearInput();if(started)openMenu();});
-document.addEventListener('visibilitychange',()=>{if(document.hidden){clearInput();if(started)openMenu();}});
+window.addEventListener('blur',()=>{clearInput();tilt.suspend();if(started&&!tilt.getState().pending)openMenu();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){clearInput();tilt.suspend();if(started)openMenu();}});
 for(const button of document.querySelectorAll('[data-control]')){
   button.addEventListener('pointerdown',e=>{e.preventDefault();if(paused||!started||camping)return;button.setPointerCapture(e.pointerId);pointers.set(e.pointerId,button.dataset.control);button.classList.add('pressed');});
   const release=e=>{pointers.delete(e.pointerId);if(![...pointers.values()].includes(button.dataset.control))button.classList.remove('pressed');};
   button.addEventListener('pointerup',release);button.addEventListener('pointercancel',release);button.addEventListener('lostpointercapture',release);button.addEventListener('contextmenu',e=>e.preventDefault());
 }
-function input(){const touch=new Set(pointers.values());return {forward:keys.has('ArrowUp')||keys.has('KeyW')||touch.has('forward'),backward:keys.has('ArrowDown')||keys.has('KeyS')||touch.has('backward'),left:keys.has('ArrowLeft')||keys.has('KeyA')||touch.has('left'),right:keys.has('ArrowRight')||keys.has('KeyD')||touch.has('right'),brake:keys.has('Space')||touch.has('brake'),explorer};}
+function input(){const touch=new Set(pointers.values()),motion=tilt.getState();return {forward:keys.has('ArrowUp')||keys.has('KeyW')||touch.has('forward'),backward:keys.has('ArrowDown')||keys.has('KeyS')||touch.has('backward'),left:keys.has('ArrowLeft')||keys.has('KeyA')||touch.has('left'),right:keys.has('ArrowRight')||keys.has('KeyD')||touch.has('right'),brake:keys.has('Space')||touch.has('brake')||motion.pending||(motion.enabled&&!motion.ready),tilt:motion.steering,explorer};}
 const look=new THREE.Vector3(),desiredCamera=new THREE.Vector3();
 let cameraHeading=SPAWN.heading;
 function cameraGoal(){
@@ -110,27 +129,25 @@ function resize(){if(!renderer)return;renderer.setPixelRatio(Math.min(devicePixe
 function frame(time){
   requestAnimationFrame(frame);
   const dt=Math.min((time-lastTime)/1000||0,.05);lastTime=time;elapsed+=dt;
+  tilt.update(dt,started&&!paused&&!camping);
+  $('tilt-toggle').style.setProperty('--wheel-turn',`${-tilt.getState().steering*35}deg`);
   if(started&&!paused&&!camping){
-    const blocked=stepDriving(state,input(),dt,world.obstacles);
-    if(blocked&&elapsed-borderMessageAt>7){toast('A little edge of the world. Reverse and find another path.');borderMessageAt=elapsed;}
+    stepDriving(state,input(),dt,world.obstacles);
     updateCar(dt);
     cameraHeading+=Math.atan2(Math.sin(state.heading-cameraHeading),Math.cos(state.heading-cameraHeading))*(1-Math.exp(-2.4*dt));
-    $('speed').textContent=Math.round(Math.abs(state.speed)*3.6);$('distance').textContent=Math.round(state.distance);
   }
   cameraGoal();camera.position.lerp(desiredCamera,1-Math.exp(-3*dt));camera.lookAt(look);
   const active=started&&!paused;
   world.landmarks.update(dt,!paused);car.animate(elapsed);surfaces.update(dt,state,active&&!camping);
   if(active&&!camping){
     for(const place of PLACES)if(Math.hypot(state.x-place.x,state.z-place.z)<place.radius)discover(place.id);
-    const nearCamp=Math.hypot(state.x-CAMP.x,state.z-CAMP.z)<20;
-    $('camp-action').hidden=!nearCamp;$('camp-action').disabled=Math.abs(state.speed)>.8;$('camp-action').textContent=Math.abs(state.speed)>.8?'Slow down to settle in…':'⛺ Park & watch the stars';
-    hintTime+=dt;if(hintTime>.5){hintTime=0;const next=PLACES.filter(p=>!journal.get().found.includes(p.id)).sort((a,b)=>Math.hypot(state.x-a.x,state.z-a.z)-Math.hypot(state.x-b.x,state.z-b.z))[0];$('trail-note').textContent=next?`${next.icon} ${next.name} · ${Math.round(Math.hypot(state.x-next.x,state.z-next.z))} m to wander`:'Every place holds a memory. Shall we visit camp?';}
+
   }
-  const weatherLabel=atmosphere.update(dt,state,started&&!paused);$('sky').title=weatherLabel+' · click to change the sky';
+  atmosphere.update(dt,state,started&&!paused);
   document.body.classList.toggle('night',atmosphere.getState().day<.4);
   wildlife.update(dt,state,started&&!paused);
   sun.target.position.set(state.x,0,state.z);sun.target.updateMatrixWorld();
-  sound.update(state.speed,started&&(!paused||adventure.open)&&!document.hidden);
+  sound.update(state.speed,started&&!paused&&!document.hidden,(menu.open||adventure.open)&&!document.hidden);
   world.ripples.forEach((r,i)=>{r.scale.x=1+Math.sin(elapsed*.35+i)*.14;});
   if(!document.hidden)renderer.render(scene,camera);
 }
@@ -143,11 +160,11 @@ try{
   camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,.5,1800);
   const ambient=new THREE.HemisphereLight('#eef5ee','#788567',1.8);scene.add(ambient);
   sun=new THREE.DirectionalLight('#fff0cc',2.4);sun.position.set(-90,160,-85);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-90;sun.shadow.camera.right=90;sun.shadow.camera.top=90;sun.shadow.camera.bottom=-90;sun.shadow.camera.near=1;sun.shadow.camera.far=450;sun.shadow.normalBias=.07;sun.shadow.bias=-.00015;scene.add(sun);scene.add(sun.target);
-  world=buildWorld(scene);car=createCar();scene.add(car.root);atmosphere=createAtmosphere(scene,sun,ambient,car);wildlife=createWildlife(scene,world.obstacles,toast,discover);surfaces=createSurfaces(scene,sound,toast);renderChoices();updateCar(0);resize();snapCamera();
+  world=buildWorld(scene);car=createCar();scene.add(car.root);atmosphere=createAtmosphere(scene,sun,ambient,car);wildlife=createWildlife(scene,world.obstacles,()=>{},discover);surfaces=createSurfaces(scene,sound,()=>{});renderChoices();updateCar(0);resize();snapCamera();
   $('start-label').textContent='Let’s wander';$('start').disabled=false;
   window.addEventListener('resize',resize);
   $('world').addEventListener('webglcontextlost',e=>{e.preventDefault();paused=true;clearInput();$('error').hidden=false;});
   requestAnimationFrame(frame);
   // Development-only scene traversal and diagnostics for browser smoke tests.
-  if(import.meta.env.DEV)window.__littleWilds={getObstacles:()=>world.obstacles.map(o=>({...o})),visit:(id)=>{const p=[...PLACES,...SURFACES].find(p=>p.id===id);if(p){Object.assign(state,{x:p.x-(id==='waterfall'?16:0),z:p.z,speed:0,heading:id==='waterfall'?-Math.PI/2:p.dx!==undefined?Math.atan2(-p.dx,-p.dz):state.heading});updateCar(0);snapCamera();}},getState:()=>({...state,started,paused,explorer,carHeight:car.root.position.y,groundHeight:terrainHeight(state.x,state.z),input:input(),atmosphere:atmosphere.getState(),wildlife:wildlife.getState(),render:renderer.info.render,camping,journal:journal.get(),surfaces:surfaces.getState()})};
+  if(import.meta.env.DEV)window.__littleWilds={getObstacles:()=>world.obstacles.map(o=>({...o})),visit:(id)=>{const p=[...PLACES,...SURFACES].find(p=>p.id===id);if(p){Object.assign(state,{x:p.x-(id==='waterfall'?16:0),z:p.z,speed:0,heading:id==='waterfall'?-Math.PI/2:p.dx!==undefined?Math.atan2(-p.dx,-p.dz):state.heading});updateCar(0);snapCamera();}},getState:()=>({...state,started,paused,explorer,carHeight:car.root.position.y,groundHeight:terrainHeight(state.x,state.z),input:input(),atmosphere:atmosphere.getState(),wildlife:wildlife.getState(),render:renderer.info.render,camping,journal:journal.get(),surfaces:surfaces.getState(),tilt:tilt.getState()})};
 }catch(error){console.error(error);$('error').hidden=false;}

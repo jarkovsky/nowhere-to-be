@@ -9,7 +9,9 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "node --test tests/*.test.js",
     "test:browser": "node tests/browser.mjs",
-    "test:adventures": "node tests/adventures-browser.mjs"
+    "test:adventures": "node tests/adventures-browser.mjs",
+    "test:tilt": "node tests/tilt-browser.mjs",
+    "test:quiet": "node tests/quiet-browser.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"
