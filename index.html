@@ -3,86 +3,169 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#e8e5d6" />
-    <meta name="description" content="A little car. A big outdoors. A peaceful, playful mountain driving adventure for explorers of every age." />
+    <meta name="theme-color" content="#dce5da" />
+    <meta
+      name="description"
+      content="A relaxed low-poly driving game in the browser. Explore a mountain valley at your own pace."
+    />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <title>Nowhere to Be — take the scenic route</title>
+    <title>Nowhere to Be</title>
   </head>
   <body>
-    <canvas id="world" aria-label="Your little car in an alpine valley"></canvas>
-    <div class="vignette" aria-hidden="true"></div>
-    <header class="header">
-      <a class="wordmark" href="./" aria-label="Nowhere to Be home"><svg viewBox="0 0 42 30" aria-hidden="true"><path d="M2 26 15 5l8 13 5-9 12 17H2Z"/><path d="m10 13 5 3 4-4"/></svg><span>nowhere to be</span></a>
-      <div class="location"><span class="live-dot"></span> ALPINE VALLEY <span class="location-separator">/</span> FREE ROAM</div>
-      <button id="pause" class="menu-toggle" aria-label="Open game menu" aria-haspopup="dialog" aria-controls="menu" aria-expanded="false" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button>
-    </header>
-    <main id="welcome" class="welcome">
-      <div class="eyebrow"><span></span> A SMALL ADVENTURE</div>
-      <h1>A little car.<br>A big <em>outdoors.</em></h1>
-      <p>Nowhere to be. Nothing to beat.<br>Just you, the mountains, and the scenic route.</p>
-      <button id="start" class="primary-button" disabled><span id="start-label">Growing the mountains…</span><span aria-hidden="true">↗</span></button>
-      <div class="welcome-note"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m3 11 4 4 10-10"/></svg> For little explorers & grown-up daydreamers</div>
-    </main>
-    <div class="landscape-caption" id="landscape-caption"><span>01 / YOUR FIRST ADVENTURE</span><strong>The long way home.</strong><span>A little room to wander.</span></div>
-    <div id="touch-controls" class="touch-controls" hidden aria-label="Touch driving controls">
-      <div class="touch-steering"><button data-control="left" aria-label="Steer left">←</button><button data-control="right" aria-label="Steer right">→</button></div>
-      <div class="touch-pedals"><button data-control="backward" aria-label="Reverse">↓</button><button data-control="brake" aria-label="Brake">■</button><button class="go" data-control="forward" aria-label="Drive forward">↑</button></div>
-    </div>
-    <footer id="welcome-footer"><span>GO SLOW. LOOK AROUND.</span><span>Made for the joy of getting a little lost <span class="footer-flower">✳</span></span></footer>
-    <dialog id="menu" class="game-menu" aria-labelledby="menu-title">
-      <button id="close-menu" class="dialog-close" aria-label="Close menu">×</button>
-      <div class="eyebrow">NOWHERE TO BE</div>
-      <h2 id="menu-title">A little pause.</h2>
-      <div class="menu-driving">
-        <button id="explorer" class="explorer-button" aria-pressed="false"><span class="mode-icon">✳</span><span><strong>Little explorer</strong><small id="mode-caption">Auto-drive off</small></span><span class="switch" aria-hidden="true"></span></button>
-        <div class="tilt-controls">
-          <button id="tilt-toggle" class="tilt-toggle" aria-pressed="false" aria-describedby="tilt-caption"><svg class="tilt-wheel" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12"/><circle cx="16" cy="16" r="3"/><path d="m5 12 8 3m14-3-8 3m-3 4v9"/></svg><span><strong>Tilt steering</strong><small id="tilt-caption">Off · turn your device to steer</small></span><span class="switch" aria-hidden="true"></span></button>
-          <button id="tilt-center" class="tilt-center" hidden>Center steering</button>
-        </div>
-        <button id="home" class="home-button"><svg viewBox="0 0 24 24"><path d="m3 11 9-8 9 8M6 9v12h12V9M10 21v-7h4v7"/></svg><span>Back to the meadow</span><kbd>R</kbd></button>
-      </div>
-      <div class="menu-actions" aria-label="Your adventure">
-        <button id="scrapbook"><span aria-hidden="true">▤</span> Scrapbook <small id="sticker-count">0 / 8</small></button>
-        <button id="customize"><span aria-hidden="true">✿</span> My car</button>
-        <button id="horn" aria-label="Play friendly horn (H)"><span aria-hidden="true">♫</span> Beep <kbd>H</kbd></button>
-      </div>
-      <div class="menu-utilities">
-        <button id="sky" class="icon-button" aria-label="Change sky (currently automatic)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><span>Sky</span></button>
-        <button id="sound" class="icon-button" aria-label="Turn sound on" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path id="sound-waves" d="m16 9 6 6m0-6-6 6"/></svg><span>Sound</span></button>
-      </div>
-      <button id="camp-action" class="menu-camp" hidden>⛺ Park &amp; watch the stars</button>
-    <section id="camp-evening" class="menu-evening" hidden aria-label="Evening at camp">
-      <button id="next-outing" class="primary-button"><span>Start the next outing</span><span aria-hidden="true">↗</span></button><button id="camp-book" class="text-button">Look through our scrapbook</button>
-    </section>
+    <canvas id="world" aria-label="A little car in a mountain valley"></canvas>
+    <div class="shade" aria-hidden="true"></div>
 
-      <p id="menu-feedback" class="menu-feedback" role="status" hidden></p>
-      <details class="menu-help"><summary>How to play</summary>
-        <p>Arrow keys or WASD to drive. Space to brake. R to return home. H for a friendly horn. B opens the scrapbook and C opens car choices.</p>
-        <p>For tilt steering, hold your phone or tablet like a wheel, turn on Tilt steering, and allow motion access. Use Center steering to adjust your grip. Tilt needs an HTTPS game link.</p>
-        <p>Little explorer is gentle cruise control. You steer; the car drives itself. Hold brake to stop.</p>
-        <p>Discoveries quietly appear in your scrapbook. To stay at camp, open this menu when you’re beside the campsite.</p>
-      </details>
-      <button id="resume" class="primary-button"><span>Back to the fresh air</span><span aria-hidden="true">↗</span></button>
-    </dialog>
-    <dialog id="adventure-dialog" class="adventure-dialog" aria-labelledby="adventure-title">
-      <button id="close-adventure" class="dialog-close" aria-label="Close adventure book">×</button>
-      <div class="eyebrow" id="adventure-eyebrow">LITTLE THINGS, LOVELY MEMORIES</div>
-      <h2 id="adventure-title">Our discovery scrapbook.</h2>
-      <div id="book-panel">
-        <p class="book-intro">Pictures from our wanderings. Find a little place, meet a new friend, keep a memory.</p>
-        <div class="book-tabs" role="group" aria-label="Scrapbook pages"><button data-page="places" aria-pressed="true">Places we found</button><button data-page="animals" aria-pressed="false">Friends we met</button></div>
+    <main id="title-screen" class="title-screen">
+      <h1>Nowhere <em>to be</em></h1>
+      <button id="play" class="button primary" disabled>Loading…</button>
+      <p id="title-hint" class="title-hint">Arrow keys or WASD to drive</p>
+    </main>
+
+    <div id="hud" class="hud" hidden>
+      <button id="pause" class="round-button" aria-label="Pause" aria-haspopup="dialog" aria-controls="menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12" /></svg>
+      </button>
+      <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+      <button id="wake" class="button wake" hidden>Wake up</button>
+    </div>
+
+    <div id="touch-controls" class="touch-controls" hidden>
+      <div class="touch-steer">
+        <button data-control="left" aria-label="Steer left">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg>
+        </button>
+        <button data-control="right" aria-label="Steer right">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg>
+        </button>
+      </div>
+      <div class="touch-pedals">
+        <button data-action="horn" class="horn" aria-label="Horn">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 10v4h3l5 4V6L7 10H4Zm12-1a4 4 0 0 1 0 6m2-9a8 8 0 0 1 0 12" />
+          </svg>
+        </button>
+        <button data-control="backward" aria-label="Brake and reverse">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 10 6 6 6-6" /></svg>
+        </button>
+        <button data-control="forward" class="gas" aria-label="Drive">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6" /></svg>
+        </button>
+      </div>
+    </div>
+
+    <dialog id="menu" class="menu" aria-labelledby="menu-title">
+      <section class="menu-page" data-page="main">
+        <h2 id="menu-title" tabindex="-1">Paused</h2>
+        <button id="resume" class="button primary">Resume</button>
+        <ul class="menu-list">
+          <li>
+            <button data-open="scrapbook">Scrapbook <span id="sticker-count" class="value">0 / 10</span></button>
+          </li>
+          <li>
+            <button data-open="garage">Car <span class="value">Colour, roof, horn</span></button>
+          </li>
+          <li>
+            <button id="sky">Sky <span id="sky-value" class="value">Changes over time</span></button>
+          </li>
+          <li>
+            <button id="sound" role="switch" aria-checked="true">Sound <span class="toggle"></span></button>
+          </li>
+          <li>
+            <button id="cruise" role="switch" aria-checked="false">Cruise control <span class="toggle"></span></button>
+          </li>
+          <li class="touch-only">
+            <button id="tilt" role="switch" aria-checked="false">Tilt to steer <span class="toggle"></span></button>
+          </li>
+          <li id="tilt-center-row" hidden>
+            <button id="tilt-center">Re-centre tilt <span class="value">Hold the device level first</span></button>
+          </li>
+          <li id="camp-row" hidden>
+            <button id="camp">Stay the night <span class="value">You're at the campsite</span></button>
+          </li>
+          <li>
+            <button id="home"><span id="home-label">Back to the start</span> <span class="value key">R</span></button>
+          </li>
+        </ul>
+        <p id="tilt-status" class="note" hidden></p>
+        <dl class="keys">
+          <div>
+            <dt>Drive</dt>
+            <dd><kbd>W A S D</kbd> or arrows</dd>
+          </div>
+          <div>
+            <dt>Brake</dt>
+            <dd><kbd>Space</kbd></dd>
+          </div>
+          <div>
+            <dt>Horn</dt>
+            <dd><kbd>H</kbd></dd>
+          </div>
+          <div>
+            <dt>Cruise</dt>
+            <dd><kbd>E</kbd></dd>
+          </div>
+          <div>
+            <dt>Pause</dt>
+            <dd><kbd>Esc</kbd></dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="menu-page" data-page="scrapbook" hidden>
+        <button class="back" data-open="main" aria-label="Back to menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg> Back
+        </button>
+        <h2 tabindex="-1">Scrapbook</h2>
         <div id="sticker-grid" class="sticker-grid"></div>
-        <p class="book-footnote" id="save-note">Kept in this browser, ready for your next adventure.</p>
-      </div>
-      <div id="car-panel" hidden>
-        <div class="car-preview" aria-hidden="true"><svg viewBox="0 0 240 115"><path d="M14 103h212" stroke="#c1c9ac" stroke-width="2"/><g fill="var(--car-color)"><path d="M48 81V51h35V22h89l21 29h14v30z"/><path d="M28 55h60v27H28z"/></g><path d="M87 27h36v25H87zm42 0h38l16 25h-54z" fill="#85a9a8"/><path d="M81 21h95" stroke="#f5e9c9" stroke-width="8"/><path d="M24 83h189" stroke="#f5e9c9" stroke-width="8"/><circle cx="65" cy="87" r="19" fill="#3e4d41"/><circle cx="65" cy="87" r="10" fill="#eaddbb"/><circle cx="175" cy="87" r="19" fill="#3e4d41"/><circle cx="175" cy="87" r="10" fill="#eaddbb"/></svg><span id="decoration-preview"></span></div>
-        <fieldset><legend>A colour for your travels</legend><div id="color-options" class="color-options"></div></fieldset>
-        <fieldset><legend>A little travelling companion</legend><div class="choice-row"><button data-decoration="none" aria-pressed="true">Just us</button><button data-decoration="flag" aria-pressed="false">⚑ A flag</button><button data-decoration="teddy" aria-pressed="false">🧸 Teddy</button></div></fieldset>
-        <fieldset><legend>Your friendly hello <span>Tap to listen</span></legend><div class="choice-row horn-options"><button data-horn="beep" aria-pressed="true">Little beep</button><button data-horn="bicycle" aria-pressed="false">Bicycle bell</button><button data-horn="quack" aria-pressed="false">Quack!</button><button data-horn="twinkle" aria-pressed="false">Twinkle</button></div></fieldset>
-        <p class="book-footnote">Your car, just the way you like it. Saved as you choose.</p>
-      </div>
+        <div class="gnome-tally">
+          <div id="gnome-dots" class="gnome-dots" aria-hidden="true"></div>
+          <p id="gnome-count">0 of 10 garden gnomes found</p>
+        </div>
+        <p id="save-note" class="note">Saved in this browser.</p>
+      </section>
+
+      <section class="menu-page" data-page="garage" hidden>
+        <button class="back" data-open="main" aria-label="Back to menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg> Back
+        </button>
+        <h2 tabindex="-1">Car</h2>
+        <div class="car-preview" aria-hidden="true">
+          <svg viewBox="0 0 240 115">
+            <path d="M14 103h212" stroke="#c1c9ac" stroke-width="2" />
+            <g class="car-paint">
+              <path d="M48 81V51h35V22h89l21 29h14v30z" />
+              <path d="M28 55h60v27H28z" />
+            </g>
+            <path d="M87 27h36v25H87zm42 0h38l16 25h-54z" fill="#85a9a8" />
+            <path d="M81 21h95M24 83h189" stroke="#f5e9c9" stroke-width="8" />
+            <circle cx="65" cy="87" r="19" fill="#3e4d41" />
+            <circle cx="65" cy="87" r="10" fill="#eaddbb" />
+            <circle cx="175" cy="87" r="19" fill="#3e4d41" />
+            <circle cx="175" cy="87" r="10" fill="#eaddbb" />
+          </svg>
+          <span id="decoration-preview"></span>
+        </div>
+        <fieldset>
+          <legend>Colour</legend>
+          <div id="color-options" class="swatches"></div>
+        </fieldset>
+        <fieldset>
+          <legend>On the roof</legend>
+          <div id="decoration-options" class="choices"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Horn</legend>
+          <div id="horn-options" class="choices"></div>
+        </fieldset>
+      </section>
     </dialog>
-    <div id="error" class="error" hidden><h2>The mountains couldn’t load.</h2><p>This game needs a browser with WebGL graphics enabled. Try a current version of Chrome, Safari, or Firefox.</p><button onclick="location.reload()">Try again</button></div>
+
+    <div id="error" class="error" hidden>
+      <h2>This browser can't show the game</h2>
+      <p>Nowhere to Be needs WebGL. Try a current version of Chrome, Safari, Firefox or Edge.</p>
+      <button class="button primary" onclick="location.reload()">Try again</button>
+    </div>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

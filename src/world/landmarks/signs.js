@@ -1,0 +1,263 @@
+// Wooden trail signs with painted lettering, and a map board at the trailhead.
+import * as THREE from 'three';
+import {
+  ROAD,
+  ROAD_HALF_WIDTH,
+  CAMP_TRAIL,
+  BRIDGE,
+  WATERFALL,
+  LOOKOUT,
+  LAKE,
+  CREEK,
+  CAMP,
+  TUNNEL,
+  SPAWN,
+  PLACES,
+} from '../layout.js';
+import { terrainHeight } from '../terrain.js';
+import { PartsBuilder } from '../build.js';
+
+const FONT = '"Manrope", "DM Sans", system-ui, sans-serif';
+const WOOD = '#7a5436';
+const PAINT = '#f1e3c0';
+const painters = [];
+
+function canvasTexture(width, height, paint) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  const redraw = () => {
+    paint(canvas.getContext('2d'), width, height);
+    texture.needsUpdate = true;
+  };
+  redraw();
+  painters.push(redraw);
+  return texture;
+}
+
+// Draw once with a fallback font, then again when the web font is ready.
+if (typeof document !== 'undefined' && document.fonts) {
+  document.fonts
+    .load(`800 64px ${FONT}`)
+    .then(() => painters.forEach(redraw => redraw()))
+    .catch(() => {});
+}
+
+function drawArrow(ctx, x, y, size, direction) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate({ right: 0, left: Math.PI, up: -Math.PI / 2 }[direction]);
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.55, -size * 0.12);
+  ctx.lineTo(size * 0.1, -size * 0.12);
+  ctx.lineTo(size * 0.1, -size * 0.4);
+  ctx.lineTo(size * 0.6, 0);
+  ctx.lineTo(size * 0.1, size * 0.4);
+  ctx.lineTo(size * 0.1, size * 0.12);
+  ctx.lineTo(-size * 0.55, size * 0.12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function paintBoard(text, arrow) {
+  return (ctx, w, h) => {
+    ctx.fillStyle = WOOD;
+    ctx.fillRect(0, 0, w, h);
+    // Wood grain and a painted border.
+    ctx.strokeStyle = 'rgba(40, 25, 15, 0.18)';
+    ctx.lineWidth = 3;
+    for (let y = 18; y < h; y += 22) {
+      ctx.beginPath();
+      ctx.moveTo(0, y + Math.sin(y) * 4);
+      ctx.bezierCurveTo(w * 0.3, y - 6, w * 0.6, y + 8, w, y + Math.cos(y) * 4);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = PAINT;
+    ctx.lineWidth = 7;
+    ctx.strokeRect(16, 16, w - 32, h - 32);
+    ctx.fillStyle = PAINT;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    let size = 92;
+    ctx.font = `800 ${size}px ${FONT}`;
+    const room = w - (arrow ? 250 : 110);
+    while (ctx.measureText(text).width > room && size > 40) ctx.font = `800 ${(size -= 4)}px ${FONT}`;
+    const textX = arrow === 'left' ? w / 2 + 60 : arrow ? w / 2 - 60 : w / 2;
+    ctx.fillText(text, textX, h / 2 + 4);
+    if (arrow) drawArrow(ctx, arrow === 'left' ? 110 : w - 110, h / 2, Math.min(170, h * 0.8), arrow);
+  };
+}
+
+/** Which way an arrow should point for someone reading the sign from the front or back. */
+function arrowFor(from, yaw, to, back) {
+  const vx = to.x - from.x;
+  const vz = to.z - from.z;
+  const sign = back ? -1 : 1;
+  const right = sign * (vx * Math.cos(yaw) - vz * Math.sin(yaw));
+  const ahead = -sign * (vx * Math.sin(yaw) + vz * Math.cos(yaw));
+  if (ahead > Math.abs(right) * 1.2) return 'up';
+  return right > 0 ? 'right' : 'left';
+}
+
+/**
+ * A board on two posts. `yaw` points the front face; the back carries the same
+ * text with the arrow mirrored so it still points the right way.
+ */
+function addSign(scene, parts, { x, z, yaw, text, destination, width = 3.6, height = 0.95, postHeight = 2.1 }) {
+  const y = terrainHeight(x, z);
+  const cos = Math.cos(yaw);
+  const sin = Math.sin(yaw);
+  for (const side of [-1, 1]) {
+    const px = x + cos * side * (width / 2 - 0.35);
+    const pz = z - sin * side * (width / 2 - 0.35);
+    parts.box(0.2, postHeight + 0.8, 0.2, '#6a4a31', { x: px, y: y + (postHeight - 0.8) / 2, z: pz, ry: yaw });
+  }
+  parts.box(width, height, 0.12, WOOD, { x, y: y + postHeight - height / 2, z, ry: yaw });
+  for (const back of [false, true]) {
+    const arrow = destination ? arrowFor({ x, z }, yaw, destination, back) : null;
+    const material = new THREE.MeshLambertMaterial({
+      map: canvasTexture(1024, Math.round((1024 * height) / width), paintBoard(text, arrow)),
+    });
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(width - 0.04, height - 0.04), material);
+    const push = back ? -0.065 : 0.065;
+    face.position.set(x + sin * push, y + postHeight - height / 2, z + cos * push);
+    face.rotation.y = yaw + (back ? Math.PI : 0);
+    scene.add(face);
+  }
+}
+
+/** A sign by the trail at distance `s`, facing traffic driving in the trail's direction. */
+function trailSign(scene, parts, s, side, text, destination) {
+  const p = ROAD.offset(s, side * (ROAD_HALF_WIDTH + 2.6));
+  const yaw = Math.atan2(-p.dx, -p.dz) + side * 0.35;
+  addSign(scene, parts, { x: p.x, z: p.z, yaw, text, destination });
+}
+
+function paintMap(ctx, w, h) {
+  const scale = 1.25;
+  const cx = w / 2 + 10;
+  const cy = h / 2 + 18;
+  const px = x => cx + x * scale;
+  const pz = z => cy + z * scale;
+  ctx.fillStyle = '#efe4c6';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = WOOD;
+  ctx.lineWidth = 18;
+  ctx.strokeRect(0, 0, w, h);
+  ctx.fillStyle = '#cfd6b0';
+  ctx.beginPath();
+  ctx.ellipse(px(0), pz(0), 330 * scale, 245 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#8fbcbf';
+  ctx.beginPath();
+  ctx.ellipse(px(LAKE.x), pz(LAKE.z), LAKE.rx * scale, LAKE.rz * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#8fbcbf';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  CREEK.samples.forEach((p, i) => (i ? ctx.lineTo(px(p.x), pz(p.z)) : ctx.moveTo(px(p.x), pz(p.z))));
+  ctx.stroke();
+  const trail = (path, width) => {
+    ctx.strokeStyle = '#8a6440';
+    ctx.lineWidth = width;
+    ctx.setLineDash([14, 9]);
+    ctx.beginPath();
+    path.samples.forEach((p, i) => (i ? ctx.lineTo(px(p.x), pz(p.z)) : ctx.moveTo(px(p.x), pz(p.z))));
+    if (path.closed) ctx.closePath();
+    ctx.stroke();
+    ctx.setLineDash([]);
+  };
+  trail(ROAD, 6);
+  trail(CAMP_TRAIL, 4);
+  ctx.fillStyle = '#7d8e86';
+  ctx.beginPath();
+  ctx.moveTo(px(TUNNEL.x - 22), pz(TUNNEL.z + 16));
+  ctx.lineTo(px(TUNNEL.x), pz(TUNNEL.z - 26));
+  ctx.lineTo(px(TUNNEL.x + 22), pz(TUNNEL.z + 16));
+  ctx.fill();
+  const labels = {
+    waterfall: 'Whispering Falls',
+    bridge: 'Bridge',
+    tunnel: 'Echo Mountain',
+    campsite: 'Camp',
+    lookout: 'Lookout',
+  };
+  ctx.font = `700 26px ${FONT}`;
+  ctx.textAlign = 'center';
+  for (const place of PLACES) {
+    ctx.fillStyle = '#3f4f45';
+    ctx.beginPath();
+    ctx.arc(px(place.x), pz(place.z), 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillText(labels[place.id], px(place.x), pz(place.z) - 16);
+  }
+  ctx.fillStyle = '#c75b32';
+  ctx.beginPath();
+  ctx.arc(px(SPAWN.x), pz(SPAWN.z), 11, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillText('You are here', px(SPAWN.x), pz(SPAWN.z) + 38);
+  ctx.fillStyle = '#3f4f45';
+  ctx.font = `800 40px ${FONT}`;
+  ctx.textAlign = 'left';
+  ctx.fillText('VALLEY TRAIL', 40, 62);
+}
+
+function addMapBoard(scene, parts) {
+  const s = ROAD.nearest(SPAWN.x, SPAWN.z).s - 9;
+  const p = ROAD.offset(s, ROAD_HALF_WIDTH + 3.2);
+  const yaw = Math.atan2(-p.dx, -p.dz) + 0.9;
+  const y = terrainHeight(p.x, p.z);
+  const cos = Math.cos(yaw);
+  const sin = Math.sin(yaw);
+  const width = 3.4;
+  const height = 2.3;
+  for (const side of [-1, 1]) {
+    const px = p.x + cos * side * (width / 2 + 0.1);
+    const pz = p.z - sin * side * (width / 2 + 0.1);
+    parts.box(0.24, 3.9, 0.24, '#6a4a31', { x: px, y: y + 1.45, z: pz, ry: yaw });
+  }
+  parts.box(width + 0.4, height + 0.3, 0.16, WOOD, { x: p.x, y: y + 2, z: p.z, ry: yaw });
+  for (const side of [-1, 1]) {
+    parts.box(width + 1, 0.08, 0.95, '#5d6e5f', {
+      x: p.x + sin * side * 0.4,
+      y: y + 3.45,
+      z: p.z + cos * side * 0.4,
+      ry: yaw,
+      rx: side * 0.5,
+    });
+  }
+  const map = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, height),
+    new THREE.MeshLambertMaterial({ map: canvasTexture(1024, 692, paintMap) }),
+  );
+  map.position.set(p.x + sin * 0.09, y + 2, p.z + cos * 0.09);
+  map.rotation.y = yaw;
+  scene.add(map);
+}
+
+export function buildSigns(scene, { tunnelPortal }) {
+  const parts = new PartsBuilder();
+  const junction = ROAD.nearest(CAMP_TRAIL.samples[0].x, CAMP_TRAIL.samples[0].z).s;
+  trailSign(scene, parts, junction - 10, -1, 'CAMPSITE', CAMP);
+  trailSign(scene, parts, BRIDGE.s - 16, 1, 'WHISPERING FALLS', WATERFALL);
+  const lookout = ROAD.nearest(LOOKOUT.x, LOOKOUT.z).s;
+  trailSign(scene, parts, lookout - 12, -1, 'LOOKOUT', LOOKOUT);
+  addMapBoard(scene, parts);
+
+  // A name board over the tunnel entrance.
+  const { x, y, z, yaw } = tunnelPortal;
+  const facing = yaw + Math.PI;
+  const board = new THREE.Mesh(
+    new THREE.PlaneGeometry(6.4, 1.3),
+    new THREE.MeshLambertMaterial({ map: canvasTexture(1024, 208, paintBoard('ECHO MOUNTAIN', null)) }),
+  );
+  board.position.set(x - Math.sin(yaw) * 0.6, y, z - Math.cos(yaw) * 0.6);
+  board.rotation.y = facing;
+  scene.add(board);
+
+  scene.add(parts.mesh());
+}

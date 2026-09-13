@@ -7,9 +7,12 @@ const difference = (angle, center) => ((angle - center + 540) % 360) - 180;
 // Positive roll means counterclockwise (left), matching the driving model.
 export function screenRoll(beta, gamma, screenAngle = 0) {
   if (![beta, gamma, screenAngle].every(Number.isFinite)) return null;
-  const b = beta * radians, g = gamma * radians, a = screenAngle * radians;
-  const x = -Math.cos(b) * Math.sin(g), y = Math.sin(b);
-  if (Math.hypot(x, y) < .25) return null; // A screen lying flat has no stable wheel angle.
+  const b = beta * radians,
+    g = gamma * radians,
+    a = screenAngle * radians;
+  const x = -Math.cos(b) * Math.sin(g),
+    y = Math.sin(b);
+  if (Math.hypot(x, y) < 0.25) return null; // A screen lying flat has no stable wheel angle.
   return Math.atan2(x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)) / radians;
 }
 
@@ -21,27 +24,55 @@ export function steeringFromRoll(angle, center) {
 }
 
 export function createTiltSteering(host = window, onChange = () => {}) {
-  let enabled = false, pending = false, ready = false, status = 'off';
-  let roll = null, center = null, target = 0, steering = 0, angle = null;
-  let timeout, generation = 0, listening = false;
+  let enabled = false,
+    pending = false,
+    ready = false,
+    status = 'off';
+  let roll = null,
+    center = null,
+    target = 0,
+    steering = 0,
+    angle = null;
+  let timeout,
+    generation = 0,
+    listening = false;
   const orientation = host.screen?.orientation;
-  const screenAngle = () => Number.isFinite(orientation?.angle) ? orientation.angle : Number.isFinite(host.orientation) ? host.orientation : 0;
+  const screenAngle = () =>
+    Number.isFinite(orientation?.angle) ? orientation.angle : Number.isFinite(host.orientation) ? host.orientation : 0;
   const getState = () => ({ enabled, pending, ready, status, steering });
   function report(next) {
-    if (status !== next) { status = next; onChange(getState()); }
+    if (status !== next) {
+      status = next;
+      onChange(getState());
+    }
   }
-  function clearTimeout() { host.clearTimeout(timeout); timeout = undefined; }
+  function clearTimeout() {
+    host.clearTimeout(timeout);
+    timeout = undefined;
+  }
   function received(event) {
     if (!enabled) return;
     const currentAngle = screenAngle();
-    if (currentAngle !== angle) { angle = currentAngle; center = null; steering = 0; }
+    if (currentAngle !== angle) {
+      angle = currentAngle;
+      center = null;
+      steering = 0;
+    }
     if (![event.beta, event.gamma].every(Number.isFinite)) {
-      roll = null; ready = false; target = steering = 0;
-      report('waiting'); return;
+      roll = null;
+      ready = false;
+      target = steering = 0;
+      report('waiting');
+      return;
     }
     roll = screenRoll(event.beta, event.gamma, currentAngle);
     clearTimeout();
-    if (roll === null) { ready = false; target = steering = 0; report('upright'); return; }
+    if (roll === null) {
+      ready = false;
+      target = steering = 0;
+      report('upright');
+      return;
+    }
     if (center === null) center = roll;
     ready = true;
     target = steeringFromRoll(roll, center);
@@ -49,7 +80,9 @@ export function createTiltSteering(host = window, onChange = () => {}) {
   }
   function rotationChanged() {
     if (!enabled) return;
-    roll = center = null; target = steering = 0; ready = false;
+    roll = center = null;
+    target = steering = 0;
+    ready = false;
     report('centering');
   }
   function detach() {
@@ -61,8 +94,11 @@ export function createTiltSteering(host = window, onChange = () => {}) {
     listening = false;
   }
   function disable(next = 'off') {
-    generation++; detach(); enabled = pending = ready = false;
-    roll = center = angle = null; target = steering = 0;
+    generation++;
+    detach();
+    enabled = pending = ready = false;
+    roll = center = angle = null;
+    target = steering = 0;
     report(next);
   }
   return {
@@ -70,17 +106,31 @@ export function createTiltSteering(host = window, onChange = () => {}) {
     // Called directly by the click handler, before any other asynchronous work.
     async enable() {
       if (enabled || pending) return;
-      if (!host.isSecureContext) { disable('insecure'); return; }
+      if (!host.isSecureContext) {
+        disable('insecure');
+        return;
+      }
       const api = host.DeviceOrientationEvent;
-      if (!api) { disable('unsupported'); return; }
+      if (!api) {
+        disable('unsupported');
+        return;
+      }
       const attempt = ++generation;
-      pending = true; report('permission');
+      pending = true;
+      report('permission');
       try {
         const permission = typeof api.requestPermission === 'function' ? await api.requestPermission() : 'granted';
         if (generation !== attempt) return;
-        if (permission !== 'granted') { disable('denied'); return; }
-        pending = false; enabled = true; ready = false; center = roll = null;
-        angle = screenAngle(); report('waiting');
+        if (permission !== 'granted') {
+          disable('denied');
+          return;
+        }
+        pending = false;
+        enabled = true;
+        ready = false;
+        center = roll = null;
+        angle = screenAngle();
+        report('waiting');
         host.addEventListener('deviceorientation', received);
         host.addEventListener('orientationchange', rotationChanged);
         orientation?.addEventListener('change', rotationChanged);
@@ -94,17 +144,32 @@ export function createTiltSteering(host = window, onChange = () => {}) {
     center() {
       if (!enabled) return false;
       target = steering = 0;
-      if (roll === null) { center = null; ready = false; report('centering'); return false; }
-      center = roll; ready = true; report('ready'); return true;
+      if (roll === null) {
+        center = null;
+        ready = false;
+        report('centering');
+        return false;
+      }
+      center = roll;
+      ready = true;
+      report('ready');
+      return true;
     },
     // Require a fresh reading after returning from a hidden/backgrounded page.
-    suspend() { if (enabled) rotationChanged(); },
+    suspend() {
+      if (enabled) rotationChanged();
+    },
     update(dt, active) {
-      if (!active || !enabled || !ready) { steering = 0; return; }
-      steering += (target - steering) * (1 - Math.exp(-12 * Math.max(0, Math.min(dt, .05))));
-      if (Math.abs(steering) < .001) steering = 0;
+      if (!active || !enabled || !ready) {
+        steering = 0;
+        return;
+      }
+      steering += (target - steering) * (1 - Math.exp(-12 * Math.max(0, Math.min(dt, 0.05))));
+      if (Math.abs(steering) < 0.001) steering = 0;
       steering = clamp(steering);
     },
-    dispose() { disable(); },
+    dispose() {
+      disable();
+    },
   };
 }
