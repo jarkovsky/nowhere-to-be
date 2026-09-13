@@ -94,6 +94,7 @@ export function createGame(canvas) {
   const landmarks = buildLandmarks(scene, obstacles);
   const atmosphere = createAtmosphere(scene, sun, ambient);
   const surfaces = createSurfaces(scene, sound);
+  obstacles.push(...surfaces.obstacles);
   const traffic = createTraffic(scene);
   const car = createCar();
   scene.add(car.root);
@@ -418,12 +419,20 @@ export function createGame(canvas) {
   }
   window.addEventListener('resize', resize);
 
-  // Drop the resolution if frames are consistently slow, and raise it again when they recover.
+  // Drop the resolution if frames are consistently slower than the frame cap allows, and
+  // raise it again when they recover. Only while driving: the title screen and the night
+  // at camp run at a deliberately lower rate, which must not be mistaken for slowness
+  // (resizing the canvas there made the title screen flicker).
   const perf = { average: 16, slow: 0, fast: 0 };
-  function adaptResolution(frameMs, dt) {
+  function adaptResolution(frameMs, dt, targetFps) {
+    if (mode !== 'driving') {
+      Object.assign(perf, { average: 1000 / targetFps, slow: 0, fast: 0 });
+      return;
+    }
+    const budget = 1000 / targetFps;
     perf.average += (frameMs - perf.average) * 0.05;
-    perf.slow = perf.average > 24 ? perf.slow + dt : 0;
-    perf.fast = perf.average < 18 ? perf.fast + dt : 0;
+    perf.slow = perf.average > budget * 1.45 ? perf.slow + dt : 0;
+    perf.fast = perf.average < budget * 1.1 ? perf.fast + dt : 0;
     const best = Math.min(devicePixelRatio, MAX_PIXEL_RATIO);
     if (perf.slow > 2 && pixelRatio > 0.75) {
       pixelRatio = Math.max(0.75, pixelRatio - 0.25);
@@ -452,6 +461,7 @@ export function createGame(canvas) {
   let lastFrame = 0;
   let clock = 0;
   let wasBraking = false;
+  let throttle = 0;
 
   function frame(now) {
     requestAnimationFrame(frame);
@@ -471,7 +481,7 @@ export function createGame(canvas) {
         renderer.render(scene, camera);
       }
       needsRender = false;
-      sound.update({ speed: 0, running: !document.hidden, rain: 0 });
+      sound.update({ speed: 0, engineOn: false, active: !document.hidden, rain: 0 });
       return;
     }
     clock += dt;
@@ -484,6 +494,7 @@ export function createGame(canvas) {
       if (state.impact > 2.5) sound.bump(state.impact);
       updateCarModel(dt);
       wasBraking = input.brake || (input.backward && state.speed > 0.5) || (input.forward && state.speed < -0.5);
+      throttle = !input.brake && (input.forward || input.backward || input.cruise) ? 1 : 0;
       for (const place of PLACES) {
         if (Math.hypot(state.x - place.x, state.z - place.z) < place.radius) discovered(place.id);
       }
@@ -505,9 +516,15 @@ export function createGame(canvas) {
     if (mode === 'title') updateIntroShot(clock);
     chase.update(dt, carView(), cameraOptions());
 
-    sound.update({ speed: driving ? state.speed : 0, running: mode !== 'title' && !document.hidden, rain: sky.rain });
+    sound.update({
+      speed: driving ? state.speed : 0,
+      throttle: driving ? throttle : 0,
+      engineOn: driving,
+      active: mode !== 'title' && !document.hidden,
+      rain: sky.rain,
+    });
     renderer.render(scene, camera);
-    if (!UNCAPPED) adaptResolution(frameMs, dt);
+    if (!UNCAPPED) adaptResolution(frameMs, dt, targetFps);
   }
 
   // --- Start -------------------------------------------------------------------------------

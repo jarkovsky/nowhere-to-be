@@ -152,8 +152,20 @@ export const TRACKS = [
   },
 ];
 
+// The deck runs straight between two points on the curving trail, so the
+// trail never strays far from the middle of the bridge.
 const crossing = findCrossing();
-export const BRIDGE = { ...crossing, length: 22, width: 7.6 };
+const bridgeEnds = [ROAD.at(crossing.s - 11), ROAD.at(crossing.s + 11)];
+const span = Math.hypot(bridgeEnds[1].x - bridgeEnds[0].x, bridgeEnds[1].z - bridgeEnds[0].z);
+export const BRIDGE = {
+  s: crossing.s,
+  x: (bridgeEnds[0].x + bridgeEnds[1].x) / 2,
+  z: (bridgeEnds[0].z + bridgeEnds[1].z) / 2,
+  dx: (bridgeEnds[1].x - bridgeEnds[0].x) / span,
+  dz: (bridgeEnds[1].z - bridgeEnds[0].z) / span,
+  length: span,
+  width: 9.6, // a little wider than the trail itself
+};
 
 const tunnelCentre = nearestRoadSample(-134, -84);
 export const TUNNEL = { ...tunnelCentre, length: 38, radius: 6.4 };

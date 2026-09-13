@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { angleDelta, clamp } from '../src/core/math.js';
-import { createObstacleIndex } from '../src/core/collision.js';
+import { createObstacleIndex, penetration } from '../src/core/collision.js';
 import { createCarState, stepDriving } from '../src/core/driving.js';
 import { ROAD, CAMP_TRAIL, TRACKS, JETTY } from '../src/world/layout.js';
 import { headingOf } from '../src/world/path.js';
@@ -17,6 +17,8 @@ import { buildWindmill } from '../src/world/landmarks/windmill.js';
 import { buildJetty } from '../src/world/landmarks/jetty.js';
 import { buildHut } from '../src/world/landmarks/hut.js';
 import { buildBunkers } from '../src/world/landmarks/bunkers.js';
+import { createSurfaces } from '../src/world/surfaces.js';
+import { LANE } from '../src/vehicles/traffic.js';
 
 // The real trees, rocks, railings, fences, buildings, tunnel walls and cliffs.
 const scene = new THREE.Scene();
@@ -34,6 +36,7 @@ for (const build of [
 ]) {
   build(scene, obstacles);
 }
+obstacles.push(...createSurfaces(scene, {}).obstacles);
 
 const world = {
   obstacles: createObstacleIndex(obstacles),
@@ -100,4 +103,17 @@ test('the car can drive from the shore path out to the end of the jetty', () => 
   assert.ok(along > JETTY.length - 4, `stopped ${along.toFixed(1)} m along the jetty`);
   assert.ok(along < JETTY.length, 'the railing at the end stops the car');
   assert.ok(drivingHeight(car.x, car.z) > waterLevel(car.x, car.z), 'still on the planks, above the water');
+});
+
+test("nothing stands in the other travellers' lanes", () => {
+  const index = createObstacleIndex(obstacles);
+  for (const p of ROAD.samples) {
+    for (const side of [-LANE, LANE]) {
+      const x = p.x - p.dz * side;
+      const z = p.z + p.dx * side;
+      for (const obstacle of index.near(x, z, 4)) {
+        assert.equal(penetration(x, z, 1, obstacle), null, `blocked at ${x.toFixed(0)}, ${z.toFixed(0)}`);
+      }
+    }
+  }
 });

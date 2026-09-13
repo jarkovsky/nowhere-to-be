@@ -108,10 +108,13 @@ export function buildHut(scene, obstacles) {
   // Chimney, benches and a table out front.
   parts.box(1, 3.2, 1, STONE, at(3.2, 11, -1.4));
   for (const lx of [-5, 4.6]) {
-    parts.box(2.4, 0.12, 0.5, '#8a6446', at(lx, 0.62, depth / 2 + 3.2));
-    parts.box(2.4, 0.1, 1, '#8a6446', at(lx, 1.02, depth / 2 + 4.1));
-    parts.box(2.4, 0.12, 0.5, '#8a6446', at(lx, 0.62, depth / 2 + 5));
-    for (const side of [-1, 1]) parts.box(0.12, 1, 0.8, '#5f4532', at(lx + side, 0.5, depth / 2 + 4.1));
+    // Out here the ground starts to slope away from the level pad, so each set stands on its own spot.
+    const spot = local(lx, depth / 2 + 4.1);
+    const rise = terrainHeight(spot.x, spot.z) - y - 0.05;
+    parts.box(2.4, 0.12, 0.5, '#8a6446', at(lx, rise + 0.62, depth / 2 + 3.2));
+    parts.box(2.4, 0.1, 1, '#8a6446', at(lx, rise + 1.02, depth / 2 + 4.1));
+    parts.box(2.4, 0.12, 0.5, '#8a6446', at(lx, rise + 0.62, depth / 2 + 5));
+    for (const side of [-1, 1]) parts.box(0.12, 1.2, 0.8, '#5f4532', at(lx + side, rise + 0.4, depth / 2 + 4.1));
   }
 
   // Flagpole beside the hut.

@@ -107,9 +107,11 @@ export function buildFarm(scene, obstacles) {
     const b = local(bx, bz);
     obstacles.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, radius: 0.25 });
   }
-  // A water trough for the cows.
-  parts.box(2.2, 0.6, 0.8, '#7d8a86', at(x0 + 3, 0.3, z1 - 2));
-  parts.box(2, 0.1, 0.6, '#8fbcbf', at(x0 + 3, 0.58, z1 - 2));
+  // A water trough for the cows, set into the ground where it stands (the paddock is off the level yard).
+  const trough = { ...local(x0 + 3, z1 - 2), ry: rotation };
+  const troughY = ground(x0 + 3, z1 - 2);
+  parts.box(2.2, 0.7, 0.8, '#7d8a86', { ...trough, y: troughY + 0.2 });
+  parts.box(2, 0.1, 0.6, '#8fbcbf', { ...trough, y: troughY + 0.52 });
 
   // A wheat field beyond the barn: strips of soil with rows of wheat clumps on them.
   const clumps = [];

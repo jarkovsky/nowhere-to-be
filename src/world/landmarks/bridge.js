@@ -38,7 +38,8 @@ export function buildBridge(scene, obstacles) {
   }
 
   // Stringers under the planks, following the gentle arch.
-  for (const side of [-2.9, 0, 2.9]) {
+  const outer = halfWidth - 1;
+  for (const side of [-outer, 0, outer]) {
     for (let along = -half; along < half; along += 2) {
       const a = local(along, side);
       const b = local(Math.min(along + 2, half), side);
@@ -54,7 +55,7 @@ export function buildBridge(scene, obstacles) {
 
   // A trestle in the middle of the gully.
   const bed = terrainHeight(BRIDGE.x, BRIDGE.z);
-  for (const side of [-2.9, 2.9]) {
+  for (const side of [-outer, outer]) {
     const p = local(0, side);
     const top = deckHeight(0) - 0.55;
     parts.box(0.5, top - bed + 1, 0.5, BEAM, { x: p.x, y: (top + bed - 1) / 2, z: p.z, ry: yaw });
@@ -63,8 +64,8 @@ export function buildBridge(scene, obstacles) {
       parts.beam({ ...p, y: bed + 0.4 }, { ...foot, y: deckHeight(along) - 0.6 }, 0.22, BEAM);
     }
   }
-  const capLeft = local(0, -3.4);
-  const capRight = local(0, 3.4);
+  const capLeft = local(0, -outer - 0.5);
+  const capRight = local(0, outer + 0.5);
   parts.beam({ ...capLeft, y: deckHeight(0) - 0.65 }, { ...capRight, y: deckHeight(0) - 0.65 }, 0.4, BEAM);
 
   // Stone abutments where the bridge meets each bank.

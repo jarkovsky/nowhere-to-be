@@ -9,7 +9,8 @@ import { drivingHeight } from '../world/terrain.js';
 import { PartsBuilder } from '../world/build.js';
 import { createWheel } from './car.js';
 
-const LANE = 2.3;
+/** How far from the middle of the trail the other travellers drive. */
+export const LANE = 2.3;
 const FOLLOW_DISTANCE = 8;
 
 function camperVan() {

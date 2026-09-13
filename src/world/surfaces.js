@@ -1,7 +1,7 @@
 // Puddles and creek splashes, crunchy leaves, and tyre tracks in the snow.
 import * as THREE from 'three';
 import { createRandom } from '../core/math.js';
-import { SURFACES, surfaceAt } from './layout.js';
+import { ROAD, ROAD_HALF_WIDTH, SURFACES, TRACKS, surfaceAt } from './layout.js';
 import { onDeck, terrainHeight, waterDepth } from './terrain.js';
 
 const TRACK_CAPACITY = 6000;
@@ -58,11 +58,15 @@ export function createSurfaces(scene, sound) {
     leaves.setColorAt(i, leafColor.set(['#cd8c3c', '#a64d32', '#e2b85b'][i % 3]));
   }
   scene.add(leaves);
+  // Copper-coloured trees ring the grove, but never stand on the trail or a track.
   const crowns = new THREE.Group();
-  for (let i = 0; i < 8; i++) {
-    const angle = (i / 8) * Math.PI * 2 + 0.3;
+  const obstacles = [];
+  for (let i = 0, placed = 0; i < 16 && placed < 8; i++) {
+    const angle = (i / 16) * Math.PI * 2 + 0.3;
     const x = grove.x + Math.cos(angle) * (grove.rx + 3);
     const z = grove.z + Math.sin(angle) * (grove.rz + 3);
+    if (ROAD.nearest(x, z).distance < ROAD_HALF_WIDTH + 7) continue;
+    if (TRACKS.some(track => track.path.nearest(x, z).distance < 6)) continue;
     const y = terrainHeight(x, z);
     const trunk = new THREE.Mesh(
       new THREE.CylinderGeometry(0.3, 0.5, 5, 6),
@@ -71,11 +75,13 @@ export function createSurfaces(scene, sound) {
     trunk.position.set(x, y + 2.3, z);
     const crown = new THREE.Mesh(
       new THREE.IcosahedronGeometry(3.6 + random(), 1),
-      new THREE.MeshLambertMaterial({ color: ['#bb773d', '#c99a50', '#a66135'][i % 3], flatShading: true }),
+      new THREE.MeshLambertMaterial({ color: ['#bb773d', '#c99a50', '#a66135'][placed % 3], flatShading: true }),
     );
     crown.position.set(x, y + 6, z);
     crown.castShadow = trunk.castShadow = true;
     crowns.add(trunk, crown);
+    obstacles.push({ x, z, radius: 0.5 });
+    placed++;
   }
   scene.add(crowns);
 
@@ -106,25 +112,23 @@ export function createSurfaces(scene, sound) {
   let trackCursor = 0;
   let lastTrack = null;
   let lastParticle = 0;
-  let lastSound = 0;
   let time = 0;
   let current = 'grass';
 
   return {
+    /** The grove's tree trunks, for collisions. */
+    obstacles,
     getState: () => ({ surface: current, tracks: tracks.count, particles: particles.filter(p => p.life > 0).length }),
     update(dt, car, running) {
       if (!running) return;
       time += dt;
       current = effectAt(car.x, car.z);
+      sound.surface(current, Math.abs(car.speed));
       const sin = Math.sin(car.heading);
       const cos = Math.cos(car.heading);
       const moving = Math.abs(car.speed) > 0.6;
 
       if (moving && current !== 'grass') {
-        if (time - lastSound > 0.22) {
-          sound.surface(current);
-          lastSound = time;
-        }
         const rate = current === 'water' ? 0.03 : 0.045;
         if (time - lastParticle > rate) {
           lastParticle = time;
