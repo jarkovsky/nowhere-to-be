@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" width="900" height="300" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <style>
+    .line { stroke: #57606a; }
+    .key { fill: #ffffff; stroke: #57606a; stroke-width: 1.5; }
+    .key-shadow { fill: #d0d7de; }
+    .accent { fill: #c86338; stroke: #c86338; }
+    .label { fill: #24292f; font-size: 15px; font-weight: 600; text-anchor: middle; }
+    .glyph { fill: none; stroke: #24292f; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .pedal-glyph { fill: none; stroke: #24292f; stroke-linecap: round; stroke-linejoin: round; }
+    .title { fill: #24292f; font-size: 17px; font-weight: 700; }
+    .caption { fill: #57606a; font-size: 13px; text-anchor: middle; }
+    .screen { fill: #e9efe3; stroke: none; }
+    .device { fill: #ffffff; stroke: #57606a; stroke-width: 2; }
+    .pedal { fill: #ffffff; stroke: #57606a; stroke-width: 1.2; }
+    .gas { fill: #283e35; }
+    .trail { fill: #d9cfae; }
+    @media (prefers-color-scheme: dark) {
+      .line { stroke: #8b949e; }
+      .key { fill: #161b22; stroke: #8b949e; }
+      .key-shadow { fill: #30363d; }
+      .label, .title { fill: #e6edf3; }
+      .glyph { stroke: #e6edf3; }
+      .caption { fill: #8b949e; }
+      .device { fill: #161b22; stroke: #8b949e; }
+      .screen { fill: #24322b; }
+      .pedal { fill: #e6edf3; stroke: #8b949e; }
+      .gas { fill: #c86338; }
+      .trail { fill: #5d5640; }
+    }
+  </style>
+
+  <!-- Keyboard -->
+  <text class="title" x="20" y="30">Keyboard</text>
+  <g transform="translate(20 52)">
+    <!-- W A S D -->
+    <g>
+      <rect class="key-shadow" x="52" y="3" width="44" height="44" rx="8"/><rect class="key" x="52" y="0" width="44" height="44" rx="8"/><text class="label" x="74" y="28">W</text>
+      <rect class="key-shadow" x="2" y="53" width="44" height="44" rx="8"/><rect class="key" x="2" y="50" width="44" height="44" rx="8"/><text class="label" x="24" y="78">A</text>
+      <rect class="key-shadow" x="52" y="53" width="44" height="44" rx="8"/><rect class="key" x="52" y="50" width="44" height="44" rx="8"/><text class="label" x="74" y="78">S</text>
+      <rect class="key-shadow" x="102" y="53" width="44" height="44" rx="8"/><rect class="key" x="102" y="50" width="44" height="44" rx="8"/><text class="label" x="124" y="78">D</text>
+    </g>
+    <text class="caption" x="173" y="77">or</text>
+    <!-- Arrow keys -->
+    <g transform="translate(200 0)">
+      <rect class="key-shadow" x="52" y="3" width="44" height="44" rx="8"/><rect class="key" x="52" y="0" width="44" height="44" rx="8"/><path class="glyph" d="M74 30V14m-6 6 6-6 6 6"/>
+      <rect class="key-shadow" x="2" y="53" width="44" height="44" rx="8"/><rect class="key" x="2" y="50" width="44" height="44" rx="8"/><path class="glyph" d="M32 72H16m6-6-6 6 6 6"/>
+      <rect class="key-shadow" x="52" y="53" width="44" height="44" rx="8"/><rect class="key" x="52" y="50" width="44" height="44" rx="8"/><path class="glyph" d="M74 64v16m-6-6 6 6 6-6"/>
+      <rect class="key-shadow" x="102" y="53" width="44" height="44" rx="8"/><rect class="key" x="102" y="50" width="44" height="44" rx="8"/><path class="glyph" d="M116 72h16m-6-6 6 6-6 6"/>
+    </g>
+    <!-- Space, H, E, Esc -->
+    <rect class="key-shadow" x="2" y="123" width="170" height="40" rx="8"/><rect class="key" x="2" y="120" width="170" height="40" rx="8"/><text class="label" x="87" y="145">Space</text>
+    <rect class="key-shadow" x="186" y="123" width="44" height="40" rx="8"/><rect class="key" x="186" y="120" width="44" height="40" rx="8"/><text class="label" x="208" y="145">H</text>
+    <rect class="key-shadow" x="240" y="123" width="44" height="40" rx="8"/><rect class="key" x="240" y="120" width="44" height="40" rx="8"/><text class="label" x="262" y="145">E</text>
+    <rect class="key-shadow" x="294" y="123" width="52" height="40" rx="8"/><rect class="key" x="294" y="120" width="52" height="40" rx="8"/><text class="label" x="320" y="145">Esc</text>
+    <text class="caption" x="87" y="184">Brake</text>
+    <text class="caption" x="208" y="184">Horn</text>
+    <text class="caption" x="262" y="184">Cruise</text>
+    <text class="caption" x="320" y="184">Pause</text>
+  </g>
+  <text class="caption" x="194" y="282">WASD or the arrow keys to drive</text>
+
+  <!-- Touch -->
+  <text class="title" x="420" y="30">Touch</text>
+  <g transform="translate(445 46)">
+    <rect class="device" x="0" y="0" width="128" height="224" rx="20"/>
+    <rect class="screen" x="8" y="12" width="112" height="200" rx="12"/>
+    <path class="trail" d="M46 212 58 70h12l12 142z"/>
+    <rect x="56" y="124" width="16" height="22" rx="3" fill="#d16b38"/>
+    <rect x="58" y="120" width="12" height="7" rx="2" fill="#eee4c8"/>
+    <circle class="pedal" cx="104" cy="28" r="8"/>
+    <path class="pedal-glyph" d="M101.5 24.5v7m5-7v7" stroke-width="1.6"/>
+    <circle class="pedal" cx="24" cy="190" r="10"/>
+    <path class="pedal-glyph" d="m26 185-5 5 5 5" stroke-width="1.8"/>
+    <circle class="pedal" cx="48" cy="190" r="10"/>
+    <path class="pedal-glyph" d="m46 185 5 5-5 5" stroke-width="1.8"/>
+    <circle class="pedal" cx="80" cy="190" r="10"/>
+    <path class="pedal-glyph" d="m75 188 5 5 5-5" stroke-width="1.8"/>
+    <circle class="gas" cx="104" cy="186" r="13"/>
+    <path d="m98 189 6-6 6 6" fill="none" stroke="#f8f5e9" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text class="caption" x="509" y="282">Steer left, pedals right</text>
+
+  <!-- Tilt -->
+  <text class="title" x="640" y="30">Tilt</text>
+  <g transform="translate(760 152) rotate(-16)">
+    <rect class="device" x="-112" y="-62" width="224" height="124" rx="20"/>
+    <rect class="screen" x="-100" y="-54" width="200" height="108" rx="12"/>
+    <path class="trail" d="M-50 54 -8 -20h16L50 54z"/>
+    <rect x="-8" y="2" width="16" height="22" rx="3" fill="#d16b38"/>
+    <rect x="-6" y="-2" width="12" height="7" rx="2" fill="#eee4c8"/>
+  </g>
+  <path class="line" d="M672 108c-6-24 4-46 26-58" fill="none" stroke-width="2.2" stroke-linecap="round"/>
+  <path class="line" d="m690 44 9 6-7 9" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path class="line" d="M850 196c6 24-4 46-26 58" fill="none" stroke-width="2.2" stroke-linecap="round"/>
+  <path class="line" d="m832 260-9-6 7-9" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text class="caption" x="760" y="282">Turn it like a steering wheel</text>
+</svg>

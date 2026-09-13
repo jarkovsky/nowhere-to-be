@@ -1,106 +1,82 @@
 # Nowhere to Be
 
-A calm, low-poly driving game that runs in the browser. I made it for my son and me to take turns exploring a mountain valley in a little off-roader. There are no installs, accounts, timers or scores, and nothing to win.
+A relaxed low-poly driving game that runs in the browser. Take a little off-roader around a mountain valley at your own pace. There are no timers, no score and nothing to win. I made it for my son and me to explore together.
 
-![Nowhere to Be welcome screen over a low-poly alpine valley](screenshots/welcome.jpg)
+![Title screen over the valley](docs/title.jpg)
 
 <p>
-  <img src="screenshots/meadow.jpg" width="32%" alt="Orange off-roader on the trail past sheep and deer">
-  <img src="screenshots/campsite.jpg" width="32%" alt="Night at the lakeside campsite with a fire and a waterfall">
-  <img src="screenshots/snow.jpg" width="32%" alt="Tire tracks in the snow near the mountain tunnel">
+  <img src="docs/bridge.jpg" width="49%" alt="Crossing the timber bridge at sunset, with the waterfall upstream">
+  <img src="docs/tunnel.jpg" width="49%" alt="Tyre tracks in the snow on the way into the mountain tunnel">
 </p>
-
-Follow the trail to a bridge, a waterfall, a mountain tunnel and a hidden campsite, collecting stickers for a scrapbook along the way. Sheep, deer, ducks and a rabbit live in the valley, and a five-minute sky cycle brings sunset, stars and passing rain. Drive with the keyboard, the on-screen touch buttons, or by tilting a phone or tablet like a steering wheel.
-
-Everything you see and hear is generated in code with Three.js and Web Audio. There are no model, texture or sound files.
-
-## Run
-
-Requires Node.js 20.19+ or 22.12+.
-
-```sh
-npm install
-npm run dev
-```
-
-Open the local URL Vite prints. For a tablet or phone on the same Wi-Fi, open the **Network** URL printed by Vite. The computer must keep the server running; its firewall must allow the connection. A plain HTTP Network URL supports touch controls; tilt steering on iPhone/iPad requires a trusted HTTPS game URL (see below).
-
-```sh
-npm test
-npm run build
-npm run preview
-```
-
-The `dist/` folder can be served by any static web host. No backend, accounts, API keys, or paid services. The game bundles Three.js locally. Optional Google Fonts fall back to installed fonts without blocking play.
+<p>
+  <img src="docs/camp.jpg" width="49%" alt="A night at the lakeside campsite">
+  <img src="docs/scrapbook.jpg" width="49%" alt="The pause menu's scrapbook of places and animals">
+</p>
 
 ## Controls
 
-While driving, the screen shows just the **menu button in the upper-right corner** and the touch driving buttons on phones/tablets. Open the menu for Little explorer (cruise control), tilt steering, recentering, scrapbook, car choices, horn, sound, sky, home, and nearby campsite actions. Opening the menu pauses the car; **Back to the fresh air** closes it and resumes. Scrapbook and car subpages return to the menu when closed.
+![Keyboard, touch and tilt controls](docs/controls.svg)
 
-Discoveries are collected silently. There are no pop-up tips, hover tooltips, distance hints, or speed/distance overlays. Help is available inside the menu under **How to play**. Camp nights also stay clear of overlays; use the menu to start the next outing.
+|        | Keyboard            | Phone or tablet                    |
+| ------ | ------------------- | ---------------------------------- |
+| Drive  | `W A S D` or arrows | Pedals (right) and steering (left) |
+| Steer  | `A` `D` or `←` `→`  | Arrows, or tilt the device         |
+| Brake  | `Space`             | Down pedal (hold to reverse)       |
+| Horn   | `H`                 | Horn button above the pedals       |
+| Cruise | `E`                 | In the menu                        |
+| Pause  | `Esc`               | ❚❚ button, top right               |
 
-- **Arrow keys / WASD:** accelerate, reverse, and steer.
-- **Space:** brake.
-- **R / Home:** return to the meadow, or to your campsite after your first camp night.
-- **H / Beep:** play your friendly horn. Choose a little beep, bicycle bell, quack, or twinkle in **My car**. Playing a horn turns sound on.
-- **B / Scrapbook:** browse eight illustrated place and animal stickers, with hints for discoveries still to come.
-- **C / My car:** choose from five colours and add a flag or teddy bear.
-- **Esc:** pause; press again to resume.
-- **Little explorer:** gentle automatic forward driving; only steering is needed. Brake overrides it.
-- **Tilt steering:** hold a phone or tablet like a steering wheel, open the menu and tap **Tilt steering**, and allow motion access. The first reading centers your grip. Turn gently left/right in portrait or either landscape direction. **Center steering** resets the neutral position. Use the pedals, or Little explorer for automatic forward driving.
-- **Touch:** hold the large arrow buttons; multiple fingers work together. The square button brakes.
-- **Sky (in the menu):** preview sunset, night, rain, daylight, or return to the automatic sky cycle. Headlights turn on automatically.
-- **Sound (in the menu):** optional soft engine and wind sounds, off initially.
+## Playing on a phone
 
-The car stops automatically when you release the accelerator, cannot flip, and stays out of deep water and beyond the valley boundary. Trees and rocks gently block and deflect the car. Leaving the tab pauses the game. There is no timer, damage, objective, or score. Scrapbook discoveries, car colour, decoration, horn choice, and your campsite starting point save locally in this browser. If browser storage is unavailable, they remain usable for the current outing.
+<img src="docs/phone.jpg" width="200" align="right" alt="The game on a phone, with touch pedals">
 
-Browser smoke tests use an installed Google Chrome and a running development server:
+The game works on phones and tablets with on-screen pedals. You can also steer by turning the device like a steering wheel:
 
-```sh
-npm run test:browser
-npm run test:adventures
-npm run test:tilt
-npm run test:quiet
+1. Open the game on your phone (see below).
+2. Tap ❚❚, turn on **Tilt to steer**, and allow motion access.
+3. Hold the phone like a wheel and turn it. **Re-centre tilt** resets the straight-ahead position.
+
+Browsers only allow motion sensors on secure (HTTPS) pages, so tilt needs the game served over HTTPS (any static host works). A local `http://192.168…` address supports the touch pedals only.
+
+To play on your phone from your own computer, run `npm run dev` and open the **Network** address it prints, with both devices on the same Wi-Fi.
+
+## Things to find
+
+- **Places and animals.** Driving past them adds stickers to your scrapbook, which you'll find in the pause menu.
+- **Garden gnomes.** Ten are hidden around the valley, some of them far off the trail. Finding them all unlocks something for the car.
+- **A few secrets.** Try the horn in the tunnel, near the animals and at passing cars. Keep an eye on the snow, too.
+
+Progress is saved in your browser.
+
+## How it's made
+
+Everything is generated in code with [Three.js](https://threejs.org) and Web Audio. There are no model, texture or sound files.
+
+- **Terrain:** a height field that is fine on the valley floor and coarse under the distant peaks. The trail is levelled across its width, the creek is carved into it, and buildings sit on flattened pads, so nothing floats or sinks.
+- **Driving:** an arcade model with real velocity, tyre grip per surface, hill slowdown and soft collisions. Each tyre is settled onto the terrain triangle beneath it.
+- **Camera:** a spring arm that pulls in when rock comes between it and the car, so the tunnel and cliffs never swallow the view.
+- **Performance:** cheap Lambert materials, merged and instanced meshes, one shadow-casting light, a 60 fps cap, no rendering while paused, and a resolution that adapts to the device.
+
+```
+src/
+  core/       driving physics, collisions, suspension, camera, audio, save data
+  input/      keyboard, touch and tilt steering
+  world/      layout, terrain, scenery, landmarks, wildlife, weather, secrets
+  vehicles/   the player's car and the other travellers
+  ui/         title screen, pause menu, scrapbook, styles
 ```
 
-These exercise keyboard input, simultaneous touch controls, pause/resume, sky presets, headlights, wildlife, discoveries, customisation, save/reload, terrain effects, and campsite nights, and save screenshots in `artifacts/`. Mobile layouts and touch are emulated; physical-device performance still needs playtesting.
+## Development
 
-## Tilt steering on iPhone and iPad
+Requires Node.js 20.19 or newer.
 
-Open the game over **trusted HTTPS**, hold the screen comfortably upright (or angled toward you), and open the menu and tap **Tilt steering**. On Safari, approve the motion/orientation permission prompt. A plain `http://192.168…` Wi-Fi address cannot provide these sensor permissions. `localhost` is a development exception on the computer running the browser; it does not make the computer's HTTP LAN address secure on your phone. Serve `dist/` through an HTTPS host, or use a local HTTPS certificate trusted by your device.
+```sh
+npm install
+npm run dev            # start the game locally
+npm test               # unit tests: physics, terrain, saves, tilt, a full lap of the trail
+npm run test:browser   # end-to-end smoke test in Chrome
+npm run screenshots    # regenerate the images in docs/
+npm run build          # static build in dist/, ready for any static host
+```
 
-The wheel has a small dead zone, smooth proportional steering, and full steering at about 30 degrees. Recenter whenever you change your grip; changing screen orientation also centers the next reading. Existing arrow buttons and keyboard steering override tilt while held. Motion starts off each visit, so the game never requests permission automatically. No motion data is saved or sent anywhere.
-
-If the screen is lying flat, tilt pauses acceleration until it is raised enough to read a reliable wheel angle. Permission denial, unsupported sensors, and absent readings show a message and retain the arrow controls. Turning tilt off returns to the original controls. The tilt browser test simulates sensor readings and permission outcomes alongside actual touch events; physical iPhone/iPad feel and Safari's native permission dialog still need on-device playtesting.
-
-Browser requirements: [MDN device-orientation permission documentation](https://developer.mozilla.org/en-US/docs/Web/API/DeviceOrientationEvent/requestPermission_static). Screen-relative steering follows the [W3C orientation rotation matrix](https://www.w3.org/TR/orientation-event/#worked-example).
-
-## Little things to discover
-
-Follow the trail east to a wooden bridge, around the lake to Whispering Falls, and west through Echo Mountain. The whole trail stays on land. A small spur from the meadow leads to the hidden campsite on the southwest shore. Near camp, release the accelerator (or hold brake in Little explorer mode), then open the menu and choose **Park & watch the stars**. **Start the next outing** brings a fresh morning. Future visits start at that camp.
-
-Drive through the shallow puddles near the southern trail, crunchy autumn leaves in the west, and snow near the mountain. Snow retains the latest 6,000 tire impressions for the current session; marks stay when you drive away and return. Terrain sounds follow the sound toggle. There is no score or requirement to collect every sticker.
-
-## Structure
-
-- `src/main.js` — game loop, follow camera, UI, keyboard and pointer input.
-- `src/tilt.js` — optional sensor permission, screen-relative wheel angle, calibration, and steering smoothing.
-- `src/controls.js` — saved control preferences (cruise speed, tilt).
-- `src/driving.js` — renderer-independent driving and collision rules.
-- `src/terrain.js` — deterministic terrain, shared triangle interpolation, trail and spawn.
-- `src/world.js` — procedural landscape, instanced vegetation, lake and cabin.
-- `src/car.js` — original procedural off-roader model.
-- `src/suspension.js` — four-wheel ground contact, terrain pitch/roll, independent suspension.
-- `src/atmosphere.js` — day/night cycle, weather, stars, fireflies, headlights.
-- `src/habitats.js` — where the deer, ducks and rabbit live and the routes they walk.
-- `src/wildlife.js` — animal models and their walking, grazing and burrow animations.
-- `src/boundaries.js` — fence marking the edge of the valley.
-- `src/audio.js` — optional Web Audio engine, wind, surface sounds, and four friendly horns.
-- `src/discoveries.js` — landmark coordinates, bridge contact surface, and saved journal.
-- `src/landmarks.js` — bridge, mountain tunnel, waterfall, signs, camp, and fire.
-- `src/surfaces.js` — puddles, leaves, snow, particles, and tire tracks.
-- `src/stickers.js` — original illustrated scrapbook stickers.
-- `src/style.css` — responsive game interface.
-- `tests/driving.test.js` — driving, rescue, collision, boundary and terrain checks.
-
-This is a deliberately small first prototype: one local player, one landscape, arcade driving, and browser-local saved discoveries. WebGL is required; keyboard and touch are supported.
+CI runs the formatting check, the unit tests and a build on every push.
