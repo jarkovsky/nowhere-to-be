@@ -13,6 +13,10 @@ A relaxed low-poly driving game that runs in the browser. Take a little off-road
   <img src="docs/camp.jpg" width="49%" alt="A night at the lakeside campsite">
 </p>
 <p>
+  <img src="docs/hut.jpg" width="49%" alt="Masarykova chata, the mountain hut in the northern hills">
+  <img src="docs/jetty.jpg" width="49%" alt="Driving out along the jetty on the lake">
+</p>
+<p>
   <img src="docs/garage.jpg" width="49%" alt="Choosing a colour and roof items, with the car shown beside the menu">
   <img src="docs/scrapbook.jpg" width="49%" alt="The pause menu's scrapbook of places and animals">
 </p>
@@ -47,8 +51,8 @@ To play on your phone from your own computer, run `npm run dev` and open the **N
 
 ## Things to find
 
-- **Places and animals.** A waterfall, a farm, a fire tower, a windmill, a jetty and more, plus deer, cows, a fox, geese and fish that jump in the lake. Driving past them adds stickers to your scrapbook, which you'll find in the pause menu.
-- **Side tracks.** Narrow dirt tracks lead off the main trail to the farm, the tower and the windmill, and a path follows the lake shore.
+- **Places and animals.** A waterfall, a farm, a fire tower, a windmill, a jetty you can drive onto, a mountain hut and a line of old concrete bunkers, plus deer, cows, a fox, geese, an eagle and fish that jump in the lake. Driving past them adds stickers to your scrapbook, which you'll find in the pause menu.
+- **Side tracks.** Narrow dirt tracks lead off the main trail to the farm, the tower, the windmill and up a hairpin to the hut, and a path follows the lake shore.
 - **Garden gnomes.** Ten are hidden around the valley, some of them far off the trail. Finding them all unlocks something for the car.
 - **A few secrets.** Try the horn in the tunnel, near the animals and at passing cars. Keep an eye on the snow, too.
 

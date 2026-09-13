@@ -71,6 +71,27 @@ try {
   await page.keyboard.up('ArrowUp');
   await capture(page, 'farm', 3500);
 
+  // Round the last hairpin to the hut.
+  await inGame(
+    page,
+    `
+    const track = L.TRACKS.find(t => t.id === 'chata').path;
+    const p = track.at(track.length - 34);
+    g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz));
+  `,
+  );
+  await page.keyboard.down('ArrowUp');
+  await page.waitForTimeout(900);
+  await page.keyboard.up('ArrowUp');
+  await capture(page, 'hut', 3500);
+
+  // Out along the jetty.
+  await inGame(page, `g.teleport(L.JETTY.x, L.JETTY.z + 6, L.JETTY.heading);`);
+  await page.keyboard.down('ArrowUp');
+  await page.waitForTimeout(1800);
+  await page.keyboard.up('ArrowUp');
+  await capture(page, 'jetty', 2500);
+
   await inGame(page, `g.teleport(L.CAMP.x, L.CAMP.z, L.CAMP.heading);`);
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: /Stay the night/ }).click();
