@@ -2,6 +2,8 @@
 
 A relaxed low-poly driving game that runs in the browser. Take a little off-roader around a mountain valley at your own pace. There are no timers, no score and nothing to win. I made it for my son and me to explore together.
 
+Play it at [nowhere-to-be.jarkovsky.com](https://nowhere-to-be.jarkovsky.com).
+
 ![Title screen over the valley](docs/title.jpg)
 
 <p>
@@ -41,11 +43,11 @@ A relaxed low-poly driving game that runs in the browser. Take a little off-road
 
 The game works on phones and tablets with on-screen pedals. You can also steer by turning the device like a steering wheel:
 
-1. Open the game on your phone (see below).
+1. Open [nowhere-to-be.jarkovsky.com](https://nowhere-to-be.jarkovsky.com) on your phone.
 2. Tap ❚❚, turn on **Tilt to steer**, and allow motion access.
 3. Hold the phone like a wheel and turn it. **Re-centre tilt** resets the straight-ahead position.
 
-Browsers only allow motion sensors on secure (HTTPS) pages, so tilt needs the game served over HTTPS (any static host works). A local `http://192.168…` address supports the touch pedals only.
+Browsers only allow motion sensors on secure (HTTPS) pages. The hosted game is served over HTTPS, but a local `http://192.168…` address supports the touch pedals only.
 
 To play on your phone from your own computer, run `npm run dev` and open the **Network** address it prints, with both devices on the same Wi-Fi.
 
