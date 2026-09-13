@@ -2,7 +2,7 @@
 // tied up at the end of the jetty; another is out fishing.
 import * as THREE from 'three';
 import { JETTY, LAKE } from '../layout.js';
-import { terrainHeight } from '../terrain.js';
+import { JETTY_DECK, terrainHeight } from '../terrain.js';
 import { PartsBuilder, localFrame, gableRoof, gableEnds } from '../build.js';
 
 const PLANK = '#a8875f';
@@ -30,26 +30,43 @@ function rowingBoat(withFisher) {
 export function buildJetty(scene, obstacles) {
   const parts = new PartsBuilder();
   const local = localFrame(JETTY.x, JETTY.z, JETTY.heading);
-  const deck = LAKE.level + 0.75;
+  const deck = JETTY_DECK;
+  const half = JETTY.width / 2;
 
-  // Deck planks on posts, running out from the shore.
-  const shore = terrainHeight(JETTY.x, JETTY.z);
-  for (let along = -1; along <= JETTY.length; along += 0.5) {
+  // Planks across the full width, starting under the beach so the deck meets the
+  // sand without a step, then joists and posts wherever it's above the ground.
+  for (let along = -6; along <= JETTY.length; along += 0.5) {
     const p = local(0, -along);
-    parts.box(2.4, 0.1, 0.42, PLANK, { x: p.x, y: Math.max(deck, shore + 0.1), z: p.z, ry: JETTY.heading });
+    const shade = Math.round(along * 2) % 3 === 0 ? '#9f7e57' : PLANK;
+    parts.box(JETTY.width, 0.1, 0.44, shade, { x: p.x, y: deck - 0.05, z: p.z, ry: JETTY.heading });
   }
-  for (let along = 0; along <= JETTY.length; along += 4) {
-    for (const side of [-1.1, 1.1]) {
+  for (const side of [-half + 0.3, 0, half - 0.3]) {
+    const a = local(side, 1);
+    const b = local(side, -JETTY.length);
+    parts.beam({ ...a, y: deck - 0.22 }, { ...b, y: deck - 0.22 }, 0.18, POST, 0.22);
+    for (let along = 0; along <= JETTY.length; along += 4) {
       const p = local(side, -along);
       const bottom = terrainHeight(p.x, p.z) - 0.4;
-      const top = deck + (along === JETTY.length ? 0.9 : 0.05);
-      parts.box(0.22, top - bottom, 0.22, POST, { x: p.x, y: (top + bottom) / 2, z: p.z });
+      const top = deck - 0.3;
+      if (top > bottom) parts.box(0.24, top - bottom, 0.24, POST, { x: p.x, y: (top + bottom) / 2, z: p.z });
     }
   }
-  const end = local(0, -JETTY.length - 0.3);
-  parts.box(2.6, 0.12, 0.2, POST, { x: end.x, y: deck + 0.85, z: end.z, ry: JETTY.heading });
-  const a = local(0, 0);
-  obstacles.push({ ax: a.x, az: a.z, bx: end.x, bz: end.z, radius: 1.3 });
+  // Railings along both sides and across the end; the shore end stays open.
+  for (const side of [-half + 0.08, half - 0.08]) {
+    for (let along = 2; along <= JETTY.length; along += 2.75) {
+      const p = local(side, -along);
+      parts.box(0.14, 1, 0.14, POST, { x: p.x, y: deck + 0.45, z: p.z });
+    }
+    const a = local(side, -2);
+    const b = local(side, -JETTY.length);
+    parts.beam({ ...a, y: deck + 0.92 }, { ...b, y: deck + 0.92 }, 0.12, POST, 0.1);
+    parts.beam({ ...a, y: deck + 0.5 }, { ...b, y: deck + 0.5 }, 0.08, POST, 0.08);
+    obstacles.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, radius: 0.2 });
+  }
+  const endLeft = local(-half + 0.08, -JETTY.length);
+  const endRight = local(half - 0.08, -JETTY.length);
+  parts.beam({ ...endLeft, y: deck + 0.92 }, { ...endRight, y: deck + 0.92 }, 0.12, POST, 0.1);
+  obstacles.push({ ax: endLeft.x, az: endLeft.z, bx: endRight.x, bz: endRight.z, radius: 0.2 });
 
   // The boathouse, half over the water on stilts.
   const house = local(-10, -1);
@@ -79,7 +96,7 @@ export function buildJetty(scene, obstacles) {
 
   // A boat tied up at the end of the jetty, and one out on the lake.
   const moored = rowingBoat(false);
-  const mooring = local(2.2, -JETTY.length + 2);
+  const mooring = local(JETTY.width / 2 + 1.1, -JETTY.length + 3);
   moored.position.set(mooring.x, LAKE.level - 0.1, mooring.z);
   moored.rotation.y = JETTY.heading;
   const fishing = rowingBoat(true);

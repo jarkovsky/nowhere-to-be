@@ -19,7 +19,7 @@ import { CAMP, CAMP_TRAIL, GNOMES, PLACES, ROAD, ROAD_HALF_WIDTH, SPAWN, TRACKS,
 import { buildScenery } from './world/scenery.js';
 import { createSecrets } from './world/secrets.js';
 import { createSurfaces } from './world/surfaces.js';
-import { bridgeHeight, drivingHeight, isDriveable, terrainHeight, waterDepth } from './world/terrain.js';
+import { drivingHeight, isDriveable, onDeck, terrainHeight, waterDepth } from './world/terrain.js';
 import { createWildlife } from './world/wildlife.js';
 
 const MAX_PIXEL_RATIO = 1.5;
@@ -36,10 +36,10 @@ function readStorage() {
 
 /** What the tyres are on, for grip and top speed. */
 function surfaceUnder(x, z) {
+  if (onDeck(x, z)) return 'road';
   if (waterDepth(x, z) > 0.15) return 'water';
   const patch = surfaceAt(x, z);
   if (patch === 'snow' || patch === 'leaves') return patch;
-  if (bridgeHeight(x, z) !== null) return 'road';
   if (ROAD.nearest(x, z).distance < ROAD_HALF_WIDTH + 0.6) return 'road';
   if (CAMP_TRAIL.nearest(x, z).distance < 2.6) return 'road';
   if (TRACKS.some(track => track.path.nearest(x, z).distance < 2)) return 'track';

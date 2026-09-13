@@ -2,12 +2,13 @@
 import * as THREE from 'three';
 import { createRandom } from '../core/math.js';
 import { SURFACES, surfaceAt } from './layout.js';
-import { terrainHeight, waterDepth } from './terrain.js';
+import { onDeck, terrainHeight, waterDepth } from './terrain.js';
 
 const TRACK_CAPACITY = 6000;
 
 /** Which effect the tyres make at a point. */
 function effectAt(x, z) {
+  if (onDeck(x, z)) return 'grass'; // planks: no splashes, no tracks
   if (waterDepth(x, z) > 0.12) return 'water';
   return surfaceAt(x, z);
 }

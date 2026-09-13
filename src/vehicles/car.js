@@ -45,14 +45,22 @@ export function createCar() {
 
   painted.box(2.05, 0.62, 3.8, '#ffffff', { y: 1.03 });
   painted.box(1.9, 0.32, 1.15, '#ffffff', { y: 1.48, z: -1.25 }); // bonnet
-  painted.box(1.92, 1.18, 2.3, '#ffffff', { y: 1.85, z: 0.35 }); // cabin
-  trim.box(1.85, 0.2, 3.9, RUBBER, { y: 0.72 });
-  trim.box(1.71, 0.85, 2.34, GLASS, { y: 1.96, z: 0.35 });
-  for (const x of [-0.93, 0.93]) {
-    for (const z of [-0.8, 0.22, 1.47]) painted.box(0.09, 1.17, 0.1, '#ffffff', { x, y: 1.87, z });
-    trim.box(0.05, 0.06, 0.27, CREAM, { x: x * 1.04, y: 1.52, z: 0.36 }); // door handles
-    trim.box(0.26, 0.28, 0.15, RUBBER, { x: x * 1.17, y: 1.81, z: -0.72 }); // mirrors
+  // Cabin: painted up to the window line, glass all round above it, and
+  // pillars standing just proud of the glass.
+  painted.box(1.92, 0.44, 2.3, '#ffffff', { y: 1.48, z: 0.35 });
+  trim.box(1.86, 0.74, 2.26, GLASS, { y: 2.06, z: 0.35 });
+  for (const x of [-0.95, 0.95]) {
+    for (const z of [-0.77, 0.22, 1.45]) painted.box(0.1, 0.76, 0.13, '#ffffff', { x, y: 2.06, z });
+    painted.box(0.1, 0.1, 2.3, '#ffffff', { x, y: 2.43, z: 0.35 }); // roof rail above the windows
+    trim.box(0.05, 0.06, 0.27, CREAM, { x: x * 1.02, y: 1.52, z: -0.2 }); // door handles
+    trim.box(0.04, 0.42, 0.04, RUBBER, { x: x * 1.015, y: 1.47, z: 0.22 }); // door seam
+    // Mirrors on short arms, with the glass facing back.
+    const side = Math.sign(x);
+    painted.box(0.26, 0.06, 0.07, '#ffffff', { x: side * 1.08, y: 1.74, z: -0.66 });
+    painted.box(0.12, 0.26, 0.38, '#ffffff', { x: side * 1.24, y: 1.8, z: -0.66 });
+    trim.box(0.09, 0.2, 0.02, '#b9cfd0', { x: side * 1.24, y: 1.8, z: -0.46 });
   }
+  for (const z of [-0.78, 1.47]) painted.box(1.92, 0.08, 0.1, '#ffffff', { y: 2.43, z }); // window frames, front and back
   trim.box(2.06, 0.14, 2.48, CREAM, { y: 2.5, z: 0.35 }); // roof
   trim.box(2.26, 0.21, 0.23, CREAM, { y: 0.86, z: -2.02 }); // bumpers
   trim.box(2.26, 0.21, 0.23, CREAM, { y: 0.86, z: 1.98 });

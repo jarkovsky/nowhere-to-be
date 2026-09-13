@@ -22,6 +22,12 @@ export const STICKER_INFO = {
   tower: { name: 'Fire Tower', story: 'Someone keeps watch from up here.', hint: 'On the hill south of the trail.' },
   windmill: { name: 'Windmill', story: 'Turning slowly, all day long.', hint: 'Up on the flat hill to the west.' },
   jetty: { name: 'The Jetty', story: 'A boathouse and a rowing boat.', hint: 'On the south shore of the lake.' },
+  chata: {
+    name: 'Masarykova chata',
+    story: 'A mountain hut with a warm stove.',
+    hint: 'Up a winding track in the northern hills.',
+  },
+  bunker: { name: 'Řopík', story: 'A little concrete pillbox from 1938.', hint: 'In a line along the northern ridge.' },
   deer: { name: 'Deer', story: 'Out for their afternoon walk.', hint: 'They cross the meadow near the start.' },
   ducks: { name: 'Ducks', story: 'Everybody waits for the ducks.', hint: 'They cross the trail north of the lake.' },
   sheep: { name: 'Sheep', story: 'Grazing, mostly.', hint: 'Near the cabin.' },
@@ -30,6 +36,7 @@ export const STICKER_INFO = {
   fox: { name: 'Fox', story: 'Off on its rounds.', hint: 'At the edge of the eastern woods.' },
   fish: { name: 'Fish', story: 'Right out of the water.', hint: 'Wait by the lake for a while.' },
   geese: { name: 'Geese', story: 'Flying in a V over the valley.', hint: 'Look up.' },
+  eagle: { name: 'Eagle', story: 'Circling high over the hills.', hint: 'Look up near the mountain hut.' },
   yeti: {
     name: 'Yeti',
     story: 'Definitely just a rock. Probably.',
@@ -63,6 +70,12 @@ const DRAWINGS = {
     '<path d="M5 112q75-24 150 0v6H5z" fill="#8fab83"/><path d="m62 110 6-58h24l6 58z" fill="#ece4d0"/><path d="m64 54 16-14 16 14z" fill="#7c5a44"/><path d="M74 92h12v18H74z" fill="#5b6f62"/><path d="M80 46 46 12m34 34 34-34M80 46 46 80m34-34 34 34" stroke="#6a5340" stroke-width="4"/><path d="m56 22 14 14 6-6-14-14zm48 0L90 36l-6-6 14-14zM56 70l14-14 6 6-14 14zm48 0L90 56l-6 6 14 14z" fill="#f1ead8"/><circle cx="80" cy="46" r="4" fill="#5d4a39"/>',
   jetty:
     '<path d="M3 70h154v41q0 16-16 16H19q-16 0-16-16z" fill="#9dcac6"/><path d="M60 64h74v8H60z" fill="#a8875f"/><path d="M70 72v20m30-20v20m28-20v20" stroke="#6f5843" stroke-width="4"/><path d="M18 64V42l16-12 16 12v22z" fill="#93714f"/><path d="m14 44 20-16 20 16" stroke="#5d6b62" stroke-width="6" fill="none"/><path d="M84 94h40l-6 9H90z" fill="#c86338"/>',
+  chata:
+    '<path d="M5 112q75-26 150 0v6H5z" fill="#8fab83"/><path d="M30 100V76h100v24z" fill="#9d998c"/><path d="M28 78V60h104v18z" fill="#6b4a33"/><path d="m20 62 60-42 60 42z" fill="#4f4844"/><path d="M42 64h10v8H42zm22 0h10v8H64zm22 0h10v8H86zm22 0h10v8h-10zM44 84h8v8h-8zm64 0h8v8h-8z" fill="#e8cf8a" stroke="#f1ede2" stroke-width="2"/><path d="M73 100V86h14v14z" fill="#4c3a2a"/><path d="M146 104V30" stroke="#d9d6cc" stroke-width="2"/><path d="M146 30h-1v8h-15v-8z" fill="#f1ede2"/><path d="M146 38v8h-16v-8z" fill="#c8302a"/><path d="m130 30 8 8-8 8z" fill="#2b5a9c"/>',
+  bunker:
+    '<path d="M5 108q75-20 150 0v10H5z" fill="#8fab83"/><path d="M42 104V62h76v42z" fill="#a7a596"/><path d="M36 64h88v-9H36z" fill="#b0ae9f"/><path d="M50 74h22v14H50z" fill="#8c9070"/><path d="M92 86h18v12H92z" fill="#9a8f74"/><path d="M60 72h40" stroke="#2f3430" stroke-width="5"/>',
+  eagle:
+    '<path d="M20 98q30-14 60 0 24-12 52 0z" fill="#f4f6f0"/><path d="M80 52 30 40l-14 8 22 2-16 6 26 2 32 6zm0 0 50-12 14 8-22 2 16 6-26 2-32 6z" fill="#5e4632"/><ellipse cx="80" cy="56" rx="9" ry="16" fill="#5e4632"/><circle cx="80" cy="38" r="7" fill="#b48a4e"/><path d="m80 42 0 6 3-3z" fill="#e0b649"/><path d="m72 70 8 14 8-14z" fill="#5e4632"/>',
   cows: '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M44 84v22m12-22v22m44-22v22m12-22v22" stroke="#e7dfcd" stroke-width="8"/><rect x="38" y="52" width="80" height="36" rx="8" fill="#f1ece0"/><path d="M58 52h22v22H58zm38 18h14v14H96z" fill="#3c3f3a"/><rect x="112" y="42" width="30" height="24" rx="6" fill="#f1ece0"/><rect x="130" y="52" width="14" height="14" rx="4" fill="#e9b3a4"/><path d="m116 42-4-8m20 8 4-8" stroke="#e3d6b4" stroke-width="4"/><circle cx="124" cy="50" r="2.5" fill="#2d3a33"/>',
   fox: '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="m52 86-4 20m14-20v20m36-20 2 20m12-20 4 20" stroke="#3a3530" stroke-width="5"/><ellipse cx="80" cy="78" rx="34" ry="14" fill="#d0773b"/><path d="M46 76q-30-6-36 14 18 4 36-6z" fill="#d0773b"/><path d="M14 88q2 4 8 5l-2-9z" fill="#f2e8cd"/><path d="m108 74 20-10 10 10-20 14z" fill="#d0773b"/><path d="m116 66 4-14 6 12m4 2 6-12 2 14" fill="#d0773b"/><path d="m128 78 10-4 4 4-10 6z" fill="#f2e8cd"/><circle cx="126" cy="70" r="2.5" fill="#2d3a33"/>',
   fish: '<path d="M3 80h154v31q0 16-16 16H19q-16 0-16-16z" fill="#9dcac6"/><path d="M40 92q40-80 84 0" stroke="#d7eee0" stroke-width="2" stroke-dasharray="4 5" fill="none"/><g transform="rotate(-25 80 46)"><ellipse cx="80" cy="46" rx="24" ry="10" fill="#9fb2a8"/><path d="m56 46-14-10v20z" fill="#8aa198"/><circle cx="96" cy="44" r="2.5" fill="#2d3a33"/></g><ellipse cx="124" cy="96" rx="14" ry="4" fill="#eef8f4"/>',

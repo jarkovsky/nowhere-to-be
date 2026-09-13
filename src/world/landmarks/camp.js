@@ -27,17 +27,21 @@ function addTent(parts, x, z, rotation) {
     [w, 0, -l],
     [0, h, -l],
   ]);
-  const back = prism([
+  // Both ends are closed, so the tent never shows its hollow inside.
+  const ends = prism([
     [-w, 0, -l],
     [0, h, -l],
     [w, 0, -l],
+    [-w, 0, l],
+    [w, 0, l],
+    [0, h, l],
   ]);
   const door = prism([
-    [-w * 0.55, 0, l + 0.01],
-    [w * 0.55, 0, l + 0.01],
-    [0, h * 0.78, l + 0.01],
+    [-w * 0.55, 0, l + 0.02],
+    [w * 0.55, 0, l + 0.02],
+    [0, h * 0.78, l + 0.02],
   ]);
-  parts.add(left, '#d08d55', transform).add(right, '#c47f4a', transform).add(back, '#c98650', transform);
+  parts.add(left, '#d08d55', transform).add(right, '#c47f4a', transform).add(ends, '#c98650', transform);
   parts.add(door, '#4e463a', transform);
   parts.box(2 * w + 0.6, 0.04, 2 * l + 0.8, '#6d7a64', { x, y: y + 0.03, z, ry: rotation });
   const local = frame(x, z, rotation);

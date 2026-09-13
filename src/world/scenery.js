@@ -122,9 +122,16 @@ function buildGround() {
   return mesh;
 }
 
-/** A strip draped over the ground along a path, optionally offset sideways or skipping a stretch. */
+const SNOW = SURFACES.find(patch => patch.id === 'snow');
+const PACKED_SNOW = new THREE.Color('#e3e8e4');
+
+/**
+ * A strip draped over the ground along a path, optionally offset sideways or
+ * skipping a stretch. Where it crosses the snowfield it is snowed over too.
+ */
 function ribbon(path, halfWidth, color, { lift = 0.06, offset = 0, skip = () => false } = {}) {
-  const positions = [];
+  const base = new THREE.Color(color);
+  const tint = new THREE.Color();
   const across = 4;
   const rows = [];
   for (const sample of path.samples) {
@@ -137,23 +144,38 @@ function ribbon(path, halfWidth, color, { lift = 0.06, offset = 0, skip = () => 
       const side = offset + ((j / across) * 2 - 1) * halfWidth;
       const x = sample.x - sample.dz * side;
       const z = sample.z + sample.dx * side;
-      row.push([x, terrainHeight(x, z) + lift, z]);
+      const snow = 1 - smoothstep(Math.hypot((x - SNOW.x) / SNOW.rx, (z - SNOW.z) / SNOW.rz), 0.78, 1);
+      row.push({
+        position: [x, terrainHeight(x, z) + lift, z],
+        color: tint.copy(base).lerp(PACKED_SNOW, snow).toArray(),
+      });
     }
     rows.push(row);
   }
+  const positions = [];
+  const colors = [];
   const count = path.closed ? rows.length : rows.length - 1;
   for (let i = 0; i < count; i++) {
     const a = rows[i];
     const b = rows[(i + 1) % rows.length];
     if (!a || !b) continue;
     for (let j = 0; j < across; j++) {
-      positions.push(...a[j], ...a[j + 1], ...b[j], ...a[j + 1], ...b[j + 1], ...b[j]);
+      for (const corner of [a[j], a[j + 1], b[j], a[j + 1], b[j + 1], b[j]]) {
+        positions.push(...corner.position);
+        colors.push(...corner.color);
+      }
     }
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geometry.computeVertexNormals();
-  const material = flatMaterial(color, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const material = flatMaterial('#ffffff', {
+    vertexColors: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.receiveShadow = true;
   return mesh;

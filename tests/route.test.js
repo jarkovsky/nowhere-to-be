@@ -4,9 +4,9 @@ import * as THREE from 'three';
 import { angleDelta, clamp } from '../src/core/math.js';
 import { createObstacleIndex } from '../src/core/collision.js';
 import { createCarState, stepDriving } from '../src/core/driving.js';
-import { ROAD, CAMP_TRAIL, TRACKS } from '../src/world/layout.js';
+import { ROAD, CAMP_TRAIL, TRACKS, JETTY } from '../src/world/layout.js';
 import { headingOf } from '../src/world/path.js';
-import { drivingHeight, isDriveable } from '../src/world/terrain.js';
+import { drivingHeight, isDriveable, waterLevel } from '../src/world/terrain.js';
 import { buildScenery } from '../src/world/scenery.js';
 import { buildBridge } from '../src/world/landmarks/bridge.js';
 import { buildTunnel } from '../src/world/landmarks/tunnel.js';
@@ -15,11 +15,23 @@ import { buildFarm } from '../src/world/landmarks/farm.js';
 import { buildTower } from '../src/world/landmarks/tower.js';
 import { buildWindmill } from '../src/world/landmarks/windmill.js';
 import { buildJetty } from '../src/world/landmarks/jetty.js';
+import { buildHut } from '../src/world/landmarks/hut.js';
+import { buildBunkers } from '../src/world/landmarks/bunkers.js';
 
 // The real trees, rocks, railings, fences, buildings, tunnel walls and cliffs.
 const scene = new THREE.Scene();
 const { obstacles } = buildScenery(scene);
-for (const build of [buildBridge, buildTunnel, buildWaterfall, buildFarm, buildTower, buildWindmill, buildJetty]) {
+for (const build of [
+  buildBridge,
+  buildTunnel,
+  buildWaterfall,
+  buildFarm,
+  buildTower,
+  buildWindmill,
+  buildJetty,
+  buildHut,
+  buildBunkers,
+]) {
   build(scene, obstacles);
 }
 
@@ -77,4 +89,15 @@ test('every side track can be driven from end to end', () => {
     assert.equal(result.stuck, undefined, `${track.id}: ${result.stuck}`);
     assert.ok(result.progress >= track.path.length - 4, `${track.id} only reached ${result.progress.toFixed(0)} m`);
   }
+});
+
+test('the car can drive from the shore path out to the end of the jetty', () => {
+  const out = { x: -Math.sin(JETTY.heading), z: -Math.cos(JETTY.heading) };
+  const start = { x: JETTY.x - out.x * 8, z: JETTY.z - out.z * 8 };
+  const car = createCarState({ ...start, heading: JETTY.heading });
+  for (let step = 0; step < 60 * 12; step++) stepDriving(car, { forward: true }, 1 / 60, world);
+  const along = (car.x - JETTY.x) * out.x + (car.z - JETTY.z) * out.z;
+  assert.ok(along > JETTY.length - 4, `stopped ${along.toFixed(1)} m along the jetty`);
+  assert.ok(along < JETTY.length, 'the railing at the end stops the car');
+  assert.ok(drivingHeight(car.x, car.z) > waterLevel(car.x, car.z), 'still on the planks, above the water');
 });

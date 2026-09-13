@@ -14,9 +14,11 @@ import {
   TRACKS,
   WATERFALL,
   BRIDGE,
+  JETTY,
   TUNNEL,
   PADS,
   KNOLLS,
+  SERLICH,
   MESA,
   lakeDistance,
 } from './layout.js';
@@ -67,10 +69,10 @@ export function naturalHeight(x, z) {
   h += Math.max(0, r - 245) * 0.12 * (1 + Math.sin(angle * 5 + 0.5));
 
   h += bump(x, z, -125, -95, 110, 18); // the foothills of Echo Mountain
-  for (const knoll of KNOLLS) h += bump(x, z, knoll.x, knoll.z, knoll.radius, knoll.height);
+  for (const knoll of [...KNOLLS, SERLICH]) h += bump(x, z, knoll.x, knoll.z, knoll.radius, knoll.height);
   h += MESA.height * (1 - smoothstep(Math.hypot(x - MESA.x, z - MESA.z), MESA.top, MESA.edge));
-  // Rough, rocky hills to the north (negative Z).
-  const crags = smoothstep(-z, 150, 240);
+  // Rough, rocky hills to the north (negative Z), smoothing out on the slopes of Šerlich.
+  const crags = smoothstep(-z, 150, 240) * smoothstep(Math.hypot(x - SERLICH.x, z - SERLICH.z), 50, 95);
   if (crags > 0) h += crags * Math.max(0, fractalNoise(v / 52, u / 52, 3, 23) - 0.3) * 34;
   // A shelf behind the waterfall, so the stream drops off real high ground.
   h += 12 * smoothstep(x - WATERFALL.x, 4, 36) * (1 - smoothstep(Math.abs(z - WATERFALL.z), 26, 70));
@@ -169,16 +171,19 @@ for (let iz = 0; iz < GRID; iz++) {
   for (let ix = 0; ix < GRID; ix++) heights[iz * GRID + ix] = naturalHeight(AXIS[ix], AXIS[iz]);
 }
 
+function flattenPads() {
+  for (const pad of PADS) {
+    const level = naturalHeight(pad.x, pad.z);
+    forEachVertexNear(pad.x, pad.z, pad.radius + pad.falloff, (vertex, _x, _z, distance) => {
+      heights[vertex] = lerp(heights[vertex], level, 1 - smoothstep(distance, pad.radius, pad.radius + pad.falloff));
+    });
+  }
+}
+
 levelAlong(CAMP_TRAIL, () => 2.4, 6);
 for (const track of TRACKS) levelAlong(track.path, () => 2, 8);
-
 // Pads come after the side tracks so the tracks run up onto level ground.
-for (const pad of PADS) {
-  const level = naturalHeight(pad.x, pad.z);
-  forEachVertexNear(pad.x, pad.z, pad.radius + pad.falloff, (vertex, _x, _z, distance) => {
-    heights[vertex] = lerp(heights[vertex], level, 1 - smoothstep(distance, pad.radius, pad.radius + pad.falloff));
-  });
-}
+flattenPads();
 
 // The tunnel floor is levelled wider than the bore so no ground pokes inside.
 const roadProfile = levelAlong(ROAD, s => (isInTunnel(s) ? 9 : ROAD_HALF_WIDTH + 1.4), 10);
@@ -276,16 +281,39 @@ export function bridgeHeight(x, z) {
   return deckHeight(along);
 }
 
-/** The surface the tyres rest on: the bridge deck where there is one, otherwise the ground. */
+// --- The jetty -------------------------------------------------------------------
+
+/** The jetty's planks sit at one height, a little above the lake. */
+export const JETTY_DECK = LAKE.level + 0.8;
+
+/** Top of the jetty planks at a point, or null off the jetty. It starts under the beach and runs out over the water. */
+export function jettyHeight(x, z) {
+  const outX = -Math.sin(JETTY.heading);
+  const outZ = -Math.cos(JETTY.heading);
+  const dx = x - JETTY.x;
+  const dz = z - JETTY.z;
+  const along = dx * outX + dz * outZ;
+  const side = -dx * outZ + dz * outX;
+  if (Math.abs(side) > JETTY.width / 2 || along < -6 || along > JETTY.length) return null;
+  return JETTY_DECK;
+}
+
+/** True where the tyres are on planks rather than ground: the bridge, or the part of the jetty above the beach. */
+export function onDeck(x, z) {
+  if (bridgeHeight(x, z) !== null) return true;
+  return jettyHeight(x, z) !== null && JETTY_DECK > terrainHeight(x, z);
+}
+
+/** The surface the tyres rest on: a deck where there is one, otherwise the ground. */
 export function drivingHeight(x, z) {
   const ground = terrainHeight(x, z);
-  const deck = bridgeHeight(x, z);
+  const deck = bridgeHeight(x, z) ?? jettyHeight(x, z);
   return deck === null ? ground : Math.max(ground, deck);
 }
 
 /** True where the car is allowed to be: inside the fence and out of deep water. */
 export function isDriveable(x, z) {
   if (Math.hypot(x, z) > VALLEY_RADIUS) return false;
-  if (bridgeHeight(x, z) !== null) return true;
+  if (bridgeHeight(x, z) !== null || jettyHeight(x, z) !== null) return true;
   return waterDepth(x, z) < 0.95;
 }

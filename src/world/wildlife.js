@@ -191,6 +191,28 @@ function geeseFlock(scene, count) {
   };
 }
 
+/** A golden eagle with its wings spread for soaring, as one rigid mesh. */
+function eagle() {
+  const brown = '#5e4632';
+  const parts = new PartsBuilder()
+    .box(1.1, 0.34, 0.42, brown)
+    .box(0.36, 0.3, 0.3, '#b48a4e', { x: 0.66, y: 0.06 })
+    .box(0.18, 0.12, 0.12, '#e0b649', { x: 0.88, y: 0.02 })
+    .box(0.5, 0.06, 0.62, brown, { x: -0.72, y: 0.04 });
+  for (const side of [-1, 1]) {
+    // Broad inner wing, narrower outer wing tipped up a little, and splayed tip feathers.
+    parts.box(0.66, 0.06, 1.2, brown, { x: 0.02, y: 0.08, z: side * 0.78, rx: side * 0.1 });
+    parts.box(0.5, 0.05, 0.9, '#4d3a2a', { x: 0.04, y: 0.2, z: side * 1.8, rx: side * 0.22 });
+    for (let k = 0; k < 3; k++) {
+      parts.box(0.12, 0.03, 0.42, '#3f3024', { x: 0.2 - k * 0.17, y: 0.3, z: side * 2.42, rx: side * 0.3 });
+    }
+  }
+  const root = new THREE.Group();
+  root.add(parts.mesh({ receiveShadow: false }));
+  root.scale.setScalar(1.4); // a little larger than life, so it can be spotted from the ground
+  return root;
+}
+
 function fish() {
   const root = new THREE.Group();
   root.add(
@@ -256,6 +278,11 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
   const flock = HABITATS.geese;
   const geese = geeseFlock(scene, 7);
   const leadGoose = new THREE.Vector3();
+
+  const soarer = eagle();
+  const eyrie = HABITATS.eagle;
+  const eagleHeight = terrainHeight(eyrie.x, eyrie.z) + eyrie.height;
+  scene.add(soarer);
 
   const jumper = fish();
   const splash = new THREE.Mesh(
@@ -351,6 +378,17 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
       animal.root.position.set(animal.x, terrainHeight(animal.x, animal.z), animal.z);
       animal.root.rotation.y = animal.heading;
     });
+  }
+
+  /** The eagle circles over the hut on the hill, banking into the turn. */
+  function updateEagle() {
+    const a = (time / eyrie.period) * Math.PI * 2;
+    soarer.position.set(
+      eyrie.x + Math.cos(a) * eyrie.radius,
+      eagleHeight + Math.sin(time * 0.3) * 3,
+      eyrie.z + Math.sin(a) * eyrie.radius,
+    );
+    soarer.rotation.set(0.35, Math.atan2(-Math.cos(a), -Math.sin(a)), 0, 'YXZ'); // inner wing down
   }
 
   function updateGeese() {
@@ -490,12 +528,14 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
       placeWalkers();
       updateHerd(dt);
       updateGeese();
+      updateEagle();
       const fishDistance = updateFish(dt, player);
 
       const close = (p, range) => Math.hypot(player.x - p.x, player.z - p.z) < range;
       if (close(herd[0], 30)) onSpotted('cows');
       if (close(foxGroup.animals[0].root.position, 28)) onSpotted('fox');
       if (close(leadGoose, 75)) onSpotted('geese');
+      if (close(soarer.position, 60)) onSpotted('eagle');
       if (fishDistance < 45) onSpotted('fish');
       if (close(deerGroup.animals[0].root.position, 30)) onSpotted('deer');
       if (close(duckGroup.animals[0].root.position, 30)) onSpotted('ducks');

@@ -17,6 +17,9 @@ export const KNOLLS = [
   { x: 226, z: 138, radius: 30, height: 13 },
 ];
 
+/** A rounded summit in the northern hills (after Šerlich in the Orlické hory), with a mountain hut on top. */
+export const SERLICH = { x: 150, z: -236, radius: 60, height: 16 };
+
 /** A flat-topped hill out to the west. */
 export const MESA = { x: -262, z: 30, top: 26, edge: 62, height: 13 };
 
@@ -87,8 +90,18 @@ export const TOWER = { x: 101, z: 196 };
 
 export const WINDMILL = { x: MESA.x, z: MESA.z };
 
-/** A boathouse and a jetty on the south shore of the lake. */
-export const JETTY = { x: 84, z: 2, heading: headingOf(0, -1), length: 16 };
+/** Masarykova chata, the mountain hut on the summit, facing down into the valley. */
+export const CHATA = { x: 138, z: -198, rotation: Math.atan2(-138, 198) };
+
+/** Small concrete pillboxes from 1938 (řopíky) in a line along the northern ridge. */
+export const BUNKERS = [
+  { x: 64, z: -244 },
+  { x: 24, z: -252 },
+  { x: -18, z: -244 },
+];
+
+/** A boathouse and a jetty on the south shore of the lake. The jetty is wide enough to drive onto. */
+export const JETTY = { x: 84, z: 2, heading: headingOf(0, -1), length: 24, width: 5 };
 
 export const CABIN = { x: -62, z: 112, rotation: 0.35 };
 
@@ -127,6 +140,12 @@ export const TRACKS = [
     path: createPath(fromRoad(-186, -6, [-210, 4], [-232, 15], [-251, 25])),
   },
   {
+    id: 'chata',
+    ruts: true,
+    // Up the hillside on a long diagonal, then a hairpin back to the hut.
+    path: createPath(fromRoad(128, -118, [158, -138], [182, -156], [194, -170], [188, -182], [168, -190], [152, -194])),
+  },
+  {
     id: 'shore',
     ruts: false,
     path: createPath([[33, -12], [46, -5], [60, 4], [74, 13], [90, 11], [104, 9], [117, 22], ...fromRoad(128, 40)]),
@@ -153,6 +172,8 @@ export const PLACES = [
   { id: 'tower', x: TOWER.x, z: TOWER.z, radius: 14 },
   { id: 'windmill', x: WINDMILL.x, z: WINDMILL.z, radius: 18 },
   { id: 'jetty', x: JETTY.x, z: JETTY.z + 6, radius: 12 },
+  { id: 'chata', x: CHATA.x, z: CHATA.z, radius: 22 },
+  { id: 'bunker', x: BUNKERS[1].x, z: BUNKERS[1].z, radius: 14 },
 ];
 
 /** Ground that flattens so buildings and camp furniture sit on level ground. */
@@ -164,6 +185,8 @@ export const PADS = [
   { x: TOWER.x, z: TOWER.z, radius: 7, falloff: 8 },
   { x: WINDMILL.x, z: WINDMILL.z, radius: 8, falloff: 8 },
   { x: JETTY.x - 10, z: JETTY.z + 1, radius: 4, falloff: 10 },
+  { x: CHATA.x, z: CHATA.z, radius: 9, falloff: 20 },
+  ...BUNKERS.map(bunker => ({ ...bunker, radius: 3.5, falloff: 6 })),
 ];
 
 function patchOnRoad(x, z) {
@@ -196,6 +219,7 @@ export const HABITATS = {
   cows: { count: 3 },
   fox: { start: { x: 166, z: 62 }, end: { x: 204, z: 104 }, count: 1, wait: 9, duration: 14 },
   geese: { x: -20, z: 10, radius: 170, height: 58, period: 80 },
+  eagle: { x: SERLICH.x, z: SERLICH.z, radius: 34, height: 30, period: 38 },
 };
 
 /** Garden gnomes hidden around the valley. Entirely optional. */

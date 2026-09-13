@@ -15,6 +15,8 @@ export const STICKERS = [
   'tower',
   'windmill',
   'jetty',
+  'chata',
+  'bunker',
   'deer',
   'ducks',
   'sheep',
@@ -23,6 +25,7 @@ export const STICKERS = [
   'fox',
   'fish',
   'geese',
+  'eagle',
   'yeti',
 ];
 export const COLORS = ['orange', 'sage', 'blue', 'berry', 'yellow', 'rainbow'];

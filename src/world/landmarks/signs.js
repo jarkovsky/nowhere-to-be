@@ -15,6 +15,7 @@ import {
   TOWER,
   WINDMILL,
   JETTY,
+  CHATA,
   TUNNEL,
   SPAWN,
   PLACES,
@@ -196,11 +197,13 @@ function paintMap(ctx, w, h) {
     tower: 'Fire Tower',
     windmill: 'Windmill',
     jetty: 'Jetty',
+    chata: 'Masarykova chata',
+    bunker: 'Bunkers',
   };
   ctx.font = `700 26px ${FONT}`;
   ctx.textAlign = 'center';
   // Labels sit above their dot, except where that would crowd a neighbour.
-  const below = ['bridge', 'jetty', 'lookout'];
+  const below = ['bridge', 'jetty', 'lookout', 'bunker'];
   for (const place of PLACES) {
     ctx.fillStyle = '#3f4f45';
     ctx.beginPath();
@@ -252,7 +255,7 @@ function addMapBoard(scene, parts) {
   scene.add(map);
 }
 
-export function buildSigns(scene, { tunnelPortal }) {
+export function buildSigns(scene, { tunnelPortal, hutBoard }) {
   const parts = new PartsBuilder();
   const junction = ROAD.nearest(CAMP_TRAIL.samples[0].x, CAMP_TRAIL.samples[0].z).s;
   trailSign(scene, parts, junction - 10, -1, 'CAMPSITE', CAMP);
@@ -265,6 +268,7 @@ export function buildSigns(scene, { tunnelPortal }) {
     tower: ['FIRE TOWER', TOWER],
     windmill: ['WINDMILL', WINDMILL],
     shore: ['JETTY', JETTY],
+    chata: ['MASARYKOVA CHATA', CHATA],
   };
   for (const track of TRACKS) {
     const [text, destination] = destinations[track.id];
@@ -285,6 +289,15 @@ export function buildSigns(scene, { tunnelPortal }) {
   board.position.set(x - Math.sin(yaw) * 0.6, y, z - Math.cos(yaw) * 0.6);
   board.rotation.y = facing;
   scene.add(board);
+
+  // The hut's name, painted on a board above its door.
+  const name = new THREE.Mesh(
+    new THREE.PlaneGeometry(4.6, 0.9),
+    new THREE.MeshLambertMaterial({ map: canvasTexture(1024, 200, paintBoard('MASARYKOVA CHATA', null)) }),
+  );
+  name.position.set(hutBoard.x, hutBoard.y, hutBoard.z);
+  name.rotation.y = hutBoard.yaw;
+  scene.add(name);
 
   scene.add(parts.mesh());
 }

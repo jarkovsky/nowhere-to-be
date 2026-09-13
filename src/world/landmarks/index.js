@@ -6,6 +6,8 @@ import { buildFarm } from './farm.js';
 import { buildTower } from './tower.js';
 import { buildWindmill } from './windmill.js';
 import { buildJetty } from './jetty.js';
+import { buildHut } from './hut.js';
+import { buildBunkers } from './bunkers.js';
 import { buildSigns } from './signs.js';
 
 export { insideTunnel } from './tunnel.js';
@@ -20,7 +22,9 @@ export function buildLandmarks(scene, obstacles) {
   const tower = buildTower(scene, obstacles);
   const windmill = buildWindmill(scene, obstacles);
   const jetty = buildJetty(scene, obstacles);
-  buildSigns(scene, { tunnelPortal: tunnel.portal });
+  const hut = buildHut(scene, obstacles);
+  buildBunkers(scene, obstacles);
+  buildSigns(scene, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard });
 
   let time = 0;
   return {
@@ -34,6 +38,7 @@ export function buildLandmarks(scene, obstacles) {
       tower.update(time);
       windmill.update(dt);
       jetty.update(time);
+      hut.update(time);
     },
   };
 }

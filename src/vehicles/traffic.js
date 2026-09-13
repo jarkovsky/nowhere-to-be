@@ -27,16 +27,28 @@ function camperVan() {
 
 function pickup() {
   const parts = new PartsBuilder();
-  parts.box(2.0, 0.7, 4.8, '#b5533c', { y: 1.05 });
-  parts.box(1.9, 0.95, 1.8, '#b5533c', { y: 1.85, z: -0.6 }); // cab
-  parts.box(1.92, 0.55, 1.5, '#4b6a6c', { y: 1.95, z: -0.6 });
+  const paint = '#b5533c';
+  const glass = '#4b6a6c';
+  parts.box(2.0, 0.7, 4.8, paint, { y: 1.05 });
+  // Cab: painted up to the window line, then glass on all four sides between the pillars.
+  parts.box(1.9, 0.35, 1.8, paint, { y: 1.57, z: -0.6 });
+  parts.box(1.84, 0.62, 1.74, glass, { y: 2.06, z: -0.6 });
+  for (const x of [-0.93, 0.93]) {
+    for (const z of [-1.46, 0.26]) parts.box(0.1, 0.64, 0.12, paint, { x, y: 2.06, z });
+  }
+  parts.box(1.96, 0.12, 1.86, paint, { y: 2.42, z: -0.6 }); // roof
   parts.box(1.95, 0.45, 0.1, '#8e3f2e', { y: 1.6, z: 0.95 });
   for (const x of [-0.95, 0.95]) parts.box(0.1, 0.5, 2.2, '#8e3f2e', { x, y: 1.6, z: 1.3 }); // bed sides
+  parts.box(1.95, 0.5, 0.1, '#8e3f2e', { y: 1.6, z: 2.37 }); // tailgate
   parts.box(2.1, 0.2, 0.25, '#e7dfc8', { y: 0.75, z: -2.45 });
   parts.box(2.1, 0.2, 0.25, '#e7dfc8', { y: 0.75, z: 2.45 });
-  // A canoe on a rack over the bed.
-  for (const z of [-0.6, 2]) parts.box(1.8, 0.08, 0.08, '#4a4a40', { y: 2.45, z });
-  parts.add(new THREE.SphereGeometry(1, 10, 4), '#5f8a52', { y: 2.7, z: 0.6, sx: 0.42, sy: 0.22, sz: 2.6 });
+  // A canoe on a rack that stands on the bed rails, with its bow resting on a bar on the cab roof.
+  for (const z of [0.55, 2.25]) {
+    for (const x of [-0.92, 0.92]) parts.box(0.08, 0.72, 0.08, '#4a4a40', { x, y: 2.21, z });
+    parts.box(1.92, 0.08, 0.08, '#4a4a40', { y: 2.57, z });
+  }
+  parts.box(1.7, 0.08, 0.08, '#4a4a40', { y: 2.52, z: -1.1 }); // roof bar
+  parts.add(new THREE.SphereGeometry(1, 12, 6), '#5f8a52', { y: 2.82, z: 0.5, sx: 0.45, sy: 0.28, sz: 2.6 }); // upside down
   return { parts, wheelX: 1.0, wheelZ: [-1.55, 1.6], wheelRadius: 0.52, length: 4.9 };
 }
 
