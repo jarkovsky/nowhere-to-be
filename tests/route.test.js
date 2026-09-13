@@ -4,20 +4,24 @@ import * as THREE from 'three';
 import { angleDelta, clamp } from '../src/core/math.js';
 import { createObstacleIndex } from '../src/core/collision.js';
 import { createCarState, stepDriving } from '../src/core/driving.js';
-import { ROAD, CAMP_TRAIL } from '../src/world/layout.js';
+import { ROAD, CAMP_TRAIL, TRACKS } from '../src/world/layout.js';
 import { headingOf } from '../src/world/path.js';
 import { drivingHeight, isDriveable } from '../src/world/terrain.js';
 import { buildScenery } from '../src/world/scenery.js';
 import { buildBridge } from '../src/world/landmarks/bridge.js';
 import { buildTunnel } from '../src/world/landmarks/tunnel.js';
 import { buildWaterfall } from '../src/world/landmarks/waterfall.js';
+import { buildFarm } from '../src/world/landmarks/farm.js';
+import { buildTower } from '../src/world/landmarks/tower.js';
+import { buildWindmill } from '../src/world/landmarks/windmill.js';
+import { buildJetty } from '../src/world/landmarks/jetty.js';
 
-// The real trees, rocks, railings, tunnel walls and cliffs.
+// The real trees, rocks, railings, fences, buildings, tunnel walls and cliffs.
 const scene = new THREE.Scene();
 const { obstacles } = buildScenery(scene);
-buildBridge(scene, obstacles);
-buildTunnel(scene, obstacles);
-buildWaterfall(scene, obstacles);
+for (const build of [buildBridge, buildTunnel, buildWaterfall, buildFarm, buildTower, buildWindmill, buildJetty]) {
+  build(scene, obstacles);
+}
 
 const world = {
   obstacles: createObstacleIndex(obstacles),
@@ -65,4 +69,12 @@ test('the campsite spur is clear', () => {
   const result = followPath(CAMP_TRAIL, CAMP_TRAIL.length - 4);
   assert.equal(result.stuck, undefined, result.stuck);
   assert.ok(result.progress >= CAMP_TRAIL.length - 4);
+});
+
+test('every side track can be driven from end to end', () => {
+  for (const track of TRACKS) {
+    const result = followPath(track.path, track.path.length - 4);
+    assert.equal(result.stuck, undefined, `${track.id}: ${result.stuck}`);
+    assert.ok(result.progress >= track.path.length - 4, `${track.id} only reached ${result.progress.toFixed(0)} m`);
+  }
 });

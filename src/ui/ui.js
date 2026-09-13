@@ -9,7 +9,7 @@ const $ = id => document.getElementById(id);
 
 const LABELS = {
   colors: { orange: 'Orange', sage: 'Sage', blue: 'Blue', berry: 'Berry', yellow: 'Yellow', rainbow: 'Rainbow' },
-  decorations: { none: 'Nothing', flag: 'Flag', teddy: 'Teddy', gnome: 'Gnome' },
+  decorations: { flag: 'Flag', teddy: 'Teddy', gnome: 'Gnome' },
   horns: { beep: 'Beep', bicycle: 'Bell', quack: 'Quack', twinkle: 'Twinkle' },
   sky: { auto: 'Changes over time', sunset: 'Sunset', night: 'Night', rain: 'Rain', day: 'Clear day' },
   tilt: {
@@ -29,6 +29,7 @@ const LABELS = {
 export function createUI({ journal, gnomeCount, on }) {
   const menu = $('menu');
   let toastTimer = null;
+  let showroom = false;
   const toastQueue = [];
 
   // --- Title screen and HUD -------------------------------------------------------
@@ -46,15 +47,25 @@ export function createUI({ journal, gnomeCount, on }) {
   menu.addEventListener('close', () => on.resume());
   // Clicking the dimmed backdrop beside the panel resumes the game.
   menu.addEventListener('click', event => {
-    if (event.target !== menu) return;
+    // In the garage, the space beside the panel is for turning the car instead.
+    if (event.target !== menu || showroom) return;
     const box = menu.getBoundingClientRect();
     if (event.clientX > box.right) on.resume();
   });
 
   // --- Menu pages -----------------------------------------------------------------
 
+  /** The garage shows the real car beside the menu panel. */
+  function setShowroom(enabled) {
+    if (enabled === showroom) return;
+    showroom = enabled;
+    menu.classList.toggle('showroom', enabled);
+    on.showroom(enabled);
+  }
+
   function showPage(name) {
     for (const page of menu.querySelectorAll('.menu-page')) page.hidden = page.dataset.page !== name;
+    setShowroom(name === 'garage');
     if (name === 'scrapbook') renderScrapbook();
     if (name === 'garage') renderGarage();
     menu.scrollTop = 0;
@@ -95,13 +106,14 @@ export function createUI({ journal, gnomeCount, on }) {
       : 'Saving is unavailable here, so progress lasts for this visit.';
   }
 
-  function choiceButtons(container, values, labels, current, key) {
+  /** A row of buttons. `isPressed(value)` marks the chosen ones; `choose(value)` returns the change to save. */
+  function choiceButtons(container, values, labels, isPressed, choose) {
     container.innerHTML = values
-      .map(value => `<button data-value="${value}" aria-pressed="${value === current}">${labels[value]}</button>`)
+      .map(value => `<button data-value="${value}" aria-pressed="${isPressed(value)}">${labels[value]}</button>`)
       .join('');
     for (const button of container.querySelectorAll('button')) {
       button.addEventListener('click', () => {
-        on.choose({ [key]: button.dataset.value });
+        on.choose(choose(button.dataset.value));
         renderGarage();
       });
     }
@@ -123,13 +135,25 @@ export function createUI({ journal, gnomeCount, on }) {
       });
     }
     const decorations = DECORATIONS.filter(d => d !== 'gnome' || choices.gnomes.length === gnomeCount);
-    choiceButtons($('decoration-options'), decorations, LABELS.decorations, choices.decoration, 'decoration');
-    choiceButtons($('horn-options'), HORNS, LABELS.horns, choices.horn, 'horn');
-    const paint = choices.color === 'rainbow' ? '#c86338' : CAR_COLORS[choices.color];
-    document.querySelector('.car-preview').style.setProperty('--car-color', paint);
-    const tinyGnome =
-      '<svg viewBox="0 0 20 30" width="20" height="30"><path d="m10 0 7 13H3z" fill="#c8432f"/><circle cx="10" cy="15" r="4" fill="#f0c9a6"/><path d="M4 30q0-10 6-10t6 10z" fill="#3f6aa1"/></svg>';
-    $('decoration-preview').innerHTML = { none: '', flag: '⚑', teddy: '🧸', gnome: tinyGnome }[choices.decoration];
+    // Roof items can be combined, so each button toggles its own item.
+    choiceButtons(
+      $('decoration-options'),
+      decorations,
+      LABELS.decorations,
+      d => choices.decorations.includes(d),
+      d => ({
+        decorations: choices.decorations.includes(d)
+          ? choices.decorations.filter(item => item !== d)
+          : [...choices.decorations, d],
+      }),
+    );
+    choiceButtons(
+      $('horn-options'),
+      HORNS,
+      LABELS.horns,
+      h => h === choices.horn,
+      h => ({ horn: h }),
+    );
   }
 
   function refreshCounts() {
@@ -182,6 +206,7 @@ export function createUI({ journal, gnomeCount, on }) {
       showPage(name);
     },
     closeMenu() {
+      setShowroom(false);
       if (menu.open) menu.close();
     },
     isMenuOpen: () => menu.open,

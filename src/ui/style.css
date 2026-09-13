@@ -588,29 +588,16 @@ body.touch .keys {
 
 /* --- Garage --------------------------------------------------------------------- */
 
-.car-preview {
-  position: relative;
-  max-width: 300px;
-  margin: 0 auto 6px;
-  padding: 12px 24px;
-  border-radius: 50% 50% 10px 10px;
-  background: #e5e8d5;
+/* In the garage the backdrop clears so the real car shows beside the panel. */
+.menu.showroom {
+  touch-action: pan-y;
 }
 
-.car-preview svg {
-  display: block;
-  width: 100%;
-}
-
-.car-paint {
-  fill: var(--car-color, #d16b38);
-}
-
-.car-preview span {
-  position: absolute;
-  top: 0;
-  right: 70px;
-  font-size: 26px;
+.menu.showroom::backdrop {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  cursor: grab;
 }
 
 .menu fieldset {
@@ -701,6 +688,15 @@ body.touch .keys {
     border-radius: 0;
     padding-left: 22px;
     padding-right: 22px;
+  }
+
+  /* On phones the garage becomes a bottom sheet, with the car above it. */
+  .menu.showroom {
+    inset: auto 0 0 0;
+    height: 58dvh;
+    max-height: 58dvh;
+    padding-top: 18px;
+    border-radius: 18px 18px 0 0;
   }
 
   .touch-controls button {

@@ -3,21 +3,7 @@
 import * as THREE from 'three';
 import { CAMP, CABIN, LOOKOUT } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
-import { PartsBuilder } from '../build.js';
-
-/** Converts a point in a prop's local frame to world coordinates. */
-function frame(x, z, rotation) {
-  const cos = Math.cos(rotation);
-  const sin = Math.sin(rotation);
-  return (lx, lz) => ({ x: x + lx * cos + lz * sin, z: z - lx * sin + lz * cos });
-}
-
-function prism(points) {
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(points.flat(), 3));
-  geometry.computeVertexNormals();
-  return geometry;
-}
+import { PartsBuilder, localFrame as frame, prism, createSmoke } from '../build.js';
 
 function addTent(parts, x, z, rotation) {
   const y = terrainHeight(x, z) - 0.04;
@@ -262,30 +248,7 @@ function buildCabin(scene, obstacles) {
   obstacles.push({ x, z, radius: 5 }, { ...local(0, 5.8), radius: 1.6 });
 
   // Wood smoke drifting from the chimney.
-  const smokeMaterial = new THREE.MeshLambertMaterial({
-    color: '#e7e8e1',
-    transparent: true,
-    opacity: 0.5,
-    flatShading: true,
-    depthWrite: false,
-  });
-  const chimney = at(1.7, 7.4, -1.6);
-  const puffs = Array.from({ length: 7 }, (_, i) => {
-    const puff = new THREE.Mesh(new THREE.IcosahedronGeometry(0.6, 0), smokeMaterial.clone());
-    puff.userData.offset = i / 7;
-    scene.add(puff);
-    return puff;
-  });
-  return {
-    update(time) {
-      for (const puff of puffs) {
-        const t = (time * 0.12 + puff.userData.offset) % 1;
-        puff.position.set(chimney.x + t * 3, chimney.y + t * 9, chimney.z - t * 1.5);
-        puff.scale.setScalar(0.5 + t * 2.2);
-        puff.material.opacity = 0.45 * (1 - t);
-      }
-    },
-  };
+  return createSmoke(scene, at(1.7, 7.4, -1.6), { count: 7, rate: 0.12, rise: 9, size: 0.6 });
 }
 
 function buildLookout(scene, obstacles) {

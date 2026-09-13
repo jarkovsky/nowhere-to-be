@@ -69,15 +69,33 @@ try {
   step('spends a night at camp and wakes up there');
 
   await page.keyboard.press('KeyC');
+  assert.equal((await state(page)).cameraMode, 'showroom');
   await page.getByRole('button', { name: 'Blue' }).click();
+  await page.getByRole('button', { name: 'Flag' }).click();
   await page.getByRole('button', { name: 'Teddy' }).click();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  assert.equal((await state(page)).cameraMode, 'chase');
+  step('shows the car in the garage, with a flag and a teddy together');
+
   await page.reload();
   await page.getByRole('button', { name: 'Play' }).click();
   const reloaded = await state(page);
   assert.equal(reloaded.journal.color, 'blue');
-  assert.equal(reloaded.journal.decoration, 'teddy');
+  assert.deepEqual(reloaded.journal.decorations, ['flag', 'teddy']);
   assert.ok(reloaded.journal.found.includes('bridge'));
   step('remembers car choices and stickers after a reload');
+
+  const canvas = await page.locator('#world').boundingBox();
+  await page.mouse.move(canvas.width / 2, canvas.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(canvas.width / 2 + 200, canvas.height / 2, { steps: 8 });
+  const before = (await state(page)).camera;
+  await page.waitForTimeout(300);
+  await page.mouse.up();
+  const swung = (await state(page)).camera;
+  assert.ok(Math.hypot(swung[0] - before[0], swung[2] - before[2]) > 0.5, 'dragging swings the camera');
+  step('dragging the view swings the camera around the car');
 
   assert.ok((await state(page)).traffic.length === 2);
   assert.ok((await state(page)).calls < 200, 'draw calls stay low');

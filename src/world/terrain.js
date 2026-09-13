@@ -1,7 +1,7 @@
 // The height field shared by the ground mesh, the car and everything placed
 // on the ground. Heights live on a grid that is fine across the valley floor
 // and coarse out under the distant mountains.
-import { clamp, lerp, smoothstep } from '../core/math.js';
+import { clamp, fractalNoise, lerp, smoothstep, valueNoise } from '../core/math.js';
 import {
   WORLD_SIZE,
   VALLEY_RADIUS,
@@ -11,10 +11,13 @@ import {
   CREEK,
   CREEK_HALF_WIDTH,
   CAMP_TRAIL,
+  TRACKS,
   WATERFALL,
   BRIDGE,
   TUNNEL,
   PADS,
+  KNOLLS,
+  MESA,
   lakeDistance,
 } from './layout.js';
 
@@ -41,16 +44,39 @@ function gridCoordinate(value) {
   return clamp(g, 0, GRID - 1.000001);
 }
 
-/** Rolling meadows, a rim of steep hillsides and the lake basin. */
+const LAKE_BED = -5.5;
+
+const bump = (x, z, cx, cz, radius, height) => height * Math.exp(-((x - cx) ** 2 + (z - cz) ** 2) / radius ** 2);
+
+/**
+ * The untouched landscape: rolling meadows, a few hills, crags to the north,
+ * a rising rim around the fence and a broad bowl for the lake.
+ */
 export function naturalHeight(x, z) {
   const r = Math.hypot(x, z);
   const angle = Math.atan2(z, x);
-  let h = 4 + Math.sin(x * 0.019) * 5 + Math.cos(z * 0.022) * 5 + Math.sin(x * 0.035 + z * 0.014) * 3;
+  // Noise is sampled on rotated axes so no ridge lines up with the grid.
+  const u = x * 0.8 - z * 0.6;
+  const v = x * 0.6 + z * 0.8;
+  // Broad swells, smaller hummocks and a gentle regular roll.
+  let h = 4 + (fractalNoise(u / 190 + 7.3, v / 190 + 3.1, 3) - 0.5) * 22;
+  h += (valueNoise(u / 48, v / 48, 11) - 0.5) * 4;
+  h += Math.sin(x * 0.019) * 2.5 + Math.cos(z * 0.022) * 2.5;
+  // The valley rim gets steeper and more ragged towards the fence.
   h += Math.max(0, r - 180) * 0.2;
   h += Math.max(0, r - 245) * 0.12 * (1 + Math.sin(angle * 5 + 0.5));
-  h += 18 * Math.exp(-((x + 125) ** 2 + (z + 95) ** 2) / 12000);
+
+  h += bump(x, z, -125, -95, 110, 18); // the foothills of Echo Mountain
+  for (const knoll of KNOLLS) h += bump(x, z, knoll.x, knoll.z, knoll.radius, knoll.height);
+  h += MESA.height * (1 - smoothstep(Math.hypot(x - MESA.x, z - MESA.z), MESA.top, MESA.edge));
+  // Rough, rocky hills to the north (negative Z).
+  const crags = smoothstep(-z, 150, 240);
+  if (crags > 0) h += crags * Math.max(0, fractalNoise(v / 52, u / 52, 3, 23) - 0.3) * 34;
+  // A shelf behind the waterfall, so the stream drops off real high ground.
+  h += 12 * smoothstep(x - WATERFALL.x, 4, 36) * (1 - smoothstep(Math.abs(z - WATERFALL.z), 26, 70));
+
   const lake = lakeDistance(x, z);
-  if (lake < 1.34) h = lerp(-5.5, h, smoothstep(lake, 0.9, 1.34));
+  if (lake < 2.1) h = lerp(LAKE_BED, h, smoothstep(lake, 0.92, 2.1));
   return h;
 }
 
@@ -99,16 +125,19 @@ function nearestSamples(path, radius) {
 }
 
 function smoothProfile(values, window, closed) {
+  const n = values.length;
+  // Open paths are extended past their ends by mirroring the slope, so the
+  // smoothed profile still starts and finishes at the real ground height.
+  const at = j => {
+    if (closed) return values[(j + n) % n];
+    if (j < 0) return 2 * values[0] - values[Math.min(-j, n - 1)];
+    if (j >= n) return 2 * values[n - 1] - values[Math.max(2 * n - 2 - j, 0)];
+    return values[j];
+  };
   return values.map((_, i) => {
     let sum = 0;
-    let count = 0;
-    for (let k = -window; k <= window; k++) {
-      const j = closed ? (i + k + values.length) % values.length : i + k;
-      if (j < 0 || j >= values.length) continue;
-      sum += values[j];
-      count++;
-    }
-    return sum / count;
+    for (let k = -window; k <= window; k++) sum += at(i + k);
+    return sum / (2 * window + 1);
   });
 }
 
@@ -140,6 +169,10 @@ for (let iz = 0; iz < GRID; iz++) {
   for (let ix = 0; ix < GRID; ix++) heights[iz * GRID + ix] = naturalHeight(AXIS[ix], AXIS[iz]);
 }
 
+levelAlong(CAMP_TRAIL, () => 2.4, 6);
+for (const track of TRACKS) levelAlong(track.path, () => 2, 8);
+
+// Pads come after the side tracks so the tracks run up onto level ground.
 for (const pad of PADS) {
   const level = naturalHeight(pad.x, pad.z);
   forEachVertexNear(pad.x, pad.z, pad.radius + pad.falloff, (vertex, _x, _z, distance) => {
@@ -147,9 +180,8 @@ for (const pad of PADS) {
   });
 }
 
-levelAlong(CAMP_TRAIL, () => 2.4, 5);
 // The tunnel floor is levelled wider than the bore so no ground pokes inside.
-const roadProfile = levelAlong(ROAD, s => (isInTunnel(s) ? 9 : ROAD_HALF_WIDTH + 1.4), 7);
+const roadProfile = levelAlong(ROAD, s => (isInTunnel(s) ? 9 : ROAD_HALF_WIDTH + 1.4), 10);
 
 /** Height of the trail surface at the bridge, used to dig the creek deep enough. */
 const roadAtBridge = roadProfile[ROAD.samples.findIndex(p => p.s === BRIDGE.s)];
@@ -183,8 +215,9 @@ for (const [vertex, { index, distance }] of nearestSamples(CREEK, 18)) {
 }
 
 const POOL_LEVEL = creekBed[0] + WATER_DEPTH;
-forEachVertexNear(WATERFALL.x, WATERFALL.z, 22, (vertex, _x, _z, distance) => {
-  const bowl = POOL_LEVEL - POOL_DEPTH + Math.max(0, distance - WATERFALL.poolRadius * 0.55) * 0.5;
+// The pool reaches right under the foot of the cliff, so the falls land in water.
+forEachVertexNear(WATERFALL.x, WATERFALL.z, 30, (vertex, _x, _z, distance) => {
+  const bowl = POOL_LEVEL - POOL_DEPTH + Math.max(0, distance - WATERFALL.poolRadius - 0.8) * 1.4;
   heights[vertex] = Math.min(heights[vertex], bowl);
 });
 
@@ -206,7 +239,7 @@ export const POOL = { x: WATERFALL.x, z: WATERFALL.z, level: POOL_LEVEL };
 /** Height of the water surface at a point, or -Infinity where it's dry. */
 export function waterLevel(x, z) {
   let level = -Infinity;
-  if (lakeDistance(x, z) < 1.4) level = LAKE.level;
+  if (lakeDistance(x, z) < 2) level = LAKE.level;
   if (Math.hypot(x - POOL.x, z - POOL.z) < WATERFALL.poolRadius + 6) level = Math.max(level, POOL.level);
   if (x > 135 && x < 235 && z > -75 && z < -35) {
     const creek = CREEK.nearest(x, z);

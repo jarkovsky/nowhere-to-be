@@ -7,6 +7,9 @@ const FRONT_Z = -1.2;
 const REAR_Z = 1.24;
 const CONTACT_CLEARANCE = 0.012;
 
+/** How far each wheel can move from its rest height: up into the arch, and down. */
+export const TRAVEL = { rest: 0.65, up: 0.13, down: 0.24 };
+
 /** Height, pitch and roll of a chassis at (x, z) facing `heading` on the surface `sample`. */
 export function chassisPose(x, z, heading, sample) {
   const sin = Math.sin(heading);
@@ -39,26 +42,46 @@ function rimPoints(tire) {
   return points;
 }
 
+/** Moves one wheel along the suspension axis until its tyre rests on the ground. */
+function settleWheel(wheel, sample) {
+  wheel.rim ??= rimPoints(wheel.tire);
+  for (let iteration = 0; iteration < 4; iteration++) {
+    wheel.tire.updateWorldMatrix(true, false);
+    let clearance = Infinity;
+    for (const point of wheel.rim) {
+      vertex.copy(point).applyMatrix4(wheel.tire.matrixWorld);
+      clearance = Math.min(clearance, vertex.y - sample(vertex.x, vertex.z));
+    }
+    const correction = (CONTACT_CLEARANCE - clearance) / up.y;
+    wheel.pivot.position.y += correction;
+    if (Math.abs(correction) < 0.0005) break;
+  }
+}
+
 /**
- * Moves each wheel along the suspension axis until its tyre rests on the ground.
- * Accounts for wheel spin, steering, body pitch and roll, and sharp crests.
+ * Drops each tyre onto the ground beneath it, accounting for wheel spin,
+ * steering, body pitch and roll, and sharp crests. If a wheel would have to
+ * rise further into its arch than the suspension allows, the whole car is
+ * lifted instead; a wheel over a dip hangs at full droop.
  */
 export function settleWheels(car, sample) {
   car.root.updateWorldMatrix(true, true);
   up.set(0, 1, 0).applyQuaternion(car.root.quaternion);
-  for (const wheel of car.wheels) {
-    wheel.rim ??= rimPoints(wheel.tire);
-    for (let iteration = 0; iteration < 4; iteration++) {
-      wheel.tire.updateWorldMatrix(true, false);
-      let clearance = Infinity;
-      for (const point of wheel.rim) {
-        vertex.copy(point).applyMatrix4(wheel.tire.matrixWorld);
-        clearance = Math.min(clearance, vertex.y - sample(vertex.x, vertex.z));
-      }
-      const correction = (CONTACT_CLEARANCE - clearance) / up.y;
-      wheel.pivot.position.y += correction;
-      if (Math.abs(correction) < 0.0005) break;
+  for (let pass = 0; pass < 2; pass++) {
+    let lift = 0;
+    for (const wheel of car.wheels) {
+      settleWheel(wheel, sample);
+      lift = Math.max(lift, wheel.pivot.position.y - TRAVEL.rest - TRAVEL.up);
     }
+    if (lift < 0.002) break;
+    car.root.position.y += lift * up.y;
+    car.root.updateWorldMatrix(true, true);
+  }
+  for (const wheel of car.wheels) {
+    wheel.pivot.position.y = Math.min(
+      Math.max(wheel.pivot.position.y, TRAVEL.rest - TRAVEL.down),
+      TRAVEL.rest + TRAVEL.up,
+    );
     wheel.pivot.updateWorldMatrix(true, true);
   }
 }

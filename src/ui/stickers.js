@@ -18,10 +18,18 @@ export const STICKER_INFO = {
     hint: 'A side path leaves the trail near the start.',
   },
   lookout: { name: 'The Lookout', story: 'The best view in the valley.', hint: 'High ground, inside the trail loop.' },
+  farm: { name: 'The Farm', story: 'A red barn, a silo and a paddock.', hint: 'A track leaves the western trail.' },
+  tower: { name: 'Fire Tower', story: 'Someone keeps watch from up here.', hint: 'On the hill south of the trail.' },
+  windmill: { name: 'Windmill', story: 'Turning slowly, all day long.', hint: 'Up on the flat hill to the west.' },
+  jetty: { name: 'The Jetty', story: 'A boathouse and a rowing boat.', hint: 'On the south shore of the lake.' },
   deer: { name: 'Deer', story: 'Out for their afternoon walk.', hint: 'They cross the meadow near the start.' },
   ducks: { name: 'Ducks', story: 'Everybody waits for the ducks.', hint: 'They cross the trail north of the lake.' },
   sheep: { name: 'Sheep', story: 'Grazing, mostly.', hint: 'Near the cabin.' },
   rabbit: { name: 'Rabbit', story: 'Gone in a flash.', hint: 'Its burrow is by the western trail.' },
+  cows: { name: 'Cows', story: 'Try the horn. They answer.', hint: 'At the farm.' },
+  fox: { name: 'Fox', story: 'Off on its rounds.', hint: 'At the edge of the eastern woods.' },
+  fish: { name: 'Fish', story: 'Right out of the water.', hint: 'Wait by the lake for a while.' },
+  geese: { name: 'Geese', story: 'Flying in a V over the valley.', hint: 'Look up.' },
   yeti: {
     name: 'Yeti',
     story: 'Definitely just a rock. Probably.',
@@ -48,6 +56,18 @@ const DRAWINGS = {
     '<path d="M48 84v23m25-22v22m23-23v23" stroke="#5b6555" stroke-width="7"/><path d="M34 73a16 16 0 0 1 6-27 16 16 0 0 1 26-9 18 18 0 0 1 27 2 18 18 0 0 1 25 23 18 18 0 0 1-17 28H52a18 18 0 0 1-18-17" fill="#eee9d7"/><ellipse cx="113" cy="69" rx="16" ry="21" fill="#66715d"/><path d="m101 55-14-5m36 4 14-5" stroke="#66715d" stroke-width="9"/><circle cx="118" cy="64" r="3" fill="#f5f0da"/>',
   rabbit:
     '<ellipse cx="114" cy="102" rx="29" ry="10" fill="#6e6d51"/><ellipse cx="64" cy="83" rx="26" ry="20" fill="#d6c4a1"/><circle cx="85" cy="63" r="16" fill="#d6c4a1"/><path d="m77 50-6-27m16 26 7-28" stroke="#d6c4a1" stroke-width="11" stroke-linecap="round"/><circle cx="91" cy="60" r="3" fill="#40503c"/><circle cx="38" cy="82" r="9" fill="#f2e8cd"/>',
+  farm: '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M28 104V64l27-22 27 22v40z" fill="#b0503a"/><path d="m24 66 31-27 31 27" stroke="#6f6b63" stroke-width="7" fill="none"/><path d="M45 104V82h20v22z" fill="#8e3f2f"/><path d="m45 82 20 22m0-22-20 22" stroke="#eee7d3" stroke-width="3"/><rect x="96" y="40" width="22" height="64" fill="#cfc8b6"/><path d="M96 40a11 11 0 0 1 22 0z" fill="#86938d"/><ellipse cx="136" cy="98" rx="10" ry="8" fill="#d9c071"/>',
+  tower:
+    '<path d="M5 112q75-30 150 0v6H5z" fill="#8fab83"/><path d="m58 108 12-56m32 56L90 52M62 92h36M66 72h28m-38 30 42-30m2 30L62 72" stroke="#8d6a48" stroke-width="4"/><path d="M64 52h32V36H64z" fill="#596f6c"/><path d="M61 54h38v-5H61zm-1-18 20-14 20 14z" fill="#5d6b62"/><path d="M80 22V8" stroke="#737e73" stroke-width="2"/><path d="M80 8h13l-3 4 3 4H80" fill="#c8432f"/>',
+  windmill:
+    '<path d="M5 112q75-24 150 0v6H5z" fill="#8fab83"/><path d="m62 110 6-58h24l6 58z" fill="#ece4d0"/><path d="m64 54 16-14 16 14z" fill="#7c5a44"/><path d="M74 92h12v18H74z" fill="#5b6f62"/><path d="M80 46 46 12m34 34 34-34M80 46 46 80m34-34 34 34" stroke="#6a5340" stroke-width="4"/><path d="m56 22 14 14 6-6-14-14zm48 0L90 36l-6-6 14-14zM56 70l14-14 6 6-14 14zm48 0L90 56l-6 6 14 14z" fill="#f1ead8"/><circle cx="80" cy="46" r="4" fill="#5d4a39"/>',
+  jetty:
+    '<path d="M3 70h154v41q0 16-16 16H19q-16 0-16-16z" fill="#9dcac6"/><path d="M60 64h74v8H60z" fill="#a8875f"/><path d="M70 72v20m30-20v20m28-20v20" stroke="#6f5843" stroke-width="4"/><path d="M18 64V42l16-12 16 12v22z" fill="#93714f"/><path d="m14 44 20-16 20 16" stroke="#5d6b62" stroke-width="6" fill="none"/><path d="M84 94h40l-6 9H90z" fill="#c86338"/>',
+  cows: '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M44 84v22m12-22v22m44-22v22m12-22v22" stroke="#e7dfcd" stroke-width="8"/><rect x="38" y="52" width="80" height="36" rx="8" fill="#f1ece0"/><path d="M58 52h22v22H58zm38 18h14v14H96z" fill="#3c3f3a"/><rect x="112" y="42" width="30" height="24" rx="6" fill="#f1ece0"/><rect x="130" y="52" width="14" height="14" rx="4" fill="#e9b3a4"/><path d="m116 42-4-8m20 8 4-8" stroke="#e3d6b4" stroke-width="4"/><circle cx="124" cy="50" r="2.5" fill="#2d3a33"/>',
+  fox: '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="m52 86-4 20m14-20v20m36-20 2 20m12-20 4 20" stroke="#3a3530" stroke-width="5"/><ellipse cx="80" cy="78" rx="34" ry="14" fill="#d0773b"/><path d="M46 76q-30-6-36 14 18 4 36-6z" fill="#d0773b"/><path d="M14 88q2 4 8 5l-2-9z" fill="#f2e8cd"/><path d="m108 74 20-10 10 10-20 14z" fill="#d0773b"/><path d="m116 66 4-14 6 12m4 2 6-12 2 14" fill="#d0773b"/><path d="m128 78 10-4 4 4-10 6z" fill="#f2e8cd"/><circle cx="126" cy="70" r="2.5" fill="#2d3a33"/>',
+  fish: '<path d="M3 80h154v31q0 16-16 16H19q-16 0-16-16z" fill="#9dcac6"/><path d="M40 92q40-80 84 0" stroke="#d7eee0" stroke-width="2" stroke-dasharray="4 5" fill="none"/><g transform="rotate(-25 80 46)"><ellipse cx="80" cy="46" rx="24" ry="10" fill="#9fb2a8"/><path d="m56 46-14-10v20z" fill="#8aa198"/><circle cx="96" cy="44" r="2.5" fill="#2d3a33"/></g><ellipse cx="124" cy="96" rx="14" ry="4" fill="#eef8f4"/>',
+  geese:
+    '<path d="M24 92q14-14 30 0 10-10 22 0z" fill="#f4f6f0"/><path d="M72 36q8 2 8 6 0-4 8-6M56 50q8 2 8 6 0-4 8-6m16 0q8 2 8 6 0-4 8-6M40 64q8 2 8 6 0-4 8-6m48 0q8 2 8 6 0-4 8-6M24 78q8 2 8 6 0-4 8-6m80 0q8 2 8 6 0-4 8-6" stroke="#4e5650" stroke-width="3" fill="none" stroke-linecap="round"/>',
   yeti: '<path d="M5 112q75-22 150 0v6H5z" fill="#eef1f2"/><path d="M28 112q4-46 26-50 20 0 23 50z" fill="#9aa3a0"/><ellipse cx="104" cy="74" rx="26" ry="34" fill="#f4f6f6"/><rect x="91" y="56" width="26" height="17" rx="6" fill="#8ea2ad"/><circle cx="99" cy="63" r="2.5" fill="#2d3a40"/><circle cx="109" cy="63" r="2.5" fill="#2d3a40"/><path d="M124 64q14-20 10-34" stroke="#f4f6f6" stroke-width="11" stroke-linecap="round" fill="none"/>',
 };
 

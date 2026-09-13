@@ -102,3 +102,82 @@ export function triangleGeometry(positions, colors) {
   geometry.computeBoundingSphere();
   return geometry;
 }
+
+/** Converts a point in a prop's local frame (rotated by `rotation` about Y) to world coordinates. */
+export function localFrame(x, z, rotation) {
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  return (lx, lz) => ({ x: x + lx * cos + lz * sin, z: z - lx * sin + lz * cos });
+}
+
+/** Geometry from a flat list of triangle corners. */
+export function prism(points) {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(points.flat(), 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/** A gable roof (two slopes and the triangular ends) over a `width` x `depth` box whose eaves sit at `eave`. */
+export function gableRoof(width, depth, eave, ridge, overhang = 0.35) {
+  const w = width / 2 + overhang;
+  const d = depth / 2 + overhang;
+  return prism([
+    [-w, eave, d],
+    [0, ridge, d],
+    [-w, eave, -d],
+    [-w, eave, -d],
+    [0, ridge, d],
+    [0, ridge, -d],
+    [w, eave, d],
+    [w, eave, -d],
+    [0, ridge, d],
+    [0, ridge, d],
+    [w, eave, -d],
+    [0, ridge, -d],
+  ]);
+}
+
+/** The triangular wall under a gable, at the front (+Z) and back (-Z) of a box. */
+export function gableEnds(width, depth, eave, ridge) {
+  const w = width / 2;
+  const d = depth / 2;
+  return prism([
+    [-w, eave, d],
+    [w, eave, d],
+    [0, ridge, d],
+    [w, eave, -d],
+    [-w, eave, -d],
+    [0, ridge, -d],
+  ]);
+}
+
+/**
+ * Wood smoke rising from a chimney at `origin`, drifting with the wind. One
+ * instanced mesh; puffs swell as they rise and shrink away at the top.
+ */
+export function createSmoke(scene, origin, { count = 6, rate = 0.11, rise = 8, size = 0.55 } = {}) {
+  const material = new THREE.MeshLambertMaterial({
+    color: '#e7e8e1',
+    transparent: true,
+    opacity: 0.4,
+    flatShading: true,
+    depthWrite: false,
+  });
+  const puffs = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(size, 0), material, count);
+  puffs.frustumCulled = false;
+  scene.add(puffs);
+  const dummy = new THREE.Object3D();
+  return {
+    update(time) {
+      for (let i = 0; i < count; i++) {
+        const t = (time * rate + i / count) % 1;
+        dummy.position.set(origin.x + t * 2.8, origin.y + t * rise, origin.z - t * 1.4);
+        dummy.scale.setScalar((0.5 + t * 2.2) * Math.min(1, (1 - t) * 3.5));
+        dummy.updateMatrix();
+        puffs.setMatrixAt(i, dummy.matrix);
+      }
+      puffs.instanceMatrix.needsUpdate = true;
+    },
+  };
+}

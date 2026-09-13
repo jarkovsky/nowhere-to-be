@@ -152,6 +152,11 @@ export function createAudio() {
         [0, 0.24, 0.42].forEach(t => tone(480, now + t, 0.14, { type: 'sawtooth', end: 260, volume: 0.05 }));
       } else if (kind === 'baa') {
         for (let i = 0; i < 6; i++) tone(310 + (i % 2) * 18, now + i * 0.07, 0.09, { type: 'sawtooth', volume: 0.035 });
+      } else if (kind === 'moo') {
+        tone(118, now, 0.35, { type: 'sawtooth', end: 150, volume: 0.06 });
+        tone(150, now + 0.35, 0.75, { type: 'sawtooth', end: 104, volume: 0.06 });
+      } else if (kind === 'honk') {
+        [0, 0.3].forEach(t => tone(560, now + t, 0.16, { type: 'square', end: 470, volume: 0.03 }));
       }
     },
 

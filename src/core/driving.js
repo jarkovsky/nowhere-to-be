@@ -19,6 +19,7 @@ export const CAR = {
 /** How each surface changes top speed and grip. */
 const SURFACE_HANDLING = {
   road: { speed: 1, grip: 1 },
+  track: { speed: 0.92, grip: 0.92 },
   grass: { speed: 0.82, grip: 0.85 },
   leaves: { speed: 0.8, grip: 0.6 },
   snow: { speed: 0.68, grip: 0.38 },

@@ -2,6 +2,7 @@
 // material so the colour can change; everything else is one merged mesh.
 import * as THREE from 'three';
 import { PartsBuilder, flatMaterial } from '../world/build.js';
+import { TRAVEL } from '../core/suspension.js';
 
 export const CAR_COLORS = {
   orange: '#d16b38',
@@ -71,10 +72,21 @@ export function createCar() {
   for (const x of [-1.08, 1.08]) {
     for (const z of [-1.2, 1.24]) {
       const wheel = createWheel();
-      wheel.pivot.position.set(x, 0.65, z);
+      wheel.pivot.position.set(x, TRAVEL.rest, z);
       root.add(wheel.pivot);
       wheels.push({ ...wheel, front: z < 0 });
-      painted.box(0.25, 0.18, 1.26, '#ffffff', { x, y: 1.16, z }); // wheel arches
+      // Flared arches sit well above the tyre, leaving room for the suspension to move.
+      const flare = x * 1.02;
+      painted.box(0.44, 0.12, 1.06, '#ffffff', { x: flare, y: 1.5, z });
+      for (const end of [-1, 1]) {
+        painted.beam(
+          { x: flare, y: 1.5, z: z + end * 0.5 },
+          { x: flare, y: 1.02, z: z + end * 0.86 },
+          0.44,
+          '#ffffff',
+          0.12,
+        );
+      }
     }
   }
 
@@ -119,10 +131,11 @@ export function createCar() {
     body,
     wheels,
     headlight,
-    customize(color, decoration) {
+    /** `chosen` lists the roof decorations to show; they all fit at once. */
+    customize(color, chosen = []) {
       rainbow = color === 'rainbow';
       if (!rainbow) paint.color.set(CAR_COLORS[color] ?? CAR_COLORS.orange);
-      for (const [name, object] of Object.entries(decorations)) object.visible = name === decoration;
+      for (const [name, object] of Object.entries(decorations)) object.visible = chosen.includes(name);
     },
     setLights(night, braking) {
       headlight.intensity = night * 55;
@@ -138,8 +151,9 @@ export function createCar() {
 
 function createFlag() {
   const flag = new THREE.Group();
-  const pole = new THREE.Mesh(new THREE.BoxGeometry(0.045, 1.5, 0.045), flatMaterial(METAL));
-  pole.position.set(0.85, 3.2, 1);
+  // Clamped to the back corner of the roof rack.
+  const pole = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.5, 0.05), flatMaterial(METAL));
+  pole.position.set(0.7, 3.46, 1.22);
   const pennantShape = new THREE.BufferGeometry();
   pennantShape.setAttribute('position', new THREE.Float32BufferAttribute([0, 0.5, 0, 0, 0, 0, 0, 0.25, 0.8], 3));
   pennantShape.computeVertexNormals();
@@ -147,7 +161,7 @@ function createFlag() {
     pennantShape,
     new THREE.MeshLambertMaterial({ color: '#e5bb56', side: THREE.DoubleSide }),
   );
-  pennant.position.set(0.85, 3.45, 1);
+  pennant.position.set(0.7, 3.71, 1.22);
   flag.add(pole, pennant);
   flag.userData.pennant = pennant;
   return flag;
@@ -168,7 +182,9 @@ function createTeddy() {
   }
   ball(0.07, 0, 0.7, -0.28, bead);
   const teddy = parts.mesh({ castShadow: false });
-  teddy.position.set(0.05, 2.7, -0.4);
+  // Sitting on the roof in front of the luggage, feet on the roof panel.
+  teddy.scale.setScalar(0.85);
+  teddy.position.set(-0.38, 2.66, -0.38);
   return teddy;
 }
 
@@ -190,6 +206,6 @@ export function gnomeParts(parts, transform = {}) {
 
 function createGnomeMascot() {
   const mesh = gnomeParts(new PartsBuilder(), { scale: 0.8 }).mesh({ castShadow: false });
-  mesh.position.set(0, 1.62, -1.45);
+  mesh.position.set(0, 1.63, -1.45); // on the bonnet
   return mesh;
 }

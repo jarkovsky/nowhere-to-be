@@ -59,7 +59,7 @@
         <button id="resume" class="button primary">Resume</button>
         <ul class="menu-list">
           <li>
-            <button data-open="scrapbook">Scrapbook <span id="sticker-count" class="value">0 / 10</span></button>
+            <button data-open="scrapbook">Scrapbook <span id="sticker-count" class="value">0 / 18</span></button>
           </li>
           <li>
             <button data-open="garage">Car <span class="value">Colour, roof, horn</span></button>
@@ -101,6 +101,10 @@
             <dd><kbd>H</kbd></dd>
           </div>
           <div>
+            <dt>Look</dt>
+            <dd>Drag the view</dd>
+          </div>
+          <div>
             <dt>Cruise</dt>
             <dd><kbd>E</kbd></dd>
           </div>
@@ -129,22 +133,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg> Back
         </button>
         <h2 tabindex="-1">Car</h2>
-        <div class="car-preview" aria-hidden="true">
-          <svg viewBox="0 0 240 115">
-            <path d="M14 103h212" stroke="#c1c9ac" stroke-width="2" />
-            <g class="car-paint">
-              <path d="M48 81V51h35V22h89l21 29h14v30z" />
-              <path d="M28 55h60v27H28z" />
-            </g>
-            <path d="M87 27h36v25H87zm42 0h38l16 25h-54z" fill="#85a9a8" />
-            <path d="M81 21h95M24 83h189" stroke="#f5e9c9" stroke-width="8" />
-            <circle cx="65" cy="87" r="19" fill="#3e4d41" />
-            <circle cx="65" cy="87" r="10" fill="#eaddbb" />
-            <circle cx="175" cy="87" r="19" fill="#3e4d41" />
-            <circle cx="175" cy="87" r="10" fill="#eaddbb" />
-          </svg>
-          <span id="decoration-preview"></span>
-        </div>
+        <p class="note">Drag next to the menu to turn the car.</p>
         <fieldset>
           <legend>Colour</legend>
           <div id="color-options" class="swatches"></div>

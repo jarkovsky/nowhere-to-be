@@ -10,6 +10,16 @@ export const LAKE = { x: 93, z: -54, rx: 61, rz: 44, level: -2.2 };
 
 export const ROAD_HALF_WIDTH = 4.4;
 
+/** Rounded hills that break up the valley floor. */
+export const KNOLLS = [
+  { x: 100, z: 188, radius: 30, height: 17 },
+  { x: -118, z: 186, radius: 26, height: 11 },
+  { x: 226, z: 138, radius: 30, height: 13 },
+];
+
+/** A flat-topped hill out to the west. */
+export const MESA = { x: -262, z: 30, top: 26, edge: 62, height: 13 };
+
 /** The main trail, a loop around the valley floor. */
 export const ROAD = createPath(
   [
@@ -69,6 +79,17 @@ export const CAMP_TRAIL = createPath([
 
 export const CAMP = { x: 36, z: -17, heading: headingOf(0.55, -0.83) };
 
+/** The farm, and its paddock in the farm's own frame (X along the barn row, Z towards the field). */
+export const FARM = { x: -76, z: 14, rotation: 0.45, paddock: { x0: -20, x1: -4, z0: 7, z1: 21 } };
+
+/** A fire lookout tower on top of the southern knoll. */
+export const TOWER = { x: 101, z: 196 };
+
+export const WINDMILL = { x: MESA.x, z: MESA.z };
+
+/** A boathouse and a jetty on the south shore of the lake. */
+export const JETTY = { x: 84, z: 2, heading: headingOf(0, -1), length: 16 };
+
 export const CABIN = { x: -62, z: 112, rotation: 0.35 };
 
 export const LOOKOUT = { x: -148, z: -44, heading: headingOf(1, 0.1) };
@@ -87,6 +108,31 @@ function findCrossing() {
   return best;
 }
 
+function fromRoad(x, z, ...points) {
+  const start = nearestRoadSample(x, z);
+  return [[start.x, start.z], ...points];
+}
+
+/** Narrow side tracks: two dirt ruts with grass between, or a footpath along the shore. */
+export const TRACKS = [
+  { id: 'farm', ruts: true, path: createPath(fromRoad(-118, 52, [-104, 38], [-92, 27], [-80, 18])) },
+  {
+    id: 'tower',
+    ruts: true,
+    path: createPath(fromRoad(64, 108, [74, 128], [86, 150], [96, 170], [100, 186])),
+  },
+  {
+    id: 'windmill',
+    ruts: true,
+    path: createPath(fromRoad(-186, -6, [-210, 4], [-232, 15], [-251, 25])),
+  },
+  {
+    id: 'shore',
+    ruts: false,
+    path: createPath([[33, -12], [46, -5], [60, 4], [74, 13], [90, 11], [104, 9], [117, 22], ...fromRoad(128, 40)]),
+  },
+];
+
 const crossing = findCrossing();
 export const BRIDGE = { ...crossing, length: 22, width: 7.6 };
 
@@ -103,13 +149,21 @@ export const PLACES = [
   { id: 'tunnel', x: TUNNEL.x, z: TUNNEL.z, radius: 12 },
   { id: 'campsite', x: CAMP.x, z: CAMP.z, radius: 16 },
   { id: 'lookout', x: LOOKOUT.x, z: LOOKOUT.z, radius: 10 },
+  { id: 'farm', x: FARM.x, z: FARM.z, radius: 24 },
+  { id: 'tower', x: TOWER.x, z: TOWER.z, radius: 14 },
+  { id: 'windmill', x: WINDMILL.x, z: WINDMILL.z, radius: 18 },
+  { id: 'jetty', x: JETTY.x, z: JETTY.z + 6, radius: 12 },
 ];
 
 /** Ground that flattens so buildings and camp furniture sit on level ground. */
 export const PADS = [
-  { x: CAMP.x - 4, z: CAMP.z - 2, radius: 13, falloff: 10 },
+  { x: CAMP.x - 4, z: CAMP.z - 2, radius: 11, falloff: 16 },
   { x: CABIN.x, z: CABIN.z, radius: 9, falloff: 8 },
   { x: LOOKOUT.x, z: LOOKOUT.z, radius: 6, falloff: 8 },
+  { x: FARM.x, z: FARM.z, radius: 20, falloff: 10 },
+  { x: TOWER.x, z: TOWER.z, radius: 7, falloff: 8 },
+  { x: WINDMILL.x, z: WINDMILL.z, radius: 8, falloff: 8 },
+  { x: JETTY.x - 10, z: JETTY.z + 1, radius: 4, falloff: 10 },
 ];
 
 function patchOnRoad(x, z) {
@@ -139,6 +193,9 @@ export const HABITATS = {
   ducks: { start: { x: 92, z: -104 }, end: { x: 102, z: -134 }, count: 4, wait: 11, duration: 16 },
   sheep: { x: -44, z: 80, count: 5 },
   burrow: { x: -161, z: 30 },
+  cows: { count: 3 },
+  fox: { start: { x: 166, z: 62 }, end: { x: 204, z: 104 }, count: 1, wait: 9, duration: 14 },
+  geese: { x: -20, z: 10, radius: 170, height: 58, period: 80 },
 };
 
 /** Garden gnomes hidden around the valley. Entirely optional. */

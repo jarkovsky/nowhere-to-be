@@ -1,10 +1,11 @@
 // Animals that live in the valley: deer on their meadow walk, a family of
-// ducks crossing the trail, grazing sheep and a shy rabbit.
+// ducks crossing the trail, grazing sheep, a shy rabbit, cows at the farm, a
+// fox, fish in the lake and geese overhead.
 import * as THREE from 'three';
-import { smoothstep } from '../core/math.js';
-import { HABITATS } from './layout.js';
+import { angleDelta, createRandom, smoothstep } from '../core/math.js';
+import { FARM, HABITATS, LAKE } from './layout.js';
 import { terrainHeight } from './terrain.js';
-import { PartsBuilder } from './build.js';
+import { PartsBuilder, localFrame } from './build.js';
 
 const DARK = '#394439';
 const CREAM = '#eee4c9';
@@ -100,6 +101,107 @@ function rabbit() {
   return { root, body, legs: [] };
 }
 
+function cow() {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const hide = '#f1ece0';
+  const patch = '#3c3f3a';
+  const parts = new PartsBuilder()
+    .box(2.3, 1.1, 1.05, hide, { y: 1.45 })
+    .box(0.8, 0.7, 1.08, patch, { x: -0.3, y: 1.6 })
+    .box(0.5, 0.5, 1.08, patch, { x: 0.7, y: 1.35 })
+    .box(0.35, 0.3, 0.3, '#e9b3a4', { x: -0.55, y: 0.85 })
+    .box(0.08, 0.9, 0.08, hide, { x: -1.18, y: 1.3, rz: -0.15 });
+  for (const x of [-0.85, 0.85]) {
+    for (const z of [-0.35, 0.35]) parts.box(0.24, 0.95, 0.24, hide, { x, y: 0.47, z });
+  }
+  body.add(parts.mesh({ receiveShadow: false }));
+  const head = limb(body, 1.15, 1.75, 0, p => {
+    p.box(0.75, 0.62, 0.62, hide, { x: 0.35 });
+    p.box(0.3, 0.42, 0.66, '#e9b3a4', { x: 0.72, y: -0.08 });
+    p.box(0.3, 0.3, 0.64, patch, { x: 0.2, y: 0.16 });
+    for (const z of [-0.36, 0.36]) {
+      p.box(0.08, 0.22, 0.08, '#e3d6b4', { x: 0.25, y: 0.38, z });
+      p.box(0.22, 0.12, 0.2, patch, { x: 0.1, y: 0.15, z: z * 1.35 });
+    }
+    return p;
+  });
+  return { root, body, legs: [head] };
+}
+
+function fox() {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const fur = '#d0773b';
+  const parts = new PartsBuilder()
+    .box(1.15, 0.45, 0.42, fur, { y: 0.72 })
+    .box(0.42, 0.4, 0.4, fur, { x: 0.7, y: 0.95 })
+    .box(0.36, 0.2, 0.22, CREAM, { x: 0.98, y: 0.86 })
+    .box(0.07, 0.07, 0.08, DARK, { x: 1.17, y: 0.92 })
+    .box(0.75, 0.24, 0.24, fur, { x: -0.85, y: 0.82, rz: 0.35 })
+    .box(0.2, 0.22, 0.25, CREAM, { x: -1.22, y: 0.97, rz: 0.35 });
+  for (const z of [-0.12, 0.12]) parts.box(0.1, 0.22, 0.1, DARK, { x: 0.68, y: 1.25, z });
+  body.add(parts.mesh({ receiveShadow: false }));
+  const legs = [];
+  for (const x of [-0.42, 0.42]) {
+    for (const z of [-0.14, 0.14]) legs.push(limb(body, x, 0.55, z, p => p.box(0.1, 0.55, 0.1, DARK, { y: -0.25 })));
+  }
+  return { root, body, legs };
+}
+
+/** The flock of geese: one instanced mesh for the bodies and one for the wings. */
+function geeseFlock(scene, count) {
+  const unlit = { castShadow: false, receiveShadow: false };
+  const body = new PartsBuilder()
+    .box(1, 0.36, 0.42, '#8a8679')
+    .box(0.7, 0.12, 0.14, '#33362f', { x: 0.75, y: 0.08 })
+    .box(0.24, 0.2, 0.18, '#33362f', { x: 1.15, y: 0.12 })
+    .box(0.3, 0.16, 0.38, '#d9d4c4', { x: -0.55 })
+    .mesh(unlit);
+  // The wing extends along +Z from its hinge; the left wing is the same one turned half over.
+  const wing = new PartsBuilder().box(0.55, 0.05, 1.1, '#6f6c62', { z: 0.55 }).mesh(unlit);
+  const bodies = new THREE.InstancedMesh(body.geometry, body.material, count);
+  const wings = new THREE.InstancedMesh(wing.geometry, wing.material, count * 2);
+  for (const mesh of [bodies, wings]) {
+    mesh.frustumCulled = false;
+    scene.add(mesh);
+  }
+  const dummy = new THREE.Object3D();
+  const hinge = new THREE.Object3D();
+  dummy.add(hinge);
+  return {
+    place(i, x, y, z, heading, flap) {
+      dummy.position.set(x, y, z);
+      dummy.rotation.set(0, heading, 0);
+      dummy.updateMatrixWorld();
+      bodies.setMatrixAt(i, dummy.matrix);
+      for (const side of [-1, 1]) {
+        hinge.position.set(0, 0.1, side * 0.2);
+        hinge.rotation.set(side > 0 ? flap : Math.PI - flap, 0, 0);
+        hinge.updateMatrixWorld();
+        wings.setMatrixAt(i * 2 + (side > 0 ? 1 : 0), hinge.matrixWorld);
+      }
+    },
+    done() {
+      bodies.instanceMatrix.needsUpdate = true;
+      wings.instanceMatrix.needsUpdate = true;
+    },
+  };
+}
+
+function fish() {
+  const root = new THREE.Group();
+  root.add(
+    new PartsBuilder()
+      .add(new THREE.IcosahedronGeometry(0.3, 0), '#9fb2a8', { sx: 1.7, sy: 0.8, sz: 0.6 })
+      .box(0.3, 0.36, 0.06, '#8aa198', { x: -0.62 })
+      .mesh({ castShadow: false, receiveShadow: false }),
+  );
+  return root;
+}
+
 /** Where a walking group is in its back-and-forth cycle. */
 function walkCycle(time, wait, duration) {
   const cycle = 2 * (wait + duration);
@@ -120,7 +222,7 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
     startle: 0,
   };
   const walkers = [deerGroup, duckGroup];
-  const flock = Array.from({ length: HABITATS.sheep.count }, (_, i) => {
+  const sheepFlock = Array.from({ length: HABITATS.sheep.count }, (_, i) => {
     const animal = sheep();
     const angle = i * 2.4;
     animal.home = {
@@ -131,13 +233,53 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
     animal.root.rotation.y = angle * 1.7;
     return animal;
   });
+  const foxGroup = { ...HABITATS.fox, animals: [fox()], kind: 'fox', startle: 0 };
+  walkers.push(foxGroup);
+
+  // Cows wander around the farm paddock.
+  const random = createRandom(907);
+  const paddock = FARM.paddock;
+  const toWorld = localFrame(FARM.x, FARM.z, FARM.rotation);
+  const pasture = () =>
+    toWorld(
+      paddock.x0 + 2 + random() * (paddock.x1 - paddock.x0 - 4),
+      paddock.z0 + 2 + random() * (paddock.z1 - paddock.z0 - 4),
+    );
+  const herd = Array.from({ length: HABITATS.cows.count }, (_, i) => {
+    const animal = cow();
+    const spot = pasture();
+    Object.assign(animal, { x: spot.x, z: spot.z, target: pasture(), heading: i * 2, rest: i * 3 });
+    return animal;
+  });
+  let cowsLookUp = 0;
+
+  const flock = HABITATS.geese;
+  const geese = geeseFlock(scene, 7);
+  const leadGoose = new THREE.Vector3();
+
+  const jumper = fish();
+  const splash = new THREE.Mesh(
+    new THREE.RingGeometry(0.4, 0.75, 14),
+    new THREE.MeshBasicMaterial({ color: '#eef8f4', transparent: true, opacity: 0, depthWrite: false }),
+  );
+  splash.rotation.x = -Math.PI / 2;
+  scene.add(jumper, splash);
+  const leap = { x: LAKE.x, z: LAKE.z, heading: 0, start: -10, next: 3 };
+
   const bunny = rabbit();
   const burrow = HABITATS.burrow;
   const hole = new THREE.Mesh(new THREE.CircleGeometry(1.05, 18), new THREE.MeshLambertMaterial({ color: '#3e3b30' }));
   hole.rotation.x = -Math.PI / 2;
   hole.position.set(burrow.x, terrainHeight(burrow.x, burrow.z) + 0.08, burrow.z);
   scene.add(hole);
-  for (const animal of [...deerGroup.animals, ...duckGroup.animals, ...flock, bunny]) {
+  for (const animal of [
+    ...deerGroup.animals,
+    ...duckGroup.animals,
+    ...foxGroup.animals,
+    ...sheepFlock,
+    ...herd,
+    bunny,
+  ]) {
     animal.root.traverse(child => {
       if (child.isMesh) child.castShadow = true;
     });
@@ -158,26 +300,118 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
         const x = group.start.x + dx * step.progress;
         const z = group.start.z + dz * step.progress + i * 0.65;
         const hop = Math.max(0, Math.sin(group.startle * 9)) * group.startle * 0.8;
-        animal.root.position.set(
-          x,
-          terrainHeight(x, z) + (step.walking ? Math.abs(Math.sin(time * 5 - i)) * 0.065 : 0) + hop,
-          z,
-        );
+        // Ducks that start out on the lake swim until they reach the shore.
+        const ground = terrainHeight(x, z);
+        const swimming = group.kind === 'ducks' && ground < LAKE.level - 0.1;
+        const y = swimming
+          ? LAKE.level - 0.3 * animal.root.scale.y + Math.sin(time * 2 + i) * 0.03
+          : ground + (step.walking ? Math.abs(Math.sin(time * 5 - i)) * 0.065 : 0) + hop;
+        animal.root.position.set(x, y, z);
         animal.root.rotation.y = Math.atan2(-dz, dx) + (step.returning ? Math.PI : 0);
-        if (group.kind === 'deer') {
+        if (group.kind === 'deer' || group.kind === 'fox') {
+          const pace = group.kind === 'fox' ? 11 : 7;
           animal.legs.forEach(
             (leg, j) =>
-              (leg.rotation.z = step.walking ? Math.sin(time * 7 + (j === 0 || j === 3 ? 0 : Math.PI)) * 0.42 : 0),
+              (leg.rotation.z = step.walking ? Math.sin(time * pace + (j === 0 || j === 3 ? 0 : Math.PI)) * 0.42 : 0),
           );
-          animal.body.rotation.z = step.walking || group.startle > 0 ? 0 : -0.1 + Math.sin(time * 0.8 + i) * 0.04;
+          const grazing = group.kind === 'deer' && !step.walking && group.startle === 0;
+          animal.body.rotation.z = grazing ? -0.1 + Math.sin(time * 0.8 + i) * 0.04 : 0;
         } else {
-          animal.body.rotation.z = Math.sin(time * (step.walking ? 7 : 1) + i) * (step.walking ? 0.1 : 0.025);
-          animal.legs.forEach(
-            (leg, j) => (leg.rotation.z = step.walking ? Math.sin(time * 12 + j * Math.PI) * 0.4 : 0),
-          );
+          const paddling = step.walking && !swimming;
+          animal.body.rotation.z = Math.sin(time * (paddling ? 7 : 1) + i) * (paddling ? 0.1 : 0.025);
+          animal.legs.forEach((leg, j) => (leg.rotation.z = paddling ? Math.sin(time * 12 + j * Math.PI) * 0.4 : 0));
         }
       });
     }
+  }
+
+  function updateHerd(dt) {
+    cowsLookUp = Math.max(0, cowsLookUp - dt);
+    herd.forEach((animal, i) => {
+      const dx = animal.target.x - animal.x;
+      const dz = animal.target.z - animal.z;
+      let walking = false;
+      if (animal.rest > 0) {
+        animal.rest -= dt;
+      } else if (Math.hypot(dx, dz) < 0.4) {
+        animal.target = pasture();
+        animal.rest = 6 + random() * 12;
+      } else {
+        const turn = angleDelta(animal.heading, Math.atan2(-dz, dx));
+        animal.heading += turn * Math.min(1, dt * 1.2);
+        if (Math.abs(turn) < 0.6) {
+          animal.x += Math.cos(animal.heading) * 0.6 * dt;
+          animal.z -= Math.sin(animal.heading) * 0.6 * dt;
+          walking = true;
+        }
+      }
+      const head = cowsLookUp > 0 || walking ? 0.1 : -0.55 + Math.sin(time * 0.9 + i) * 0.08;
+      animal.legs[0].rotation.z += (head - animal.legs[0].rotation.z) * Math.min(1, dt * 4);
+      animal.body.rotation.z = walking ? Math.sin(time * 4 + i) * 0.03 : 0;
+      animal.root.position.set(animal.x, terrainHeight(animal.x, animal.z), animal.z);
+      animal.root.rotation.y = animal.heading;
+    });
+  }
+
+  function updateGeese() {
+    const angle = (time / flock.period) * Math.PI * 2;
+    for (let i = 0; i < 7; i++) {
+      // A V: each pair flies a little further behind and further out than the one in front.
+      const rank = Math.ceil(i / 2);
+      const side = i % 2 ? 1 : -1;
+      const a = angle - rank * 0.03;
+      const radius = flock.radius + side * rank * 3.5;
+      const x = flock.x + Math.cos(a) * radius;
+      const z = flock.z + Math.sin(a) * radius;
+      const y = flock.height + Math.sin(time * 0.7 + i) * 0.4;
+      geese.place(i, x, y, z, Math.atan2(-Math.cos(a), -Math.sin(a)), Math.sin(time * 5 + i * 0.7) * 0.5);
+      if (i === 0) leadGoose.set(x, y, z);
+    }
+    geese.done();
+  }
+
+  /** Every few seconds a fish jumps somewhere on the lake, preferably where the player can see it. */
+  function updateFish(dt, player) {
+    leap.next -= dt;
+    if (leap.next <= 0) {
+      let best = Infinity;
+      for (let k = 0; k < 12; k++) {
+        const a = random() * Math.PI * 2;
+        const r = Math.sqrt(random()) * 0.85;
+        const x = LAKE.x + Math.cos(a) * r * LAKE.rx;
+        const z = LAKE.z + Math.sin(a) * r * LAKE.rz;
+        const distance = Math.hypot(x - player.x, z - player.z);
+        if (terrainHeight(x, z) < LAKE.level - 1 && distance < best) {
+          best = distance;
+          Object.assign(leap, { x, z });
+        }
+      }
+      Object.assign(leap, { heading: random() * Math.PI * 2, start: time, next: 4 + random() * 5 });
+    }
+    const t = (time - leap.start) / 1.1;
+    jumper.visible = t >= 0 && t <= 1;
+    if (jumper.visible) {
+      const along = (t - 0.5) * 2.4;
+      jumper.position.set(
+        leap.x + Math.cos(leap.heading) * along,
+        LAKE.level - 0.3 + Math.sin(t * Math.PI) * 1.5,
+        leap.z - Math.sin(leap.heading) * along,
+      );
+      jumper.rotation.set(0, leap.heading, Math.cos(t * Math.PI) * 0.9);
+    }
+    // A ring of foam where it lands.
+    const after = time - leap.start - 1.1;
+    splash.visible = after >= 0 && after < 1;
+    if (splash.visible) {
+      splash.position.set(
+        leap.x + Math.cos(leap.heading) * 1.2,
+        LAKE.level + 0.03,
+        leap.z - Math.sin(leap.heading) * 1.2,
+      );
+      splash.scale.setScalar(0.6 + after * 1.6);
+      splash.material.opacity = 0.7 * (1 - after);
+    }
+    return jumper.visible ? Math.hypot(player.x - leap.x, player.z - leap.z) : Infinity;
   }
 
   function placeRabbit() {
@@ -217,11 +451,18 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
         onCall('baa');
       }
       if (near(burrow) < 30) rabbitState.progress = Math.max(rabbitState.progress, 0.75);
+      if (near(herd[0]) < 35) {
+        cowsLookUp = 3;
+        onCall('moo');
+      }
+      if (near(foxGroup.animals[0].root.position) < 30) foxGroup.startle = 1;
+      if (near(leadGoose) < 90) onCall('honk');
     },
     getState: () => ({
       time,
       rabbitHidden: rabbitState.progress >= 1,
       deer: deerGroup.animals[0].root.position.clone(),
+      geese: leadGoose.clone(),
     }),
     update(dt, player, running) {
       if (!running) return;
@@ -229,7 +470,7 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
       sheepLookUp = Math.max(0, sheepLookUp - dt);
       for (const group of walkers) group.startle = Math.max(0, group.startle - dt * 0.9);
 
-      flock.forEach((animal, i) => {
+      sheepFlock.forEach((animal, i) => {
         const grazing = sheepLookUp > 0 ? 0.25 : -0.3 + Math.sin(time * 1.2 + i) * 0.22;
         animal.legs[0].rotation.z += (grazing - animal.legs[0].rotation.z) * Math.min(1, dt * 6);
         animal.root.position.y = terrainHeight(animal.home.x, animal.home.z) + Math.sin(time * 1.5 + i) * 0.025;
@@ -247,8 +488,15 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
       }
       placeRabbit();
       placeWalkers();
+      updateHerd(dt);
+      updateGeese();
+      const fishDistance = updateFish(dt, player);
 
       const close = (p, range) => Math.hypot(player.x - p.x, player.z - p.z) < range;
+      if (close(herd[0], 30)) onSpotted('cows');
+      if (close(foxGroup.animals[0].root.position, 28)) onSpotted('fox');
+      if (close(leadGoose, 75)) onSpotted('geese');
+      if (fishDistance < 45) onSpotted('fish');
       if (close(deerGroup.animals[0].root.position, 30)) onSpotted('deer');
       if (close(duckGroup.animals[0].root.position, 30)) onSpotted('ducks');
       if (close(HABITATS.sheep, 26)) onSpotted('sheep');

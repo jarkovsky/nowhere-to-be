@@ -7,6 +7,7 @@ import { createCarState, placeCar, steerAngle, stepDriving } from './core/drivin
 import { createJournal } from './core/journal.js';
 import { chassisPose, settleWheels } from './core/suspension.js';
 import { createControls } from './input/controls.js';
+import { createLook } from './input/look.js';
 import { createTiltSteering } from './input/tilt.js';
 import { createUI } from './ui/ui.js';
 import { createCar, WHEEL_RADIUS } from './vehicles/car.js';
@@ -14,7 +15,7 @@ import { createTraffic } from './vehicles/traffic.js';
 import { createAtmosphere } from './world/atmosphere.js';
 import { createGnomes } from './world/collectibles.js';
 import { buildLandmarks, insideTunnel } from './world/landmarks/index.js';
-import { CAMP, CAMP_TRAIL, GNOMES, PLACES, ROAD, ROAD_HALF_WIDTH, SPAWN, surfaceAt } from './world/layout.js';
+import { CAMP, CAMP_TRAIL, GNOMES, PLACES, ROAD, ROAD_HALF_WIDTH, SPAWN, TRACKS, surfaceAt } from './world/layout.js';
 import { buildScenery } from './world/scenery.js';
 import { createSecrets } from './world/secrets.js';
 import { createSurfaces } from './world/surfaces.js';
@@ -41,6 +42,7 @@ function surfaceUnder(x, z) {
   if (bridgeHeight(x, z) !== null) return 'road';
   if (ROAD.nearest(x, z).distance < ROAD_HALF_WIDTH + 0.6) return 'road';
   if (CAMP_TRAIL.nearest(x, z).distance < 2.6) return 'road';
+  if (TRACKS.some(track => track.path.nearest(x, z).distance < 2)) return 'track';
   return 'grass';
 }
 
@@ -128,6 +130,7 @@ export function createGame(canvas) {
         else tilt.enable();
       },
       tiltCenter: () => tilt.center(),
+      showroom: setShowroom,
       choose: patch => {
         journal.save(patch);
         applyChoices();
@@ -172,6 +175,23 @@ export function createGame(canvas) {
   });
 
   const chase = createChaseCamera(camera, { occluders: landmarks.occluders, groundHeight: terrainHeight });
+
+  // Drag to look around: on the scenery while driving, and beside the menu in the garage.
+  const menu = document.getElementById('menu');
+  const swing = {
+    onDrag: (dx, dy) => chase.drag(dx, dy),
+    onRelease: () => chase.release(),
+    onZoom: amount => chase.zoom(amount),
+  };
+  createLook(canvas, { accepts: () => mode === 'driving', ...swing });
+  createLook(menu, {
+    accepts: event => {
+      if (!showroom || event.target !== menu) return false;
+      const box = menu.getBoundingClientRect();
+      return event.clientX > box.right || event.clientY < box.top;
+    },
+    ...swing,
+  });
 
   // --- Actions -------------------------------------------------------------------------
 
@@ -288,8 +308,31 @@ export function createGame(canvas) {
   }
 
   function applyChoices() {
-    const { color, decoration } = journal.get();
-    car.customize(color, decoration);
+    const { color, decorations } = journal.get();
+    car.customize(color, decorations);
+  }
+
+  // --- Garage view -------------------------------------------------------------------------
+
+  let showroom = false;
+  function setShowroom(on) {
+    showroom = on;
+    chase.setMode(on ? 'showroom' : pausedFrom === 'camping' ? 'camp' : 'chase');
+    frameShowroom();
+    needsRender = true;
+  }
+
+  /** Centres the car in the part of the screen the menu doesn't cover. */
+  function frameShowroom() {
+    if (!showroom) {
+      camera.clearViewOffset();
+      return;
+    }
+    const panel = menu.getBoundingClientRect();
+    const beside = panel.right < innerWidth * 0.75;
+    const cx = beside ? (panel.right + innerWidth) / 2 : innerWidth / 2;
+    const cy = beside ? innerHeight / 2 : panel.top / 2;
+    camera.setViewOffset(innerWidth, innerHeight, innerWidth / 2 - cx, innerHeight / 2 - cy, innerWidth, innerHeight);
   }
 
   // --- Car model -------------------------------------------------------------------------
@@ -370,6 +413,7 @@ export function createGame(canvas) {
     camera.aspect = innerWidth / innerHeight;
     camera.fov = compactScreen() ? 62 : 50;
     camera.updateProjectionMatrix();
+    frameShowroom();
     needsRender = true;
   }
   window.addEventListener('resize', resize);
@@ -419,7 +463,13 @@ export function createGame(canvas) {
     const dt = Math.min(frameMs / 1000, 0.05);
 
     if (mode === 'paused') {
-      if (needsRender) renderer.render(scene, camera);
+      if (showroom) {
+        car.animate(now / 1000);
+        chase.update(dt, carView(), cameraOptions());
+        renderer.render(scene, camera);
+      } else if (needsRender) {
+        renderer.render(scene, camera);
+      }
       needsRender = false;
       sound.update({ speed: 0, running: !document.hidden, rain: 0 });
       return;
@@ -483,7 +533,10 @@ export function createGame(canvas) {
         surface: surfaces.getState(),
         traffic: traffic.getState(),
         gnomes: gnomes.getState(),
+        wildlife: wildlife.getState(),
         cameraBlocked: chase.isBlocked(),
+        cameraMode: chase.getMode(),
+        wheels: car.wheels.map(wheel => +wheel.pivot.position.y.toFixed(3)),
         camera: camera.position.toArray(),
         pixelRatio,
         input: controls.read(),

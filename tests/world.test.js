@@ -4,6 +4,8 @@ import {
   ROAD,
   CREEK,
   CAMP_TRAIL,
+  TRACKS,
+  WATERFALL,
   BRIDGE,
   TUNNEL,
   CAMP,
@@ -29,8 +31,8 @@ import {
   POOL,
 } from '../src/world/terrain.js';
 
-test('the whole trail loop and the camp spur are driveable', () => {
-  for (const p of [...ROAD.samples, ...CAMP_TRAIL.samples])
+test('the whole trail loop, the camp spur and the side tracks are driveable', () => {
+  for (const p of [ROAD, CAMP_TRAIL, ...TRACKS.map(t => t.path)].flatMap(path => path.samples))
     assert.ok(isDriveable(p.x, p.z), `blocked at ${p.x}, ${p.z}`);
   assert.ok(isDriveable(SPAWN.x, SPAWN.z));
   assert.ok(isDriveable(CAMP.x, CAMP.z));
@@ -46,6 +48,19 @@ test('the trail is level from side to side', () => {
   }
 });
 
+test('there are no cliffs on the valley floor', () => {
+  // The rocky hills by the northern fence, the creek gully and the waterfall pool are allowed to be steep.
+  for (let x = -340; x <= 340; x += 3) {
+    for (let z = -170; z <= 340; z += 3) {
+      if (Math.hypot(x, z) > VALLEY_RADIUS) continue;
+      if (Math.hypot(x - WATERFALL.x, z - WATERFALL.z) < 24 || CREEK.nearest(x, z).distance < 12) continue;
+      const h = terrainHeight(x, z);
+      const slope = Math.hypot(terrainHeight(x + 1, z) - h, terrainHeight(x, z + 1) - h);
+      assert.ok(slope < 1.05, `slope ${slope.toFixed(2)} at ${x}, ${z}`);
+    }
+  }
+});
+
 test('the creek runs downhill from the waterfall pool into the lake', () => {
   let previous = Infinity;
   for (let s = 0; s <= CREEK.length; s += 2) {
@@ -54,6 +69,11 @@ test('the creek runs downhill from the waterfall pool into the lake', () => {
     previous = level;
   }
   assert.ok(POOL.level > creekLevel(CREEK.length) + 8, 'a real drop from the falls to the lake');
+});
+
+test('the waterfall lands in its pool', () => {
+  // The falling water meets the pool about 9 m east of its centre.
+  assert.ok(waterDepth(WATERFALL.x + 9, WATERFALL.z) > 0.3);
 });
 
 test('the bridge crosses actual water, and its deck meets the trail at both ends', () => {

@@ -11,20 +11,28 @@ export const STICKERS = [
   'tunnel',
   'campsite',
   'lookout',
+  'farm',
+  'tower',
+  'windmill',
+  'jetty',
   'deer',
   'ducks',
   'sheep',
   'rabbit',
+  'cows',
+  'fox',
+  'fish',
+  'geese',
   'yeti',
 ];
 export const COLORS = ['orange', 'sage', 'blue', 'berry', 'yellow', 'rainbow'];
-export const DECORATIONS = ['none', 'flag', 'teddy', 'gnome'];
+export const DECORATIONS = ['flag', 'teddy', 'gnome'];
 
 const DEFAULTS = {
   found: [],
   gnomes: [],
   color: 'orange',
-  decoration: 'none',
+  decorations: [],
   horn: 'beep',
   camp: false,
   sound: true,
@@ -41,7 +49,8 @@ export function sanitise(saved) {
     found: list(saved.found, id => STICKERS.includes(id)),
     gnomes: list(saved.gnomes, i => Number.isInteger(i) && i >= 0 && i < 64),
     color,
-    decoration: DECORATIONS.includes(saved.decoration) ? saved.decoration : DEFAULTS.decoration,
+    // Older saves kept a single `decoration`.
+    decorations: list(saved.decorations ?? [saved.decoration], id => DECORATIONS.includes(id)),
     horn: HORNS.includes(saved.horn) ? saved.horn : DEFAULTS.horn,
     camp: saved.camp === true,
     sound: saved.sound !== false,
@@ -70,7 +79,7 @@ export function createJournal(storage) {
   }
 
   return {
-    get: () => ({ ...data, found: [...data.found], gnomes: [...data.gnomes] }),
+    get: () => ({ ...data, found: [...data.found], gnomes: [...data.gnomes], decorations: [...data.decorations] }),
     save,
     /** Records a sticker. Returns true the first time only. */
     discover(id) {

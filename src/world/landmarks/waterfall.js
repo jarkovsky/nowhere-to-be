@@ -123,13 +123,19 @@ export function buildWaterfall(scene, obstacles) {
   scene.add(ribbon(2.6, 0), ribbon(1.7, 0.18));
 
   // Streaks sliding down the falls, foam rings and a little mist at the bottom.
-  const streakMaterial = new THREE.MeshBasicMaterial({ color: '#f4fbf8', transparent: true, opacity: 0.8 });
-  const streaks = Array.from({ length: 18 }, (_, i) => {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.6, 0.12), streakMaterial);
-    mesh.userData = { offset: random(), lateral: (random() - 0.5) * 2.2, speed: 0.55 + random() * 0.3, index: i };
-    scene.add(mesh);
-    return mesh;
-  });
+  const streaks = Array.from({ length: 18 }, () => ({
+    offset: random(),
+    lateral: (random() - 0.5) * 2.2,
+    speed: 0.55 + random() * 0.3,
+  }));
+  const streakMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(0.12, 1.6, 0.12),
+    new THREE.MeshBasicMaterial({ color: '#f4fbf8', transparent: true, opacity: 0.8 }),
+    streaks.length,
+  );
+  streakMesh.frustumCulled = false;
+  scene.add(streakMesh);
+  const dummy = new THREE.Object3D();
   const foam = [0, 1, 2].map(i => {
     const material = new THREE.MeshBasicMaterial({
       color: '#eef8f4',
@@ -154,13 +160,15 @@ export function buildWaterfall(scene, obstacles) {
   return {
     occluders: [cliff],
     update(time) {
-      for (const streak of streaks) {
-        const { offset, lateral, speed } = streak.userData;
+      streaks.forEach(({ offset, lateral, speed }, i) => {
         const t = (offset + time * speed) % 1;
         const [r, y] = pointOnFall(t);
-        streak.position.set(POOL.x + r - 0.25, POOL.level + y, POOL.z + lateral);
-        streak.scale.y = 0.5 + t;
-      }
+        dummy.position.set(POOL.x + r - 0.25, POOL.level + y, POOL.z + lateral);
+        dummy.scale.set(1, 0.5 + t, 1);
+        dummy.updateMatrix();
+        streakMesh.setMatrixAt(i, dummy.matrix);
+      });
+      streakMesh.instanceMatrix.needsUpdate = true;
       foam.forEach((ring, i) => {
         const pulse = (time * 0.6 + i / 3) % 1;
         ring.scale.setScalar(0.7 + pulse * 0.9);

@@ -4,12 +4,17 @@ import {
   ROAD,
   ROAD_HALF_WIDTH,
   CAMP_TRAIL,
+  TRACKS,
   BRIDGE,
   WATERFALL,
   LOOKOUT,
   LAKE,
   CREEK,
   CAMP,
+  FARM,
+  TOWER,
+  WINDMILL,
+  JETTY,
   TUNNEL,
   SPAWN,
   PLACES,
@@ -154,17 +159,18 @@ function paintMap(ctx, w, h) {
   ctx.fill();
   ctx.fillStyle = '#8fbcbf';
   ctx.beginPath();
-  ctx.ellipse(px(LAKE.x), pz(LAKE.z), LAKE.rx * scale, LAKE.rz * scale, 0, 0, Math.PI * 2);
+  // The shore sits about a third further out than the lake's core ellipse.
+  ctx.ellipse(px(LAKE.x), pz(LAKE.z), LAKE.rx * 1.3 * scale, LAKE.rz * 1.3 * scale, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = '#8fbcbf';
   ctx.lineWidth = 5;
   ctx.beginPath();
   CREEK.samples.forEach((p, i) => (i ? ctx.lineTo(px(p.x), pz(p.z)) : ctx.moveTo(px(p.x), pz(p.z))));
   ctx.stroke();
-  const trail = (path, width) => {
+  const trail = (path, width, dash = [14, 9]) => {
     ctx.strokeStyle = '#8a6440';
     ctx.lineWidth = width;
-    ctx.setLineDash([14, 9]);
+    ctx.setLineDash(dash);
     ctx.beginPath();
     path.samples.forEach((p, i) => (i ? ctx.lineTo(px(p.x), pz(p.z)) : ctx.moveTo(px(p.x), pz(p.z))));
     if (path.closed) ctx.closePath();
@@ -173,6 +179,7 @@ function paintMap(ctx, w, h) {
   };
   trail(ROAD, 6);
   trail(CAMP_TRAIL, 4);
+  for (const track of TRACKS) trail(track.path, 3, [5, 7]);
   ctx.fillStyle = '#7d8e86';
   ctx.beginPath();
   ctx.moveTo(px(TUNNEL.x - 22), pz(TUNNEL.z + 16));
@@ -185,15 +192,21 @@ function paintMap(ctx, w, h) {
     tunnel: 'Echo Mountain',
     campsite: 'Camp',
     lookout: 'Lookout',
+    farm: 'Farm',
+    tower: 'Fire Tower',
+    windmill: 'Windmill',
+    jetty: 'Jetty',
   };
   ctx.font = `700 26px ${FONT}`;
   ctx.textAlign = 'center';
+  // Labels sit above their dot, except where that would crowd a neighbour.
+  const below = ['bridge', 'jetty', 'lookout'];
   for (const place of PLACES) {
     ctx.fillStyle = '#3f4f45';
     ctx.beginPath();
     ctx.arc(px(place.x), pz(place.z), 7, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillText(labels[place.id], px(place.x), pz(place.z) - 16);
+    ctx.fillText(labels[place.id], px(place.x), pz(place.z) + (below.includes(place.id) ? 32 : -16));
   }
   ctx.fillStyle = '#c75b32';
   ctx.beginPath();
@@ -246,6 +259,20 @@ export function buildSigns(scene, { tunnelPortal }) {
   trailSign(scene, parts, BRIDGE.s - 16, 1, 'WHISPERING FALLS', WATERFALL);
   const lookout = ROAD.nearest(LOOKOUT.x, LOOKOUT.z).s;
   trailSign(scene, parts, lookout - 12, -1, 'LOOKOUT', LOOKOUT);
+  // Signs where the side tracks leave the trail.
+  const destinations = {
+    farm: ['FARM', FARM],
+    tower: ['FIRE TOWER', TOWER],
+    windmill: ['WINDMILL', WINDMILL],
+    shore: ['JETTY', JETTY],
+  };
+  for (const track of TRACKS) {
+    const [text, destination] = destinations[track.id];
+    const fromStart = track.id !== 'shore'; // the shore path ends at the trail rather than starting there
+    const inward = track.path.at(fromStart ? 14 : track.path.length - 14);
+    const { s, side } = ROAD.nearest(inward.x, inward.z);
+    trailSign(scene, parts, s - 12, Math.sign(side) || 1, text, destination);
+  }
   addMapBoard(scene, parts);
 
   // A name board over the tunnel entrance.

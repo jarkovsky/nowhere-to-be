@@ -31,3 +31,35 @@ export function segmentDistance(px, pz, ax, az, bx, bz) {
   const t = lengthSq ? clamp(((px - ax) * dx + (pz - az) * dz) / lengthSq, 0, 1) : 0;
   return { distance: Math.hypot(px - ax - dx * t, pz - az - dz * t), t };
 }
+
+function hash(ix, iz, seed) {
+  let h = Math.imul(ix, 374761393) + Math.imul(iz, 668265263) + Math.imul(seed, 1442695041);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+/** Smooth value noise in [0, 1]. The same inputs always give the same result. */
+export function valueNoise(x, z, seed = 0) {
+  const ix = Math.floor(x);
+  const iz = Math.floor(z);
+  const u = (x - ix) * (x - ix) * (3 - 2 * (x - ix));
+  const v = (z - iz) * (z - iz) * (3 - 2 * (z - iz));
+  const top = lerp(hash(ix, iz, seed), hash(ix + 1, iz, seed), u);
+  const bottom = lerp(hash(ix, iz + 1, seed), hash(ix + 1, iz + 1, seed), u);
+  return lerp(top, bottom, v);
+}
+
+/** Several octaves of value noise, each finer and fainter than the last. Roughly [0, 1]. */
+export function fractalNoise(x, z, octaves = 3, seed = 0) {
+  let sum = 0;
+  let total = 0;
+  let amplitude = 1;
+  for (let i = 0; i < octaves; i++) {
+    sum += valueNoise(x, z, seed + i) * amplitude;
+    total += amplitude;
+    amplitude *= 0.5;
+    x *= 2.03;
+    z *= 2.03;
+  }
+  return sum / total;
+}
