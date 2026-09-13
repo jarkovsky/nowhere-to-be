@@ -1,0 +1,20 @@
+# Visit https://soloterm.com to learn more
+name: Nowhere to Be
+icon: null
+processes:
+  Game:
+    # Vite dev server with hot reload → http://localhost:5173
+    command: npm run dev
+    working_dir: null
+    auto_start: true
+    auto_restart: true
+    restart_when_changed: []
+    env: {}
+  Production preview:
+    # Builds the static site and serves it → http://localhost:4173
+    command: npm run build && npm run preview
+    working_dir: null
+    auto_start: false
+    auto_restart: false
+    restart_when_changed: []
+    env: {}

@@ -57,6 +57,20 @@ try {
   await page.keyboard.up('ArrowUp');
   await capture(page, 'tunnel', 3500);
 
+  // Up the farm track towards the barn.
+  await inGame(
+    page,
+    `
+    const track = L.TRACKS.find(t => t.id === 'farm').path;
+    const p = track.at(track.length - 30);
+    g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz));
+  `,
+  );
+  await page.keyboard.down('ArrowUp');
+  await page.waitForTimeout(900);
+  await page.keyboard.up('ArrowUp');
+  await capture(page, 'farm', 3500);
+
   await inGame(page, `g.teleport(L.CAMP.x, L.CAMP.z, L.CAMP.heading);`);
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: /Stay the night/ }).click();
@@ -64,7 +78,7 @@ try {
 
   await page.getByRole('button', { name: 'Wake up' }).click();
   // Visit a few more places so the scrapbook has something in it.
-  for (const place of ['waterfall', 'lookout']) {
+  for (const place of ['waterfall', 'lookout', 'jetty', 'tower']) {
     await inGame(page, `const p = L.PLACES.find(p => p.id === '${place}'); g.teleport(p.x, p.z, 0);`);
     await page.waitForTimeout(400);
   }
@@ -73,6 +87,13 @@ try {
   await page.getByRole('button', { name: 'Pause' }).click();
   await page.getByRole('button', { name: /Scrapbook/ }).click();
   await capture(page, 'scrapbook', 800);
+
+  await page.getByRole('button', { name: 'Back to menu' }).click();
+  await page.getByRole('button', { name: /^Car/ }).click();
+  await page.getByRole('button', { name: 'Flag' }).click();
+  await page.getByRole('button', { name: 'Teddy' }).click();
+  await page.waitForFunction(() => document.getElementById('toast').hidden, null, { timeout: 30000 });
+  await capture(page, 'garage', 2000);
 
   const phone = await browser.newContext({
     viewport: { width: 390, height: 844 },

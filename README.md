@@ -6,10 +6,14 @@ A relaxed low-poly driving game that runs in the browser. Take a little off-road
 
 <p>
   <img src="docs/bridge.jpg" width="49%" alt="Crossing the timber bridge at sunset, with the waterfall upstream">
-  <img src="docs/tunnel.jpg" width="49%" alt="Tyre tracks in the snow on the way into the mountain tunnel">
+  <img src="docs/farm.jpg" width="49%" alt="The farm, with cows in the paddock and a wheat field">
 </p>
 <p>
+  <img src="docs/tunnel.jpg" width="49%" alt="Tyre tracks in the snow on the way into the mountain tunnel">
   <img src="docs/camp.jpg" width="49%" alt="A night at the lakeside campsite">
+</p>
+<p>
+  <img src="docs/garage.jpg" width="49%" alt="Choosing a colour and roof items, with the car shown beside the menu">
   <img src="docs/scrapbook.jpg" width="49%" alt="The pause menu's scrapbook of places and animals">
 </p>
 
@@ -17,14 +21,15 @@ A relaxed low-poly driving game that runs in the browser. Take a little off-road
 
 ![Keyboard, touch and tilt controls](docs/controls.svg)
 
-|        | Keyboard            | Phone or tablet                    |
-| ------ | ------------------- | ---------------------------------- |
-| Drive  | `W A S D` or arrows | Pedals (right) and steering (left) |
-| Steer  | `A` `D` or `←` `→`  | Arrows, or tilt the device         |
-| Brake  | `Space`             | Down pedal (hold to reverse)       |
-| Horn   | `H`                 | Horn button above the pedals       |
-| Cruise | `E`                 | In the menu                        |
-| Pause  | `Esc`               | ❚❚ button, top right               |
+|        | Keyboard and mouse   | Phone or tablet                    |
+| ------ | -------------------- | ---------------------------------- |
+| Drive  | `W A S D` or arrows  | Pedals (right) and steering (left) |
+| Steer  | `A` `D` or `←` `→`   | Arrows, or tilt the device         |
+| Brake  | `Space`              | Down pedal (hold to reverse)       |
+| Horn   | `H`                  | Horn button above the pedals       |
+| Look   | Drag, scroll to zoom | Drag on the scenery                |
+| Cruise | `E`                  | In the menu                        |
+| Pause  | `Esc`                | ❚❚ button, top right               |
 
 ## Playing on a phone
 
@@ -42,7 +47,8 @@ To play on your phone from your own computer, run `npm run dev` and open the **N
 
 ## Things to find
 
-- **Places and animals.** Driving past them adds stickers to your scrapbook, which you'll find in the pause menu.
+- **Places and animals.** A waterfall, a farm, a fire tower, a windmill, a jetty and more, plus deer, cows, a fox, geese and fish that jump in the lake. Driving past them adds stickers to your scrapbook, which you'll find in the pause menu.
+- **Side tracks.** Narrow dirt tracks lead off the main trail to the farm, the tower and the windmill, and a path follows the lake shore.
 - **Garden gnomes.** Ten are hidden around the valley, some of them far off the trail. Finding them all unlocks something for the car.
 - **A few secrets.** Try the horn in the tunnel, near the animals and at passing cars. Keep an eye on the snow, too.
 
@@ -52,9 +58,9 @@ Progress is saved in your browser.
 
 Everything is generated in code with [Three.js](https://threejs.org) and Web Audio. There are no model, texture or sound files.
 
-- **Terrain:** a height field that is fine on the valley floor and coarse under the distant peaks. The trail is levelled across its width, the creek is carved into it, and buildings sit on flattened pads, so nothing floats or sinks.
-- **Driving:** an arcade model with real velocity, tyre grip per surface, hill slowdown and soft collisions. Each tyre is settled onto the terrain triangle beneath it.
-- **Camera:** a spring arm that pulls in when rock comes between it and the car, so the tunnel and cliffs never swallow the view.
+- **Terrain:** a height field built from layered noise and a few hand-placed landforms: knolls, a flat-topped hill, rocky ridges and a ledge for the waterfall. It is fine on the valley floor and coarse under the distant peaks. The trails are levelled across their width, the creek is carved into it, and buildings sit on flattened pads, so nothing floats or sinks. A test checks there are no cliffs on the valley floor.
+- **Driving:** an arcade model with real velocity, tyre grip per surface, hill slowdown and soft collisions. Each tyre is settled onto the terrain triangle beneath it, within the travel its suspension allows.
+- **Camera:** a spring arm that pulls in when rock comes between it and the car, so the tunnel and cliffs never swallow the view. Drag to swing it round; it drifts back behind the car when you let go.
 - **Performance:** cheap Lambert materials, merged and instanced meshes, one shadow-casting light, a 60 fps cap, no rendering while paused, and a resolution that adapts to the device.
 
 ```
@@ -79,4 +85,4 @@ npm run screenshots    # regenerate the images in docs/
 npm run build          # static build in dist/, ready for any static host
 ```
 
-CI runs the formatting check, the unit tests and a build on every push.
+CI runs the formatting check, the unit tests and a build on every push. If you use [Solo](https://soloterm.com), `solo.yml` defines the dev server and a production preview.
