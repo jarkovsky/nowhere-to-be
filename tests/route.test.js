@@ -1,0 +1,68 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import { angleDelta, clamp } from '../src/core/math.js';
+import { createObstacleIndex } from '../src/core/collision.js';
+import { createCarState, stepDriving } from '../src/core/driving.js';
+import { ROAD, CAMP_TRAIL } from '../src/world/layout.js';
+import { headingOf } from '../src/world/path.js';
+import { drivingHeight, isDriveable } from '../src/world/terrain.js';
+import { buildScenery } from '../src/world/scenery.js';
+import { buildBridge } from '../src/world/landmarks/bridge.js';
+import { buildTunnel } from '../src/world/landmarks/tunnel.js';
+import { buildWaterfall } from '../src/world/landmarks/waterfall.js';
+
+// The real trees, rocks, railings, tunnel walls and cliffs.
+const scene = new THREE.Scene();
+const { obstacles } = buildScenery(scene);
+buildBridge(scene, obstacles);
+buildTunnel(scene, obstacles);
+buildWaterfall(scene, obstacles);
+
+const world = {
+  obstacles: createObstacleIndex(obstacles),
+  dynamic: [],
+  surface: () => 'road',
+  slope: (x, z, heading) => {
+    const dx = -Math.sin(heading) * 1.5;
+    const dz = -Math.cos(heading) * 1.5;
+    return (drivingHeight(x + dx, z + dz) - drivingHeight(x - dx, z - dz)) / 3;
+  },
+  isDriveable,
+};
+
+/** Steers along a path like a careful driver and reports how far it got. */
+function followPath(path, length) {
+  const start = path.at(0);
+  const car = createCarState({ x: start.x, z: start.z, heading: headingOf(start.dx, start.dz) });
+  let progress = 0;
+  let lastS = 0;
+  for (let step = 0; step < 60 * 400 && progress < length; step++) {
+    const near = path.nearest(car.x, car.z);
+    if (near.distance > 6) return { progress, stuck: `left the path at s=${progress.toFixed(0)}` };
+    // Distance travelled along the path, allowing for the loop wrapping round.
+    let delta = near.s - lastS;
+    if (path.closed) delta = ((delta + path.length * 1.5) % path.length) - path.length / 2;
+    progress += delta;
+    lastS = near.s;
+    const ahead = path.at(near.s + 7);
+    const desired = Math.atan2(-(ahead.x - car.x), -(ahead.z - car.z));
+    stepDriving(car, { cruise: true, steer: clamp(angleDelta(car.heading, desired) * 2.5, -1, 1) }, 1 / 60, world);
+  }
+  return { progress };
+}
+
+test('nothing blocks the trail all the way round the loop', () => {
+  const result = followPath(ROAD, ROAD.length - 10);
+  assert.equal(result.stuck, undefined, result.stuck);
+  assert.ok(
+    result.progress >= ROAD.length - 10,
+    `only reached ${result.progress.toFixed(0)} of ${ROAD.length.toFixed(0)} m`,
+  );
+});
+
+test('the campsite spur is clear', () => {
+  const result = followPath(CAMP_TRAIL, CAMP_TRAIL.length - 4);
+  assert.equal(result.stuck, undefined, result.stuck);
+  assert.ok(result.progress >= CAMP_TRAIL.length - 4);
+});
