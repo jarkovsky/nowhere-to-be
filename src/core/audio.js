@@ -294,6 +294,9 @@ export function createAudio() {
       } else if (kind === 'moo') {
         tone(118, now, 0.35, { type: 'sawtooth', end: 150, volume: 0.06 });
         tone(150, now + 0.35, 0.75, { type: 'sawtooth', end: 104, volume: 0.06 });
+      } else if (kind === 'hoot') {
+        tone(392, now, 0.35, { end: 330, volume: 0.05 });
+        tone(392, now + 0.5, 0.6, { end: 311, volume: 0.05 });
       } else if (kind === 'honk') {
         [0, 0.3].forEach(t => tone(560, now + t, 0.16, { type: 'square', end: 470, volume: 0.03 }));
       }

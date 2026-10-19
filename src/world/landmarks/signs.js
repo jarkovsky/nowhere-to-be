@@ -236,6 +236,7 @@ function paintMap(ctx, w, h) {
     halt: 'Railway halt',
     roadworks: 'Roadworks',
     helipad: 'Helipad',
+    chapel: 'Chapel',
   };
   ctx.font = `700 26px ${FONT}`;
   ctx.textAlign = 'center';

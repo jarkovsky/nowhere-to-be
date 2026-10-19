@@ -22,6 +22,7 @@ export const STICKERS = [
   'roadworks',
   'helipad',
   'helicopter',
+  'chapel',
   'deer',
   'ducks',
   'sheep',
@@ -31,6 +32,7 @@ export const STICKERS = [
   'fish',
   'geese',
   'eagle',
+  'owl',
   'yeti',
 ];
 export const COLORS = ['orange', 'sage', 'blue', 'berry', 'yellow', 'rainbow'];

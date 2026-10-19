@@ -90,6 +90,9 @@ export const TOWER = { x: 101, z: 196 };
 
 export const WINDMILL = { x: MESA.x, z: MESA.z };
 
+/** A small white chapel on top of the eastern knoll, facing down into the valley. */
+export const CHAPEL = { x: 245, z: 144, rotation: Math.atan2(-245, -144) };
+
 /** A helipad on the flat-topped hill, behind the windmill. `heading` is the way the helicopter faces. */
 export const HELIPAD = { x: -287, z: 37, heading: 0.9 };
 
@@ -241,6 +244,7 @@ export const PLACES = [
   { id: 'halt', ...haltCentre, radius: 16 },
   { id: 'roadworks', x: ROADWORKS.site.x, z: ROADWORKS.site.z, radius: 24 },
   { id: 'helipad', x: HELIPAD.x, z: HELIPAD.z, radius: 16 },
+  { id: 'chapel', x: CHAPEL.x, z: CHAPEL.z, radius: 14 },
 ];
 
 /** Ground that flattens so buildings and camp furniture sit on level ground. */
@@ -256,6 +260,7 @@ export const PADS = [
   ...BUNKERS.map(bunker => ({ ...bunker, radius: 4.5, falloff: 6 })),
   { x: ROADWORKS.site.x, z: ROADWORKS.site.z, radius: 14, falloff: 10 },
   { x: HELIPAD.x, z: HELIPAD.z, radius: 10.5, falloff: 7 },
+  { x: CHAPEL.x, z: CHAPEL.z, radius: 5, falloff: 6 },
 ];
 
 function patchOnRoad(x, z) {

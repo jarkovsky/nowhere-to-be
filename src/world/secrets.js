@@ -1,8 +1,8 @@
-// Small surprises: a shy yeti in the snowfield and a hot-air balloon drifting
-// over the valley.
+// Small surprises: a shy yeti in the snowfield, a hot-air balloon drifting
+// over the valley, and an owl that sits on the fire tower at night.
 import * as THREE from 'three';
 import { damp } from '../core/math.js';
-import { YETI } from './layout.js';
+import { YETI, TOWER } from './layout.js';
 import { terrainHeight } from './terrain.js';
 import { PartsBuilder } from './build.js';
 
@@ -62,7 +62,44 @@ function createBalloon() {
   return root;
 }
 
-export function createSecrets(scene, { onSpotted = () => {} } = {}) {
+function createOwl() {
+  const root = new THREE.Group();
+  const feathers = '#8b6f52';
+  root.add(
+    new PartsBuilder()
+      .add(new THREE.IcosahedronGeometry(0.3, 1), feathers, { y: 0.3, sy: 1.3 })
+      .add(new THREE.IcosahedronGeometry(0.2, 1), '#d8c7a6', { y: 0.27, z: -0.13, sy: 1.2 })
+      .box(0.08, 0.06, 0.12, '#e3b23c', { x: -0.08, y: 0.02, z: -0.04 })
+      .box(0.08, 0.06, 0.12, '#e3b23c', { x: 0.08, y: 0.02, z: -0.04 })
+      .mesh({ castShadow: false }),
+  );
+  // The head turns on its own to follow you.
+  const head = new THREE.Group();
+  head.position.y = 0.66;
+  const eyes = new THREE.MeshLambertMaterial({ color: '#f2c94c', emissive: '#f2c94c', emissiveIntensity: 0.6 });
+  head.add(
+    new PartsBuilder()
+      .add(new THREE.IcosahedronGeometry(0.24, 1), feathers)
+      .add(new THREE.ConeGeometry(0.06, 0.16, 4), feathers, { x: -0.13, y: 0.22 })
+      .add(new THREE.ConeGeometry(0.06, 0.16, 4), feathers, { x: 0.13, y: 0.22 })
+      .add(new THREE.ConeGeometry(0.04, 0.1, 4), '#4a3b2c', { y: -0.06, z: -0.22, rx: -Math.PI / 2 })
+      .mesh({ castShadow: false }),
+  );
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.04, 10).rotateX(Math.PI / 2), eyes);
+    eye.position.set(side * 0.09, 0.03, -0.21);
+    const pupil = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.03, 0.05, 8).rotateX(Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: '#1d1d1a' }),
+    );
+    pupil.position.set(side * 0.09, 0.03, -0.23);
+    head.add(eye, pupil);
+  }
+  root.add(head);
+  return { root, head };
+}
+
+export function createSecrets(scene, { onSpotted = () => {}, onCall = () => {} } = {}) {
   // The yeti hides behind a big boulder at the edge of the snowfield.
   const ground = terrainHeight(YETI.x, YETI.z);
   const rock = new PartsBuilder()
@@ -78,6 +115,14 @@ export function createSecrets(scene, { onSpotted = () => {} } = {}) {
   const balloon = createBalloon();
   scene.add(balloon);
 
+  // The owl perches on a corner post of the fire tower's railing.
+  const owl = createOwl();
+  const perch = new THREE.Vector3(TOWER.x + 2.2, terrainHeight(TOWER.x, TOWER.z) + 13.2, TOWER.z + 2.2);
+  owl.root.position.copy(perch);
+  owl.root.visible = false;
+  scene.add(owl.root);
+  let dark = false;
+
   let time = 0;
   let rise = 0;
   let wave = 0;
@@ -85,8 +130,9 @@ export function createSecrets(scene, { onSpotted = () => {} } = {}) {
     obstacles: [{ x: YETI.x, z: YETI.z, radius: 4 }],
     hearHorn(x, z) {
       if (rise > 0.5 && Math.hypot(x - YETI.x, z - YETI.z) < 60) wave = 2.5;
+      if (dark && Math.hypot(x - perch.x, z - perch.z) < 70) onCall('hoot');
     },
-    update(dt, player, running) {
+    update(dt, player, running, night = 0) {
       if (!running) return;
       time += dt;
       const distance = Math.hypot(player.x - YETI.x, player.z - YETI.z);
@@ -110,6 +156,16 @@ export function createSecrets(scene, { onSpotted = () => {} } = {}) {
         Math.cos(angle * 1.3) * 160 - 20,
       );
       balloon.rotation.y = time * 0.05;
+
+      // Only out after dark. It keeps an eye on you, and now and then looks away.
+      dark = night > 0.55;
+      owl.root.visible = dark;
+      if (dark) {
+        const look = Math.atan2(perch.x - player.x, perch.z - player.z);
+        const glance = Math.sin(time * 0.4) > 0.85 ? 1.2 : 0;
+        owl.head.rotation.y = damp(owl.head.rotation.y, look + glance, 3, dt);
+        if (Math.hypot(player.x - perch.x, player.z - perch.z) < 35) onSpotted('owl');
+      }
     },
   };
 }

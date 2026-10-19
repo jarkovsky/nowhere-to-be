@@ -23,6 +23,7 @@ import {
   JETTY,
   ROADWORKS,
   HELIPAD,
+  CHAPEL,
   KNOLLS,
   SPAWN,
   VALLEY_RADIUS,
@@ -303,6 +304,7 @@ const CLEARINGS = [
   { ...RAILWAY.at((HALT.from + HALT.to) / 2), r: 24 },
   { x: ROADWORKS.site.x, z: ROADWORKS.site.z, r: 32 },
   { x: HELIPAD.x, z: HELIPAD.z, r: 20 },
+  { x: CHAPEL.x, z: CHAPEL.z, r: 9 },
   ...SURFACES.map(p => ({ x: p.x, z: p.z, r: Math.max(p.rx, p.rz) + 4 })),
 ];
 

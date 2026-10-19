@@ -162,7 +162,7 @@ export function createGame(canvas) {
     sound.sticker();
   };
   const wildlife = createWildlife(scene, { onSpotted: discovered, onCall: kind => sound.animal(kind) });
-  const secrets = createSecrets(scene, { onSpotted: discovered });
+  const secrets = createSecrets(scene, { onSpotted: discovered, onCall: kind => sound.animal(kind) });
   obstacles.push(...secrets.obstacles);
   const helicopter = createHelicopter(scene, { onTakeOff: () => discovered('helicopter') });
   const gnomes = createGnomes(scene, {
@@ -544,7 +544,7 @@ export function createGame(canvas) {
       sound.crossingBell(Math.hypot(state.x - LEVEL_CROSSING.x, state.z - LEVEL_CROSSING.z));
     }
     wildlife.update(dt, state, true);
-    secrets.update(dt, state, true);
+    secrets.update(dt, state, true, night);
     gnomes.update(dt, state, driving);
     surfaces.update(dt, state, driving);
     traffic.update(dt, {
