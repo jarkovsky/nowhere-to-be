@@ -103,6 +103,26 @@ export const BUNKERS = [
 /** A boathouse and a jetty on the south shore of the lake. The jetty is wide enough to drive onto. */
 export const JETTY = { x: 84, z: 2, heading: headingOf(0, -1), length: 24, width: 5 };
 
+/**
+ * A branch railway. It starts at a buffer stop by a halt inside the trail loop
+ * (s = 0), crosses the trail at a level crossing and climbs a cutting into a
+ * tunnel in the northern hills.
+ */
+export const RAILWAY = createPath([
+  [-17, -46],
+  [-20, -72],
+  [-24, -98],
+  [-29, -124],
+  [-36, -150],
+  [-45, -174],
+  [-56, -198],
+  [-67, -220],
+]);
+/** How steeply the line climbs from the level crossing to the tunnel. */
+export const RAIL_GRADE = 0.035;
+/** The halt's platform runs beside the line between these distances, on its west side. */
+export const HALT = { from: 5, to: 33, side: -1 };
+
 export const CABIN = { x: -62, z: 112, rotation: 0.35 };
 
 export const LOOKOUT = { x: -148, z: -44, heading: headingOf(1, 0.1) };
@@ -167,11 +187,24 @@ export const BRIDGE = {
   width: 9.6, // a little wider than the trail itself
 };
 
+/** Where the railway crosses the trail: `s` along the railway, `roadS` along the trail. */
+export const LEVEL_CROSSING = (() => {
+  let best = { distance: Infinity };
+  for (const sample of RAILWAY.samples) {
+    const { distance, s } = ROAD.nearest(sample.x, sample.z);
+    if (distance < best.distance) best = { s: sample.s, roadS: s, x: sample.x, z: sample.z, distance };
+  }
+  return { s: best.s, roadS: best.roadS, x: best.x, z: best.z };
+})();
+
 const tunnelCentre = nearestRoadSample(-134, -84);
 export const TUNNEL = { ...tunnelCentre, length: 38, radius: 6.4 };
 
 const start = ROAD.at(nearestRoadSample(-36, 97).s);
 export const SPAWN = { x: start.x, z: start.z, heading: headingOf(start.dx, start.dz) };
+
+const { x: haltX, z: haltZ } = RAILWAY.offset((HALT.from + HALT.to) / 2, HALT.side * 4);
+const haltCentre = { x: haltX, z: haltZ };
 
 /** Places that earn a scrapbook sticker. `radius` is how close you need to get. */
 export const PLACES = [
@@ -186,6 +219,7 @@ export const PLACES = [
   { id: 'jetty', x: JETTY.x, z: JETTY.z + 6, radius: 12 },
   { id: 'chata', x: CHATA.x, z: CHATA.z, radius: 22 },
   { id: 'bunker', x: BUNKERS[1].x, z: BUNKERS[1].z, radius: 14 },
+  { id: 'halt', ...haltCentre, radius: 16 },
 ];
 
 /** Ground that flattens so buildings and camp furniture sit on level ground. */

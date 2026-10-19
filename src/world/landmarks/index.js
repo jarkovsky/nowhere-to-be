@@ -8,6 +8,7 @@ import { buildWindmill } from './windmill.js';
 import { buildJetty } from './jetty.js';
 import { buildHut } from './hut.js';
 import { buildBunkers } from './bunkers.js';
+import { buildRailway } from './railway.js';
 import { buildSigns } from './signs.js';
 
 export { insideTunnel } from './tunnel.js';
@@ -24,13 +25,16 @@ export function buildLandmarks(scene, obstacles) {
   const jetty = buildJetty(scene, obstacles);
   const hut = buildHut(scene, obstacles);
   buildBunkers(scene, obstacles);
+  const crossing = buildRailway(scene, obstacles);
   buildSigns(scene, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard });
 
   let time = 0;
   return {
     occluders: [...tunnel.occluders, ...waterfall.occluders],
     fire: camps.fire,
-    update(dt, night) {
+    /** The level crossing: where traffic waits, and the barriers while they are down. */
+    crossing,
+    update(dt, night, { crossingClosed = false } = {}) {
       time += dt;
       waterfall.update(time);
       camps.update(time, night);
@@ -39,6 +43,7 @@ export function buildLandmarks(scene, obstacles) {
       windmill.update(dt);
       jetty.update(time);
       hut.update(time);
+      crossing.update(dt, crossingClosed);
     },
   };
 }

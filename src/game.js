@@ -12,10 +12,22 @@ import { createTiltSteering } from './input/tilt.js';
 import { createUI } from './ui/ui.js';
 import { createCar } from './vehicles/car.js';
 import { createTraffic } from './vehicles/traffic.js';
+import { createTrain } from './vehicles/train.js';
 import { createAtmosphere } from './world/atmosphere.js';
 import { createGnomes } from './world/collectibles.js';
 import { buildLandmarks, insideTunnel } from './world/landmarks/index.js';
-import { CAMP, CAMP_TRAIL, GNOMES, PLACES, ROAD, ROAD_HALF_WIDTH, SPAWN, TRACKS, surfaceAt } from './world/layout.js';
+import {
+  CAMP,
+  CAMP_TRAIL,
+  GNOMES,
+  LEVEL_CROSSING,
+  PLACES,
+  ROAD,
+  ROAD_HALF_WIDTH,
+  SPAWN,
+  TRACKS,
+  surfaceAt,
+} from './world/layout.js';
 import { buildScenery } from './world/scenery.js';
 import { createSecrets } from './world/secrets.js';
 import { createSurfaces } from './world/surfaces.js';
@@ -96,6 +108,7 @@ export function createGame(canvas) {
   const surfaces = createSurfaces(scene, sound);
   obstacles.push(...surfaces.obstacles);
   const traffic = createTraffic(scene);
+  const train = createTrain(scene, { onHorn: distance => sound.trainHorn(distance) });
   const car = createCar();
   scene.add(car.root);
 
@@ -159,9 +172,11 @@ export function createGame(canvas) {
     },
   });
 
+  // Everything that moves and can be bumped into: the other travellers, the train and the crossing barriers.
+  const moving = [];
   const world = {
     obstacles: createObstacleIndex(obstacles),
-    dynamic: traffic.colliders,
+    dynamic: moving,
     surface: surfaceUnder,
     slope: slopeAlong,
     isDriveable,
@@ -299,6 +314,7 @@ export function createGame(canvas) {
     wildlife.hearHorn(state.x, state.z);
     secrets.hearHorn(state.x, state.z);
     traffic.answerHonk(state.x, state.z, () => sound.otherHorn());
+    train.answerHonk(state);
   }
 
   function unlockRainbow() {
@@ -460,6 +476,7 @@ export function createGame(canvas) {
 
   let lastFrame = 0;
   let clock = 0;
+  let nextBell = 0;
   let wasBraking = false;
   let throttle = 0;
 
@@ -490,6 +507,8 @@ export function createGame(canvas) {
 
     if (driving) {
       const input = controls.read();
+      moving.length = 0;
+      moving.push(...traffic.colliders, ...train.colliders, ...landmarks.crossing.colliders());
       stepDriving(state, input, dt, world);
       if (state.impact > 2.5) sound.bump(state.impact);
       updateCarModel(dt);
@@ -498,6 +517,7 @@ export function createGame(canvas) {
       for (const place of PLACES) {
         if (Math.hypot(state.x - place.x, state.z - place.z) < place.radius) discovered(place.id);
       }
+      if (train.distanceTo(state) < 30) discovered('train');
     }
 
     const sky = atmosphere.getState();
@@ -506,12 +526,22 @@ export function createGame(canvas) {
     car.setLights(night, driving && wasBraking);
     car.animate(clock);
     scenery.update(dt);
-    landmarks.update(dt, night);
+    train.update(dt, { player: state });
+    const crossingClosed = train.crossingClosed();
+    landmarks.update(dt, night, { crossingClosed });
+    if (crossingClosed && clock > nextBell) {
+      nextBell = clock + 0.55;
+      sound.crossingBell(Math.hypot(state.x - LEVEL_CROSSING.x, state.z - LEVEL_CROSSING.z));
+    }
     wildlife.update(dt, state, true);
     secrets.update(dt, state, true);
     gnomes.update(dt, state, driving);
     surfaces.update(dt, state, driving);
-    traffic.update(dt, { player: state, blockers: wildlife.crossingDucks(), night });
+    traffic.update(dt, {
+      player: state,
+      blockers: [...wildlife.crossingDucks(), ...landmarks.crossing.blockers()],
+      night,
+    });
 
     if (mode === 'title') updateIntroShot(clock);
     chase.update(dt, carView(), cameraOptions());
@@ -549,6 +579,7 @@ export function createGame(canvas) {
         sky: atmosphere.getState(),
         surface: surfaces.getState(),
         traffic: traffic.getState(),
+        train: train.getState(),
         gnomes: gnomes.getState(),
         wildlife: wildlife.getState(),
         cameraBlocked: chase.isBlocked(),

@@ -17,6 +17,7 @@ import { buildWindmill } from '../src/world/landmarks/windmill.js';
 import { buildJetty } from '../src/world/landmarks/jetty.js';
 import { buildHut } from '../src/world/landmarks/hut.js';
 import { buildBunkers } from '../src/world/landmarks/bunkers.js';
+import { buildRailway } from '../src/world/landmarks/railway.js';
 import { createSurfaces } from '../src/world/surfaces.js';
 import { LANE } from '../src/vehicles/traffic.js';
 
@@ -33,6 +34,7 @@ for (const build of [
   buildJetty,
   buildHut,
   buildBunkers,
+  buildRailway,
 ]) {
   build(scene, obstacles);
 }

@@ -12,6 +12,9 @@ import {
   CREEK_HALF_WIDTH,
   CAMP_TRAIL,
   TRACKS,
+  RAILWAY,
+  RAIL_GRADE,
+  LEVEL_CROSSING,
   WATERFALL,
   BRIDGE,
   JETTY,
@@ -180,8 +183,42 @@ function flattenPads() {
   }
 }
 
+/**
+ * The railway bed: an even slope from the halt down to the level crossing, then
+ * an even climb, embanked over dips and cut into the hillside up to the tunnel
+ * portal. Beyond the portal the hill is left whole.
+ */
+function levelRailway() {
+  const natural = smoothProfile(
+    RAILWAY.samples.map(p => sampleGrid(p.x, p.z)),
+    20,
+    false,
+  );
+  const crossing = RAILWAY.samples.findIndex(p => p.s >= LEVEL_CROSSING.s);
+  const [start, atCrossing] = [natural[0], natural[crossing]];
+  const profile = RAILWAY.samples.map((p, i) =>
+    i <= crossing
+      ? start + ((atCrossing - start) * p.s) / LEVEL_CROSSING.s
+      : atCrossing + (p.s - LEVEL_CROSSING.s) * RAIL_GRADE,
+  );
+  const last = RAILWAY.samples.length - 1;
+  // Wide enough for the halt's platform at the start; deeper cuttings and higher embankments get wider banks.
+  const flat = s => (s < 40 ? 8 : 3.2);
+  for (const [vertex, { index, distance }] of nearestSamples(RAILWAY, 34)) {
+    const p = RAILWAY.samples[index];
+    // The cutting runs a few metres past the portal, under its headwall; the hill beyond is left whole.
+    const beyond = (AXIS[vertex % GRID] - p.x) * p.dx + (AXIS[Math.floor(vertex / GRID)] - p.z) * p.dz;
+    if (index === last && beyond > 9) continue;
+    const depth = Math.abs(heights[vertex] - profile[index]);
+    const weight = 1 - smoothstep(distance, flat(p.s), flat(p.s) + 5 + depth);
+    heights[vertex] = lerp(heights[vertex], profile[index], weight);
+  }
+  return profile;
+}
+
 levelAlong(CAMP_TRAIL, () => 2.4, 6);
 for (const track of TRACKS) levelAlong(track.path, () => 2, 8);
+const railProfile = levelRailway();
 // Pads come after the side tracks so the tracks run up onto level ground.
 flattenPads();
 
@@ -228,6 +265,17 @@ forEachVertexNear(WATERFALL.x, WATERFALL.z, 30, (vertex, _x, _z, distance) => {
 
 export { heights };
 
+// The rail bed's height along the line. Where the trail was levelled across it
+// at the crossing, it eases onto the finished ground instead.
+const railBed = smoothProfile(
+  RAILWAY.samples.map((p, i) => {
+    const onRoad = 1 - smoothstep(ROAD.nearest(p.x, p.z).distance, ROAD_HALF_WIDTH, 18);
+    return lerp(railProfile[i], sampleGrid(p.x, p.z), onRoad);
+  }),
+  8,
+  false,
+);
+
 // --- Queries -----------------------------------------------------------------
 
 /** Ground height at any point, matching the rendered ground exactly. */
@@ -240,6 +288,16 @@ export function creekLevel(s) {
 }
 
 export const POOL = { x: WATERFALL.x, z: WATERFALL.z, level: POOL_LEVEL };
+
+/** Height of the railway's bed at distance `s` along the line. */
+export function railLevel(s) {
+  const last = railBed.length - 1;
+  const end = RAILWAY.samples[last].s;
+  if (s > end) return railBed[last] + (s - end) * RAIL_GRADE;
+  const u = clamp(s / RAILWAY.spacing, 0, last);
+  const i = Math.min(Math.floor(u), last - 1);
+  return lerp(railBed[i], railBed[i + 1], u - i);
+}
 
 /** Height of the water surface at a point, or -Infinity where it's dry. */
 export function waterLevel(x, z) {

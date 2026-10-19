@@ -19,6 +19,7 @@ import {
   TUNNEL,
   SPAWN,
   PLACES,
+  RAILWAY,
 } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder } from '../build.js';
@@ -196,6 +197,20 @@ function paintMap(ctx, w, h) {
     ctx.stroke();
     ctx.setLineDash([]);
   };
+  // The railway: a dark line with cross ties.
+  ctx.strokeStyle = '#4c4f4a';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  RAILWAY.samples.forEach((p, i) => (i ? ctx.lineTo(px(p.x), pz(p.z)) : ctx.moveTo(px(p.x), pz(p.z))));
+  ctx.stroke();
+  ctx.lineWidth = 2;
+  for (let s = 0; s < RAILWAY.length; s += 6) {
+    const p = RAILWAY.at(s);
+    ctx.beginPath();
+    ctx.moveTo(px(p.x - p.dz * 4), pz(p.z + p.dx * 4));
+    ctx.lineTo(px(p.x + p.dz * 4), pz(p.z - p.dx * 4));
+    ctx.stroke();
+  }
   trail(ROAD, 6);
   trail(CAMP_TRAIL, 4);
   for (const track of TRACKS) trail(track.path, 3, [5, 7]);
@@ -217,6 +232,7 @@ function paintMap(ctx, w, h) {
     jetty: 'Jetty',
     chata: 'Masarykova chata',
     bunker: 'Bunkers',
+    halt: 'Railway halt',
   };
   ctx.font = `700 26px ${FONT}`;
   ctx.textAlign = 'center';

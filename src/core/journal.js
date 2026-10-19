@@ -17,6 +17,8 @@ export const STICKERS = [
   'jetty',
   'chata',
   'bunker',
+  'halt',
+  'train',
   'deer',
   'ducks',
   'sheep',

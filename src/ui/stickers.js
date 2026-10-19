@@ -28,6 +28,16 @@ export const STICKER_INFO = {
     hint: 'Up a winding track in the northern hills.',
   },
   bunker: { name: 'Řopík', story: 'A little concrete pillbox from 1938.', hint: 'In a line along the northern ridge.' },
+  halt: {
+    name: 'Railway halt',
+    story: 'A platform, a shelter and a timetable.',
+    hint: 'Inside the trail loop, west of the lake.',
+  },
+  train: {
+    name: 'Railbus',
+    story: 'Up the line to the tunnel and back. Try the horn.',
+    hint: 'It runs between the halt and a tunnel in the northern hills.',
+  },
   deer: { name: 'Deer', story: 'Out for their afternoon walk.', hint: 'They cross the meadow near the start.' },
   ducks: { name: 'Ducks', story: 'Everybody waits for the ducks.', hint: 'They cross the trail north of the lake.' },
   sheep: { name: 'Sheep', story: 'Grazing, mostly.', hint: 'Near the cabin.' },
@@ -74,6 +84,9 @@ const DRAWINGS = {
     '<path d="M5 112q75-26 150 0v6H5z" fill="#8fab83"/><path d="M34 106V82h92v24z" fill="#b8e2cd"/><path d="M38 74V60h84v14zm6-20V40h72v14z" fill="#d6a190"/><path d="M62 8h6v14h-6zm30 4h6v12h-6z" fill="#b04a3a"/><path d="m26 84 10-12h88l10 12zm6-22 10-10h76l10 10zm4-20 20-24h48l20 24z" fill="#4f8466"/><path d="M50 63h7v7h-7zm16 0h7v7h-7zm21 0h7v7h-7zm16 0h7v7h-7zM52 44h7v7h-7zm49 0h7v7h-7z" fill="#e8cf8a" stroke="#a5574a" stroke-width="2"/><path d="M68 43h24v7H68z" fill="#f4f2ea"/><path d="M44 88h9v10h-9zm17 0h9v10h-9zm17 0h9v10h-9zm17 0h9v10h-9z" fill="#e8cf8a" stroke="#f1ede2" stroke-width="2"/><path d="M112 88h8v18h-8z" fill="#3f5f50"/><path d="M18 106V88h7v18z" fill="#8f8b80"/><circle cx="21.5" cy="85" r="3.5" fill="#5b6457"/>',
   bunker:
     '<path d="M5 108q75-20 150 0v10H5z" fill="#8fab83"/><rect x="44" y="56" width="86" height="52" rx="12" fill="#b4b1a3"/><path d="M92 56h26q12 0 12 12v14q-20 6-38-6z" fill="#bcae84"/><path d="M70 108q4-18 26-16 14 2 20 16z" fill="#9ea683"/><rect x="26" y="60" width="28" height="48" rx="13" fill="#a9a697"/><path d="M26 76q14 8 28-2v18q-16 6-28-2z" fill="#a39279"/><rect x="62" y="70" width="22" height="22" fill="#8f8c80"/><rect x="66" y="74" width="14" height="14" fill="#4a4b45"/><rect x="70" y="78" width="6" height="6" fill="#2b2f2c"/><rect x="106" y="50" width="6" height="7" fill="#5d5f58"/><path d="M4 110q4-22 14-24 8 0 12 24z" fill="#98a677"/>',
+  halt: '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M8 96h144" stroke="#9a958b" stroke-width="8"/><path d="M8 93h144" stroke="#8a867e" stroke-width="2"/><path d="M60 92h92v-8H60z" fill="#b7b2a6"/><path d="M60 85h92" stroke="#f1ede2" stroke-width="2"/><path d="M96 84V52h40v32z" fill="#b8664a"/><path d="M90 54h52l-4-8H94z" fill="#5d4a3e"/><path d="M102 60h28v24h-28z" fill="#8e5340"/><path d="M104 74h24v3h-24z" fill="#8a6446"/><path d="M120 62h6v8h-6z" fill="#e8c53a"/><path d="M74 84V40" stroke="#4f5a55" stroke-width="3"/><path d="M68 40h12v4H68z" fill="#4f5a55"/><path d="M20 92V70h6v22m-14-4h26" stroke="#5d5f58" stroke-width="3" fill="none"/><path d="M12 70h28v8H12z" fill="#c8302a"/><path d="M19 70h7v8h-7z" fill="#f2efe6"/>',
+  train:
+    '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M5 101h150" stroke="#9a958b" stroke-width="6"/><path d="M24 98V48h112v50z" fill="#e9ebe6"/><path d="M24 98v-10h112v10z" fill="#2f5d9e"/><path d="M24 60h86v18H24z" fill="#2f5d9e"/><path d="M28 63h12v12H28zm16 0h12v12H44zm16 0h12v12H60zm16 0h12v12H76zm16 0h12v12H92z" fill="#3d5560"/><path d="M110 48h26v50h-26z" fill="#e7b92e"/><path d="M114 54h18v16h-18z" fill="#3d5560"/><circle cx="118" cy="82" r="3" fill="#fff3ce"/><circle cx="128" cy="82" r="3" fill="#fff3ce"/><path d="M26 44h108v6H26z" fill="#c9ccc6"/><circle cx="44" cy="100" r="5" fill="#2a2e2c"/><circle cx="114" cy="100" r="5" fill="#2a2e2c"/>',
   eagle:
     '<path d="M20 98q30-14 60 0 24-12 52 0z" fill="#f4f6f0"/><path d="M80 52 30 40l-14 8 22 2-16 6 26 2 32 6zm0 0 50-12 14 8-22 2 16 6-26 2-32 6z" fill="#5e4632"/><ellipse cx="80" cy="56" rx="9" ry="16" fill="#5e4632"/><circle cx="80" cy="38" r="7" fill="#b48a4e"/><path d="m80 42 0 6 3-3z" fill="#e0b649"/><path d="m72 70 8 14 8-14z" fill="#5e4632"/>',
   cows: '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M44 84v22m12-22v22m44-22v22m12-22v22" stroke="#e7dfcd" stroke-width="8"/><rect x="38" y="52" width="80" height="36" rx="8" fill="#f1ece0"/><path d="M58 52h22v22H58zm38 18h14v14H96z" fill="#3c3f3a"/><rect x="112" y="42" width="30" height="24" rx="6" fill="#f1ece0"/><rect x="130" y="52" width="14" height="14" rx="4" fill="#e9b3a4"/><path d="m116 42-4-8m20 8 4-8" stroke="#e3d6b4" stroke-width="4"/><circle cx="124" cy="50" r="2.5" fill="#2d3a33"/>',

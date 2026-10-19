@@ -9,6 +9,8 @@ import {
   CREEK_HALF_WIDTH,
   CAMP_TRAIL,
   TRACKS,
+  RAILWAY,
+  HALT,
   BRIDGE,
   TUNNEL,
   WATERFALL,
@@ -296,6 +298,7 @@ const CLEARINGS = [
   { x: HABITATS.sheep.x, z: HABITATS.sheep.z, r: 18 },
   { x: HABITATS.burrow.x, z: HABITATS.burrow.z, r: 10 },
   { x: YETI.x, z: YETI.z, r: 10 },
+  { ...RAILWAY.at((HALT.from + HALT.to) / 2), r: 24 },
   ...SURFACES.map(p => ({ x: p.x, z: p.z, r: Math.max(p.rx, p.rz) + 4 })),
 ];
 
@@ -315,6 +318,7 @@ function isClearGround(x, z, { road = 9 } = {}) {
   if (r < 400 && ROAD.nearest(x, z).distance < road) return false;
   if (CAMP_TRAIL.nearest(x, z).distance < 6) return false;
   if (TRACKS.some(track => track.path.nearest(x, z).distance < 5)) return false;
+  if (RAILWAY.nearest(x, z).distance < 9) return false;
   if (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.nearest(x, z).distance < 10) return false;
   return true;
 }

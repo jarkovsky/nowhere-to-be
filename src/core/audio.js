@@ -232,6 +232,29 @@ export function createAudio() {
       tone(294, now + 0.22, 0.26, { type: 'square', volume: 0.04 });
     },
 
+    /** The railbus's two-note horn, quieter the further away it is. */
+    trainHorn(distance) {
+      const level = Math.max(0, 1 - distance / 260);
+      if (!playable() || level <= 0) return;
+      const now = context.currentTime;
+      for (const [start, length] of [
+        [0, 0.55],
+        [0.7, 0.9],
+      ]) {
+        tone(311, now + start, length, { type: 'sawtooth', volume: 0.035 * level });
+        tone(370, now + start, length, { type: 'sawtooth', volume: 0.03 * level });
+      }
+    },
+
+    /** One strike of the level crossing's bell. */
+    crossingBell(distance) {
+      const level = Math.max(0, 1 - distance / 140);
+      if (!playable() || level <= 0) return;
+      const now = context.currentTime;
+      tone(1180, now, 0.3, { type: 'triangle', volume: 0.05 * level });
+      tone(2360, now, 0.12, { volume: 0.015 * level });
+    },
+
     animal(kind) {
       if (!playable()) return;
       const now = context.currentTime + 0.25;
