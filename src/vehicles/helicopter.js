@@ -20,7 +20,7 @@ const SPIN_DOWN = 6;
 const CRUISE = 26;
 const HOVER = 22; // how high above the pad the loop starts and ends
 
-/** Where it flies: round the valley, high over the hills, and back to the pad. Heights are above sea level. */
+/** Where it flies: round the valley, high above the hills, and back to the pad. Heights are above sea level. */
 const ROUTE = [
   [-232, -60, 78],
   [-120, -200, 92],
