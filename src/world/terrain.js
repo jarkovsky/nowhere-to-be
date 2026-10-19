@@ -217,7 +217,7 @@ function levelRailway() {
 }
 
 levelAlong(CAMP_TRAIL, () => 2.4, 6);
-for (const track of TRACKS) levelAlong(track.path, () => 2, 8);
+for (const track of TRACKS) levelAlong(track.path, () => track.width ?? 2, 8);
 const railProfile = levelRailway();
 // Pads come after the side tracks so the tracks run up onto level ground.
 flattenPads();

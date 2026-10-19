@@ -38,6 +38,11 @@ export const STICKER_INFO = {
     story: 'Up the line to the tunnel and back. Try the horn.',
     hint: 'It runs between the halt and a tunnel in the northern hills.',
   },
+  roadworks: {
+    name: 'Roadworks',
+    story: 'A digger, a roller, a grader and a loader, building a new road.',
+    hint: 'A new road leaves the trail to the south.',
+  },
   deer: { name: 'Deer', story: 'Out for their afternoon walk.', hint: 'They cross the meadow near the start.' },
   ducks: { name: 'Ducks', story: 'Everybody waits for the ducks.', hint: 'They cross the trail north of the lake.' },
   sheep: { name: 'Sheep', story: 'Grazing, mostly.', hint: 'Near the cabin.' },
@@ -87,6 +92,8 @@ const DRAWINGS = {
   halt: '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M8 96h144" stroke="#9a958b" stroke-width="8"/><path d="M8 93h144" stroke="#8a867e" stroke-width="2"/><path d="M60 92h92v-8H60z" fill="#b7b2a6"/><path d="M60 85h92" stroke="#f1ede2" stroke-width="2"/><path d="M96 84V52h40v32z" fill="#b8664a"/><path d="M90 54h52l-4-8H94z" fill="#5d4a3e"/><path d="M102 60h28v24h-28z" fill="#8e5340"/><path d="M104 74h24v3h-24z" fill="#8a6446"/><path d="M120 62h6v8h-6z" fill="#e8c53a"/><path d="M74 84V40" stroke="#4f5a55" stroke-width="3"/><path d="M68 40h12v4H68z" fill="#4f5a55"/><path d="M20 92V70h6v22m-14-4h26" stroke="#5d5f58" stroke-width="3" fill="none"/><path d="M12 70h28v8H12z" fill="#c8302a"/><path d="M19 70h7v8h-7z" fill="#f2efe6"/>',
   train:
     '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M5 101h150" stroke="#9a958b" stroke-width="6"/><path d="M24 98V48h112v50z" fill="#e9ebe6"/><path d="M24 98v-10h112v10z" fill="#2f5d9e"/><path d="M24 60h86v18H24z" fill="#2f5d9e"/><path d="M28 63h12v12H28zm16 0h12v12H44zm16 0h12v12H60zm16 0h12v12H76zm16 0h12v12H92z" fill="#3d5560"/><path d="M110 48h26v50h-26z" fill="#e7b92e"/><path d="M114 54h18v16h-18z" fill="#3d5560"/><circle cx="118" cy="82" r="3" fill="#fff3ce"/><circle cx="128" cy="82" r="3" fill="#fff3ce"/><path d="M26 44h108v6H26z" fill="#c9ccc6"/><circle cx="44" cy="100" r="5" fill="#2a2e2c"/><circle cx="114" cy="100" r="5" fill="#2a2e2c"/>',
+  roadworks:
+    '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M5 104h150" stroke="#a9a395" stroke-width="8"/><path d="M96 104 112 72h30l10 32z" fill="#8c7457"/><path d="M18 98V82h34v16zm34-6V78l8-8h12v28z" fill="#e3b23c"/><path d="M60 72h10v12H60z" fill="#4f6f73"/><path d="M14 104h44v-6H14zm46 0h20v-6H60z" fill="#2c302e"/><path d="m74 74 22-30 26 18" stroke="#e3b23c" stroke-width="6" fill="none"/><path d="m116 58 12 4-4 12-10-4z" fill="#c99a2e"/><path d="m36 64 6-14 6 14z" fill="#e2672f"/><path d="M38 60h8" stroke="#f1ede2" stroke-width="2"/><circle cx="26" cy="102" r="5" fill="#6a6f6b"/>',
   eagle:
     '<path d="M20 98q30-14 60 0 24-12 52 0z" fill="#f4f6f0"/><path d="M80 52 30 40l-14 8 22 2-16 6 26 2 32 6zm0 0 50-12 14 8-22 2 16 6-26 2-32 6z" fill="#5e4632"/><ellipse cx="80" cy="56" rx="9" ry="16" fill="#5e4632"/><circle cx="80" cy="38" r="7" fill="#b48a4e"/><path d="m80 42 0 6 3-3z" fill="#e0b649"/><path d="m72 70 8 14 8-14z" fill="#5e4632"/>',
   cows: '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M44 84v22m12-22v22m44-22v22m12-22v22" stroke="#e7dfcd" stroke-width="8"/><rect x="38" y="52" width="80" height="36" rx="8" fill="#f1ece0"/><path d="M58 52h22v22H58zm38 18h14v14H96z" fill="#3c3f3a"/><rect x="112" y="42" width="30" height="24" rx="6" fill="#f1ece0"/><rect x="130" y="52" width="14" height="14" rx="4" fill="#e9b3a4"/><path d="m116 42-4-8m20 8 4-8" stroke="#e3d6b4" stroke-width="4"/><circle cx="124" cy="50" r="2.5" fill="#2d3a33"/>',

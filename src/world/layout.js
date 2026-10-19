@@ -166,11 +166,27 @@ export const TRACKS = [
     path: createPath(fromRoad(128, -118, [158, -138], [182, -156], [194, -170], [188, -182], [168, -190], [152, -194])),
   },
   {
+    // A new road being built: finished asphalt, then a gravel base, then bare earth where the digging is.
+    id: 'roadworks',
+    ruts: false,
+    width: 3.6,
+    path: createPath(fromRoad(3, 111, [0, 128], [-4, 146], [-10, 164], [-16, 180])),
+  },
+  {
     id: 'shore',
     ruts: false,
     path: createPath([[33, -12], [46, -5], [60, 4], [74, 13], [90, 11], [104, 9], [117, 22], ...fromRoad(128, 40)]),
   },
 ];
+
+const roadworksPath = TRACKS.find(track => track.id === 'roadworks').path;
+/** Where each stage of the new road ends, in metres along it. */
+export const ROADWORKS = {
+  path: roadworksPath,
+  asphalt: roadworksPath.length * 0.42,
+  gravel: roadworksPath.length * 0.74,
+  site: roadworksPath.at(roadworksPath.length),
+};
 
 // The deck runs straight between two points on the curving trail, so the
 // trail never strays far from the middle of the bridge.
@@ -220,6 +236,7 @@ export const PLACES = [
   { id: 'chata', x: CHATA.x, z: CHATA.z, radius: 22 },
   { id: 'bunker', x: BUNKERS[1].x, z: BUNKERS[1].z, radius: 14 },
   { id: 'halt', ...haltCentre, radius: 16 },
+  { id: 'roadworks', x: ROADWORKS.site.x, z: ROADWORKS.site.z, radius: 24 },
 ];
 
 /** Ground that flattens so buildings and camp furniture sit on level ground. */
@@ -233,6 +250,7 @@ export const PADS = [
   { x: JETTY.x - 10, z: JETTY.z + 1, radius: 4, falloff: 10 },
   { x: CHATA.x, z: CHATA.z, radius: 15, falloff: 16 },
   ...BUNKERS.map(bunker => ({ ...bunker, radius: 4.5, falloff: 6 })),
+  { x: ROADWORKS.site.x, z: ROADWORKS.site.z, radius: 14, falloff: 10 },
 ];
 
 function patchOnRoad(x, z) {

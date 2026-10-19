@@ -508,7 +508,7 @@ export function createGame(canvas) {
     if (driving) {
       const input = controls.read();
       moving.length = 0;
-      moving.push(...traffic.colliders, ...train.colliders, ...landmarks.crossing.colliders());
+      moving.push(...traffic.colliders, ...train.colliders, ...landmarks.crossing.colliders(), ...landmarks.machines);
       stepDriving(state, input, dt, world);
       if (state.impact > 2.5) sound.bump(state.impact);
       updateCarModel(dt);
@@ -528,7 +528,7 @@ export function createGame(canvas) {
     scenery.update(dt);
     train.update(dt, { player: state });
     const crossingClosed = train.crossingClosed();
-    landmarks.update(dt, night, { crossingClosed });
+    landmarks.update(dt, night, { crossingClosed, player: state });
     if (crossingClosed && clock > nextBell) {
       nextBell = clock + 0.55;
       sound.crossingBell(Math.hypot(state.x - LEVEL_CROSSING.x, state.z - LEVEL_CROSSING.z));

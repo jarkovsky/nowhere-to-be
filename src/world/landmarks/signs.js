@@ -20,6 +20,7 @@ import {
   SPAWN,
   PLACES,
   RAILWAY,
+  ROADWORKS,
 } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder } from '../build.js';
@@ -233,6 +234,7 @@ function paintMap(ctx, w, h) {
     chata: 'Masarykova chata',
     bunker: 'Bunkers',
     halt: 'Railway halt',
+    roadworks: 'Roadworks',
   };
   ctx.font = `700 26px ${FONT}`;
   ctx.textAlign = 'center';
@@ -303,6 +305,7 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
     windmill: ['WINDMILL', WINDMILL],
     shore: ['JETTY', JETTY],
     chata: ['MASARYKOVA CHATA', CHATA],
+    roadworks: ['ROADWORKS', ROADWORKS.site],
   };
   for (const track of TRACKS) {
     const [text, destination] = destinations[track.id];

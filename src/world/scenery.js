@@ -21,6 +21,7 @@ import {
   TOWER,
   WINDMILL,
   JETTY,
+  ROADWORKS,
   KNOLLS,
   SPAWN,
   VALLEY_RADIUS,
@@ -131,7 +132,7 @@ const PACKED_SNOW = new THREE.Color('#e3e8e4');
  * A strip draped over the ground along a path, optionally offset sideways or
  * skipping a stretch. Where it crosses the snowfield it is snowed over too.
  */
-function ribbon(path, halfWidth, color, { lift = 0.06, offset = 0, skip = () => false } = {}) {
+export function ribbon(path, halfWidth, color, { lift = 0.06, offset = 0, skip = () => false } = {}) {
   const base = new THREE.Color(color);
   const tint = new THREE.Color();
   const across = 4;
@@ -299,6 +300,7 @@ const CLEARINGS = [
   { x: HABITATS.burrow.x, z: HABITATS.burrow.z, r: 10 },
   { x: YETI.x, z: YETI.z, r: 10 },
   { ...RAILWAY.at((HALT.from + HALT.to) / 2), r: 24 },
+  { x: ROADWORKS.site.x, z: ROADWORKS.site.z, r: 32 },
   ...SURFACES.map(p => ({ x: p.x, z: p.z, r: Math.max(p.rx, p.rz) + 4 })),
 ];
 
@@ -704,6 +706,8 @@ export function buildScenery(scene) {
   scene.add(ribbon(ROAD, ROAD_HALF_WIDTH, '#cfc29c', { skip: onBridge }));
   scene.add(ribbon(CAMP_TRAIL, 2.1, '#c7b994', { lift: 0.05 }));
   for (const track of TRACKS) {
+    // The roadworks lay their own surface.
+    if (track.id === 'roadworks') continue;
     if (track.ruts) {
       for (const offset of [-0.85, 0.85]) scene.add(ribbon(track.path, 0.32, '#b3a078', { lift: 0.05, offset }));
     } else {
