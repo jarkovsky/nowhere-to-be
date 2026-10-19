@@ -8,7 +8,7 @@ export const CAR = {
   wheelbase: 2.44,
   topSpeed: 14,
   reverseSpeed: 5,
-  cruiseSpeed: 7,
+  cruiseSpeed: 12,
   acceleration: 5.5,
   braking: 13,
   /** Two circles along the body approximate its footprint for collisions. */
@@ -16,13 +16,16 @@ export const CAR = {
   bodyRadius: 1.15,
 };
 
-/** How each surface changes top speed and grip. */
+/**
+ * How each surface changes top speed and grip. Leaves and snow lie on the
+ * trail itself, so they only make the car slide; rough ground and water slow it.
+ */
 const SURFACE_HANDLING = {
   road: { speed: 1, grip: 1 },
   track: { speed: 0.92, grip: 0.92 },
   grass: { speed: 0.82, grip: 0.85 },
-  leaves: { speed: 0.8, grip: 0.6 },
-  snow: { speed: 0.68, grip: 0.38 },
+  leaves: { speed: 1, grip: 0.6 },
+  snow: { speed: 1, grip: 0.38 },
   water: { speed: 0.42, grip: 0.7 },
 };
 

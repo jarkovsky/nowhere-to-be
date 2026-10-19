@@ -31,17 +31,20 @@ test('turning is tighter at low speed than at high speed', () => {
   assert.ok(slow.speed / slowYaw < fast.speed / fastYaw);
 });
 
-test('cruise control holds a gentle speed and the brake overrides it', () => {
+test('cruise control holds a steady speed and the brake overrides it', () => {
   const car = drive(createCarState(START), { cruise: true }, 4);
   assert.ok(Math.abs(car.speed - CAR.cruiseSpeed) < 0.3, `speed ${car.speed}`);
   drive(car, { cruise: true, brake: true }, 1.5);
   assert.equal(car.speed, 0);
 });
 
-test('loose surfaces lower the top speed and let the car slide', () => {
+test('snow and leaves on the trail let the car slide but keep its speed; grass slows it', () => {
   const road = drive(createCarState(START), { forward: true }, 5);
   const snow = drive(createCarState(START), { forward: true }, 5, flatWorld({ surface: 'snow' }));
-  assert.ok(snow.speed < road.speed * 0.75);
+  const leaves = drive(createCarState(START), { forward: true }, 5, flatWorld({ surface: 'leaves' }));
+  const grass = drive(createCarState(START), { forward: true }, 5, flatWorld({ surface: 'grass' }));
+  assert.ok(Math.abs(snow.speed - road.speed) < 0.1 && Math.abs(leaves.speed - road.speed) < 0.1);
+  assert.ok(grass.speed < road.speed * 0.9);
   const lateral = car => Math.abs(car.vx * Math.cos(car.heading) - car.vz * Math.sin(car.heading));
   const roadTurn = drive({ ...road }, { forward: true, left: true }, 0.6);
   const snowTurn = drive(
