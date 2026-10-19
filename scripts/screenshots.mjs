@@ -31,6 +31,33 @@ try {
   await capture(page, 'title', 2500);
 
   await page.getByRole('button', { name: 'Play' }).click();
+  // The railbus waits at the halt for a few seconds after the game starts.
+  await inGame(
+    page,
+    `
+    const car = L.RAILWAY.offset(44, -6);
+    g.teleport(car.x, car.z, Math.atan2(car.dx, car.dz));
+    const eye = L.RAILWAY.offset(44, -14);
+    const at = L.RAILWAY.offset(16, 0);
+    g.shot([eye.x, T.terrainHeight(eye.x, eye.z) + 4, eye.z], [at.x, T.terrainHeight(at.x, at.z) + 1.5, at.z]);
+  `,
+  );
+  await capture(page, 'railway', 1500);
+
+  await inGame(
+    page,
+    `
+    const { path, asphalt, gravel } = L.ROADWORKS;
+    const car = path.at(asphalt - 6);
+    g.teleport(car.x, car.z, Math.atan2(-car.dx, -car.dz));
+    const eye = path.offset(asphalt - 16, -5);
+    const at = path.offset(gravel + 4, 1);
+    g.shot([eye.x, T.terrainHeight(eye.x, eye.z) + 4.5, eye.z], [at.x, T.terrainHeight(at.x, at.z) + 1, at.z]);
+  `,
+  );
+  await capture(page, 'roadworks', 3000);
+  await inGame(page, `g.followCar();`);
+
   await inGame(
     page,
     `

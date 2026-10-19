@@ -19,6 +19,10 @@ Play it at [nowhere-to-be.jarkovsky.com](https://nowhere-to-be.jarkovsky.com).
   <img src="docs/jetty.jpg" width="49%" alt="Driving out along the jetty on the lake">
 </p>
 <p>
+  <img src="docs/railway.jpg" width="49%" alt="The railbus waiting at the halt, with the level crossing behind it">
+  <img src="docs/roadworks.jpg" width="49%" alt="Roadworks on the new road: a roller, a grader, an excavator and a dump truck">
+</p>
+<p>
   <img src="docs/garage.jpg" width="49%" alt="Choosing a colour and roof items, with the car shown beside the menu">
   <img src="docs/scrapbook.jpg" width="49%" alt="The pause menu's scrapbook of places and animals">
 </p>
@@ -53,10 +57,13 @@ To play on your phone from your own computer, run `npm run dev` and open the **N
 
 ## Things to find
 
-- **Places and animals.** A waterfall, a farm, a fire tower, a windmill, a jetty you can drive onto, a mountain hut and a line of old concrete bunkers, plus deer, cows, a fox, geese, an eagle and fish that jump in the lake. Driving past them adds stickers to your scrapbook, which you'll find in the pause menu.
-- **Side tracks.** Narrow dirt tracks lead off the main trail to the farm, the tower, the windmill and up a hairpin to the hut, and a path follows the lake shore.
+- **Places.** A waterfall, a farm, a fire tower, a windmill, a jetty you can drive onto, a mountain hut, a line of old concrete bunkers, a chapel, a railway halt, roadworks and a helipad. Driving past them adds stickers to your scrapbook, which you'll find in the pause menu.
+- **Animals.** Deer, sheep, cows, a rabbit, a fox, ducks, geese, an eagle, fish that jump in the lake and an owl that only comes out at night.
+- **Things on the move.** A railbus runs between the halt and a tunnel in the hills, and the level crossing closes while it passes. At the roadworks an excavator loads a dump truck while a roller, a grader and a skid steer loader work on the new road. A camper van, a pickup, a saloon and a bus drive the trail.
+- **Side tracks.** Narrow dirt tracks lead off the main trail to the farm, the tower, the windmill and up a hairpin to the hut, a path follows the lake shore, and a new road is being built to the south.
+- **The garage.** Choose an off-roader, a pickup, a camper van, a saloon or a tractor, then a colour, roof items and a horn.
 - **Garden gnomes.** Ten are hidden around the valley, some of them far off the trail. Finding them all unlocks something for the car.
-- **A few secrets.** Try the horn in the tunnel, near the animals and at passing cars. Keep an eye on the snow, too.
+- **A few secrets.** Try the horn in the tunnel, near the animals, at passing cars and the train, and at the helipad. Keep an eye on the snow, too.
 
 Progress is saved in your browser.
 
@@ -64,7 +71,7 @@ Progress is saved in your browser.
 
 Everything is generated in code with [Three.js](https://threejs.org) and Web Audio. There are no model, texture or sound files.
 
-- **Terrain:** a height field built from layered noise and a few hand-placed landforms: knolls, a flat-topped hill, rocky ridges and a ledge for the waterfall. It is fine on the valley floor and coarse under the distant peaks. The trails are levelled across their width, the creek is carved into it, and buildings sit on flattened pads, so nothing floats or sinks. A test checks there are no cliffs on the valley floor.
+- **Terrain:** a height field built from layered noise and a few hand-placed landforms: knolls, a flat-topped hill, rocky ridges and a ledge for the waterfall. It is fine on the valley floor and coarse under the distant peaks. The trails are levelled across their width, the railway climbs at an even grade on embankments and through a cutting, the creek is carved into the ground, and buildings sit on flattened pads, so nothing floats or sinks. A test checks there are no cliffs on the valley floor.
 - **Driving:** an arcade model with real velocity, tyre grip per surface, hill slowdown and soft collisions. Each tyre is settled onto the terrain triangle beneath it, within the travel its suspension allows.
 - **Camera:** a spring arm that pulls in when rock comes between it and the car, so the tunnel and cliffs never swallow the view. Drag to swing it round; it drifts back behind the car when you let go.
 - **Performance:** cheap Lambert materials, merged and instanced meshes, one shadow-casting light, a 60 fps cap, no rendering while paused, and a resolution that adapts to the device.
@@ -74,7 +81,7 @@ src/
   core/       driving physics, collisions, suspension, camera, audio, save data
   input/      keyboard, touch and tilt steering
   world/      layout, terrain, scenery, landmarks, wildlife, weather, secrets
-  vehicles/   the player's car and the other travellers
+  vehicles/   the player's vehicles, the other travellers, the train and the helicopter
   ui/         title screen, pause menu, scrapbook, styles
 ```
 

@@ -97,9 +97,12 @@ try {
   assert.ok(Math.hypot(swung[0] - before[0], swung[2] - before[2]) > 0.5, 'dragging swings the camera');
   step('dragging the view swings the camera around the car');
 
-  assert.ok((await state(page)).traffic.length === 2);
-  assert.ok((await state(page)).calls < 200, 'draw calls stay low');
-  step('other travellers are on the road; draw calls stay low');
+  const world = await state(page);
+  assert.equal(world.traffic.length, 4);
+  assert.ok(['halt', 'out', 'away', 'in'].includes(world.train.phase));
+  assert.equal(world.helicopter.phase, 'parked');
+  assert.ok(world.calls < 200, `draw calls stay low (${world.calls})`);
+  step('other travellers are on the road, the train and helicopter are about; draw calls stay low');
 
   console.log('Phone');
   const phone = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
