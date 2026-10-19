@@ -1,16 +1,30 @@
-// Masarykova chata: a timber mountain hut on the shoulder of Šerlich, the way
-// huts look in the Orlické hory. Stone ground floor, dark boarded upper floor,
-// a steep roof, white window frames, smoke from the stove and a Czech flag.
+// Masarykova chata: the mountain hut on the shoulder of Šerlich, built in
+// 1924-25 to a design by Bohuslav Fuchs. It rises in tiers like a stack of
+// boxes: a mint-green ground floor, two salmon-pink floors above it, a green
+// skirt roof between each tier and a tall green hipped roof with red brick
+// chimneys on top. A stone pillar on the terrace carries a bust of Masaryk.
 // The track up to it is waymarked with red-white-red stripes.
 import * as THREE from 'three';
 import { CHATA, TRACKS } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
-import { PartsBuilder, localFrame, gableRoof, gableEnds, createSmoke } from '../build.js';
+import { PartsBuilder, localFrame, hipRoof, createSmoke } from '../build.js';
 
-const STONE = '#9d998c';
-const TIMBER = '#6b4a33';
+const MINT = '#b8e2cd';
+const SALMON = '#d6a190';
+const ROOF = '#4f8466';
+const SURROUND = '#a5574a';
+const BRICK = '#b04a3a';
+const STONE = '#8f8b80';
 const FRAME = '#f1ede2';
 const LIT = '#e8cf8a';
+
+/** The three storeys, each set back from the one below. `wall` is where the wall shows above the skirt roof below it. */
+const TIERS = [
+  { length: 18, depth: 12, base: 0.3, wall: 0.3, height: 3.4, color: MINT },
+  { length: 16.2, depth: 10.2, base: 4.6, wall: 5.2, height: 3, color: SALMON },
+  { length: 14.6, depth: 8.6, base: 8.5, wall: 9.1, height: 3, color: SALMON },
+];
+const middle = tier => (tier.wall + tier.base + tier.height) / 2;
 
 /** Red-white-red waymarks, Czech style, on posts beside a track. */
 function addWaymarks(parts, path) {
@@ -68,57 +82,103 @@ export function buildHut(scene, obstacles) {
   const y = terrainHeight(x, z);
   const local = localFrame(x, z, rotation);
   const at = (lx, ly, lz, extra = {}) => ({ ...local(lx, lz), y: y + ly, ry: rotation, ...extra });
-  const across = { ry: rotation + Math.PI / 2 }; // roof pieces run along the hut's length (local X)
-  const length = 14;
-  const depth = 9;
+  const [ground, first, top] = TIERS;
 
-  // Stone ground floor on a plinth, boarded upper floor, steep roof along the hut.
-  parts.box(length + 0.6, 0.6, depth + 0.6, '#8a877c', at(0, 0, 0));
-  parts.box(length, 3, depth, STONE, at(0, 1.6, 0));
-  parts.box(length + 0.2, 2.8, depth + 0.2, TIMBER, at(0, 4.5, 0));
-  for (let ly = 3.3; ly < 5.9; ly += 0.5) parts.box(length + 0.24, 0.05, depth + 0.24, '#5c3f2b', at(0, ly, 0));
-  parts.add(gableEnds(depth + 0.2, length + 0.2, 5.9, 11.2), TIMBER, at(0, 0, 0, across));
-  parts.add(gableRoof(depth + 0.2, length + 0.2, 5.85, 11.3, 0.7), '#4f4844', at(0, 0, 0, across));
+  parts.box(ground.length + 0.6, 0.8, ground.depth + 0.6, STONE, at(0, 0, 0)); // plinth
+  for (const tier of TIERS) {
+    parts.box(tier.length, tier.height, tier.depth, tier.color, at(0, tier.base + tier.height / 2, 0));
+  }
+  // A green skirt roof round the top of each of the lower two storeys.
+  for (const [below, above] of [
+    [ground, first],
+    [first, top],
+  ]) {
+    const eave = below.base + below.height - 0.1;
+    parts.add(
+      hipRoof(below.length + 2, below.depth + 2, eave, above.length, above.depth, above.wall),
+      ROOF,
+      at(0, 0, 0),
+    );
+  }
+  // The main roof flares out at the eaves and rises steeply to a short ridge.
+  const eave = top.base + top.height - 0.1;
+  parts.add(
+    hipRoof(top.length + 2.2, top.depth + 2.2, eave, top.length - 0.6, top.depth - 0.6, eave + 1),
+    ROOF,
+    at(0, 0, 0),
+  );
+  parts.add(hipRoof(top.length - 0.6, top.depth - 0.6, eave + 1, 6.4, 0.4, eave + 6.2), ROOF, at(0, 0, 0));
+  parts.box(6.6, 0.22, 0.5, '#44735a', at(0, eave + 6.25, 0)); // ridge
 
-  // Windows with white frames: small ones below, a row above, two in each gable.
-  const window = (lx, ly, lz, onGable, w = 1, h = 1.1) => {
-    const turn = onGable ? { ry: rotation + Math.PI / 2 } : {};
-    parts.box(w + 0.3, h + 0.3, 0.1, FRAME, at(lx, ly, lz, turn));
-    parts.box(w, h, 0.14, LIT, at(lx, ly, lz, turn));
-    parts.box(0.08, h, 0.18, FRAME, at(lx, ly, lz, turn)); // glazing bar
+  // Windows: tall white ones on the ground floor, small ones with red-brown surrounds above.
+  const window = (lx, ly, lz, { w = 0.9, h = 0.9, surround = SURROUND, end = false } = {}) => {
+    const turn = end ? { ry: rotation + Math.PI / 2 } : {};
+    if (surround) parts.box(w + 0.5, h + 0.5, 0.1, surround, at(lx, ly, lz, turn));
+    parts.box(w + 0.16, h + 0.16, 0.13, FRAME, at(lx, ly, lz, turn));
+    parts.box(w, h, 0.16, LIT, at(lx, ly, lz, turn));
+    parts.box(0.07, h, 0.19, FRAME, at(lx, ly, lz, turn)); // glazing bars
+    parts.box(w, 0.07, 0.19, FRAME, at(lx, ly + h * 0.15, lz, turn));
   };
-  for (const lz of [depth / 2 + 0.06, -depth / 2 - 0.06]) {
-    for (const lx of [-5, -2.6, 2.6, 5]) window(lx, 1.8, lz, false, 0.8, 0.9);
-    // The middle of the front carries the name board instead of a window.
-    for (const lx of [-5.2, -2.6, 2.6, 5.2]) window(lx, 4.5, lz + Math.sign(lz) * 0.1, false);
+  for (const side of [1, -1]) {
+    const front = side * (ground.depth / 2 + 0.03);
+    for (const lx of [-7, -4.6, -2.2, 0.2, 2.6]) window(lx, 2.2, front, { w: 1.2, h: 1.4, surround: null });
+    for (const lx of [-6, -3.6, -1.2, 1.2, 3.6, 6]) window(lx, middle(first), side * (first.depth / 2 + 0.03));
+    // The middle of the top floor carries the name board instead of a window.
+    for (const lx of [-5.2, -2.8, 2.8, 5.2]) window(lx, middle(top), side * (top.depth / 2 + 0.03));
+    for (const lz of [-3, 0, 3]) window(side * (first.length / 2 + 0.03), middle(first), lz, { end: true });
+    for (const lz of [-1.6, 1.6]) window(side * (top.length / 2 + 0.03), middle(top), lz, { end: true });
   }
-  window(0, 4.5, -depth / 2 - 0.16, false);
-  for (const lx of [length / 2 + 0.16, -length / 2 - 0.16]) {
-    for (const lz of [-1.3, 1.3]) window(lx, 7.2, lz, true, 0.9, 1);
-    window(lx, 9.2, 0, true, 0.7, 0.8);
+  for (const lz of [-3.5, 0, 3.5])
+    window(ground.length / 2 + 0.03, 2.2, lz, { w: 1.2, h: 1.4, surround: null, end: true });
+
+  // The front door, under a little green canopy.
+  const door = ground.depth / 2;
+  parts.box(1.4, 2.3, 0.14, '#3f5f50', at(5.6, 1.45, door + 0.05));
+  parts.box(2.4, 0.14, 1.3, ROOF, at(5.6, 2.95, door + 0.6, { rx: 0.2 }));
+  parts.box(3.2, 0.24, 2.2, '#a39f92', at(5.6, 0.32, door + 1.1)); // step
+
+  // A lower wing at the west end.
+  const wing = { x: -ground.length / 2 - 3, length: 6, depth: 8 };
+  parts.box(wing.length + 0.4, 0.8, wing.depth + 0.4, STONE, at(wing.x, 0, -0.5));
+  parts.box(wing.length, 3.1, wing.depth, MINT, at(wing.x, 1.85, -0.5));
+  parts.add(
+    hipRoof(wing.length + 1.6, wing.depth + 1.6, 3.3, 0, wing.depth - wing.length, 5.3),
+    ROOF,
+    at(wing.x, 0, -0.5),
+  );
+  for (const lz of [-2.6, 1.6])
+    window(wing.x - wing.length / 2 - 0.03, 2, lz, { w: 1.1, h: 1.2, surround: null, end: true });
+  window(wing.x, 2, wing.depth / 2 - 0.47, { w: 1.1, h: 1.2, surround: null });
+
+  // Red brick chimneys through the main roof.
+  const chimneys = [
+    [-3, -1.6, 2],
+    [3.6, 1.2, 2.3],
+  ];
+  for (const [lx, lz, above] of chimneys) {
+    parts.box(0.9, 4, 0.9, BRICK, at(lx, eave + 4.2 + above - 2, lz));
+    parts.box(1.1, 0.2, 1.1, '#8c3a2e', at(lx, eave + 4.2 + above, lz));
   }
 
-  // A gabled porch over the front door.
-  const porch = depth / 2 + 1.4;
-  parts.box(1.3, 2.2, 0.14, '#4c3a2a', at(0, 1.4, depth / 2 + 0.07)); // door
-  for (const lx of [-1.3, 1.3]) parts.box(0.22, 2.6, 0.22, TIMBER, at(lx, 1.6, porch));
-  parts.add(gableRoof(3.2, 2.8, 2.9, 4.1, 0.2), '#4f4844', at(0, 0, depth / 2 + 1.3));
-  parts.box(3.4, 0.24, 3, '#a39f92', at(0, 0.32, depth / 2 + 1.3)); // step
+  // The stone pillar with Masaryk's bust, on the terrace in front.
+  const bust = { lx: -5.5, lz: door + 3 };
+  parts.box(1.1, 2.4, 1.1, STONE, at(bust.lx, 1.2, bust.lz));
+  parts.box(0.8, 0.35, 0.45, '#5b6457', at(bust.lx, 2.6, bust.lz));
+  parts.add(new THREE.IcosahedronGeometry(0.27, 1), '#5b6457', at(bust.lx, 3.02, bust.lz));
 
-  // Chimney, benches and a table out front.
-  parts.box(1, 3.2, 1, STONE, at(3.2, 11, -1.4));
-  for (const lx of [-5, 4.6]) {
+  // Benches and tables out front.
+  for (const lx of [-1, 4.6]) {
     // Out here the ground starts to slope away from the level pad, so each set stands on its own spot.
-    const spot = local(lx, depth / 2 + 4.1);
+    const spot = local(lx, door + 5.1);
     const rise = terrainHeight(spot.x, spot.z) - y - 0.05;
-    parts.box(2.4, 0.12, 0.5, '#8a6446', at(lx, rise + 0.62, depth / 2 + 3.2));
-    parts.box(2.4, 0.1, 1, '#8a6446', at(lx, rise + 1.02, depth / 2 + 4.1));
-    parts.box(2.4, 0.12, 0.5, '#8a6446', at(lx, rise + 0.62, depth / 2 + 5));
-    for (const side of [-1, 1]) parts.box(0.12, 1.2, 0.8, '#5f4532', at(lx + side, rise + 0.4, depth / 2 + 4.1));
+    parts.box(2.4, 0.12, 0.5, '#8a6446', at(lx, rise + 0.62, door + 4.2));
+    parts.box(2.4, 0.1, 1, '#8a6446', at(lx, rise + 1.02, door + 5.1));
+    parts.box(2.4, 0.12, 0.5, '#8a6446', at(lx, rise + 0.62, door + 6));
+    for (const side of [-1, 1]) parts.box(0.12, 1.2, 0.8, '#5f4532', at(lx + side, rise + 0.4, door + 5.1));
   }
 
   // Flagpole beside the hut.
-  const pole = local(-length / 2 - 3, depth / 2 + 2);
+  const pole = local(wing.x - 1, door + 3);
   const poleY = terrainHeight(pole.x, pole.z);
   parts.add(new THREE.CylinderGeometry(0.07, 0.09, 8, 6), '#d9d6cc', { x: pole.x, y: poleY + 4, z: pole.z });
   czechFlag(parts, pole.x, poleY + 7.3, pole.z, rotation + 0.4);
@@ -126,16 +186,22 @@ export function buildHut(scene, obstacles) {
   addWaymarks(parts, TRACKS.find(track => track.id === 'chata').path);
   scene.add(parts.mesh());
 
-  const a = local(-length / 2 + 2.5, 0);
-  const b = local(length / 2 - 2.5, 0);
-  obstacles.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, radius: depth / 2 + 0.4 });
-  obstacles.push({ ...local(0, depth / 2 + 1.4), radius: 1.8 }, { ...pole, radius: 0.3 });
-  for (const lx of [-5, 4.6]) obstacles.push({ ...local(lx, depth / 2 + 4.1), radius: 1.3 });
+  for (const lz of [-3, 3]) {
+    const a = local(-ground.length / 2 + 3.3, lz);
+    const b = local(ground.length / 2 - 3.3, lz);
+    obstacles.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, radius: 3.4 });
+  }
+  const wa = local(wing.x, -3.4);
+  const wb = local(wing.x, 2.4);
+  obstacles.push({ ax: wa.x, az: wa.z, bx: wb.x, bz: wb.z, radius: wing.length / 2 + 0.3 });
+  obstacles.push({ ...local(bust.lx, bust.lz), radius: 0.8 }, { ...pole, radius: 0.3 });
+  for (const lx of [-1, 4.6]) obstacles.push({ ...local(lx, door + 5.1), radius: 1.3 });
 
-  const smoke = createSmoke(scene, at(3.2, 12.8, -1.4), { count: 7, rate: 0.1, rise: 9, size: 0.6 });
+  const [lx, lz, above] = chimneys[1];
+  const smoke = createSmoke(scene, at(lx, eave + 4.6 + above, lz), { count: 7, rate: 0.1, rise: 9, size: 0.6 });
   return {
-    /** Where the name board goes: on the upper floor above the porch, facing out. */
-    nameBoard: { ...at(0, 4.55, depth / 2 + 0.18), yaw: rotation },
+    /** Where the name board goes: in the middle of the top floor, facing out. */
+    nameBoard: { ...at(0, middle(top), top.depth / 2 + 0.1), yaw: rotation },
     update: smoke.update,
   };
 }

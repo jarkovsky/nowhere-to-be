@@ -98,6 +98,24 @@ function paintBoard(text, arrow) {
   };
 }
 
+/** A painted metal plate: dark lettering on white, with a thin border. */
+function paintPlate(text, ink = '#2f3d55') {
+  return (ctx, w, h) => {
+    ctx.fillStyle = '#f4f2ea';
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 6;
+    ctx.strokeRect(14, 14, w - 28, h - 28);
+    ctx.fillStyle = ink;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    let size = 96;
+    ctx.font = `800 ${size}px ${FONT}`;
+    while (ctx.measureText(text).width > w - 90 && size > 40) ctx.font = `800 ${(size -= 4)}px ${FONT}`;
+    ctx.fillText(text, w / 2, h / 2 + 4);
+  };
+}
+
 /** Which way an arrow should point for someone reading the sign from the front or back. */
 function arrowFor(from, yaw, to, back) {
   const vx = to.x - from.x;
@@ -290,10 +308,10 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
   board.rotation.y = facing;
   scene.add(board);
 
-  // The hut's name, painted on a board above its door.
+  // The hut's name, on a white plate on the top floor.
   const name = new THREE.Mesh(
-    new THREE.PlaneGeometry(4.6, 0.9),
-    new THREE.MeshLambertMaterial({ map: canvasTexture(1024, 200, paintBoard('MASARYKOVA CHATA', null)) }),
+    new THREE.PlaneGeometry(4, 1),
+    new THREE.MeshLambertMaterial({ map: canvasTexture(1024, 256, paintPlate('MASARYKOVA CHATA')) }),
   );
   name.position.set(hutBoard.x, hutBoard.y, hutBoard.z);
   name.rotation.y = hutBoard.yaw;

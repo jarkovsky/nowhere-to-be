@@ -30,7 +30,8 @@ export class PartsBuilder {
   }
 
   /**
-   * Adds a copy of `geometry`, transformed and painted with a single colour.
+   * Adds a copy of `geometry`, transformed and painted with a single colour, or
+   * with `color(x, y, z)` called for the middle of each triangle (for patterns).
    * Transform: { x, y, z, rx, ry, rz, sx, sy, sz } (all optional), or a Matrix4.
    */
   add(geometry, color, transform = {}) {
@@ -45,10 +46,18 @@ export class PartsBuilder {
       rotation.setFromEuler(euler.set(rx, ry, rz, 'YXZ'));
       part.applyMatrix4(matrix.compose(position.set(x, y, z), rotation, scale.set(sx, sy, sz)));
     }
-    tint.set(color);
-    const count = part.attributes.position.count;
+    const corners = part.attributes.position;
+    const count = corners.count;
     const colors = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) colors.set([tint.r, tint.g, tint.b], i * 3);
+    if (typeof color !== 'function') tint.set(color);
+    for (let i = 0; i < count; i += 3) {
+      if (typeof color === 'function') {
+        const mid = k =>
+          (corners.getComponent(i, k) + corners.getComponent(i + 1, k) + corners.getComponent(i + 2, k)) / 3;
+        tint.set(color(mid(0), mid(1), mid(2)));
+      }
+      for (let k = 0; k < 3; k++) colors.set([tint.r, tint.g, tint.b], (i + k) * 3);
+    }
     part.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     this.parts.push(part);
     return this;
@@ -136,6 +145,32 @@ export function gableRoof(width, depth, eave, ridge, overhang = 0.35) {
     [w, eave, -d],
     [0, ridge, -d],
   ]);
+}
+
+/**
+ * Four sloping sides from a `w0` x `d0` rectangle at height `y0` up to a smaller
+ * `w1` x `d1` one at `y1`: a hipped roof when the top shrinks to a ridge, or a
+ * skirt roof round a building when it doesn't. Open at the top and bottom, and
+ * painted on both faces so the eaves still show from underneath.
+ */
+export function hipRoof(w0, d0, y0, w1, d1, y1) {
+  const ring = (w, d, y) => [
+    [-w / 2, y, d / 2],
+    [w / 2, y, d / 2],
+    [w / 2, y, -d / 2],
+    [-w / 2, y, -d / 2],
+  ];
+  const bottom = ring(w0, d0, y0);
+  const top = ring(w1, d1, y1);
+  const triangles = [];
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    triangles.push([bottom[i], bottom[j], top[j]]);
+    // Where the top has shrunk to a point, the second triangle would be empty.
+    if (top[i].some((v, k) => v !== top[j][k])) triangles.push([bottom[i], top[j], top[i]]);
+  }
+  const both = triangles.flatMap(([a, b, c]) => [a, b, c, a, c, b]);
+  return prism(both);
 }
 
 /** The triangular wall under a gable, at the front (+Z) and back (-Z) of a box. */

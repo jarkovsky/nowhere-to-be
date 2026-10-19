@@ -197,8 +197,8 @@ export const PADS = [
   { x: TOWER.x, z: TOWER.z, radius: 7, falloff: 8 },
   { x: WINDMILL.x, z: WINDMILL.z, radius: 8, falloff: 8 },
   { x: JETTY.x - 10, z: JETTY.z + 1, radius: 4, falloff: 10 },
-  { x: CHATA.x, z: CHATA.z, radius: 9, falloff: 20 },
-  ...BUNKERS.map(bunker => ({ ...bunker, radius: 3.5, falloff: 6 })),
+  { x: CHATA.x, z: CHATA.z, radius: 15, falloff: 16 },
+  ...BUNKERS.map(bunker => ({ ...bunker, radius: 4.5, falloff: 6 })),
 ];
 
 function patchOnRoad(x, z) {
