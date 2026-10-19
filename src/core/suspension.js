@@ -7,7 +7,10 @@ const FRONT_Z = -1.2;
 const REAR_Z = 1.24;
 const CONTACT_CLEARANCE = 0.012;
 
-/** How far each wheel can move from its rest height: up into the arch, and down. */
+/**
+ * How far each wheel can move from its rest height: up into the arch, and down.
+ * Wheels may carry their own `rest` height; big wheels sit higher.
+ */
 export const TRAVEL = { rest: 0.65, up: 0.13, down: 0.24 };
 
 /** Height, pitch and roll of a chassis at (x, z) facing `heading` on the surface `sample`. */
@@ -71,17 +74,15 @@ export function settleWheels(car, sample) {
     let lift = 0;
     for (const wheel of car.wheels) {
       settleWheel(wheel, sample);
-      lift = Math.max(lift, wheel.pivot.position.y - TRAVEL.rest - TRAVEL.up);
+      lift = Math.max(lift, wheel.pivot.position.y - (wheel.rest ?? TRAVEL.rest) - TRAVEL.up);
     }
     if (lift < 0.002) break;
     car.root.position.y += lift * up.y;
     car.root.updateWorldMatrix(true, true);
   }
   for (const wheel of car.wheels) {
-    wheel.pivot.position.y = Math.min(
-      Math.max(wheel.pivot.position.y, TRAVEL.rest - TRAVEL.down),
-      TRAVEL.rest + TRAVEL.up,
-    );
+    const rest = wheel.rest ?? TRAVEL.rest;
+    wheel.pivot.position.y = Math.min(Math.max(wheel.pivot.position.y, rest - TRAVEL.down), rest + TRAVEL.up);
     wheel.pivot.updateWorldMatrix(true, true);
   }
 }

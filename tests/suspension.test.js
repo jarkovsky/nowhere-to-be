@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { createCar } from '../src/vehicles/car.js';
+import { VEHICLES } from '../src/core/journal.js';
 import { chassisPose, settleWheels } from '../src/core/suspension.js';
 import { terrainHeight } from '../src/world/terrain.js';
 
@@ -37,12 +38,15 @@ test('the chassis pitches up when the car faces uphill', () => {
   assert.ok(Math.abs(chassisPose(0, 0, Math.PI / 2, slope).pitch) < 1e-10);
 });
 
-test('all four tyres touch flat and sloped ground at any heading', () => {
+test('all four tyres of every vehicle touch flat and sloped ground at any heading', () => {
   const car = createCar();
-  for (const sample of [() => 0, (x, z) => x * 0.2 - z * 0.3, (x, z) => -x * 0.35 + z * 0.1]) {
-    for (let heading = 0; heading < Math.PI * 2; heading += 0.4) {
-      place(car, 10, 20, heading, sample);
-      for (const gap of clearances(car, sample)) assert.ok(gap >= 0 && gap < 0.018, `gap ${gap}`);
+  for (const vehicle of VEHICLES) {
+    car.customize('orange', [], vehicle);
+    for (const sample of [() => 0, (x, z) => x * 0.2 - z * 0.3, (x, z) => -x * 0.35 + z * 0.1]) {
+      for (let heading = 0; heading < Math.PI * 2; heading += 0.4) {
+        place(car, 10, 20, heading, sample);
+        for (const gap of clearances(car, sample)) assert.ok(gap >= 0 && gap < 0.018, `${vehicle}: gap ${gap}`);
+      }
     }
   }
 });

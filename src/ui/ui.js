@@ -2,12 +2,13 @@
 // It knows nothing about Three.js; the game talks to it through callbacks.
 import { CAR_COLORS } from '../vehicles/car.js';
 import { HORNS } from '../core/audio.js';
-import { STICKERS, COLORS, DECORATIONS } from '../core/journal.js';
+import { STICKERS, COLORS, DECORATIONS, VEHICLES } from '../core/journal.js';
 import { STICKER_INFO, stickerArt, gnomeArt } from './stickers.js';
 
 const $ = id => document.getElementById(id);
 
 const LABELS = {
+  vehicles: { offroader: 'Off-roader', pickup: 'Pickup', van: 'Camper van', saloon: 'Saloon', tractor: 'Tractor' },
   colors: { orange: 'Orange', sage: 'Sage', blue: 'Blue', berry: 'Berry', yellow: 'Yellow', rainbow: 'Rainbow' },
   decorations: { flag: 'Flag', teddy: 'Teddy', gnome: 'Gnome' },
   horns: { beep: 'Beep', bicycle: 'Bell', quack: 'Quack', twinkle: 'Twinkle' },
@@ -121,6 +122,13 @@ export function createUI({ journal, gnomeCount, on }) {
 
   function renderGarage() {
     const choices = journal.get();
+    choiceButtons(
+      $('vehicle-options'),
+      VEHICLES,
+      LABELS.vehicles,
+      v => v === choices.vehicle,
+      v => ({ vehicle: v }),
+    );
     const colors = COLORS.filter(c => c !== 'rainbow' || choices.rainbow);
     $('color-options').innerHTML = colors
       .map(

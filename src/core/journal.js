@@ -30,11 +30,13 @@ export const STICKERS = [
 ];
 export const COLORS = ['orange', 'sage', 'blue', 'berry', 'yellow', 'rainbow'];
 export const DECORATIONS = ['flag', 'teddy', 'gnome'];
+export const VEHICLES = ['offroader', 'pickup', 'van', 'saloon', 'tractor'];
 
 const DEFAULTS = {
   found: [],
   gnomes: [],
   color: 'orange',
+  vehicle: 'offroader',
   decorations: [],
   horn: 'beep',
   camp: false,
@@ -52,6 +54,7 @@ export function sanitise(saved) {
     found: list(saved.found, id => STICKERS.includes(id)),
     gnomes: list(saved.gnomes, i => Number.isInteger(i) && i >= 0 && i < 64),
     color,
+    vehicle: VEHICLES.includes(saved.vehicle) ? saved.vehicle : DEFAULTS.vehicle,
     // Older saves kept a single `decoration`.
     decorations: list(saved.decorations ?? [saved.decoration], id => DECORATIONS.includes(id)),
     horn: HORNS.includes(saved.horn) ? saved.horn : DEFAULTS.horn,

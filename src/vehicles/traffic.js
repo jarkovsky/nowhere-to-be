@@ -1,5 +1,6 @@
-// Two other travellers drive the trail loop in opposite directions, keeping to
-// their side of the road and slowing for the player, each other and ducks.
+// Other travellers drive the trail loop in both directions, keeping to their
+// side of the road and slowing for the player, each other, ducks and anything
+// else that blocks the way.
 import * as THREE from 'three';
 import { damp } from '../core/math.js';
 import { chassisPose } from '../core/suspension.js';
@@ -11,7 +12,8 @@ import { createWheel } from './car.js';
 
 /** How far from the middle of the trail the other travellers drive. */
 export const LANE = 2.3;
-const FOLLOW_DISTANCE = 8;
+/** How much room a traveller leaves between its front and whatever it is waiting behind. */
+const FOLLOW_GAP = 5.7;
 
 function camperVan() {
   const parts = new PartsBuilder();
@@ -53,6 +55,42 @@ function pickup() {
   return { parts, wheelX: 1.0, wheelZ: [-1.55, 1.6], wheelRadius: 0.52, length: 4.9 };
 }
 
+function saloon() {
+  const parts = new PartsBuilder();
+  const paint = '#e9e2cf';
+  parts.box(1.76, 0.56, 4.1, paint, { y: 0.86 });
+  parts.box(1.66, 0.12, 1.1, paint, { y: 1.2, z: -1.45 });
+  parts.box(1.66, 0.12, 0.8, paint, { y: 1.2, z: 1.62 });
+  parts.box(1.6, 0.52, 1.95, '#4b6a6c', { y: 1.5, z: 0.2 });
+  for (const x of [-0.8, 0.8]) {
+    for (const z of [-0.74, 0.2, 1.14]) parts.box(0.08, 0.54, 0.1, paint, { x, y: 1.5, z });
+    parts.box(0.04, 0.04, 3.8, '#b8bcb5', { x: x * 1.105, y: 0.98 });
+  }
+  parts.box(1.64, 0.08, 2.02, paint, { y: 1.8, z: 0.2 });
+  parts.box(1.9, 0.16, 0.16, '#b8bcb5', { y: 0.74, z: -2.08 });
+  parts.box(1.9, 0.16, 0.16, '#b8bcb5', { y: 0.74, z: 2.08 });
+  return { parts, wheelX: 0.9, wheelZ: [-1.3, 1.28], wheelRadius: 0.42, length: 4.2, lampY: 0.98 };
+}
+
+/** A country bus, cream with an orange stripe. */
+function bus() {
+  const parts = new PartsBuilder();
+  const cream = '#efe6cc';
+  const stripe = '#d0773b';
+  const glass = '#4b6a6c';
+  parts.box(2.45, 1.2, 9.4, cream, { y: 1.15 });
+  parts.box(2.47, 0.3, 9.42, stripe, { y: 1.3 });
+  parts.box(2.45, 1.15, 9.4, cream, { y: 2.35 });
+  parts.box(2.47, 0.8, 7.6, glass, { y: 2.4, z: 0.6 }); // side windows
+  for (let z = -2.6; z <= 4.2; z += 1.36) parts.box(2.49, 0.82, 0.12, cream, { y: 2.4, z });
+  parts.box(2.2, 1.1, 0.08, glass, { y: 2.3, z: -4.71 }); // windscreen
+  parts.box(2.3, 0.36, 9.2, '#e2d7b8', { y: 3.08 }); // roof
+  parts.box(1.2, 0.32, 0.06, '#2f3430', { y: 3.1, z: -4.72 }); // destination board
+  parts.box(2.5, 0.22, 0.25, '#8e8b80', { y: 0.62, z: -4.75 });
+  parts.box(2.5, 0.22, 0.25, '#8e8b80', { y: 0.62, z: 4.75 });
+  return { parts, wheelX: 1.05, wheelZ: [-3, 3], wheelRadius: 0.55, length: 9.6 };
+}
+
 function createVehicle(model) {
   const root = new THREE.Group();
   const body = model.parts.mesh();
@@ -69,19 +107,24 @@ function createVehicle(model) {
   const lamps = new THREE.MeshLambertMaterial({ color: '#fff3ce', emissive: '#ffd88e', emissiveIntensity: 0.2 });
   for (const x of [-0.7, 0.7]) {
     const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.22, 0.06), lamps);
-    lamp.position.set(x, 1.2, -model.length / 2 - 0.01);
+    lamp.position.set(x, model.lampY ?? 1.2, -model.length / 2 - 0.01);
     root.add(lamp);
   }
   root.traverse(child => {
     if (child.isMesh) child.castShadow = true;
   });
-  return { root, wheels, lamps, radius: model.wheelRadius, length: model.length };
+  // Circles along the body for collisions, close enough together to leave no gaps.
+  const circles = Math.max(2, Math.ceil(model.length / 2.2));
+  const along = Array.from({ length: circles }, (_, i) => (i / (circles - 1) - 0.5) * (model.length - 2.2));
+  return { root, wheels, lamps, radius: model.wheelRadius, length: model.length, along };
 }
 
 export function createTraffic(scene) {
   const travellers = [
     { ...createVehicle(camperVan()), s: ROAD.length * 0.3, direction: 1, cruise: 7.5 },
+    { ...createVehicle(saloon()), s: ROAD.length * 0.8, direction: 1, cruise: 7.5 },
     { ...createVehicle(pickup()), s: ROAD.length * 0.75, direction: -1, cruise: 8.5 },
+    { ...createVehicle(bus()), s: ROAD.length * 0.2, direction: -1, cruise: 8.5 },
   ].map(t => ({ ...t, speed: t.cruise, honkAt: null, flash: 0 }));
   for (const t of travellers) scene.add(t.root);
 
@@ -101,10 +144,12 @@ export function createTraffic(scene) {
       colliders.length = 0;
       for (const t of travellers) {
         let gap = gapTo(t, player.x, player.z);
-        for (const other of travellers)
-          if (other !== t) gap = Math.min(gap, gapTo(t, other.root.position.x, other.root.position.z));
+        for (const other of travellers) {
+          if (other !== t)
+            gap = Math.min(gap, gapTo(t, other.root.position.x, other.root.position.z) - other.length / 2);
+        }
         for (const blocker of blockers) gap = Math.min(gap, gapTo(t, blocker.x, blocker.z));
-        const target = Math.min(t.cruise, Math.max(0, (gap - FOLLOW_DISTANCE) * 0.6));
+        const target = Math.min(t.cruise, Math.max(0, (gap - t.length / 2 - FOLLOW_GAP) * 0.6));
         t.speed = damp(t.speed, target, target < t.speed ? 4 : 0.8, dt);
         t.s = ROAD.wrap(t.s + t.speed * t.direction * dt);
 
@@ -125,9 +170,7 @@ export function createTraffic(scene) {
 
         const sin = Math.sin(heading);
         const cos = Math.cos(heading);
-        for (const end of [-1, 1]) {
-          colliders.push({ x: p.x - sin * end * t.length * 0.27, z: p.z - cos * end * t.length * 0.27, radius: 1.15 });
-        }
+        for (const offset of t.along) colliders.push({ x: p.x - sin * offset, z: p.z - cos * offset, radius: 1.15 });
       }
     },
     /** Travellers within earshot answer a honk with one of their own. */

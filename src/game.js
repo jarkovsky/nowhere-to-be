@@ -10,7 +10,7 @@ import { createControls } from './input/controls.js';
 import { createLook } from './input/look.js';
 import { createTiltSteering } from './input/tilt.js';
 import { createUI } from './ui/ui.js';
-import { createCar, WHEEL_RADIUS } from './vehicles/car.js';
+import { createCar } from './vehicles/car.js';
 import { createTraffic } from './vehicles/traffic.js';
 import { createAtmosphere } from './world/atmosphere.js';
 import { createGnomes } from './world/collectibles.js';
@@ -309,8 +309,8 @@ export function createGame(canvas) {
   }
 
   function applyChoices() {
-    const { color, decorations } = journal.get();
-    car.customize(color, decorations);
+    const { color, decorations, vehicle } = journal.get();
+    car.customize(color, decorations, vehicle);
   }
 
   // --- Garage view -------------------------------------------------------------------------
@@ -362,7 +362,7 @@ export function createGame(canvas) {
     const wheelAngle = steerAngle(state.steering, state.speed);
     for (const wheel of car.wheels) {
       wheel.pivot.rotation.y = wheel.front ? wheelAngle : 0;
-      wheel.spin.rotation.x -= (state.speed * dt) / WHEEL_RADIUS;
+      wheel.spin.rotation.x -= (state.speed * dt) / wheel.radius;
     }
     settleWheels(car, drivingHeight);
   }

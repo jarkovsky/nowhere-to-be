@@ -15,7 +15,7 @@ test('stickers and gnomes are recorded once and survive a reload', () => {
   assert.equal(journal.discover('dragon'), false);
   assert.equal(journal.collectGnome(3), true);
   assert.equal(journal.collectGnome(3), false);
-  journal.save({ color: 'blue', decorations: ['flag', 'teddy'], horn: 'quack', camp: true });
+  journal.save({ color: 'blue', vehicle: 'tractor', decorations: ['flag', 'teddy'], horn: 'quack', camp: true });
   assert.deepEqual(createJournal(storage).get(), journal.get());
 });
 
@@ -25,6 +25,7 @@ test('corrupt or edited saves fall back to safe values', () => {
     found: ['rabbit', 'rabbit', 'nope'],
     gnomes: [1, -1, 'x', 2.5],
     color: 'neon',
+    vehicle: 'rocket',
     horn: 'siren',
     decorations: ['rocket', 'flag', 'flag'],
     camp: 'yes',
@@ -32,6 +33,7 @@ test('corrupt or edited saves fall back to safe values', () => {
   assert.deepEqual(cleaned.found, ['rabbit']);
   assert.deepEqual(cleaned.gnomes, [1]);
   assert.equal(cleaned.color, 'orange');
+  assert.equal(cleaned.vehicle, 'offroader');
   assert.equal(cleaned.horn, 'beep');
   assert.deepEqual(cleaned.decorations, ['flag']);
   assert.equal(cleaned.camp, false);
