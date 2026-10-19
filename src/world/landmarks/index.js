@@ -10,6 +10,7 @@ import { buildHut } from './hut.js';
 import { buildBunkers } from './bunkers.js';
 import { buildRailway } from './railway.js';
 import { buildRoadworks } from './roadworks.js';
+import { buildHelipad } from './helipad.js';
 import { buildSigns } from './signs.js';
 
 export { insideTunnel } from './tunnel.js';
@@ -28,6 +29,7 @@ export function buildLandmarks(scene, obstacles) {
   buildBunkers(scene, obstacles);
   const crossing = buildRailway(scene, obstacles);
   const roadworks = buildRoadworks(scene, obstacles);
+  const helipad = buildHelipad(scene, obstacles);
   buildSigns(scene, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard });
 
   let time = 0;
@@ -49,6 +51,7 @@ export function buildLandmarks(scene, obstacles) {
       hut.update(time);
       crossing.update(dt, crossingClosed);
       roadworks.update(dt, player);
+      helipad.update(time, night);
     },
   };
 }

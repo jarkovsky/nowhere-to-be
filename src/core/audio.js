@@ -33,6 +33,7 @@ export function createAudio() {
   let windGain;
   let rainGain;
   let bed;
+  let rotor;
   let noise;
   let enabled = true;
   let surface = 'grass';
@@ -137,6 +138,26 @@ export function createAudio() {
     bedGain.gain.value = 0;
     loop(rumble).connect(bedFilter).connect(bedTrim).connect(bedGain).connect(master);
     bed = { filter: bedFilter, gain: bedGain };
+
+    // The helicopter: deep noise chopped into thumps at the blade rate.
+    const beat = context.createOscillator();
+    beat.setPeriodicWave(context.createPeriodicWave(thump, new Float32Array(thump.length)));
+    const chop = context.createGain();
+    chop.gain.value = 0;
+    const chopDepth = context.createGain();
+    chopDepth.gain.value = 0.5;
+    beat.connect(chopDepth).connect(chop.gain);
+    const rotorFilter = context.createBiquadFilter();
+    rotorFilter.type = 'lowpass';
+    rotorFilter.frequency.value = 420;
+    const rotorTrim = context.createBiquadFilter();
+    rotorTrim.type = 'highpass';
+    rotorTrim.frequency.value = 70;
+    const rotorGain = context.createGain();
+    rotorGain.gain.value = 0;
+    loop(rumble).connect(chop).connect(rotorFilter).connect(rotorTrim).connect(rotorGain).connect(master);
+    beat.start();
+    rotor = { beat, gain: rotorGain };
 
     windGain = noiseSource('lowpass', 260, 0.012);
     rainGain = noiseSource('highpass', 2400, 0);
@@ -244,6 +265,14 @@ export function createAudio() {
         tone(311, now + start, length, { type: 'sawtooth', volume: 0.035 * level });
         tone(370, now + start, length, { type: 'sawtooth', volume: 0.03 * level });
       }
+    },
+
+    /** The helicopter's rotor: `level` 0 to 1 for how loud, `rate` for how fast the blades beat. */
+    rotor(level, rate) {
+      if (!context) return;
+      const now = context.currentTime;
+      rotor.beat.frequency.setTargetAtTime(rate, now, 0.3);
+      rotor.gain.gain.setTargetAtTime(level * 0.5, now, 0.2);
     },
 
     /** One strike of the level crossing's bell. */

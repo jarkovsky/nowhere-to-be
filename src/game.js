@@ -13,6 +13,7 @@ import { createUI } from './ui/ui.js';
 import { createCar } from './vehicles/car.js';
 import { createTraffic } from './vehicles/traffic.js';
 import { createTrain } from './vehicles/train.js';
+import { createHelicopter } from './vehicles/helicopter.js';
 import { createAtmosphere } from './world/atmosphere.js';
 import { createGnomes } from './world/collectibles.js';
 import { buildLandmarks, insideTunnel } from './world/landmarks/index.js';
@@ -163,6 +164,7 @@ export function createGame(canvas) {
   const wildlife = createWildlife(scene, { onSpotted: discovered, onCall: kind => sound.animal(kind) });
   const secrets = createSecrets(scene, { onSpotted: discovered });
   obstacles.push(...secrets.obstacles);
+  const helicopter = createHelicopter(scene, { onTakeOff: () => discovered('helicopter') });
   const gnomes = createGnomes(scene, {
     found: journal.get().gnomes,
     onFound: index => {
@@ -315,6 +317,7 @@ export function createGame(canvas) {
     secrets.hearHorn(state.x, state.z);
     traffic.answerHonk(state.x, state.z, () => sound.otherHorn());
     train.answerHonk(state);
+    helicopter.hearHorn(state);
   }
 
   function unlockRainbow() {
@@ -508,7 +511,13 @@ export function createGame(canvas) {
     if (driving) {
       const input = controls.read();
       moving.length = 0;
-      moving.push(...traffic.colliders, ...train.colliders, ...landmarks.crossing.colliders(), ...landmarks.machines);
+      moving.push(
+        ...traffic.colliders,
+        ...train.colliders,
+        ...helicopter.colliders,
+        ...landmarks.crossing.colliders(),
+        ...landmarks.machines,
+      );
       stepDriving(state, input, dt, world);
       if (state.impact > 2.5) sound.bump(state.impact);
       updateCarModel(dt);
@@ -527,6 +536,7 @@ export function createGame(canvas) {
     car.animate(clock);
     scenery.update(dt);
     train.update(dt, { player: state });
+    helicopter.update(dt);
     const crossingClosed = train.crossingClosed();
     landmarks.update(dt, night, { crossingClosed, player: state });
     if (crossingClosed && clock > nextBell) {
@@ -553,6 +563,8 @@ export function createGame(canvas) {
       active: mode !== 'title' && !document.hidden,
       rain: sky.rain,
     });
+    const rotor = helicopter.rotorSound(camera.position);
+    sound.rotor(mode === 'title' ? 0 : rotor.level, rotor.rate);
     renderer.render(scene, camera);
     if (!UNCAPPED) adaptResolution(frameMs, dt, targetFps);
   }
@@ -580,6 +592,7 @@ export function createGame(canvas) {
         surface: surfaces.getState(),
         traffic: traffic.getState(),
         train: train.getState(),
+        helicopter: helicopter.getState(),
         gnomes: gnomes.getState(),
         wildlife: wildlife.getState(),
         cameraBlocked: chase.isBlocked(),

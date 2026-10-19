@@ -235,11 +235,12 @@ function paintMap(ctx, w, h) {
     bunker: 'Bunkers',
     halt: 'Railway halt',
     roadworks: 'Roadworks',
+    helipad: 'Helipad',
   };
   ctx.font = `700 26px ${FONT}`;
   ctx.textAlign = 'center';
   // Labels sit above their dot, except where that would crowd a neighbour.
-  const below = ['bridge', 'jetty', 'lookout', 'bunker'];
+  const below = ['bridge', 'jetty', 'lookout', 'bunker', 'helipad'];
   for (const place of PLACES) {
     ctx.fillStyle = '#3f4f45';
     ctx.beginPath();

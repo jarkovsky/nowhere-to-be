@@ -20,6 +20,8 @@ export const STICKERS = [
   'halt',
   'train',
   'roadworks',
+  'helipad',
+  'helicopter',
   'deer',
   'ducks',
   'sheep',

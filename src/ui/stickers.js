@@ -43,6 +43,16 @@ export const STICKER_INFO = {
     story: 'A digger, a roller, a grader and a loader, building a new road.',
     hint: 'A new road leaves the trail to the south.',
   },
+  helipad: {
+    name: 'Helipad',
+    story: 'A rescue helicopter waits on the hill.',
+    hint: 'On the flat hill, behind the windmill.',
+  },
+  helicopter: {
+    name: 'Helicopter',
+    story: 'Up, round the valley and back down.',
+    hint: 'Try the horn at the helipad.',
+  },
   deer: { name: 'Deer', story: 'Out for their afternoon walk.', hint: 'They cross the meadow near the start.' },
   ducks: { name: 'Ducks', story: 'Everybody waits for the ducks.', hint: 'They cross the trail north of the lake.' },
   sheep: { name: 'Sheep', story: 'Grazing, mostly.', hint: 'Near the cabin.' },
@@ -93,7 +103,11 @@ const DRAWINGS = {
   train:
     '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M5 101h150" stroke="#9a958b" stroke-width="6"/><path d="M24 98V48h112v50z" fill="#e9ebe6"/><path d="M24 98v-10h112v10z" fill="#2f5d9e"/><path d="M24 60h86v18H24z" fill="#2f5d9e"/><path d="M28 63h12v12H28zm16 0h12v12H44zm16 0h12v12H60zm16 0h12v12H76zm16 0h12v12H92z" fill="#3d5560"/><path d="M110 48h26v50h-26z" fill="#e7b92e"/><path d="M114 54h18v16h-18z" fill="#3d5560"/><circle cx="118" cy="82" r="3" fill="#fff3ce"/><circle cx="128" cy="82" r="3" fill="#fff3ce"/><path d="M26 44h108v6H26z" fill="#c9ccc6"/><circle cx="44" cy="100" r="5" fill="#2a2e2c"/><circle cx="114" cy="100" r="5" fill="#2a2e2c"/>',
   roadworks:
-    '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M5 104h150" stroke="#a9a395" stroke-width="8"/><path d="M96 104 112 72h30l10 32z" fill="#8c7457"/><path d="M18 98V82h34v16zm34-6V78l8-8h12v28z" fill="#e3b23c"/><path d="M60 72h10v12H60z" fill="#4f6f73"/><path d="M14 104h44v-6H14zm46 0h20v-6H60z" fill="#2c302e"/><path d="m74 74 22-30 26 18" stroke="#e3b23c" stroke-width="6" fill="none"/><path d="m116 58 12 4-4 12-10-4z" fill="#c99a2e"/><path d="m36 64 6-14 6 14z" fill="#e2672f"/><path d="M38 60h8" stroke="#f1ede2" stroke-width="2"/><circle cx="26" cy="102" r="5" fill="#6a6f6b"/>',
+    '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M5 104h150" stroke="#a9a395" stroke-width="8"/><path d="M96 104 112 72h30l10 32z" fill="#8c7457"/><path d="M18 98V82h34v16zm34-6V78l8-8h12v28z" fill="#e3b23c"/><path d="M60 72h10v12H60z" fill="#4f6f73"/><path d="M14 104h44v-6H14zm46 0h20v-6H60z" fill="#2c302e"/><path d="m74 74 22-30 26 18" stroke="#e3b23c" stroke-width="6" fill="none"/><path d="m116 58 12 4-4 12-10-4z" fill="#c99a2e"/><path d="m83 104 5-14 5 14z" fill="#e2672f"/><path d="M85 99h6" stroke="#f1ede2" stroke-width="2"/><circle cx="26" cy="102" r="5" fill="#6a6f6b"/>',
+  helipad:
+    '<path d="M5 112q75-22 150 0v6H5z" fill="#8fab83"/><ellipse cx="80" cy="104" rx="62" ry="10" fill="#c2bfb5"/><ellipse cx="80" cy="104" rx="46" ry="7" fill="none" stroke="#e3b83c" stroke-width="3"/><path d="M38 96V72q0-14 18-14h26q10 0 10 12v26z" fill="#c8402f"/><path d="M40 86h52v5H40z" fill="#f2efe6"/><path d="M42 74q2-10 14-10h8v14H42z" fill="#3d5560"/><path d="m92 76 46-6v8l-46 6z" fill="#c8402f"/><path d="m132 64 8-2 2 18-8 2z" fill="#c8402f"/><path d="M66 54V48m-44 0h92" stroke="#2f3430" stroke-width="3"/><path d="M36 100h60M44 96v4m40-4v4" stroke="#2f3430" stroke-width="3"/><path d="M146 104V60" stroke="#d9d6cc" stroke-width="2"/><path d="m146 60 12 3v6l-12 3z" fill="#e2672f"/>',
+  helicopter:
+    '<path d="M5 116q75-14 150 0v6H5z" fill="#8fab83"/><ellipse cx="60" cy="98" rx="30" ry="5" fill="#c2c9b6"/><path d="M36 74V52q0-14 18-14h26q10 0 10 12v24z" fill="#c8402f" transform="rotate(-8 64 56)"/><path d="M40 66h52v5H40z" fill="#f2efe6" transform="rotate(-8 64 56)"/><path d="M40 52q2-10 14-10h8v14H40z" fill="#3d5560" transform="rotate(-8 64 56)"/><path d="m90 56 46-12v8l-46 12z" fill="#c8402f"/><path d="m130 38 8-3 3 18-8 3z" fill="#c8402f"/><path d="M62 34v-6M14 26q48-6 96 0" stroke="#2f3430" stroke-width="3" fill="none"/><path d="M34 82h58" stroke="#2f3430" stroke-width="3" transform="rotate(-8 64 56)"/>',
   eagle:
     '<path d="M20 98q30-14 60 0 24-12 52 0z" fill="#f4f6f0"/><path d="M80 52 30 40l-14 8 22 2-16 6 26 2 32 6zm0 0 50-12 14 8-22 2 16 6-26 2-32 6z" fill="#5e4632"/><ellipse cx="80" cy="56" rx="9" ry="16" fill="#5e4632"/><circle cx="80" cy="38" r="7" fill="#b48a4e"/><path d="m80 42 0 6 3-3z" fill="#e0b649"/><path d="m72 70 8 14 8-14z" fill="#5e4632"/>',
   cows: '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M44 84v22m12-22v22m44-22v22m12-22v22" stroke="#e7dfcd" stroke-width="8"/><rect x="38" y="52" width="80" height="36" rx="8" fill="#f1ece0"/><path d="M58 52h22v22H58zm38 18h14v14H96z" fill="#3c3f3a"/><rect x="112" y="42" width="30" height="24" rx="6" fill="#f1ece0"/><rect x="130" y="52" width="14" height="14" rx="4" fill="#e9b3a4"/><path d="m116 42-4-8m20 8 4-8" stroke="#e3d6b4" stroke-width="4"/><circle cx="124" cy="50" r="2.5" fill="#2d3a33"/>',
