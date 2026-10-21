@@ -44,11 +44,12 @@ export function fieldPoint(lx, lz) {
   return { x: FIELDS.x + lx * cos + lz * sin, z: FIELDS.z - lx * sin + lz * cos };
 }
 
-/** The fields, in the farmland's frame. The two tractors work `plough` and `mow`. */
+/** The fields, in the farmland's frame. The tractors work `plough` and `mow`, the combine `wheat`. */
 export const FIELD_PLOTS = {
   plough: { x0: -62, x1: -4, z0: -6, z1: 70 },
   mow: { x0: 7, x1: 63, z0: -6, z1: 70 },
   rapeseed: { x0: -62, x1: -26, z0: -52, z1: -14 },
+  wheat: { x0: 21, x1: 63, z0: -56, z1: -14 },
   young: { x0: -62, x1: 63, z0: 76, z1: 90 },
 };
 
