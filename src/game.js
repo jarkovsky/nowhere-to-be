@@ -543,6 +543,8 @@ export function createGame(canvas) {
         if (Math.hypot(state.x - place.x, state.z - place.z) < place.radius) discovered(place.id);
       }
       if (train.distanceTo(state) < 30) discovered('train');
+      const emergency = traffic.emergency();
+      if (emergency && Math.hypot(emergency.x - state.x, emergency.z - state.z) < 35) discovered(emergency.kind);
     }
 
     const sky = atmosphere.getState();
@@ -582,6 +584,7 @@ export function createGame(canvas) {
     });
     const rotor = helicopter.rotorSound(camera.position);
     sound.rotor(mode === 'title' ? 0 : rotor.level, rotor.rate);
+    sound.siren(mode === 'title' ? 0 : traffic.sirenLevel(state));
     renderer.render(scene, camera);
     if (!UNCAPPED) adaptResolution(frameMs, dt, targetFps);
   }
@@ -608,6 +611,7 @@ export function createGame(canvas) {
         sky: atmosphere.getState(),
         surface: surfaces.getState(),
         traffic: traffic.getState(),
+        emergency: traffic.emergency(),
         train: train.getState(),
         helicopter: helicopter.getState(),
         fields: landmarks.fields.getState(),
@@ -629,6 +633,7 @@ export function createGame(canvas) {
         chase.snap(carView(), cameraOptions());
       },
       setSky: preset => atmosphere.setPreset(preset),
+      callOut: () => traffic.callOut(state),
       setClock: seconds => atmosphere.setTime(seconds),
       shot(position, target) {
         chase.setMode('shot');

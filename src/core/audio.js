@@ -34,6 +34,7 @@ export function createAudio() {
   let rainGain;
   let bed;
   let rotor;
+  let siren;
   let noise;
   let enabled = true;
   let surface = 'grass';
@@ -158,6 +159,26 @@ export function createAudio() {
     loop(rumble).connect(chop).connect(rotorFilter).connect(rotorTrim).connect(rotorGain).connect(master);
     beat.start();
     rotor = { beat, gain: rotorGain };
+
+    // The siren: two notes in turn, soft and a little muffled.
+    const sirenTone = context.createOscillator();
+    sirenTone.type = 'triangle';
+    sirenTone.frequency.value = 510;
+    const sirenStep = context.createOscillator();
+    sirenStep.type = 'square';
+    sirenStep.frequency.value = 0.8;
+    const sirenSwing = context.createGain();
+    sirenSwing.gain.value = 75;
+    sirenStep.connect(sirenSwing).connect(sirenTone.frequency);
+    const sirenFilter = context.createBiquadFilter();
+    sirenFilter.type = 'lowpass';
+    sirenFilter.frequency.value = 1800;
+    const sirenGain = context.createGain();
+    sirenGain.gain.value = 0;
+    sirenTone.connect(sirenFilter).connect(sirenGain).connect(master);
+    sirenTone.start();
+    sirenStep.start();
+    siren = { gain: sirenGain };
 
     windGain = noiseSource('lowpass', 260, 0.012);
     rainGain = noiseSource('highpass', 2400, 0);
@@ -298,6 +319,12 @@ export function createAudio() {
       const now = context.currentTime;
       rotor.beat.frequency.setTargetAtTime(rate, now, 0.3);
       rotor.gain.gain.setTargetAtTime(level * 0.5, now, 0.2);
+    },
+
+    /** An emergency vehicle's siren: `level` 0 to 1 for how near it is. */
+    siren(level) {
+      if (!context) return;
+      siren.gain.gain.setTargetAtTime(level ** 1.5 * 0.045, context.currentTime, 0.3);
     },
 
     /** One strike of the level crossing's bell. */

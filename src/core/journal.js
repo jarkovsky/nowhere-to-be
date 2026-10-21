@@ -22,6 +22,8 @@ export const STICKERS = [
   'roadworks',
   'helipad',
   'helicopter',
+  'ambulance',
+  'fireengine',
   'chapel',
   'summit',
   'fields',

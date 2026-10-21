@@ -53,6 +53,16 @@ export const STICKER_INFO = {
     story: 'Up, round the valley and back down.',
     hint: 'Try the horn at the helipad.',
   },
+  ambulance: {
+    name: 'Ambulance',
+    story: 'Blue lights on. Everybody pulls over.',
+    hint: 'Now and then one comes along the trail.',
+  },
+  fireengine: {
+    name: 'Fire engine',
+    story: 'Off to help, with its ladder on the roof.',
+    hint: 'Now and then one comes along the trail.',
+  },
   chapel: {
     name: 'Chapel',
     story: 'A little white chapel with a bell turret.',
@@ -130,6 +140,10 @@ const DRAWINGS = {
     '<path d="M5 112q75-22 150 0v6H5z" fill="#8fab83"/><ellipse cx="80" cy="104" rx="62" ry="10" fill="#c2bfb5"/><ellipse cx="80" cy="104" rx="46" ry="7" fill="none" stroke="#e3b83c" stroke-width="3"/><path d="M38 96V72q0-14 18-14h26q10 0 10 12v26z" fill="#c8402f"/><path d="M40 86h52v5H40z" fill="#f2efe6"/><path d="M42 74q2-10 14-10h8v14H42z" fill="#3d5560"/><path d="m92 76 46-6v8l-46 6z" fill="#c8402f"/><path d="m132 64 8-2 2 18-8 2z" fill="#c8402f"/><path d="M66 54V48m-44 0h92" stroke="#2f3430" stroke-width="3"/><path d="M36 100h60M44 96v4m40-4v4" stroke="#2f3430" stroke-width="3"/><path d="M146 104V60" stroke="#d9d6cc" stroke-width="2"/><path d="m146 60 12 3v6l-12 3z" fill="#e2672f"/>',
   helicopter:
     '<path d="M5 116q75-14 150 0v6H5z" fill="#8fab83"/><ellipse cx="60" cy="98" rx="30" ry="5" fill="#c2c9b6"/><path d="M36 74V52q0-14 18-14h26q10 0 10 12v24z" fill="#c8402f" transform="rotate(-8 64 56)"/><path d="M40 66h52v5H40z" fill="#f2efe6" transform="rotate(-8 64 56)"/><path d="M40 52q2-10 14-10h8v14H40z" fill="#3d5560" transform="rotate(-8 64 56)"/><path d="m90 56 46-12v8l-46 12z" fill="#c8402f"/><path d="m130 38 8-3 3 18-8 3z" fill="#c8402f"/><path d="M62 34v-6M14 26q48-6 96 0" stroke="#2f3430" stroke-width="3" fill="none"/><path d="M34 82h58" stroke="#2f3430" stroke-width="3" transform="rotate(-8 64 56)"/>',
+  ambulance:
+    '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M5 102h150" stroke="#cfc29c" stroke-width="8"/><path d="M30 96V50h66v46z" fill="#f1dc3c"/><path d="M96 96V64h20l14 14v18z" fill="#f1dc3c"/><path d="M100 68h14l10 10h-24z" fill="#4b6a6c"/><path d="M30 76h10v8H30zm20 0h10v8H50zm20 0h10v8H70zm20 0h10v8H90zm20 0h10v8h-10zM40 84h10v8H40zm20 0h10v8H60zm20 0h10v8H80zm20 0h10v8h-10zm20 0h10v8h-10z" fill="#2f8f4e"/><path d="M38 56h22v12H38z" fill="#4b6a6c"/><path d="M100 58h12v6h-12z" fill="#4f8dff"/><path d="M92 48h8v4h-8z" fill="#4f8dff"/><circle cx="48" cy="98" r="8" fill="#2c302e"/><circle cx="112" cy="98" r="8" fill="#2c302e"/><path d="m100 52 4-10m6 12 8-6" stroke="#4f8dff" stroke-width="3"/>',
+  fireengine:
+    '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M5 102h150" stroke="#cfc29c" stroke-width="8"/><path d="M18 96V58h94v38z" fill="#c7312a"/><path d="M112 96V54h22l10 16v26z" fill="#c7312a"/><path d="M116 58h14l8 12h-22z" fill="#4b6a6c"/><path d="M18 84h126v5H18z" fill="#f2efe6"/><path d="M26 62h18v18H26zm22 0h18v18H48zm22 0h18v18H70zm22 0h16v18H92z" fill="#b3b7b1"/><path d="M14 52h100M14 46h100M20 46v6m12-6v6m12-6v6m12-6v6m12-6v6m12-6v6m12-6v6m12-6v6" stroke="#c9cdc6" stroke-width="3"/><path d="M118 48h14v5h-14z" fill="#4f8dff"/><circle cx="38" cy="98" r="9" fill="#2c302e"/><circle cx="64" cy="98" r="9" fill="#2c302e"/><circle cx="126" cy="98" r="9" fill="#2c302e"/>',
   chapel:
     '<path d="M5 112q75-30 150 0v6H5z" fill="#8fab83"/><path d="M56 104V64h44v40z" fill="#f1ede2"/><path d="m50 66 28-26 28 26z" fill="#5d4a3e"/><path d="M72 40V26h12v14z" fill="#f1ede2"/><path d="m70 27 8-15 8 15z" fill="#5d4a3e"/><path d="M78 12V2m-4 4h8" stroke="#6b6a5f" stroke-width="2"/><path d="M76 30h4v6h-4z" fill="#3a3a34"/><path d="M70 104V86q8-8 16 0v18z" fill="#5a3e2b"/><circle cx="78" cy="74" r="4" fill="#4f6f73"/><path d="M118 104V80" stroke="#7a6d52" stroke-width="4"/><circle cx="120" cy="66" r="18" fill="#8c9c62"/><path d="M16 96h22" stroke="#8a6446" stroke-width="3"/>',
   summit:
