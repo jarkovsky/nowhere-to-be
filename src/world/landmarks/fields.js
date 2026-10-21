@@ -323,12 +323,23 @@ export function buildFields(scene, obstacles) {
   return {
     /** Circles round the tractors and what they pull, for collisions. */
     colliders,
-    getState: () => workers.map(w => ({ worked: w.route.at(w.d).worked, done: w.d >= w.route.total })),
+    getState: () =>
+      workers.map(w => ({
+        worked: w.route.at(w.d).worked,
+        done: w.d >= w.route.total,
+        x: w.tractor.root.position.x,
+        z: w.tractor.root.position.z,
+      })),
     update(dt, player) {
       time += dt;
       smoke.update(time);
       colliders.length = 0;
-      const farFromFields = !player || Math.hypot(player.x - FIELDS.x, player.z - FIELDS.z) > 220;
+      const distance = player ? Math.hypot(player.x - FIELDS.x, player.z - FIELDS.z) : Infinity;
+      const farFromFields = distance > 220;
+      // From the valley the tractors are specks; skip drawing them.
+      const inSight = distance < 330;
+      gulls.visible = inSight;
+      for (const worker of workers) worker.tractor.root.visible = inSight;
       for (const worker of workers) {
         const { route, tractor } = worker;
         const here = route.at(worker.d);

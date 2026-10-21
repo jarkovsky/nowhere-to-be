@@ -18,8 +18,8 @@ const FOLLOW_GAP = 5.7;
 /** How far from the middle a traveller pulls over to let an emergency vehicle by. */
 const VERGE = LANE + 1.9;
 /** Seconds before the first emergency vehicle, and between later ones. */
-const FIRST_CALL = [45, 80];
-const BETWEEN_CALLS = [140, 230];
+const FIRST_CALL = [70, 120];
+const BETWEEN_CALLS = [160, 280];
 const GLASS = '#4b6a6c';
 
 function camperVan() {
@@ -359,7 +359,9 @@ export function createTraffic(scene) {
     /** The emergency vehicle that is out, and how near it is, for the scrapbook. */
     emergency() {
       const r = responders.find(responder => responder.active);
-      return r ? { kind: r.kind, x: r.root.position.x, z: r.root.position.z, speed: r.speed } : null;
+      return r
+        ? { kind: r.kind, x: r.root.position.x, z: r.root.position.z, speed: r.speed, s: r.s, direction: r.direction }
+        : null;
     },
     /** Travellers within earshot answer a honk with one of their own. */
     answerHonk(x, z, respond) {

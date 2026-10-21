@@ -415,11 +415,11 @@ function createRoofTent(length, roof) {
       .mesh(),
   );
 
-  // The lid turns about its left-hand edge.
+  // The lid turns about its right-hand edge.
   const lid = new THREE.Group();
-  lid.position.set(-w, 0.22, middle);
+  lid.position.set(w, 0.22, middle);
   root.add(lid);
-  lid.add(new PartsBuilder().box(TENT_WIDTH, 0.2, tentLength, TENT_SHELL, { x: w, y: 0.1 }).mesh());
+  lid.add(new PartsBuilder().box(TENT_WIDTH, 0.2, tentLength, TENT_SHELL, { x: -w, y: 0.1 }).mesh());
 
   // The canvas, with a doorway at the back that is lit from inside after dark.
   const tent = new THREE.Group();
@@ -464,13 +464,13 @@ function createRoofTent(length, roof) {
   for (const z of [-0.22, 0.22]) ladderParts.box(0.05, 1, 0.05, '#b8beb7', { y: -0.5, z });
   for (let k = 1; k <= 5; k++) ladderParts.box(0.04, 0.035, 0.44, '#b8beb7', { y: -k / 6 });
   const ladder = ladderParts.mesh({ receiveShadow: false });
-  ladder.position.set(w + 0.06, 0.18, middle);
-  ladder.rotation.z = 0.22;
+  ladder.position.set(-w - 0.06, 0.18, middle);
+  ladder.rotation.z = -0.22;
   root.add(ladder);
   const reach = (roof + 0.18) / Math.cos(0.22);
 
   const spots = {
-    flag: { parent: root, at: [w + 0.05, 0.05, half - 0.12] },
+    flag: { parent: root, at: [-w - 0.05, 0.05, half - 0.12] },
     teddy: { parent: root, at: [-0.3, 0.22, -half + 0.24] },
     gnome: { parent: root, at: [0.36, 0.22, -half + 0.24] },
   };
@@ -487,7 +487,7 @@ function createRoofTent(length, roof) {
       const swing = Math.min(1, amount / 0.6);
       const rise = Math.max(0, (amount - 0.25) / 0.75);
       const slide = Math.max(0, (amount - 0.6) / 0.4);
-      lid.rotation.z = Math.sin((swing * Math.PI) / 2) * LID_SWING;
+      lid.rotation.z = -Math.sin((swing * Math.PI) / 2) * LID_SWING;
       tent.visible = rise > 0;
       tent.scale.y = Math.max(0.001, rise * 1.05);
       glow.emissiveIntensity = night * rise * 1.5;
