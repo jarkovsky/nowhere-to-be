@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { createRandom } from '../core/math.js';
 import { ROAD, ROAD_HALF_WIDTH, SURFACES, TRACKS, surfaceAt } from './layout.js';
-import { onDeck, terrainHeight, waterDepth } from './terrain.js';
+import { onDeck, snowCover, terrainHeight, waterDepth } from './terrain.js';
 
 const TRACK_CAPACITY = 6000;
 
@@ -10,7 +10,24 @@ const TRACK_CAPACITY = 6000;
 function effectAt(x, z) {
   if (onDeck(x, z)) return 'grass'; // planks: no splashes, no tracks
   if (waterDepth(x, z) > 0.12) return 'water';
+  if (snowCover(x, z) > 0.5) return 'snow';
   return surfaceAt(x, z);
+}
+
+const UP = new THREE.Vector3(0, 1, 0);
+const slope = new THREE.Vector3();
+const tilt = new THREE.Quaternion();
+const lay = new THREE.Quaternion();
+const flat = new THREE.Euler();
+
+/** Lays a flat mark on the ground at (x, z), turned to `heading` and tilted to match the slope. */
+function layOnGround(dummy, x, z, heading) {
+  const h = terrainHeight(x, z);
+  slope.set(h - terrainHeight(x + 0.5, z), 0.5, h - terrainHeight(x, z + 0.5)).normalize();
+  tilt.setFromUnitVectors(UP, slope);
+  lay.setFromEuler(flat.set(-Math.PI / 2, 0, heading));
+  dummy.position.set(x, h + 0.06, z);
+  dummy.quaternion.copy(tilt).multiply(lay);
 }
 
 export function createSurfaces(scene, sound) {
@@ -150,9 +167,8 @@ export function createSurfaces(scene, sound) {
           for (const side of [-1, 1]) {
             const x = car.x + cos * side * 1.08;
             const z = car.z - sin * side * 1.08;
-            if (surfaceAt(x, z) !== 'snow') continue;
-            dummy.position.set(x, terrainHeight(x, z) + 0.05, z);
-            dummy.rotation.set(-Math.PI / 2, 0, car.heading);
+            if (effectAt(x, z) !== 'snow') continue;
+            layOnGround(dummy, x, z, car.heading);
             dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
             tracks.setMatrixAt(trackCursor++ % TRACK_CAPACITY, dummy.matrix);

@@ -16,6 +16,9 @@ import {
   PLACES,
   PADS,
   VALLEY_RADIUS,
+  UPLANDS_RADIUS,
+  SUMMIT,
+  FIELDS,
   surfaceAt,
   SURFACES,
 } from '../src/world/layout.js';
@@ -28,6 +31,7 @@ import {
   waterDepth,
   waterLevel,
   isDriveable,
+  snowCover,
   POOL,
 } from '../src/world/terrain.js';
 
@@ -140,5 +144,26 @@ test('special surfaces are found where they were placed', () => {
 test('heights stay finite across the valley', () => {
   for (let x = -VALLEY_RADIUS; x <= VALLEY_RADIUS; x += 9) {
     for (let z = -VALLEY_RADIUS; z <= VALLEY_RADIUS; z += 9) assert.ok(Number.isFinite(drivingHeight(x, z)));
+  }
+});
+
+test('snow lies on the summit and the high peaks, but never in the valley', () => {
+  assert.equal(snowCover(SUMMIT.x, SUMMIT.z), 1);
+  for (let x = -UPLANDS_RADIUS; x <= UPLANDS_RADIUS; x += 6) {
+    for (let z = -UPLANDS_RADIUS; z <= UPLANDS_RADIUS; z += 6) {
+      if (Math.hypot(x, z) < UPLANDS_RADIUS - 40) assert.equal(snowCover(x, z), 0, `snow at ${x}, ${z}`);
+    }
+  }
+});
+
+test('the farmland is gentle enough for fields', () => {
+  for (let a = 0; a < Math.PI * 2; a += 0.3) {
+    for (const r of [0, 30, 60, 85]) {
+      const x = FIELDS.x + Math.cos(a) * r;
+      const z = FIELDS.z + Math.sin(a) * r;
+      const h = terrainHeight(x, z);
+      const slope = Math.hypot(terrainHeight(x + 2, z) - h, terrainHeight(x, z + 2) - h) / 2;
+      assert.ok(slope < 0.12, `slope ${slope.toFixed(2)} at ${x.toFixed(0)}, ${z.toFixed(0)}`);
+    }
   }
 });

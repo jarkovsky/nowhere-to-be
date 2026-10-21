@@ -58,6 +58,16 @@ export const STICKER_INFO = {
     story: 'A little white chapel with a bell turret.',
     hint: 'On the hill east of the trail.',
   },
+  summit: {
+    name: 'Velká Deštná',
+    story: 'Snow on top and a lookout tower.',
+    hint: 'A winding track climbs into the north-west.',
+  },
+  fields: {
+    name: 'Upland farm',
+    story: 'Tractors at work in the fields.',
+    hint: 'A track climbs south-east, past the chapel.',
+  },
   deer: { name: 'Deer', story: 'Out for their afternoon walk.', hint: 'They cross the meadow near the start.' },
   ducks: { name: 'Ducks', story: 'Everybody waits for the ducks.', hint: 'They cross the trail north of the lake.' },
   sheep: { name: 'Sheep', story: 'Grazing, mostly.', hint: 'Near the cabin.' },
@@ -116,6 +126,10 @@ const DRAWINGS = {
     '<path d="M5 116q75-14 150 0v6H5z" fill="#8fab83"/><ellipse cx="60" cy="98" rx="30" ry="5" fill="#c2c9b6"/><path d="M36 74V52q0-14 18-14h26q10 0 10 12v24z" fill="#c8402f" transform="rotate(-8 64 56)"/><path d="M40 66h52v5H40z" fill="#f2efe6" transform="rotate(-8 64 56)"/><path d="M40 52q2-10 14-10h8v14H40z" fill="#3d5560" transform="rotate(-8 64 56)"/><path d="m90 56 46-12v8l-46 12z" fill="#c8402f"/><path d="m130 38 8-3 3 18-8 3z" fill="#c8402f"/><path d="M62 34v-6M14 26q48-6 96 0" stroke="#2f3430" stroke-width="3" fill="none"/><path d="M34 82h58" stroke="#2f3430" stroke-width="3" transform="rotate(-8 64 56)"/>',
   chapel:
     '<path d="M5 112q75-30 150 0v6H5z" fill="#8fab83"/><path d="M56 104V64h44v40z" fill="#f1ede2"/><path d="m50 66 28-26 28 26z" fill="#5d4a3e"/><path d="M72 40V26h12v14z" fill="#f1ede2"/><path d="m70 27 8-15 8 15z" fill="#5d4a3e"/><path d="M78 12V2m-4 4h8" stroke="#6b6a5f" stroke-width="2"/><path d="M76 30h4v6h-4z" fill="#3a3a34"/><path d="M70 104V86q8-8 16 0v18z" fill="#5a3e2b"/><circle cx="78" cy="74" r="4" fill="#4f6f73"/><path d="M118 104V80" stroke="#7a6d52" stroke-width="4"/><circle cx="120" cy="66" r="18" fill="#8c9c62"/><path d="M16 96h22" stroke="#8a6446" stroke-width="3"/>',
+  summit:
+    '<path d="M5 114 56 58l16 10 32-34 51 80z" fill="#99a59a"/><path d="m92 47 12-13 13 14-7-2-6 6-6-5zM50 64l6-6 8 5-6 3z" fill="#f4f6f2"/><path d="m98 37 2-25h8l2 25z" fill="#a87d54"/><path d="m98 37 2-25m8 0 2 25m-11-9h10m-9.4-8h8.8" stroke="#4d5652" stroke-width="1.8" fill="none"/><path d="M97 12h14" stroke="#c3c7c1" stroke-width="3"/>',
+  fields:
+    '<path d="M5 62q75-20 150 0v14H5z" fill="#8fab83"/><path d="M5 66h72v12H5z" fill="#9db56f"/><path d="M77 66h78v12H77z" fill="#e9cf4f"/><path d="M5 78h150v36H5z" fill="#a48b63"/><path d="M5 86h150M5 95h150M5 104h150" stroke="#8c7457" stroke-width="2"/><path d="M50 81 36 90m6-9 9 9" stroke="#6b706b" stroke-width="3"/><path d="M52 76h36V64H71V50H52z" fill="#b5402f"/><path d="M55 53h13v10H55z" fill="#4f6f73"/><path d="M82 64v-10" stroke="#2f3430" stroke-width="2.5"/><circle cx="61" cy="82" r="11" fill="#2c302e"/><circle cx="61" cy="82" r="4.5" fill="#e0c46a"/><circle cx="85" cy="85" r="6.5" fill="#2c302e"/><circle cx="85" cy="85" r="2.5" fill="#e0c46a"/><path d="M22 42q4-4 8 0 4-4 8 0m2-12q3-3 6 0 3-3 6 0" stroke="#f4f6f0" stroke-width="2.5" fill="none"/>',
   owl: '<rect x="3" y="3" width="154" height="124" rx="22" fill="#2b3a4f"/><circle cx="126" cy="30" r="12" fill="#f4f1dc"/><path d="m30 22 1 3 3 1-3 1-1 3-1-3-3-1 3-1zm22 20 1 2 2 1-2 1-1 2-1-2-2-1 2-1z" fill="#f4f1dc"/><path d="M20 104h120" stroke="#7a5b3d" stroke-width="6"/><ellipse cx="80" cy="82" rx="22" ry="26" fill="#8b6f52"/><ellipse cx="80" cy="88" rx="14" ry="18" fill="#d8c7a6"/><circle cx="80" cy="50" r="18" fill="#8b6f52"/><path d="m64 38-2-10 8 6m26 4 2-10-8 6" fill="#8b6f52"/><circle cx="73" cy="50" r="6" fill="#f2c94c"/><circle cx="87" cy="50" r="6" fill="#f2c94c"/><circle cx="73" cy="50" r="2.5" fill="#1d1d1a"/><circle cx="87" cy="50" r="2.5" fill="#1d1d1a"/><path d="m77 56 3 5 3-5z" fill="#4a3b2c"/><path d="M72 104v-4m16 4v-4" stroke="#e3b23c" stroke-width="3"/>',
   eagle:
     '<path d="M20 98q30-14 60 0 24-12 52 0z" fill="#f4f6f0"/><path d="M80 52 30 40l-14 8 22 2-16 6 26 2 32 6zm0 0 50-12 14 8-22 2 16 6-26 2-32 6z" fill="#5e4632"/><ellipse cx="80" cy="56" rx="9" ry="16" fill="#5e4632"/><circle cx="80" cy="38" r="7" fill="#b48a4e"/><path d="m80 42 0 6 3-3z" fill="#e0b649"/><path d="m72 70 8 14 8-14z" fill="#5e4632"/>',

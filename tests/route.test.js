@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { angleDelta, clamp } from '../src/core/math.js';
 import { createObstacleIndex, penetration } from '../src/core/collision.js';
 import { createCarState, stepDriving } from '../src/core/driving.js';
-import { ROAD, CAMP_TRAIL, TRACKS, JETTY } from '../src/world/layout.js';
+import { ROAD, CAMP_TRAIL, TRACKS, JETTY, GNOMES } from '../src/world/layout.js';
 import { headingOf } from '../src/world/path.js';
 import { drivingHeight, isDriveable, waterLevel } from '../src/world/terrain.js';
 import { buildScenery } from '../src/world/scenery.js';
@@ -19,6 +19,7 @@ import { buildHut } from '../src/world/landmarks/hut.js';
 import { buildBunkers } from '../src/world/landmarks/bunkers.js';
 import { buildRailway } from '../src/world/landmarks/railway.js';
 import { buildRoadworks } from '../src/world/landmarks/roadworks.js';
+import { buildSummit } from '../src/world/landmarks/summit.js';
 import { createSurfaces } from '../src/world/surfaces.js';
 import { LANE } from '../src/vehicles/traffic.js';
 
@@ -37,6 +38,7 @@ for (const build of [
   buildBunkers,
   buildRailway,
   buildRoadworks,
+  buildSummit,
 ]) {
   build(scene, obstacles);
 }
@@ -119,5 +121,20 @@ test("nothing stands in the other travellers' lanes", () => {
         assert.equal(penetration(x, z, 1, obstacle), null, `blocked at ${x.toFixed(0)}, ${z.toFixed(0)}`);
       }
     }
+  }
+});
+
+test('every gnome has room for the car right beside it', () => {
+  const index = createObstacleIndex(obstacles);
+  for (const gnome of GNOMES) {
+    let room = 0;
+    for (let k = 0; k < 24; k++) {
+      const a = (k / 24) * Math.PI * 2;
+      const x = gnome.x + Math.cos(a) * 2.6;
+      const z = gnome.z + Math.sin(a) * 2.6;
+      if (!isDriveable(x, z)) continue;
+      if ([...index.near(x, z, 3)].every(obstacle => !penetration(x, z, 1.15, obstacle))) room++;
+    }
+    assert.ok(room >= 4, `only ${room} spots beside the gnome at ${gnome.x}, ${gnome.z}`);
   }
 });

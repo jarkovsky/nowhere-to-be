@@ -130,6 +130,7 @@ export function createTraffic(scene) {
 
   /** How far ahead of a traveller a point is along its lane, or Infinity if not in the way. */
   function gapTo(t, x, z) {
+    if (!ROAD.isNear(x, z, 9)) return Infinity;
     const near = ROAD.nearest(x, z);
     if (near.distance > 9 || Math.abs(near.side - t.direction * LANE) > 3.4) return Infinity;
     const ahead = ROAD.wrap((near.s - t.s) * t.direction);

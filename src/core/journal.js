@@ -23,6 +23,8 @@ export const STICKERS = [
   'helipad',
   'helicopter',
   'chapel',
+  'summit',
+  'fields',
   'deer',
   'ducks',
   'sheep',

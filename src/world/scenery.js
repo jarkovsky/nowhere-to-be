@@ -24,15 +24,20 @@ import {
   ROADWORKS,
   HELIPAD,
   CHAPEL,
+  SUMMIT,
+  FIELDS,
+  FARMSTEAD,
   KNOLLS,
   SPAWN,
   VALLEY_RADIUS,
+  UPLANDS_RADIUS,
   HABITATS,
   SURFACES,
   YETI,
+  GNOMES,
   lakeDistance,
 } from './layout.js';
-import { AXIS, GRID, heights, terrainHeight, naturalHeight, creekLevel, POOL } from './terrain.js';
+import { AXIS, GRID, heights, terrainHeight, naturalHeight, creekLevel, snowCover, POOL } from './terrain.js';
 import { PartsBuilder, flatMaterial, vertexColorMaterial, triangleGeometry } from './build.js';
 import { boulderGeometry } from './rocks.js';
 
@@ -44,6 +49,7 @@ const GROUND = {
   dry: new THREE.Color('#c1be8b'),
   high: new THREE.Color('#939f87'),
   rock: new THREE.Color('#a39d8b'),
+  alpine: new THREE.Color('#aeab9e'),
   shore: new THREE.Color('#d3caa0'),
   bank: new THREE.Color('#a9a78f'),
   snow: new THREE.Color('#eef1ea'),
@@ -60,6 +66,9 @@ function groundColor(x, z, h, up, out) {
   if (h > 45) out.lerp(GROUND.high, Math.min(1, (h - 45) / 80));
   // Bare rock and scree where the ground is steep.
   out.lerp(GROUND.rock, smoothstep(up, 0.86, 0.7) * 0.85);
+  // High up, the grass gives way to stony ground and then snow, which doesn't settle on cliffs.
+  out.lerp(GROUND.alpine, smoothstep(h, 86, 108) * 0.75);
+  if (h > 90) out.lerp(GROUND.snow, snowCover(x, z, h) * smoothstep(up, 0.6, 0.78));
   if (lakeDistance(x, z) < 2.2) out.lerp(GROUND.shore, 1 - smoothstep(h, LAKE.level + 0.35, LAKE.level + 0.9));
   if (x > 135 && x < 245 && z > -85 && z < -30) {
     const creek = CREEK.nearest(x, z);
@@ -73,10 +82,20 @@ function groundColor(x, z, h, up, out) {
   return out.multiplyScalar(0.96 + random() * 0.08);
 }
 
-function buildGround() {
+/** Grid cell ranges for the ground tiles along one axis: the coarse rim at each end, the fine middle in three. */
+function tileBands() {
   const cells = GRID - 1;
-  const positions = new Float32Array(cells * cells * 18);
-  const colors = new Float32Array(cells * cells * 18);
+  const coarse = AXIS.findIndex(value => value >= -UPLANDS_RADIUS - 205);
+  const fine = cells - 2 * coarse;
+  const cuts = [0, coarse, ...[1, 2].map(k => coarse + Math.round((fine * k) / 3)), cells - coarse, cells];
+  return cuts.slice(1).map((end, i) => [cuts[i], end]);
+}
+
+/** One tile of the ground: cells [x0, x1) by [z0, z1), two triangles each. */
+function groundTile([x0, x1], [z0, z1]) {
+  const count = (x1 - x0) * (z1 - z0);
+  const positions = new Float32Array(count * 18);
+  const colors = new Float32Array(count * 18);
   const color = new THREE.Color();
   const a = new THREE.Vector3();
   const b = new THREE.Vector3();
@@ -88,8 +107,8 @@ function buildGround() {
     positions[p + 2] = AXIS[iz];
     p += 3;
   };
-  for (let iz = 0; iz < cells; iz++) {
-    for (let ix = 0; ix < cells; ix++) {
+  for (let iz = z0; iz < z1; iz++) {
+    for (let ix = x0; ix < x1; ix++) {
       // Two triangles per cell, split along the same diagonal as terrainHeight().
       for (const triangle of [
         [
@@ -123,8 +142,16 @@ function buildGround() {
   geometry.computeBoundingSphere();
   const mesh = new THREE.Mesh(geometry, vertexColorMaterial);
   mesh.receiveShadow = true;
-  mesh.name = 'ground';
   return mesh;
+}
+
+/** The ground, in tiles so the parts out of view can be skipped. */
+function buildGround() {
+  const ground = new THREE.Group();
+  ground.name = 'ground';
+  const bands = tileBands();
+  for (const zBand of bands) for (const xBand of bands) ground.add(groundTile(xBand, zBand));
+  return ground;
 }
 
 const SNOW = SURFACES.find(patch => patch.id === 'snow');
@@ -132,7 +159,7 @@ const PACKED_SNOW = new THREE.Color('#e3e8e4');
 
 /**
  * A strip draped over the ground along a path, optionally offset sideways or
- * skipping a stretch. Where it crosses the snowfield it is snowed over too.
+ * skipping a stretch. Where it crosses snow it is snowed over too.
  */
 export function ribbon(path, halfWidth, color, { lift = 0.06, offset = 0, skip = () => false } = {}) {
   const base = new THREE.Color(color);
@@ -149,7 +176,8 @@ export function ribbon(path, halfWidth, color, { lift = 0.06, offset = 0, skip =
       const side = offset + ((j / across) * 2 - 1) * halfWidth;
       const x = sample.x - sample.dz * side;
       const z = sample.z + sample.dx * side;
-      const snow = 1 - smoothstep(Math.hypot((x - SNOW.x) / SNOW.rx, (z - SNOW.z) / SNOW.rz), 0.78, 1);
+      const patch = 1 - smoothstep(Math.hypot((x - SNOW.x) / SNOW.rx, (z - SNOW.z) / SNOW.rz), 0.78, 1);
+      const snow = Math.max(patch, snowCover(x, z));
       row.push({
         position: [x, terrainHeight(x, z) + lift, z],
         color: tint.copy(base).lerp(PACKED_SNOW, snow).toArray(),
@@ -285,6 +313,9 @@ function buildWater(scene) {
   };
 }
 
+/** How far away flowers, grass, bushes, stumps and logs can still be made out. */
+const DETAIL_RANGE = 170;
+
 /** Circles kept clear of trees and rocks. */
 const CLEARINGS = [
   { x: SPAWN.x, z: SPAWN.z, r: 16 },
@@ -305,6 +336,10 @@ const CLEARINGS = [
   { x: ROADWORKS.site.x, z: ROADWORKS.site.z, r: 32 },
   { x: HELIPAD.x, z: HELIPAD.z, r: 20 },
   { x: CHAPEL.x, z: CHAPEL.z, r: 9 },
+  { x: SUMMIT.x, z: SUMMIT.z, r: 16 },
+  { x: FARMSTEAD.x, z: FARMSTEAD.z, r: 22 },
+  { x: FIELDS.x, z: FIELDS.z, r: FIELDS.radius },
+  ...GNOMES.map(gnome => ({ ...gnome, r: 4 })),
   ...SURFACES.map(p => ({ x: p.x, z: p.z, r: Math.max(p.rx, p.rz) + 4 })),
 ];
 
@@ -321,11 +356,9 @@ function isClearGround(x, z, { road = 9 } = {}) {
   if (lakeDistance(x, z) < 2.2 && terrainHeight(x, z) < LAKE.level + 0.8) return false;
   if (CLEARINGS.some(c => Math.hypot(x - c.x, z - c.z) < c.r)) return false;
   if (nearWalkway(HABITATS.deer, x, z, 5) || nearWalkway(HABITATS.ducks, x, z, 5)) return false;
-  if (r < 400 && ROAD.nearest(x, z).distance < road) return false;
-  if (CAMP_TRAIL.nearest(x, z).distance < 6) return false;
-  if (TRACKS.some(track => track.path.nearest(x, z).distance < 5)) return false;
-  if (RAILWAY.nearest(x, z).distance < 9) return false;
-  if (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.nearest(x, z).distance < 10) return false;
+  if (ROAD.isNear(x, z, road) || CAMP_TRAIL.isNear(x, z, 6) || RAILWAY.isNear(x, z, 9)) return false;
+  if (TRACKS.some(track => track.path.isNear(x, z, 5))) return false;
+  if (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 10)) return false;
   return true;
 }
 
@@ -396,16 +429,20 @@ function logGeometry() {
   return parts.geometry();
 }
 
+/** Side of the square patches that scattered scenery is grouped into: three by three across the valley. */
+const PATCH = 350;
+const patchOf = ({ x, z }) => `${Math.floor(x / PATCH + 0.5)},${Math.floor(z / PATCH + 0.5)}`;
+
 /**
  * Places a list of { x, z, scale, rotation, tilt?, sx?, sy? } as instanced meshes:
- * one per quarter of the valley, so whole quarters can be skipped when out of
- * view, and one for everything beyond the fence, which never casts shadows.
+ * one per square patch of the valley, so patches out of view (or out of reach of
+ * the shadows) can be skipped, and one for everything beyond the fence, which
+ * never casts shadows.
  */
 function instanced(scene, geometry, items, options = {}) {
   const groups = new Map();
   for (const item of items) {
-    const key =
-      Math.hypot(item.x, item.z) > VALLEY_RADIUS + 25 ? 'far' : `${Math.sign(item.x) || 1},${Math.sign(item.z) || 1}`;
+    const key = Math.hypot(item.x, item.z) > VALLEY_RADIUS + 25 ? 'far' : patchOf(item);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(item);
   }
@@ -414,7 +451,18 @@ function instanced(scene, geometry, items, options = {}) {
   }
 }
 
-function instancedGroup(scene, geometry, items, { shadows = true, sink = 0.2, tint } = {}) {
+/** Splits scattered items into the square patches they fall in. */
+function byPatch(items) {
+  const groups = new Map();
+  for (const item of items) {
+    const key = patchOf(item);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  }
+  return groups.values();
+}
+
+function instancedGroup(scene, geometry, items, { shadows = true, sink = 0.2, tint, details } = {}) {
   const dummy = new THREE.Object3D();
   const color = new THREE.Color();
   const mesh = new THREE.InstancedMesh(geometry, vertexColorMaterial, items.length);
@@ -430,25 +478,28 @@ function instancedGroup(scene, geometry, items, { shadows = true, sink = 0.2, ti
   mesh.receiveShadow = true;
   mesh.computeBoundingSphere();
   scene.add(mesh);
+  details?.push(mesh);
 }
 
-function buildTrees(scene, obstacles) {
+function buildTrees(scene, obstacles, details) {
   const pines = [];
   const rounds = [];
   const birches = [];
   const bushes = [];
-  for (let i = 0; i < 3400; i++) {
-    const x = (random() - 0.5) * 1000;
-    const z = (random() - 0.5) * 1000;
+  for (let i = 0; i < 6800; i++) {
+    const x = (random() - 0.5) * 1360;
+    const z = (random() - 0.5) * 1360;
     const r = Math.hypot(x, z);
-    if (r > 490 || !isClearGround(x, z)) continue;
+    if (r > 670 || !isClearGround(x, z)) continue;
     // Dense woods in some places, open meadows in others.
     const woods = smoothstep(fractalNoise(x / 150 + 3.3, z / 150 + 8.1, 2, 5), 0.36, 0.6);
     if (random() > 0.1 + woods * 0.9) continue;
-    const tree = { x, z, scale: 0.65 + random() * 1.0, rotation: random() * Math.PI * 2 };
     const height = terrainHeight(x, z);
+    // Trees thin out towards the treeline and stop at it.
+    if (random() < smoothstep(height, 84, 104) || steepness(x, z) > 0.9) continue;
+    const tree = { x, z, scale: 0.65 + random() * 1.0, rotation: random() * Math.PI * 2 };
     const roll = random();
-    if (r > 300 || height > 45) pines.push(tree);
+    if ((r > 300 && r < UPLANDS_RADIUS + 40) || height > 45 || r > VALLEY_RADIUS) pines.push(tree);
     else if (roll < 0.16) rounds.push(tree);
     else if (roll < 0.3) birches.push({ ...tree, scale: 0.8 + random() * 0.5 });
     else pines.push(tree);
@@ -467,7 +518,7 @@ function buildTrees(scene, obstacles) {
   instanced(scene, pineGeometry(), pines, { tint: leafy(0.22, 0.06) });
   instanced(scene, roundTreeGeometry(), rounds, { tint: leafy(0.16, 0.06) });
   instanced(scene, birchGeometry(), birches, { tint: leafy(0.15, 0.05) });
-  instanced(scene, bushGeometry(), bushes, { sink: 0.1, shadows: false, tint: leafy(0.2, 0.08) });
+  instanced(scene, bushGeometry(), bushes, { sink: 0.1, shadows: false, tint: leafy(0.2, 0.08), details });
   for (const tree of [...pines, ...rounds, ...birches]) {
     if (Math.hypot(tree.x, tree.z) < VALLEY_RADIUS + 5)
       obstacles.push({ x: tree.x, z: tree.z, radius: 0.3 * tree.scale });
@@ -483,8 +534,8 @@ function buildTrees(scene, obstacles) {
     if (!isClearGround(spot.x, spot.z, { road: 7 }) || steepness(spot.x, spot.z) > 0.35) continue;
     (random() < 0.5 ? stumps : logs).push(spot);
   }
-  instanced(scene, stumpGeometry(), stumps, { sink: 0.05 });
-  instanced(scene, logGeometry(), logs, { sink: 0.08 });
+  instanced(scene, stumpGeometry(), stumps, { sink: 0.05, details });
+  instanced(scene, logGeometry(), logs, { sink: 0.08, details });
   for (const item of stumps) obstacles.push({ x: item.x, z: item.z, radius: 0.5 * item.scale });
   for (const item of logs) {
     const half = 2.1 * item.scale;
@@ -500,10 +551,12 @@ function buildRocks(scene, obstacles) {
   const add = rock => lists[Math.floor(random() * shapes.length)].push(rock);
 
   // Boulders scattered across the valley, often with a few smaller stones beside them.
-  for (let i = 0; i < 170; i++) {
-    const x = (random() - 0.5) * 720;
-    const z = (random() - 0.5) * 720;
+  for (let i = 0; i < 400; i++) {
+    const x = (random() - 0.5) * 2 * VALLEY_RADIUS;
+    const z = (random() - 0.5) * 2 * VALLEY_RADIUS;
     if (!isClearGround(x, z, { road: 8 })) continue;
+    // Stony ground up high has more of them.
+    if (terrainHeight(x, z) < 80 && Math.hypot(x, z) > UPLANDS_RADIUS && random() < 0.4) continue;
     const size = 0.6 + random() ** 2 * 2.4;
     add({ x, z, size, rotation: random() * 6.3, tilt: (random() - 0.5) * 0.3 });
     for (let k = Math.floor(random() * 3); k > 0; k--) {
@@ -516,10 +569,10 @@ function buildRocks(scene, obstacles) {
   }
   // Outcrops on steep ground, mostly up in the northern crags.
   let outcrops = 0;
-  for (let i = 0; i < 3000 && outcrops < 110; i++) {
-    const x = (random() - 0.5) * 900;
-    const z = (random() - 0.5) * 900;
-    if (Math.hypot(x, z) > 470 || steepness(x, z) < 0.55 || !isClearGround(x, z, { road: 10 })) continue;
+  for (let i = 0; i < 9000 && outcrops < 240; i++) {
+    const x = (random() - 0.5) * 2 * VALLEY_RADIUS;
+    const z = (random() - 0.5) * 2 * VALLEY_RADIUS;
+    if (Math.hypot(x, z) > VALLEY_RADIUS + 15 || steepness(x, z) < 0.55 || !isClearGround(x, z, { road: 10 })) continue;
     add({ x, z, size: 1.6 + random() * 2.6, rotation: random() * 6.3, tilt: (random() - 0.5) * 0.4, tall: 1.4 });
     outcrops++;
   }
@@ -545,35 +598,37 @@ function buildRocks(scene, obstacles) {
 }
 
 /** Wildflowers and grass tufts: tiny, numerous and shadowless. */
-function buildGroundCover(scene) {
+function buildGroundCover(scene, details) {
   const dummy = new THREE.Object3D();
   const tint = new THREE.Color();
   const flowerColors = ['#f3efdf', '#e9c75a', '#b49ac8', '#dd8f6e', '#8fa56a', '#8fa56a', '#8fa56a'];
   const flowers = [];
   const tufts = [];
-  for (let i = 0; i < 9000 && flowers.length < 2600; i++) {
-    const x = (random() - 0.5) * 640;
-    const z = (random() - 0.5) * 640;
+  for (let i = 0; i < 19000 && flowers.length < 4800; i++) {
+    const x = (random() - 0.5) * 2 * VALLEY_RADIUS;
+    const z = (random() - 0.5) * 2 * VALLEY_RADIUS;
     if (Math.hypot(x, z) > VALLEY_RADIUS - 4 || !isClearGround(x, z, { road: 6 })) continue;
+    if (terrainHeight(x, z) > 96) continue;
     // Flowers gather in drifts; tufts of long grass grow everywhere else.
     const drift = fractalNoise(x / 40 + 2, z / 40 + 6, 2, 17);
     if (drift > 0.55) flowers.push({ x, z, color: flowerColors[Math.floor(random() * flowerColors.length)] });
     else if (random() < 0.5) tufts.push({ x, z });
   }
-  const flowerMesh = new THREE.InstancedMesh(
-    new THREE.ConeGeometry(0.16, 0.5, 4),
-    flatMaterial('#ffffff'),
-    flowers.length,
-  );
-  flowers.forEach((flower, i) => {
-    dummy.position.set(flower.x, terrainHeight(flower.x, flower.z) + 0.2, flower.z);
-    dummy.rotation.set(0, random() * 3, 0);
-    dummy.scale.setScalar(0.7 + random() * 0.8);
-    dummy.updateMatrix();
-    flowerMesh.setMatrixAt(i, dummy.matrix);
-    flowerMesh.setColorAt(i, tint.set(flower.color));
-  });
-  scene.add(flowerMesh);
+  const flowerGeometry = new THREE.ConeGeometry(0.16, 0.5, 4);
+  for (const group of byPatch(flowers)) {
+    const mesh = new THREE.InstancedMesh(flowerGeometry, flatMaterial('#ffffff'), group.length);
+    group.forEach((flower, i) => {
+      dummy.position.set(flower.x, terrainHeight(flower.x, flower.z) + 0.2, flower.z);
+      dummy.rotation.set(0, random() * 3, 0);
+      dummy.scale.setScalar(0.7 + random() * 0.8);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+      mesh.setColorAt(i, tint.set(flower.color));
+    });
+    mesh.computeBoundingSphere();
+    scene.add(mesh);
+    details.push(mesh);
+  }
 
   const blades = new PartsBuilder();
   for (let k = 0; k < 3; k++) {
@@ -584,20 +639,21 @@ function buildGroundCover(scene) {
       rz: (k - 1) * 0.2,
     });
   }
-  const tuftMesh = new THREE.InstancedMesh(
-    blades.geometry(),
-    flatMaterial('#ffffff', { vertexColors: true }),
-    tufts.length,
-  );
-  tufts.forEach((tuft, i) => {
-    dummy.position.set(tuft.x, terrainHeight(tuft.x, tuft.z), tuft.z);
-    dummy.rotation.set(0, random() * 6.3, 0);
-    dummy.scale.setScalar(0.8 + random() * 0.7);
-    dummy.updateMatrix();
-    tuftMesh.setMatrixAt(i, dummy.matrix);
-    tuftMesh.setColorAt(i, tint.setHSL(0.2 + random() * 0.05, 0.3, 0.42 + random() * 0.12));
-  });
-  scene.add(tuftMesh);
+  const tuftGeometry = blades.geometry();
+  for (const group of byPatch(tufts)) {
+    const mesh = new THREE.InstancedMesh(tuftGeometry, flatMaterial('#ffffff', { vertexColors: true }), group.length);
+    group.forEach((tuft, i) => {
+      dummy.position.set(tuft.x, terrainHeight(tuft.x, tuft.z), tuft.z);
+      dummy.rotation.set(0, random() * 6.3, 0);
+      dummy.scale.setScalar(0.8 + random() * 0.7);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+      mesh.setColorAt(i, tint.setHSL(0.2 + random() * 0.05, 0.3, 0.42 + random() * 0.12));
+    });
+    mesh.computeBoundingSphere();
+    scene.add(mesh);
+    details.push(mesh);
+  }
 }
 
 /** A ring of snow-capped peaks beyond the fence, merged into one mesh. */
@@ -608,13 +664,13 @@ function buildPeaks(scene) {
   const rock = new THREE.Color();
   const color = new THREE.Color();
   const tones = ['#8caaa3', '#97aaa8', '#9eafb0', '#899e99'];
-  for (let m = 0; m < 26; m++) {
-    const angle = (m / 26) * Math.PI * 2;
-    const distance = 500 + random() * 155;
+  for (let m = 0; m < 30; m++) {
+    const angle = (m / 30) * Math.PI * 2;
+    const distance = 700 + random() * 190;
     const cx = Math.sin(angle) * distance;
     const cz = Math.cos(angle) * distance;
-    const radius = 95 + random() * 100;
-    const height = 115 + random() * 135;
+    const radius = 110 + random() * 110;
+    const height = 130 + random() * 150;
     const base = naturalHeight(cx, cz) - 18;
     rock.set(tones[m % 4]);
     const sides = 11;
@@ -719,10 +775,22 @@ export function buildScenery(scene) {
     }
   }
   const water = buildWater(scene);
-  buildTrees(scene, obstacles);
+  // Small things that are too small to make out from far away, in patches that are hidden then.
+  const details = [];
+  buildTrees(scene, obstacles, details);
   buildRocks(scene, obstacles);
-  buildGroundCover(scene);
+  buildGroundCover(scene, details);
   buildPeaks(scene);
   buildFences(scene);
-  return { obstacles, update: dt => water.update(dt) };
+  return {
+    obstacles,
+    /** `eye` is where the camera is. */
+    update(dt, eye) {
+      water.update(dt);
+      for (const mesh of details) {
+        const { center, radius } = mesh.boundingSphere;
+        mesh.visible = Math.hypot(center.x - eye.x, center.z - eye.z) - radius < DETAIL_RANGE;
+      }
+    },
+  };
 }

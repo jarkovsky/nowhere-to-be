@@ -23,11 +23,14 @@ import {
   KNOLLS,
   SERLICH,
   MESA,
+  SUMMIT,
+  FIELDS,
+  UPLAND_HILLS,
   lakeDistance,
 } from './layout.js';
 
 const HALF = WORLD_SIZE / 2;
-const INNER = 385;
+const INNER = 560;
 const FINE_CELL = 3.5;
 const FINE_CELLS = Math.round((2 * INNER) / FINE_CELL);
 const COARSE_CELLS = 26;
@@ -53,11 +56,25 @@ const LAKE_BED = -5.5;
 
 const bump = (x, z, cx, cz, radius, height) => height * Math.exp(-((x - cx) ** 2 + (z - cz) ** 2) / radius ** 2);
 
+const softplus = x => (x > 30 ? x : Math.log1p(Math.exp(x)));
+
 /**
- * The untouched landscape: rolling meadows, a few hills, crags to the north,
- * a rising rim around the fence and a broad bowl for the lake.
+ * How high the rim has risen at a distance from the centre: it climbs steadily out
+ * of the valley, levels off onto the uplands past the old fence, and rises into a
+ * wall of mountains beyond the new one. Higher in five ragged lobes, lower in the
+ * passes between them.
  */
-export function naturalHeight(x, z) {
+function rimHeight(r, angle) {
+  const lobes = 1 + Math.sin(angle * 5 + 0.5);
+  const valley = (r0 => Math.max(0, r0 - 180) * 0.2 + Math.max(0, r0 - 245) * 0.12 * lobes)(Math.min(r, 330));
+  const climb = 0.2 + 0.12 * lobes;
+  const uplands = r > 330 ? climb * 42 * (1 - Math.exp(-(r - 330) / 42)) : 0;
+  const wall = softplus((r - 512) / 14) * 14 * (0.45 + 0.12 * lobes);
+  return valley + uplands + wall;
+}
+
+/** The landscape before the farmland is levelled and the lake dug out. */
+function roughHeight(x, z) {
   const r = Math.hypot(x, z);
   const angle = Math.atan2(z, x);
   // Noise is sampled on rotated axes so no ridge lines up with the grid.
@@ -67,19 +84,40 @@ export function naturalHeight(x, z) {
   let h = 4 + (fractalNoise(u / 190 + 7.3, v / 190 + 3.1, 3) - 0.5) * 22;
   h += (valueNoise(u / 48, v / 48, 11) - 0.5) * 4;
   h += Math.sin(x * 0.019) * 2.5 + Math.cos(z * 0.022) * 2.5;
-  // The valley rim gets steeper and more ragged towards the fence.
-  h += Math.max(0, r - 180) * 0.2;
-  h += Math.max(0, r - 245) * 0.12 * (1 + Math.sin(angle * 5 + 0.5));
+  h += rimHeight(r, angle);
 
   h += bump(x, z, -125, -95, 110, 18); // the foothills of Echo Mountain
-  for (const knoll of [...KNOLLS, SERLICH]) h += bump(x, z, knoll.x, knoll.z, knoll.radius, knoll.height);
+  for (const knoll of [...KNOLLS, SERLICH, SUMMIT, ...UPLAND_HILLS])
+    h += bump(x, z, knoll.x, knoll.z, knoll.radius, knoll.height);
   h += MESA.height * (1 - smoothstep(Math.hypot(x - MESA.x, z - MESA.z), MESA.top, MESA.edge));
-  // Rough, rocky hills to the north (negative Z), smoothing out on the slopes of Šerlich.
+  // Rough, rocky hills to the north (negative Z), smoothing out on the slopes of Šerlich
+  // and growing more rugged out in the uplands.
   const crags = smoothstep(-z, 150, 240) * smoothstep(Math.hypot(x - SERLICH.x, z - SERLICH.z), 50, 95);
-  if (crags > 0) h += crags * Math.max(0, fractalNoise(v / 52, u / 52, 3, 23) - 0.3) * 34;
+  if (crags > 0) {
+    // Out in the uplands the crags grow taller and further apart.
+    const out = smoothstep(r, 345, 430);
+    const near = Math.max(0, fractalNoise(v / 52, u / 52, 3, 23) - 0.3) * 34;
+    const far = out > 0 ? Math.max(0, fractalNoise(v / 95 + 4.1, u / 95 + 2.7, 3, 29) - 0.32) * 62 : 0;
+    h += crags * lerp(near, far, out);
+  }
   // A shelf behind the waterfall, so the stream drops off real high ground.
   h += 12 * smoothstep(x - WATERFALL.x, 4, 36) * (1 - smoothstep(Math.abs(z - WATERFALL.z), 26, 70));
+  return h;
+}
 
+const FIELDS_LEVEL = roughHeight(FIELDS.x, FIELDS.z);
+
+/**
+ * The untouched landscape: rolling meadows, a few hills, crags to the north,
+ * uplands beyond the valley rim, a broad bowl for the lake and level farmland.
+ */
+export function naturalHeight(x, z) {
+  let h = roughHeight(x, z);
+  const farmland = 1 - smoothstep(Math.hypot(x - FIELDS.x, z - FIELDS.z), FIELDS.radius, FIELDS.radius + 60);
+  if (farmland > 0) {
+    const gentle = FIELDS_LEVEL + Math.sin(x * 0.015) * 1.5 + Math.cos(z * 0.012) * 1.5;
+    h = lerp(h, gentle, farmland * 0.9);
+  }
   const lake = lakeDistance(x, z);
   if (lake < 2.1) h = lerp(LAKE_BED, h, smoothstep(lake, 0.92, 2.1));
   return h;
@@ -309,6 +347,15 @@ export function waterLevel(x, z) {
     if (creek.distance < CREEK_HALF_WIDTH + 4) level = Math.max(level, creekLevel(creek.s));
   }
   return level;
+}
+
+/** Roughly where the snow starts, in metres above the valley floor. */
+export const SNOWLINE = 116;
+
+/** How snowy the ground is: 0 below the snowline, 1 above it. The line wanders a little. */
+export function snowCover(x, z, h = terrainHeight(x, z)) {
+  const line = SNOWLINE + (valueNoise(x / 37, z / 37, 41) - 0.5) * 16;
+  return smoothstep(h, line - 1.5, line + 1.5);
 }
 
 export function waterDepth(x, z) {

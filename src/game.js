@@ -32,7 +32,7 @@ import {
 import { buildScenery } from './world/scenery.js';
 import { createSecrets } from './world/secrets.js';
 import { createSurfaces } from './world/surfaces.js';
-import { drivingHeight, isDriveable, onDeck, terrainHeight, waterDepth } from './world/terrain.js';
+import { drivingHeight, isDriveable, onDeck, snowCover, terrainHeight, waterDepth } from './world/terrain.js';
 import { createWildlife } from './world/wildlife.js';
 
 const MAX_PIXEL_RATIO = 1.5;
@@ -53,9 +53,9 @@ function surfaceUnder(x, z) {
   if (waterDepth(x, z) > 0.15) return 'water';
   const patch = surfaceAt(x, z);
   if (patch === 'snow' || patch === 'leaves') return patch;
-  if (ROAD.nearest(x, z).distance < ROAD_HALF_WIDTH + 0.6) return 'road';
-  if (CAMP_TRAIL.nearest(x, z).distance < 2.6) return 'road';
-  if (TRACKS.some(track => track.path.nearest(x, z).distance < 2)) return 'track';
+  if (snowCover(x, z) > 0.5) return 'snow';
+  if (ROAD.isNear(x, z, ROAD_HALF_WIDTH + 0.6) || CAMP_TRAIL.isNear(x, z, 2.6)) return 'road';
+  if (TRACKS.some(track => track.path.isNear(x, z, 2))) return 'track';
   return 'grass';
 }
 
@@ -551,7 +551,7 @@ export function createGame(canvas) {
     car.setLights(night, driving && wasBraking);
     car.animate(clock);
     updateTent(dt, night);
-    scenery.update(dt);
+    scenery.update(dt, camera.position);
     train.update(dt, { player: state });
     helicopter.update(dt);
     const crossingClosed = train.crossingClosed();

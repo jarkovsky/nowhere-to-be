@@ -2,9 +2,11 @@
 // agree on the same coordinates. +X is east, +Z is south, heights are metres.
 import { createPath, headingOf } from './path.js';
 
-export const WORLD_SIZE = 1600;
+export const WORLD_SIZE = 2000;
 /** The fence: the car can't drive further from the centre than this. */
-export const VALLEY_RADIUS = 355;
+export const VALLEY_RADIUS = 520;
+/** The old fence line. Inside it is the valley; between it and the fence are the uplands. */
+export const UPLANDS_RADIUS = 355;
 
 export const LAKE = { x: 93, z: -54, rx: 61, rz: 44, level: -2.2 };
 
@@ -19,6 +21,21 @@ export const KNOLLS = [
 
 /** A rounded summit in the northern hills (after Šerlich in the Orlické hory), with a mountain hut on top. */
 export const SERLICH = { x: 150, z: -236, radius: 60, height: 16 };
+
+/** The highest summit in the uplands (after Velká Deštná), snowy on top, with a lookout tower. */
+export const SUMMIT = { x: -292, z: -330, radius: 72, height: 46 };
+
+/** Rounded hills out in the uplands, and a rocky peak among the northern crags. */
+export const UPLAND_HILLS = [
+  { x: 420, z: 40, radius: 52, height: 20 },
+  { x: -262, z: 338, radius: 62, height: 24 },
+  { x: 40, z: 452, radius: 46, height: 16 },
+  { x: -446, z: -40, radius: 56, height: 22 },
+  { x: 236, z: -404, radius: 58, height: 38 },
+];
+
+/** Farmland in a broad pass to the south-east, flattened for fields. `heading` is the way the rows run. */
+export const FIELDS = { x: 262, z: 318, radius: 95, heading: 0.85 };
 
 /** A flat-topped hill out to the west. */
 export const MESA = { x: -262, z: 30, top: 26, edge: 62, height: 13 };
@@ -131,6 +148,9 @@ export const HALT = { from: 5, to: 33, side: -1 };
 
 export const CABIN = { x: -62, z: 112, rotation: 0.35 };
 
+/** A small upland farm where the fields track ends: a timber cottage and an open shed. */
+export const FARMSTEAD = { x: 236, z: 312, rotation: FIELDS.heading };
+
 export const LOOKOUT = { x: -148, z: -44, heading: headingOf(1, 0.1) };
 
 function nearestRoadSample(x, z) {
@@ -177,6 +197,53 @@ export const TRACKS = [
     ruts: false,
     width: 3.6,
     path: createPath(fromRoad(3, 111, [0, 128], [-4, 146], [-10, 164], [-16, 180])),
+  },
+  {
+    // Up the long north-west slope and round three hairpins to the summit.
+    id: 'summit',
+    ruts: true,
+    path: createPath(
+      fromRoad(
+        -178,
+        -34,
+        [-205, -72],
+        [-238, -110],
+        [-268, -145],
+        [-300, -165],
+        [-322, -188],
+        [-318, -210],
+        [-290, -214],
+        [-262, -218],
+        [-246, -232],
+        [-258, -250],
+        [-286, -258],
+        [-314, -268],
+        [-332, -286],
+        [-326, -306],
+        [-306, -312],
+        [-300, -320],
+      ),
+    ),
+  },
+  {
+    // Past the chapel and up onto the farmland in the south-east.
+    id: 'fields',
+    ruts: true,
+    path: createPath(
+      fromRoad(
+        112,
+        80,
+        [148, 100],
+        [178, 128],
+        [192, 160],
+        [214, 180],
+        [238, 190],
+        [230, 214],
+        [218, 240],
+        [228, 272],
+        [244, 298],
+      ),
+    ),
   },
   {
     id: 'shore',
@@ -245,6 +312,8 @@ export const PLACES = [
   { id: 'roadworks', x: ROADWORKS.site.x, z: ROADWORKS.site.z, radius: 24 },
   { id: 'helipad', x: HELIPAD.x, z: HELIPAD.z, radius: 16 },
   { id: 'chapel', x: CHAPEL.x, z: CHAPEL.z, radius: 14 },
+  { id: 'summit', x: SUMMIT.x, z: SUMMIT.z, radius: 24 },
+  { id: 'fields', x: FARMSTEAD.x, z: FARMSTEAD.z, radius: 40 },
 ];
 
 /** Ground that flattens so buildings and camp furniture sit on level ground. */
@@ -261,6 +330,8 @@ export const PADS = [
   { x: ROADWORKS.site.x, z: ROADWORKS.site.z, radius: 14, falloff: 10 },
   { x: HELIPAD.x, z: HELIPAD.z, radius: 10.5, falloff: 7 },
   { x: CHAPEL.x, z: CHAPEL.z, radius: 5, falloff: 6 },
+  { x: SUMMIT.x, z: SUMMIT.z, radius: 8, falloff: 10 },
+  { x: FARMSTEAD.x, z: FARMSTEAD.z, radius: 12, falloff: 10 },
 ];
 
 function patchOnRoad(x, z) {
@@ -300,11 +371,11 @@ export const HABITATS = {
 export const GNOMES = [
   { x: -71, z: 121 }, // behind the cabin
   { x: 176, z: -64 }, // down by the creek, under the bridge
-  { x: 214, z: -71 }, // beside the waterfall pool
+  { x: 211.5, z: -70 }, // beside the waterfall pool
   { ...ROAD.offset(TUNNEL.s + 6, 5.4) }, // in the tunnel
   { x: -170, z: 58 }, // in the autumn grove
   { x: -144, z: -40 }, // at the lookout
-  { x: 40, z: -318 }, // up against the northern fence
+  { x: 40, z: -318 }, // on the northern ridge
   { x: 64, z: 262 }, // on the southern hills
   { x: -318, z: 70 }, // far out west
   { x: 268, z: 96 }, // on the eastern slopes

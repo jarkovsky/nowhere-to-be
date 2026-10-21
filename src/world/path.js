@@ -44,7 +44,7 @@ export function createPath(points, { closed = false, spacing = 1 } = {}) {
   // Samples bucketed into a coarse grid, so nearby lookups stay cheap every frame.
   const BUCKET = 24;
   const buckets = new Map();
-  const bucketKey = (bx, bz) => `${bx},${bz}`;
+  const bucketKey = (bx, bz) => bx * 8192 + bz;
   for (const sample of samples) {
     const key = bucketKey(Math.floor(sample.x / BUCKET), Math.floor(sample.z / BUCKET));
     if (!buckets.has(key)) buckets.set(key, []);
@@ -80,13 +80,28 @@ export function createPath(points, { closed = false, spacing = 1 } = {}) {
     return { sample: best, s: best.s, distance: Math.sqrt(bestDistance), side };
   }
 
+  /** True if the path passes within `distance` of a point. Quick, but only for distances up to 24 m. */
+  function isNear(x, z, distance) {
+    const bx = Math.floor(x / BUCKET);
+    const bz = Math.floor(z / BUCKET);
+    const limit = distance * distance;
+    for (let i = -1; i <= 1; i++) {
+      for (let j = -1; j <= 1; j++) {
+        for (const sample of buckets.get(bucketKey(bx + i, bz + j)) ?? []) {
+          if ((x - sample.x) ** 2 + (z - sample.z) ** 2 < limit) return true;
+        }
+      }
+    }
+    return false;
+  }
+
   /** World position at distance `along` the path and `side` metres to its right. */
   function offset(along, side = 0) {
     const p = at(along);
     return { x: p.x - p.dz * side, z: p.z + p.dx * side, dx: p.dx, dz: p.dz };
   }
 
-  return { closed, length, spacing: step, samples, at, nearest, offset, wrap };
+  return { closed, length, spacing: step, samples, at, nearest, isNear, offset, wrap };
 }
 
 /** Heading (rotation about +Y) of something facing along direction (dx, dz). */

@@ -21,6 +21,8 @@ import {
   PLACES,
   RAILWAY,
   ROADWORKS,
+  SUMMIT,
+  FARMSTEAD,
 } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder } from '../build.js';
@@ -237,13 +239,37 @@ function paintMap(ctx, w, h) {
     roadworks: 'Roadworks',
     helipad: 'Helipad',
     chapel: 'Chapel',
+    summit: 'Velká Deštná',
+    fields: 'Upland farm',
   };
   ctx.font = `700 26px ${FONT}`;
   ctx.textAlign = 'center';
   // Labels sit above their dot, except where that would crowd a neighbour.
   const below = ['bridge', 'jetty', 'lookout', 'bunker', 'helipad'];
+  const margin = 46;
   for (const place of PLACES) {
     ctx.fillStyle = '#3f4f45';
+    // Places in the uplands are off the edge of the map: an arrow at the edge points the way.
+    const x = px(place.x);
+    const y = pz(place.z);
+    const ex = Math.min(w - margin, Math.max(margin, x));
+    const ey = Math.min(h - margin, Math.max(34, y));
+    if (ex !== x || ey !== y) {
+      const angle = Math.atan2(y - ey, x - ex);
+      ctx.save();
+      ctx.translate(ex, ey);
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.moveTo(16, 0);
+      ctx.lineTo(-8, -13);
+      ctx.lineTo(-8, 13);
+      ctx.fill();
+      ctx.restore();
+      ctx.textAlign = ex > w / 2 ? 'right' : 'left';
+      ctx.fillText(labels[place.id], ex + (ex > w / 2 ? -26 : 26), ey + 9);
+      ctx.textAlign = 'center';
+      continue;
+    }
     ctx.beginPath();
     ctx.arc(px(place.x), pz(place.z), 7, 0, Math.PI * 2);
     ctx.fill();
@@ -308,6 +334,8 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
     shore: ['JETTY', JETTY],
     chata: ['MASARYKOVA CHATA', CHATA],
     roadworks: ['ROADWORKS', ROADWORKS.site],
+    summit: ['VELKÁ DEŠTNÁ', SUMMIT],
+    fields: ['UPLAND FARM', FARMSTEAD],
   };
   for (const track of TRACKS) {
     const [text, destination] = destinations[track.id];
@@ -317,6 +345,17 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
     trailSign(scene, parts, s - 12, Math.sign(side) || 1, text, destination);
   }
   addMapBoard(scene, parts);
+
+  // A board on the summit, facing the end of the track.
+  const summitTrack = TRACKS.find(track => track.id === 'summit').path;
+  const arrival = summitTrack.at(summitTrack.length);
+  const toTrack = Math.atan2(arrival.x - SUMMIT.x, arrival.z - SUMMIT.z);
+  addSign(scene, parts, {
+    x: SUMMIT.x + Math.sin(toTrack + 0.6) * 7,
+    z: SUMMIT.z + Math.cos(toTrack + 0.6) * 7,
+    yaw: toTrack,
+    text: 'VELKÁ DEŠTNÁ 1115 m',
+  });
 
   // A name board over the tunnel entrance.
   const { x, y, z, yaw } = tunnelPortal;

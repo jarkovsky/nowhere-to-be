@@ -12,6 +12,7 @@ import { buildRailway } from './railway.js';
 import { buildRoadworks } from './roadworks.js';
 import { buildHelipad } from './helipad.js';
 import { buildChapel } from './chapel.js';
+import { buildSummit } from './summit.js';
 import { buildSigns } from './signs.js';
 
 export { insideTunnel } from './tunnel.js';
@@ -32,6 +33,7 @@ export function buildLandmarks(scene, obstacles) {
   const roadworks = buildRoadworks(scene, obstacles);
   const helipad = buildHelipad(scene, obstacles);
   buildChapel(scene, obstacles);
+  buildSummit(scene, obstacles);
   buildSigns(scene, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard });
 
   let time = 0;
