@@ -8,7 +8,7 @@ export const CAR = {
   wheelbase: 2.44,
   topSpeed: 14,
   reverseSpeed: 5,
-  cruiseSpeed: 12,
+  cruiseSpeed: 7,
   acceleration: 5.5,
   braking: 13,
   /** Two circles along the body approximate its footprint for collisions. */
