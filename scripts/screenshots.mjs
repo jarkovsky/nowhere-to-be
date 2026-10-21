@@ -198,18 +198,7 @@ try {
   await capture(page, 'camp', 5000);
 
   await page.getByRole('button', { name: 'Wake up' }).click();
-  // Visit a few more places so the scrapbook has something in it.
-  for (const place of ['waterfall', 'lookout', 'jetty', 'tower']) {
-    await inGame(page, `const p = L.PLACES.find(p => p.id === '${place}'); g.teleport(p.x, p.z, 0);`);
-    await page.waitForTimeout(400);
-  }
-  await inGame(page, `const d = L.HABITATS.deer.start; g.teleport(d.x + 8, d.z + 8, 0);`);
-  await page.waitForTimeout(600);
   await page.getByRole('button', { name: 'Pause' }).click();
-  await page.getByRole('button', { name: /Scrapbook/ }).click();
-  await capture(page, 'scrapbook', 800);
-
-  await page.getByRole('button', { name: 'Back to menu' }).click();
   await page.getByRole('button', { name: /^Car/ }).click();
   await page.getByRole('button', { name: 'Flag' }).click();
   await page.getByRole('button', { name: 'Teddy' }).click();

@@ -71,7 +71,6 @@ export function createChickens(scene) {
 
   return {
     /** How close the nearest chicken is. */
-    distanceTo: point => Math.min(...birds.map(bird => Math.hypot(point.x - bird.x, point.z - bird.z))),
     /** A honk sends the nearby ones running. Returns true if any heard it. */
     hearHorn(x, z) {
       let heard = false;

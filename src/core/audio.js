@@ -367,13 +367,6 @@ export function createAudio() {
       [784, 988, 1175, 1568].forEach((f, i) => tone(f, now + i * 0.07, 0.5, { volume: 0.06 }));
     },
 
-    sticker() {
-      if (!playable()) return;
-      const now = context.currentTime;
-      tone(659, now, 0.35, { volume: 0.05 });
-      tone(988, now + 0.12, 0.5, { volume: 0.05 });
-    },
-
     bump(strength) {
       if (!playable()) return;
       tone(90, context.currentTime, 0.18, { end: 45, volume: Math.min(0.14, strength * 0.025) });

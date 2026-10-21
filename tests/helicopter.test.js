@@ -6,11 +6,10 @@ import { terrainHeight } from '../src/world/terrain.js';
 import { createHelicopter } from '../src/vehicles/helicopter.js';
 
 test('a honk beside the helipad sends the helicopter round the valley and back onto the pad', () => {
-  let takeOffs = 0;
-  const helicopter = createHelicopter(new THREE.Scene(), { onTakeOff: () => takeOffs++ });
+  const helicopter = createHelicopter(new THREE.Scene());
   assert.equal(helicopter.hearHorn({ x: HELIPAD.x + 200, z: HELIPAD.z }), false, 'too far away to hear');
   assert.equal(helicopter.hearHorn({ x: HELIPAD.x + 10, z: HELIPAD.z }), true);
-  assert.equal(takeOffs, 1);
+  assert.equal(helicopter.getState().phase, 'starting');
   let highest = -Infinity;
   let lowestClearance = Infinity;
   for (let t = 0; t < 180 && (t < 10 || helicopter.getState().phase !== 'parked'); t += 0.05) {

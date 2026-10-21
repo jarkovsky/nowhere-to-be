@@ -356,7 +356,7 @@ export function createTraffic(scene) {
       if (!r) return 0;
       return Math.max(0, 1 - Math.hypot(r.root.position.x - player.x, r.root.position.z - player.z) / 150);
     },
-    /** The emergency vehicle that is out, and how near it is, for the scrapbook. */
+    /** The emergency vehicle that is out, if any, and where it is on the trail. */
     emergency() {
       const r = responders.find(responder => responder.active);
       return r

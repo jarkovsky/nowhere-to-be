@@ -237,7 +237,7 @@ function walkCycle(time, wait, duration) {
   return { progress: 1 - (phase - 2 * wait - duration) / duration, walking: true, returning: true };
 }
 
-export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} } = {}) {
+export function createWildlife(scene, { onCall = () => {} } = {}) {
   const deerGroup = { ...HABITATS.deer, animals: [deer(), deer()], kind: 'deer', startle: 0 };
   deerGroup.animals[1].root.scale.setScalar(0.78);
   const duckGroup = {
@@ -463,7 +463,6 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
       splash.scale.setScalar(0.6 + after * 1.6);
       splash.material.opacity = 0.7 * (1 - after);
     }
-    return jumper.visible ? Math.hypot(player.x - leap.x, player.z - leap.z) : Infinity;
   }
 
   function placeRabbit() {
@@ -549,7 +548,6 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
           ? 0.6 * (j < 2 ? -1 : 1)
           : 0;
     });
-    return distance;
   }
 
   const wolves = createWolves(scene, { onCall });
@@ -620,24 +618,13 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
       updateHerd(dt);
       updateGeese();
       updateEagle();
-      const fishDistance = updateFish(dt, player);
-      const hunterDistance = updateHunter(dt, player);
+      updateFish(dt, player);
+      updateHunter(dt, player);
       wolves.update(dt, player, night);
       chickens.update(dt, player);
 
       const close = (p, range) => Math.hypot(player.x - p.x, player.z - p.z) < range;
       for (const group of foxGroups) group.animals[0].root.visible = close(group.animals[0].root.position, 230);
-      if (close(herd[0], 30)) onSpotted('cows');
-      if (foxGroups.some(group => close(group.animals[0].root.position, 28)) || hunterDistance < 30) onSpotted('fox');
-      if (wolves.distanceTo(player) < 45) onSpotted('wolves');
-      if (chickens.distanceTo(player) < 22) onSpotted('chickens');
-      if (close(leadGoose, 75)) onSpotted('geese');
-      if (close(soarer.position, 60)) onSpotted('eagle');
-      if (fishDistance < 45) onSpotted('fish');
-      if (close(deerGroup.animals[0].root.position, 30)) onSpotted('deer');
-      if (close(duckGroup.animals[0].root.position, 30)) onSpotted('ducks');
-      if (close(HABITATS.sheep, 26)) onSpotted('sheep');
-      if (distance < 25 && rabbitState.progress < 0.95) onSpotted('rabbit');
     },
   };
 }

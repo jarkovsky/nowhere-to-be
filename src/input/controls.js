@@ -18,7 +18,6 @@ const ACTION_KEYS = {
   KeyP: 'pause',
   KeyH: 'horn',
   KeyR: 'home',
-  KeyB: 'scrapbook',
   KeyC: 'garage',
   KeyM: 'sound',
   KeyE: 'cruise',
@@ -56,8 +55,6 @@ export function createControls({ touchRoot, tilt, onAction, isDriving }) {
       onAction('konami');
       return;
     }
-    // The "B" of the code shouldn't open the scrapbook.
-    if (progressing && konami > 8) return;
     const action = ACTION_KEYS[event.code];
     if (action && !event.repeat) {
       // Let dialogs handle Escape themselves while they are open.

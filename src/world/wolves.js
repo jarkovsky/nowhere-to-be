@@ -77,7 +77,6 @@ export function createWolves(scene, { onCall = () => {} } = {}) {
   }
 
   return {
-    distanceTo: point => Math.hypot(point.x - leader.x, point.z - leader.z),
     getState: () => ({ x: leader.x, z: leader.z, s, watching: watching > 0, howling: howling > 0 }),
     hearHorn(x, z) {
       if (Math.hypot(x - leader.x, z - leader.z) < 70) howl();

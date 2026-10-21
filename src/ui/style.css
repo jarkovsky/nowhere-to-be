@@ -573,74 +573,13 @@ body.touch .keys {
   height: 18px;
 }
 
-/* --- Scrapbook ------------------------------------------------------------------ */
-
-.sticker-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.sticker {
-  padding: 10px 10px 12px;
-  border-radius: 10px;
-  background: #fffdf4;
-  border: 1px solid #e7e0cb;
-}
-
-.sticker svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  margin-bottom: 8px;
-}
-
-.sticker:nth-child(odd) svg {
-  transform: rotate(-2deg);
-}
-
-.sticker:nth-child(even) svg {
-  transform: rotate(2deg);
-}
-
-.sticker strong {
-  display: block;
-  font-family: var(--serif);
-  font-weight: 400;
-  font-size: 16px;
-}
-
-.sticker p {
-  margin: 4px 0 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--ink-soft);
-}
-
-.sticker.locked {
-  background: transparent;
-  border-style: dashed;
-}
-
-.sticker.locked .blank {
-  display: grid;
-  place-items: center;
-  aspect-ratio: 160 / 130;
-  margin-bottom: 8px;
-  border-radius: 10px;
-  background: var(--paper-deep);
-  font-family: var(--serif);
-  font-style: italic;
-  font-size: 32px;
-  color: #a2a893;
-}
-
 .gnome-tally {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-top: 20px;
-  padding: 14px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px 14px;
   border-radius: 10px;
   background: var(--paper-deep);
 }
@@ -651,12 +590,12 @@ body.touch .keys {
 }
 
 .gnome-tally .gnome-row {
-  gap: 2px;
+  gap: 3px;
 }
 
 .gnome-tally .gnome-row span {
-  width: 14px;
-  height: 20px;
+  width: 26px;
+  height: 37px;
 }
 
 /* --- Garage --------------------------------------------------------------------- */

@@ -1,9 +1,9 @@
-// The DOM side of the game: title screen, pause menu, scrapbook, garage and toasts.
+// The DOM side of the game: title screen, pause menu, garage and toasts.
 // It knows nothing about Three.js; the game talks to it through callbacks.
 import { CAR_COLORS } from '../vehicles/car.js';
 import { HORNS } from '../core/audio.js';
-import { STICKERS, COLORS, DECORATIONS, VEHICLES } from '../core/journal.js';
-import { STICKER_INFO, stickerArt, gnomeArt, gnomeIcon } from './stickers.js';
+import { COLORS, DECORATIONS, VEHICLES } from '../core/journal.js';
+import { gnomeArt, gnomeIcon } from './art.js';
 
 const $ = id => document.getElementById(id);
 
@@ -68,7 +68,6 @@ export function createUI({ journal, gnomeCount, on }) {
   function showPage(name) {
     for (const page of menu.querySelectorAll('.menu-page')) page.hidden = page.dataset.page !== name;
     setShowroom(name === 'garage');
-    if (name === 'scrapbook') renderScrapbook();
     if (name === 'garage') renderGarage();
     menu.scrollTop = 0;
     menu.querySelector(`[data-page="${name}"] h2`)?.focus({ preventScroll: true });
@@ -84,26 +83,6 @@ export function createUI({ journal, gnomeCount, on }) {
   $('tilt-center').addEventListener('click', () => on.tiltCenter());
   $('home').addEventListener('click', () => on.home());
   $('camp').addEventListener('click', () => on.camp());
-
-  function renderScrapbook() {
-    const { found, gnomes } = journal.get();
-    $('sticker-grid').innerHTML = STICKERS.map(id => {
-      const info = STICKER_INFO[id];
-      if (!found.includes(id)) {
-        const name = info.secret ? '???' : info.name;
-        return `<article class="sticker locked"><div class="blank">?</div><strong>${name}</strong><p>${info.hint}</p></article>`;
-      }
-      return `<article class="sticker">${stickerArt(id)}<strong>${info.name}</strong><p>${info.story}</p></article>`;
-    }).join('');
-    $('gnome-tally-row').innerHTML = gnomeRow(gnomes.length);
-    $('gnome-count').textContent =
-      gnomes.length === gnomeCount
-        ? `All ${gnomeCount} garden gnomes found. Check the roof options!`
-        : `${gnomes.length} of ${gnomeCount} garden gnomes found`;
-    $('save-note').textContent = journal.isPersistent()
-      ? 'Saved in this browser.'
-      : 'Saving is unavailable here, so progress lasts for this visit.';
-  }
 
   /** A row of buttons. `isPressed(value)` marks the chosen ones; `choose(value)` returns the change to save. */
   function choiceButtons(container, values, labels, isPressed, choose) {
@@ -162,12 +141,18 @@ export function createUI({ journal, gnomeCount, on }) {
     );
   }
 
-  function refreshCounts() {
-    const { found, camp } = journal.get();
-    $('sticker-count').textContent = `${found.length} / ${STICKERS.length}`;
+  /** The gnomes found so far, the way home, and a note if progress can't be saved. */
+  function refreshMenu() {
+    const { gnomes, camp } = journal.get();
+    $('gnome-tally-row').innerHTML = gnomeRow(gnomes.length);
+    $('gnome-count').textContent =
+      gnomes.length === gnomeCount
+        ? `All ${gnomeCount} garden gnomes found. Check the roof options!`
+        : `${gnomes.length} of ${gnomeCount} garden gnomes found`;
     $('home-label').textContent = camp ? 'Back to camp' : 'Back to the start';
+    $('save-note').hidden = journal.isPersistent();
   }
-  refreshCounts();
+  refreshMenu();
 
   // --- Toasts ---------------------------------------------------------------------
 
@@ -230,7 +215,7 @@ export function createUI({ journal, gnomeCount, on }) {
       $('touch-controls').hidden = false;
     },
     openMenu({ nearCamp, camping }) {
-      refreshCounts();
+      refreshMenu();
       $('camp-row').hidden = !nearCamp || camping;
       showPage('main');
       if (!menu.open) menu.showModal();
@@ -247,9 +232,6 @@ export function createUI({ journal, gnomeCount, on }) {
     toast(entry) {
       toastQueue.push(entry);
       if (!toastTimer) showNextToast();
-    },
-    stickerToast(id) {
-      this.toast({ art: stickerArt(id), title: STICKER_INFO[id].name, detail: 'Added to your scrapbook' });
     },
     gnomeFound(count) {
       showGnomeProgress(count);
@@ -273,8 +255,7 @@ export function createUI({ journal, gnomeCount, on }) {
     setCamping(camping) {
       document.body.classList.toggle('camping', camping);
       $('wake').hidden = !camping;
-      refreshCounts();
+      refreshMenu();
     },
-    refresh: refreshCounts,
   };
 }

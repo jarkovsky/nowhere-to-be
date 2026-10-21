@@ -22,7 +22,6 @@ import {
   CAMP_TRAIL,
   GNOMES,
   LEVEL_CROSSING,
-  PLACES,
   ROAD,
   ROAD_HALF_WIDTH,
   SPAWN,
@@ -155,16 +154,10 @@ export function createGame(canvas) {
     },
   });
 
-  const discovered = id => {
-    if (!journal.discover(id)) return;
-    ui.stickerToast(id);
-    ui.refresh();
-    sound.sticker();
-  };
-  const wildlife = createWildlife(scene, { onSpotted: discovered, onCall: kind => sound.animal(kind) });
-  const secrets = createSecrets(scene, { onSpotted: discovered, onCall: kind => sound.animal(kind) });
+  const wildlife = createWildlife(scene, { onCall: kind => sound.animal(kind) });
+  const secrets = createSecrets(scene, { onCall: kind => sound.animal(kind) });
   obstacles.push(...secrets.obstacles);
-  const helicopter = createHelicopter(scene, { onTakeOff: () => discovered('helicopter') });
+  const helicopter = createHelicopter(scene);
   const gnomes = createGnomes(scene, {
     found: journal.get().gnomes,
     onFound: index => {
@@ -230,7 +223,6 @@ export function createGame(canvas) {
     if (action === 'sound') toggleSound();
     if (mode !== 'driving') return true;
     if (action === 'home') goHome();
-    if (action === 'scrapbook') pause('scrapbook');
     if (action === 'garage') pause('garage');
     if (action === 'cruise') toggleCruise();
     return true;
@@ -285,7 +277,6 @@ export function createGame(canvas) {
     if (Math.hypot(state.x - CAMP.x, state.z - CAMP.z) > 20) return;
     placeCar(state, CAMP);
     updateCarModel(0);
-    discovered('campsite');
     journal.save({ camp: true });
     atmosphere.setPreset('night');
     ui.setSky('night');
@@ -539,12 +530,6 @@ export function createGame(canvas) {
       wasBraking = input.brake || (input.backward && state.speed > 0.5) || (input.forward && state.speed < -0.5);
       throttle = !input.brake && (input.forward || input.backward || input.cruise) ? 1 : 0;
       parkedFor = Math.abs(state.speed) < 0.3 && !throttle ? parkedFor + dt : 0;
-      for (const place of PLACES) {
-        if (Math.hypot(state.x - place.x, state.z - place.z) < place.radius) discovered(place.id);
-      }
-      if (train.distanceTo(state) < 30) discovered('train');
-      const emergency = traffic.emergency();
-      if (emergency && Math.hypot(emergency.x - state.x, emergency.z - state.z) < 35) discovered(emergency.kind);
     }
 
     const sky = atmosphere.getState();

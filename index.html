@@ -62,10 +62,11 @@
       <section class="menu-page" data-page="main">
         <h2 id="menu-title" tabindex="-1">Paused</h2>
         <button id="resume" class="button primary">Resume</button>
+        <div class="gnome-tally">
+          <div id="gnome-tally-row" class="gnome-row" aria-hidden="true"></div>
+          <p id="gnome-count">0 of 10 garden gnomes found</p>
+        </div>
         <ul class="menu-list">
-          <li>
-            <button data-open="scrapbook">Scrapbook <span id="sticker-count" class="value">0 / 18</span></button>
-          </li>
           <li>
             <button data-open="garage">Car <span class="value">Vehicle, colour, roof, horn</span></button>
           </li>
@@ -92,6 +93,7 @@
           </li>
         </ul>
         <p id="tilt-status" class="note" hidden></p>
+        <p id="save-note" class="note" hidden>Saving is unavailable here, so progress lasts for this visit.</p>
         <dl class="keys">
           <div>
             <dt>Drive</dt>
@@ -118,19 +120,6 @@
             <dd><kbd>Esc</kbd></dd>
           </div>
         </dl>
-      </section>
-
-      <section class="menu-page" data-page="scrapbook" hidden>
-        <button class="back" data-open="main" aria-label="Back to menu">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg> Back
-        </button>
-        <h2 tabindex="-1">Scrapbook</h2>
-        <div id="sticker-grid" class="sticker-grid"></div>
-        <div class="gnome-tally">
-          <div id="gnome-tally-row" class="gnome-row" aria-hidden="true"></div>
-          <p id="gnome-count">0 of 10 garden gnomes found</p>
-        </div>
-        <p id="save-note" class="note">Saved in this browser.</p>
       </section>
 
       <section class="menu-page" data-page="garage" hidden>

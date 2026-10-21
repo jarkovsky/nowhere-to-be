@@ -75,7 +75,7 @@ function buildHelicopter() {
   return { root, rotor, tailRotor };
 }
 
-export function createHelicopter(scene, { onTakeOff = () => {} } = {}) {
+export function createHelicopter(scene) {
   const { root, rotor, tailRotor } = buildHelicopter();
   scene.add(root);
   const ground = terrainHeight(HELIPAD.x, HELIPAD.z) + 0.12;
@@ -164,7 +164,6 @@ export function createHelicopter(scene, { onTakeOff = () => {} } = {}) {
     hearHorn(point) {
       if (phase !== 'parked' || Math.hypot(point.x - pad.x, point.z - pad.z) > 40) return false;
       [phase, timer] = ['starting', 0];
-      onTakeOff();
       return true;
     },
     /** How loud the rotor is from a point, 0 to 1, and how fast the blades beat. */

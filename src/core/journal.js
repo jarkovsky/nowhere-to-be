@@ -1,52 +1,15 @@
-// Saved progress: scrapbook stickers, gnomes, car choices and settings.
+// Saved progress: gnomes, car choices and settings.
 // Stored in localStorage when available; otherwise it lasts for the visit.
 import { HORNS } from './audio.js';
 
 // The key keeps the game's original working title so existing saves survive.
 export const SAVE_KEY = 'little-wilds-adventures-v1';
 
-export const STICKERS = [
-  'waterfall',
-  'bridge',
-  'tunnel',
-  'campsite',
-  'lookout',
-  'farm',
-  'tower',
-  'windmill',
-  'jetty',
-  'chata',
-  'bunker',
-  'halt',
-  'train',
-  'roadworks',
-  'helipad',
-  'helicopter',
-  'ambulance',
-  'fireengine',
-  'chapel',
-  'summit',
-  'fields',
-  'deer',
-  'ducks',
-  'sheep',
-  'rabbit',
-  'cows',
-  'fox',
-  'wolves',
-  'chickens',
-  'fish',
-  'geese',
-  'eagle',
-  'owl',
-  'yeti',
-];
 export const COLORS = ['orange', 'sage', 'blue', 'berry', 'yellow', 'rainbow'];
 export const DECORATIONS = ['flag', 'teddy', 'tent', 'gnome'];
 export const VEHICLES = ['offroader', 'pickup', 'van', 'saloon', 'tractor'];
 
 const DEFAULTS = {
-  found: [],
   gnomes: [],
   color: 'orange',
   vehicle: 'offroader',
@@ -64,7 +27,6 @@ export function sanitise(saved) {
   const rainbow = saved.rainbow === true;
   const color = COLORS.includes(saved.color) && (saved.color !== 'rainbow' || rainbow) ? saved.color : DEFAULTS.color;
   return {
-    found: list(saved.found, id => STICKERS.includes(id)),
     gnomes: list(saved.gnomes, i => Number.isInteger(i) && i >= 0 && i < 64),
     color,
     vehicle: VEHICLES.includes(saved.vehicle) ? saved.vehicle : DEFAULTS.vehicle,
@@ -98,14 +60,8 @@ export function createJournal(storage) {
   }
 
   return {
-    get: () => ({ ...data, found: [...data.found], gnomes: [...data.gnomes], decorations: [...data.decorations] }),
+    get: () => ({ ...data, gnomes: [...data.gnomes], decorations: [...data.decorations] }),
     save,
-    /** Records a sticker. Returns true the first time only. */
-    discover(id) {
-      if (data.found.includes(id) || !STICKERS.includes(id)) return false;
-      save({ found: [...data.found, id] });
-      return true;
-    },
     collectGnome(index) {
       if (data.gnomes.includes(index)) return false;
       save({ gnomes: [...data.gnomes, index] });

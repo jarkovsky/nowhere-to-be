@@ -48,13 +48,17 @@ try {
   step('pauses and resumes');
 
   await page.evaluate(async () => {
-    const { BRIDGE } = await import('/src/world/layout.js');
-    window.__game.teleport(BRIDGE.x, BRIDGE.z, Math.atan2(-BRIDGE.dx, -BRIDGE.dz));
+    const { GNOMES } = await import('/src/world/layout.js');
+    window.__game.teleport(GNOMES[0].x + 1.5, GNOMES[0].z, 0);
   });
   await page.waitForTimeout(400);
-  assert.ok((await state(page)).journal.found.includes('bridge'));
-  assert.ok(await page.locator('#toast').isVisible());
-  step('finds the bridge and shows a sticker toast');
+  assert.deepEqual((await state(page)).journal.gnomes, [0]);
+  assert.ok(await page.locator('#gnome-progress').isVisible());
+  assert.equal(await page.locator('#gnome-row .found').count(), 1);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#gnome-tally-row .found').count(), 1);
+  await page.getByRole('button', { name: 'Resume' }).click();
+  step('picks up a gnome and fills in the first one in the row, here and in the menu');
 
   await page.evaluate(async () => {
     const { CAMP } = await import('/src/world/layout.js');
@@ -73,18 +77,23 @@ try {
   await page.getByRole('button', { name: 'Blue' }).click();
   await page.getByRole('button', { name: 'Flag' }).click();
   await page.getByRole('button', { name: 'Teddy' }).click();
+  await page.getByRole('button', { name: 'Roof tent' }).click();
+  await page.waitForTimeout(2200);
+  assert.equal((await state(page)).tentOpen, 1);
+  await page.waitForTimeout(200);
+  assert.equal((await state(page)).tentOpen, 1, 'the open tent stays still');
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   assert.equal((await state(page)).cameraMode, 'chase');
-  step('shows the car in the garage, with a flag and a teddy together');
+  step('shows the car in the garage with a flag, a teddy and the roof tent, which opens and stays open');
 
   await page.reload();
   await page.getByRole('button', { name: 'Play' }).click();
   const reloaded = await state(page);
   assert.equal(reloaded.journal.color, 'blue');
-  assert.deepEqual(reloaded.journal.decorations, ['flag', 'teddy']);
-  assert.ok(reloaded.journal.found.includes('bridge'));
-  step('remembers car choices and stickers after a reload');
+  assert.deepEqual(reloaded.journal.decorations, ['flag', 'teddy', 'tent']);
+  assert.deepEqual(reloaded.journal.gnomes, [0]);
+  step('remembers car choices and gnomes after a reload');
 
   const canvas = await page.locator('#world').boundingBox();
   await page.mouse.move(canvas.width / 2, canvas.height / 2);

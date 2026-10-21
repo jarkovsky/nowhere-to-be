@@ -99,7 +99,7 @@ function createOwl() {
   return { root, head };
 }
 
-export function createSecrets(scene, { onSpotted = () => {}, onCall = () => {} } = {}) {
+export function createSecrets(scene, { onCall = () => {} } = {}) {
   // The yeti hides behind a big boulder at the edge of the snowfield.
   const ground = terrainHeight(YETI.x, YETI.z);
   const rock = new PartsBuilder()
@@ -146,7 +146,6 @@ export function createSecrets(scene, { onSpotted = () => {}, onCall = () => {} }
       yeti.root.rotation.set(0, Math.atan2(position.x - player.x, position.z - player.z), rise * 0.18, 'YXZ');
       yeti.arms[1].rotation.z = wave > 0 ? 2.6 + Math.sin(time * 10) * 0.5 : 0.2;
       yeti.arms[0].rotation.z = -0.2;
-      if (rise > 0.6 && distance < 50) onSpotted('yeti');
 
       // A slow loop over the valley, about four minutes around.
       const angle = time * 0.026;
@@ -164,7 +163,6 @@ export function createSecrets(scene, { onSpotted = () => {}, onCall = () => {} }
         const look = Math.atan2(perch.x - player.x, perch.z - player.z);
         const glance = Math.sin(time * 0.4) > 0.85 ? 1.2 : 0;
         owl.head.rotation.y = damp(owl.head.rotation.y, look + glance, 3, dt);
-        if (Math.hypot(player.x - perch.x, player.z - perch.z) < 35) onSpotted('owl');
       }
     },
   };

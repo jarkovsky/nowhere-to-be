@@ -310,25 +310,25 @@ export const SPAWN = { x: start.x, z: start.z, heading: headingOf(start.dx, star
 const { x: haltX, z: haltZ } = RAILWAY.offset((HALT.from + HALT.to) / 2, HALT.side * 4);
 const haltCentre = { x: haltX, z: haltZ };
 
-/** Places that earn a scrapbook sticker. `radius` is how close you need to get. */
+/** Places marked on the map board at the trailhead. */
 export const PLACES = [
-  { id: 'waterfall', x: WATERFALL.x - 14, z: WATERFALL.z, radius: 26 },
-  { id: 'bridge', x: BRIDGE.x, z: BRIDGE.z, radius: 9 },
-  { id: 'tunnel', x: TUNNEL.x, z: TUNNEL.z, radius: 12 },
-  { id: 'campsite', x: CAMP.x, z: CAMP.z, radius: 16 },
-  { id: 'lookout', x: LOOKOUT.x, z: LOOKOUT.z, radius: 10 },
-  { id: 'farm', x: FARM.x, z: FARM.z, radius: 24 },
-  { id: 'tower', x: TOWER.x, z: TOWER.z, radius: 14 },
-  { id: 'windmill', x: WINDMILL.x, z: WINDMILL.z, radius: 18 },
-  { id: 'jetty', x: JETTY.x, z: JETTY.z + 6, radius: 12 },
-  { id: 'chata', x: CHATA.x, z: CHATA.z, radius: 22 },
-  { id: 'bunker', x: BUNKERS[1].x, z: BUNKERS[1].z, radius: 14 },
-  { id: 'halt', ...haltCentre, radius: 16 },
-  { id: 'roadworks', x: ROADWORKS.site.x, z: ROADWORKS.site.z, radius: 24 },
-  { id: 'helipad', x: HELIPAD.x, z: HELIPAD.z, radius: 16 },
-  { id: 'chapel', x: CHAPEL.x, z: CHAPEL.z, radius: 14 },
-  { id: 'summit', x: SUMMIT.x, z: SUMMIT.z, radius: 24 },
-  { id: 'fields', x: FARMSTEAD.x, z: FARMSTEAD.z, radius: 40 },
+  { id: 'waterfall', x: WATERFALL.x - 14, z: WATERFALL.z },
+  { id: 'bridge', x: BRIDGE.x, z: BRIDGE.z },
+  { id: 'tunnel', x: TUNNEL.x, z: TUNNEL.z },
+  { id: 'campsite', x: CAMP.x, z: CAMP.z },
+  { id: 'lookout', x: LOOKOUT.x, z: LOOKOUT.z },
+  { id: 'farm', x: FARM.x, z: FARM.z },
+  { id: 'tower', x: TOWER.x, z: TOWER.z },
+  { id: 'windmill', x: WINDMILL.x, z: WINDMILL.z },
+  { id: 'jetty', x: JETTY.x, z: JETTY.z + 6 },
+  { id: 'chata', x: CHATA.x, z: CHATA.z },
+  { id: 'bunker', x: BUNKERS[1].x, z: BUNKERS[1].z },
+  { id: 'halt', ...haltCentre },
+  { id: 'roadworks', x: ROADWORKS.site.x, z: ROADWORKS.site.z },
+  { id: 'helipad', x: HELIPAD.x, z: HELIPAD.z },
+  { id: 'chapel', x: CHAPEL.x, z: CHAPEL.z },
+  { id: 'summit', x: SUMMIT.x, z: SUMMIT.z },
+  { id: 'fields', x: FARMSTEAD.x, z: FARMSTEAD.z },
 ];
 
 /** Ground that flattens so buildings and camp furniture sit on level ground. */
