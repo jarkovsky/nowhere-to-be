@@ -86,6 +86,26 @@ try {
   );
   await capture(page, 'fields', 2000);
 
+  // The combine cutting the wheat, seen from the end of the field.
+  await inGame(
+    page,
+    `
+    const combine = g.getState().fields.find(f => f.kind === 'combine');
+    const cos = Math.cos(L.FIELDS.rotation);
+    const sin = Math.sin(L.FIELDS.rotation);
+    const dx = combine.x - L.FIELDS.x;
+    const dz = combine.z - L.FIELDS.z;
+    const lx = dx * cos - dz * sin;
+    const car = L.fieldPoint(lx - 6, -84);
+    const toField = L.fieldPoint(lx - 6, -70);
+    g.teleport(car.x, car.z, Math.atan2(-(toField.x - car.x), -(toField.z - car.z)));
+    const eye = L.fieldPoint(lx - 6, -72);
+    const h = T.terrainHeight(combine.x, combine.z);
+    g.shot([eye.x, T.terrainHeight(eye.x, eye.z) + 8, eye.z], [combine.x, h + 1, combine.z]);
+  `,
+  );
+  await capture(page, 'combine', 2000);
+
   // The wolf pack on the slopes below the summit.
   await inGame(
     page,
@@ -198,6 +218,9 @@ try {
   await capture(page, 'camp', 5000);
 
   await page.getByRole('button', { name: 'Wake up' }).click();
+  // The sky eases into day while driving, not while paused in the garage.
+  await inGame(page, `g.setSky('day');`);
+  await page.waitForTimeout(4000);
   await page.getByRole('button', { name: 'Pause' }).click();
   await page.getByRole('button', { name: /^Car/ }).click();
   await page.getByRole('button', { name: 'Flag' }).click();

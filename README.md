@@ -32,7 +32,7 @@ Play it at [nowhere-to-be.jarkovsky.com](https://nowhere-to-be.jarkovsky.com).
 </p>
 <p>
   <img src="docs/garage.jpg" width="49%" alt="Choosing a colour and roof items, with the roof tent open on the car">
-  <img src="docs/scrapbook.jpg" width="49%" alt="The pause menu's scrapbook of places and animals">
+  <img src="docs/combine.jpg" width="49%" alt="A combine harvester cutting the wheat at the upland farm">
 </p>
 
 ## Controls
@@ -65,13 +65,13 @@ To play on your phone from your own computer, run `npm run dev` and open the **N
 
 ## Things to find
 
-- **Places.** A waterfall, a farm, a fire tower, a windmill, a jetty you can drive onto, a mountain hut, a line of old concrete bunkers, a chapel, a railway halt, roadworks and a helipad. Driving past them adds stickers to your scrapbook, which you'll find in the pause menu.
+- **Places.** A waterfall, a farm, a fire tower, a windmill, a jetty you can drive onto, a mountain hut, a line of old concrete bunkers, a chapel, a railway halt, roadworks and a helipad.
 - **The uplands.** Past the valley rim the land levels out into uplands. To the north-west a track climbs round three hairpins to a snowy summit with a lookout tower, the north is rocky, and in a pass to the south-east there is a small farm with fields.
 - **Animals.** Deer, sheep, cows, chickens, a rabbit, foxes (one hunts mice by the fields), ducks, geese, an eagle, fish that jump in the lake, a pack of wolves below the summit and an owl that only comes out at night.
-- **Things on the move.** A railbus runs between the halt and a tunnel in the hills, and the level crossing closes while it passes. At the roadworks an excavator loads a dump truck while a roller, a grader and a skid steer loader work on the new road. Two tractors plough and mow the upland fields. A camper van, a pickup, a saloon and a bus drive the trail, and now and then an ambulance or a fire engine comes by with its blue lights on while the others pull over.
+- **Things on the move.** A railbus runs between the halt and a tunnel in the hills, and the level crossing closes while it passes. At the roadworks an excavator loads a dump truck while a roller, a grader and a skid steer loader work on the new road. Two tractors plough and mow the upland fields, and a combine harvester cuts the wheat. A camper van, a pickup, a saloon and a bus drive the trail, and now and then an ambulance or a fire engine comes by with its blue lights on while the others pull over.
 - **Side tracks.** Narrow dirt tracks lead off the main trail to the farm, the tower, the windmill, the summit, the upland farm and up a hairpin to the hut, a path follows the lake shore, and a new road is being built to the south.
-- **The garage.** Choose an off-roader, a pickup, a camper van, a saloon or a tractor, then a colour, roof items and a horn. The roof tent opens when the car has been parked for a moment.
-- **Garden gnomes.** Ten are hidden around the valley, some of them far off the trail. Each one you find fills in a row of gnomes on screen, so you can see how many are left without reading. Finding them all unlocks something for the car.
+- **The garage.** Choose an off-roader, a pickup, a camper van, a saloon or a tractor, then a colour, roof items and a horn. The roof tent opens when the car has been parked for a moment: the lid folds out as an awning on two poles and a ladder comes down.
+- **Garden gnomes.** Ten are hidden around the valley, some of them far off the trail. Each one you find fills in a row of gnomes on screen, so you can see how many are left without reading. The same row is in the pause menu. Finding them all unlocks something for the car.
 - **A few secrets.** Try the horn in the tunnel, near the animals, at passing cars and the train, and at the helipad. Keep an eye on the snow, too.
 
 Progress is saved in your browser.
@@ -91,7 +91,7 @@ src/
   input/      keyboard, touch and tilt steering
   world/      layout, terrain, scenery, landmarks, wildlife, weather, secrets
   vehicles/   the player's vehicles, the other travellers, the train and the helicopter
-  ui/         title screen, pause menu, scrapbook, styles
+  ui/         title screen, pause menu, garage, styles
 ```
 
 ## Development
