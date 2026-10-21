@@ -34,8 +34,23 @@ export const UPLAND_HILLS = [
   { x: 236, z: -404, radius: 58, height: 38 },
 ];
 
-/** Farmland in a broad pass to the south-east, flattened for fields. `heading` is the way the rows run. */
-export const FIELDS = { x: 262, z: 318, radius: 95, heading: 0.85 };
+/** Farmland in a broad pass to the south-east, flattened for fields. The rows run along its local Z. */
+export const FIELDS = { x: 262, z: 318, radius: 95, rotation: 0.85 };
+
+/** A point given in the farmland's own frame: `lx` across the rows, `lz` along them. */
+export function fieldPoint(lx, lz) {
+  const cos = Math.cos(FIELDS.rotation);
+  const sin = Math.sin(FIELDS.rotation);
+  return { x: FIELDS.x + lx * cos + lz * sin, z: FIELDS.z - lx * sin + lz * cos };
+}
+
+/** The fields, in the farmland's frame. The two tractors work `plough` and `mow`. */
+export const FIELD_PLOTS = {
+  plough: { x0: -62, x1: -4, z0: -6, z1: 70 },
+  mow: { x0: 7, x1: 63, z0: -6, z1: 70 },
+  rapeseed: { x0: -62, x1: -26, z0: -52, z1: -14 },
+  young: { x0: -62, x1: 63, z0: 76, z1: 90 },
+};
 
 /** A flat-topped hill out to the west. */
 export const MESA = { x: -262, z: 30, top: 26, edge: 62, height: 13 };
@@ -149,7 +164,7 @@ export const HALT = { from: 5, to: 33, side: -1 };
 export const CABIN = { x: -62, z: 112, rotation: 0.35 };
 
 /** A small upland farm where the fields track ends: a timber cottage and an open shed. */
-export const FARMSTEAD = { x: 236, z: 312, rotation: FIELDS.heading };
+export const FARMSTEAD = { x: 236, z: 312, rotation: FIELDS.rotation };
 
 export const LOOKOUT = { x: -148, z: -44, heading: headingOf(1, 0.1) };
 

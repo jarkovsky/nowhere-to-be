@@ -20,6 +20,7 @@ import { buildBunkers } from '../src/world/landmarks/bunkers.js';
 import { buildRailway } from '../src/world/landmarks/railway.js';
 import { buildRoadworks } from '../src/world/landmarks/roadworks.js';
 import { buildSummit } from '../src/world/landmarks/summit.js';
+import { buildFields } from '../src/world/landmarks/fields.js';
 import { createSurfaces } from '../src/world/surfaces.js';
 import { LANE } from '../src/vehicles/traffic.js';
 
@@ -39,6 +40,7 @@ for (const build of [
   buildRailway,
   buildRoadworks,
   buildSummit,
+  buildFields,
 ]) {
   build(scene, obstacles);
 }

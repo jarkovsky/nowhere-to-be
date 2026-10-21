@@ -238,6 +238,14 @@ const VEHICLE_BUILDERS = {
   },
 };
 
+/** The parts of one of the garage's vehicles, for building a copy of it elsewhere (the farm's tractors). */
+export function vehicleParts(name) {
+  const painted = new PartsBuilder();
+  const trim = new PartsBuilder();
+  const spec = VEHICLE_BUILDERS[name](painted, trim, new PartsBuilder());
+  return { painted, trim, spec };
+}
+
 export function createCar() {
   const root = new THREE.Group();
   const body = new THREE.Group();

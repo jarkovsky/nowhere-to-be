@@ -610,6 +610,7 @@ export function createGame(canvas) {
         traffic: traffic.getState(),
         train: train.getState(),
         helicopter: helicopter.getState(),
+        fields: landmarks.fields.getState(),
         gnomes: gnomes.getState(),
         wildlife: wildlife.getState(),
         cameraBlocked: chase.isBlocked(),
