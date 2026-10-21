@@ -342,7 +342,7 @@ export function createGame(canvas) {
   function updateTent(dt, night) {
     if (!hasTent) return;
     const target = mode !== 'driving' || parkedFor > 2.5 ? 1 : 0;
-    tentOpen = target > tentOpen ? Math.min(1, tentOpen + dt * 0.6) : Math.max(0, tentOpen - dt * 1.6);
+    tentOpen = target ? Math.min(1, tentOpen + dt * 0.6) : Math.max(0, tentOpen - dt * 1.6);
     car.setTent(tentOpen, night);
   }
 

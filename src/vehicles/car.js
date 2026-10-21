@@ -372,8 +372,6 @@ export function createCar() {
 const TENT_WIDTH = 1.5;
 const TENT_SHELL = '#3f4541';
 const CANVAS = '#d9893b';
-/** How far the lid swings over: past upright, so it hangs out to the side like an awning. */
-const LID_SWING = 2.45;
 
 /** A triangular prism, `width` across and one metre tall, running `length` along Z, with its ends open. */
 function ridgeGeometry(width, length) {
@@ -397,9 +395,10 @@ function ridgeGeometry(width, length) {
 
 /**
  * A roof tent: a low box on the roof that opens into a little ridge tent. The lid
- * swings over to one side, the canvas rises and a ladder slides down to the ground.
- * There is room at the front for the teddy. The origin is the middle of the base,
- * which sits `roof` metres above the ground.
+ * flips right over to lie flat beside it as an awning, two poles slide down to hold
+ * it up, the canvas rises and a ladder slides down on the other side. There is room
+ * at the front for the teddy. The origin is the middle of the base, which sits
+ * `roof` metres above the ground.
  */
 function createRoofTent(length, roof) {
   const half = length / 2;
@@ -415,11 +414,30 @@ function createRoofTent(length, roof) {
       .mesh(),
   );
 
-  // The lid turns about its right-hand edge.
+  // The lid turns about its right-hand edge. Its pale lining faces up once it is open.
   const lid = new THREE.Group();
   lid.position.set(w, 0.22, middle);
   root.add(lid);
-  lid.add(new PartsBuilder().box(TENT_WIDTH, 0.2, tentLength, TENT_SHELL, { x: -w, y: 0.1 }).mesh());
+  lid.add(
+    new PartsBuilder()
+      .box(TENT_WIDTH, 0.2, tentLength, TENT_SHELL, { x: -w, y: 0.1 })
+      .box(TENT_WIDTH - 0.1, 0.012, tentLength - 0.1, '#d8d2c0', { x: -w, y: -0.004 })
+      .mesh(),
+  );
+
+  // Poles under the open lid's outer corners, down to the ground, and a canvas flap along its edge.
+  const valance = new PartsBuilder()
+    .box(0.03, 1, tentLength - 0.04, CANVAS, { x: 3 * w - 0.02, y: -0.5, z: middle })
+    .mesh();
+  valance.position.y = 0.02;
+  root.add(valance);
+  const poleParts = new PartsBuilder();
+  for (const end of [-1, 1]) {
+    poleParts.box(0.06, 1, 0.06, '#b8beb7', { x: 3 * w - 0.08, y: -0.5, z: middle + end * (tentLength / 2 - 0.1) });
+  }
+  const poles = poleParts.mesh({ receiveShadow: false });
+  poles.position.y = 0.02;
+  root.add(poles);
 
   // The canvas, with a doorway at the back that is lit from inside after dark.
   const tent = new THREE.Group();
@@ -483,16 +501,18 @@ function createRoofTent(length, roof) {
       object.position.set(...spot.at);
     },
     open(amount, night) {
-      // The lid swings over first, then the tent rises, then the ladder slides out.
-      const swing = Math.min(1, amount / 0.6);
-      const rise = Math.max(0, (amount - 0.25) / 0.75);
-      const slide = Math.max(0, (amount - 0.6) / 0.4);
-      lid.rotation.z = -Math.sin((swing * Math.PI) / 2) * LID_SWING;
+      // The lid flips over first, then the tent rises, then the poles and the ladder slide out.
+      const swing = Math.min(1, amount / 0.5);
+      const rise = Math.min(1, Math.max(0, (amount - 0.3) / 0.5));
+      const slide = Math.max(0, (amount - 0.65) / 0.35);
+      lid.rotation.z = -((1 - Math.cos(swing * Math.PI)) / 2) * Math.PI;
       tent.visible = rise > 0;
       tent.scale.y = Math.max(0.001, rise * 1.05);
       glow.emissiveIntensity = night * rise * 1.5;
-      ladder.visible = slide > 0;
+      ladder.visible = poles.visible = valance.visible = slide > 0;
       ladder.scale.y = Math.max(0.001, slide * reach);
+      poles.scale.y = Math.max(0.001, slide * (roof + 0.02));
+      valance.scale.y = Math.max(0.001, slide * 0.24);
     },
   };
 }
