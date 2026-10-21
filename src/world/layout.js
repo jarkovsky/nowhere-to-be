@@ -378,6 +378,9 @@ export const HABITATS = {
   burrow: { x: -161, z: 30 },
   cows: { count: 3 },
   fox: { start: { x: 166, z: 62 }, end: { x: 204, z: 104 }, count: 1, wait: 9, duration: 14 },
+  woodFox: { start: { x: -198, z: -98 }, end: { x: -232, z: -136 }, count: 1, wait: 12, duration: 20 },
+  /** A fox hunting mice in the long grass at the edge of the upland fields. */
+  mousingFox: fieldPoint(-74, 22),
   geese: { x: -20, z: 10, radius: 170, height: 58, period: 80 },
   eagle: { x: SERLICH.x, z: SERLICH.z, radius: 34, height: 30, period: 38 },
 };
@@ -394,6 +397,25 @@ export const GNOMES = [
   { x: 64, z: 262 }, // on the southern hills
   { x: -318, z: 70 }, // far out west
   { x: 268, z: 96 }, // on the eastern slopes
+];
+
+/** The loop the wolf pack roams, on the slopes below the summit. */
+export const WOLF_ROUTE = createPath(
+  [
+    [-226, -268],
+    [-186, -262],
+    [-160, -290],
+    [-168, -330],
+    [-205, -342],
+    [-232, -308],
+  ],
+  { closed: true },
+);
+
+/** Farmyards where chickens peck about, in each farm's own frame. */
+export const YARDS = [
+  { x: FARM.x, z: FARM.z, rotation: FARM.rotation, x0: -4, x1: 3, z0: -1, z1: 6, hens: 6 },
+  { x: FARMSTEAD.x, z: FARMSTEAD.z, rotation: FARMSTEAD.rotation, x0: -6, x1: 4, z0: 2.5, z1: 8, hens: 4 },
 ];
 
 /** Something large and shy lives in the snow. */

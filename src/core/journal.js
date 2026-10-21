@@ -31,6 +31,8 @@ export const STICKERS = [
   'rabbit',
   'cows',
   'fox',
+  'wolves',
+  'chickens',
   'fish',
   'geese',
   'eagle',

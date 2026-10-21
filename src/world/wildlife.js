@@ -1,11 +1,14 @@
 // Animals that live in the valley: deer on their meadow walk, a family of
-// ducks crossing the trail, grazing sheep, a shy rabbit, cows at the farm, a
-// fox, fish in the lake and geese overhead.
+// ducks crossing the trail, grazing sheep, a shy rabbit, cows at the farm,
+// foxes, fish in the lake and geese overhead. Out in the uplands there are
+// wolves, and both farms keep chickens.
 import * as THREE from 'three';
 import { angleDelta, createRandom, smoothstep } from '../core/math.js';
 import { FARM, HABITATS, LAKE } from './layout.js';
 import { terrainHeight } from './terrain.js';
 import { PartsBuilder, localFrame } from './build.js';
+import { createWolves } from './wolves.js';
+import { createChickens } from './chickens.js';
 
 const DARK = '#394439';
 const CREAM = '#eee4c9';
@@ -255,8 +258,18 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
     animal.root.rotation.y = angle * 1.7;
     return animal;
   });
-  const foxGroup = { ...HABITATS.fox, animals: [fox()], kind: 'fox', startle: 0 };
-  walkers.push(foxGroup);
+  const foxGroups = [HABITATS.fox, HABITATS.woodFox].map(home => ({
+    ...home,
+    animals: [fox()],
+    kind: 'fox',
+    startle: 0,
+  }));
+  walkers.push(...foxGroups);
+
+  // A fox hunting in the long grass: it listens, crouches and pounces, then trots to a new spot.
+  const hunter = fox();
+  const huntGround = HABITATS.mousingFox;
+  const hunt = { x: huntGround.x, z: huntGround.z, heading: 0, state: 'listen', timer: 2, from: null, to: null };
 
   // Cows wander around the farm paddock.
   const random = createRandom(907);
@@ -302,7 +315,8 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
   for (const animal of [
     ...deerGroup.animals,
     ...duckGroup.animals,
-    ...foxGroup.animals,
+    ...foxGroups.flatMap(group => group.animals),
+    hunter,
     ...sheepFlock,
     ...herd,
     bunny,
@@ -467,6 +481,80 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
     bunny.root.visible = underground < 0.99;
   }
 
+  /** The hunting fox's next move: a short trot to a fresh patch of grass near its home. */
+  function trotTo(x, z, state = 'trot') {
+    hunt.from = { x: hunt.x, z: hunt.z };
+    hunt.to = { x, z };
+    hunt.state = state;
+    hunt.timer = Math.hypot(x - hunt.x, z - hunt.z) / (state === 'flee' ? 4 : 1.5);
+    hunt.length = hunt.timer;
+    hunt.heading = Math.atan2(-(z - hunt.z), x - hunt.x);
+  }
+
+  function updateHunter(dt, player) {
+    const distance = Math.hypot(player.x - hunt.x, player.z - hunt.z);
+    hunter.root.visible = distance < 220;
+    if (distance < 13 && hunt.state !== 'flee') {
+      const away = Math.atan2(hunt.z - player.z, hunt.x - player.x);
+      const r = Math.min(16, 26 - Math.hypot(hunt.x - huntGround.x, hunt.z - huntGround.z));
+      trotTo(hunt.x + Math.cos(away) * r, hunt.z + Math.sin(away) * r, 'flee');
+    }
+    hunt.timer -= dt;
+    let lift = 0;
+    let pitch = 0;
+    let walking = false;
+    if (hunt.state === 'trot' || hunt.state === 'flee' || hunt.state === 'leap') {
+      const t = Math.min(1, 1 - hunt.timer / hunt.length);
+      hunt.x = hunt.from.x + (hunt.to.x - hunt.from.x) * t;
+      hunt.z = hunt.from.z + (hunt.to.z - hunt.from.z) * t;
+      if (hunt.state === 'leap') {
+        // A high arc, nose up on the way up and nose down into the grass.
+        lift = Math.sin(t * Math.PI) * 1.3;
+        pitch = Math.cos(t * Math.PI) * 0.7;
+      } else walking = true;
+    } else if (hunt.state === 'crouch') {
+      lift = -0.15;
+      pitch = -0.15;
+    } else if (hunt.state === 'dig') {
+      pitch = -0.5 + Math.sin(time * 14) * 0.08;
+    }
+    if (hunt.timer <= 0) {
+      if (hunt.state === 'listen') {
+        hunt.state = 'crouch';
+        hunt.timer = 0.7;
+      } else if (hunt.state === 'crouch') {
+        trotTo(hunt.x + Math.cos(-hunt.heading) * 2.6, hunt.z + Math.sin(-hunt.heading) * 2.6, 'leap');
+        hunt.timer = hunt.length = 0.9;
+      } else if (hunt.state === 'leap') {
+        hunt.state = 'dig';
+        hunt.timer = 1.6;
+      } else if (hunt.state === 'dig') {
+        const a = random() * Math.PI * 2;
+        const r = 4 + random() * 9;
+        trotTo(huntGround.x + Math.cos(a) * r, huntGround.z + Math.sin(a) * r);
+      } else {
+        hunt.state = 'listen';
+        hunt.timer = 2 + random() * 2.5;
+      }
+    }
+    hunter.root.position.set(hunt.x, terrainHeight(hunt.x, hunt.z) + lift, hunt.z);
+    hunter.root.rotation.y = hunt.heading;
+    // Listening: the head cocks one way, then the other.
+    hunter.body.rotation.set(hunt.state === 'listen' ? Math.sin(time * 1.7) * 0.12 : 0, 0, pitch);
+    const pace = hunt.state === 'flee' ? 16 : 11;
+    hunter.legs.forEach((leg, j) => {
+      leg.rotation.z = walking
+        ? Math.sin(time * pace + (j === 0 || j === 3 ? 0 : Math.PI)) * 0.42
+        : hunt.state === 'leap'
+          ? 0.6 * (j < 2 ? -1 : 1)
+          : 0;
+    });
+    return distance;
+  }
+
+  const wolves = createWolves(scene, { onCall });
+  const chickens = createChickens(scene);
+
   placeWalkers();
   placeRabbit();
 
@@ -493,7 +581,9 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
         cowsLookUp = 3;
         onCall('moo');
       }
-      if (near(foxGroup.animals[0].root.position) < 30) foxGroup.startle = 1;
+      for (const group of foxGroups) if (near(group.animals[0].root.position) < 30) group.startle = 1;
+      wolves.hearHorn(x, z);
+      if (chickens.hearHorn(x, z)) onCall('cluck');
       if (near(leadGoose) < 90) onCall('honk');
     },
     getState: () => ({
@@ -501,8 +591,9 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
       rabbitHidden: rabbitState.progress >= 1,
       deer: deerGroup.animals[0].root.position.clone(),
       geese: leadGoose.clone(),
+      wolves: wolves.getState(),
     }),
-    update(dt, player, running) {
+    update(dt, player, running, night = 0) {
       if (!running) return;
       time += dt;
       sheepLookUp = Math.max(0, sheepLookUp - dt);
@@ -530,10 +621,16 @@ export function createWildlife(scene, { onSpotted = () => {}, onCall = () => {} 
       updateGeese();
       updateEagle();
       const fishDistance = updateFish(dt, player);
+      const hunterDistance = updateHunter(dt, player);
+      wolves.update(dt, player, night);
+      chickens.update(dt, player);
 
       const close = (p, range) => Math.hypot(player.x - p.x, player.z - p.z) < range;
+      for (const group of foxGroups) group.animals[0].root.visible = close(group.animals[0].root.position, 230);
       if (close(herd[0], 30)) onSpotted('cows');
-      if (close(foxGroup.animals[0].root.position, 28)) onSpotted('fox');
+      if (foxGroups.some(group => close(group.animals[0].root.position, 28)) || hunterDistance < 30) onSpotted('fox');
+      if (wolves.distanceTo(player) < 45) onSpotted('wolves');
+      if (chickens.distanceTo(player) < 22) onSpotted('chickens');
       if (close(leadGoose, 75)) onSpotted('geese');
       if (close(soarer.position, 60)) onSpotted('eagle');
       if (fishDistance < 45) onSpotted('fish');

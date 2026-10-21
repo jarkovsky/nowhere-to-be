@@ -560,7 +560,7 @@ export function createGame(canvas) {
       nextBell = clock + 0.55;
       sound.crossingBell(Math.hypot(state.x - LEVEL_CROSSING.x, state.z - LEVEL_CROSSING.z));
     }
-    wildlife.update(dt, state, true);
+    wildlife.update(dt, state, true, night);
     secrets.update(dt, state, true, night);
     gnomes.update(dt, state, driving);
     surfaces.update(dt, state, driving);

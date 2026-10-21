@@ -73,7 +73,13 @@ export const STICKER_INFO = {
   sheep: { name: 'Sheep', story: 'Grazing, mostly.', hint: 'Near the cabin.' },
   rabbit: { name: 'Rabbit', story: 'Gone in a flash.', hint: 'Its burrow is by the western trail.' },
   cows: { name: 'Cows', story: 'Try the horn. They answer.', hint: 'At the farm.' },
-  fox: { name: 'Fox', story: 'Off on its rounds.', hint: 'At the edge of the eastern woods.' },
+  fox: { name: 'Fox', story: 'Off on its rounds, or listening for mice.', hint: 'At the edge of the woods.' },
+  wolves: {
+    name: 'Wolves',
+    story: 'A pack on the snowy slopes. Try the horn.',
+    hint: 'High up, below the summit.',
+  },
+  chickens: { name: 'Chickens', story: 'Pecking about the farmyard.', hint: 'At the farms.' },
   fish: { name: 'Fish', story: 'Right out of the water.', hint: 'Wait by the lake for a while.' },
   geese: { name: 'Geese', story: 'Flying in a V over the valley.', hint: 'Look up.' },
   eagle: { name: 'Eagle', story: 'Circling high over the hills.', hint: 'Look up near the mountain hut.' },
@@ -135,6 +141,10 @@ const DRAWINGS = {
     '<path d="M20 98q30-14 60 0 24-12 52 0z" fill="#f4f6f0"/><path d="M80 52 30 40l-14 8 22 2-16 6 26 2 32 6zm0 0 50-12 14 8-22 2 16 6-26 2-32 6z" fill="#5e4632"/><ellipse cx="80" cy="56" rx="9" ry="16" fill="#5e4632"/><circle cx="80" cy="38" r="7" fill="#b48a4e"/><path d="m80 42 0 6 3-3z" fill="#e0b649"/><path d="m72 70 8 14 8-14z" fill="#5e4632"/>',
   cows: '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="M44 84v22m12-22v22m44-22v22m12-22v22" stroke="#e7dfcd" stroke-width="8"/><rect x="38" y="52" width="80" height="36" rx="8" fill="#f1ece0"/><path d="M58 52h22v22H58zm38 18h14v14H96z" fill="#3c3f3a"/><rect x="112" y="42" width="30" height="24" rx="6" fill="#f1ece0"/><rect x="130" y="52" width="14" height="14" rx="4" fill="#e9b3a4"/><path d="m116 42-4-8m20 8 4-8" stroke="#e3d6b4" stroke-width="4"/><circle cx="124" cy="50" r="2.5" fill="#2d3a33"/>',
   fox: '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><path d="m52 86-4 20m14-20v20m36-20 2 20m12-20 4 20" stroke="#3a3530" stroke-width="5"/><ellipse cx="80" cy="78" rx="34" ry="14" fill="#d0773b"/><path d="M46 76q-30-6-36 14 18 4 36-6z" fill="#d0773b"/><path d="M14 88q2 4 8 5l-2-9z" fill="#f2e8cd"/><path d="m108 74 20-10 10 10-20 14z" fill="#d0773b"/><path d="m116 66 4-14 6 12m4 2 6-12 2 14" fill="#d0773b"/><path d="m128 78 10-4 4 4-10 6z" fill="#f2e8cd"/><circle cx="126" cy="70" r="2.5" fill="#2d3a33"/>',
+  wolves:
+    '<path d="M5 112q75-22 150 0v6H5z" fill="#eef1ee"/><path d="m118 70-12 38m-38-36 4 36" stroke="#5f615c" stroke-width="7" fill="none"/><path d="m48 86-6 22m22-24-2 24" stroke="#6c6e69" stroke-width="7" fill="none"/><path d="M40 64q-18 8-24 30 12 0 22-16z" fill="#7d7f7a"/><rect x="38" y="58" width="84" height="32" rx="12" fill="#7d7f7a"/><path d="M100 56h22v32h-22z" fill="#d9d6cc"/><path d="m112 58 18-26 14 10-6 22z" fill="#7d7f7a"/><path d="m124 38 2-14 8 10m6 2 6-12 2 16" fill="#7d7f7a"/><path d="m138 52 14 6-4 6-12-2z" fill="#d9d6cc"/><circle cx="134" cy="46" r="2.5" fill="#2d3a33"/><circle cx="151" cy="58" r="2.5" fill="#2d3a33"/>',
+  chickens:
+    '<path d="M5 108h150" stroke="#8fab83" stroke-width="16"/><ellipse cx="62" cy="76" rx="28" ry="22" fill="#f4efe4"/><path d="M36 70q-12-24 6-30l8 22z" fill="#f4efe4"/><path d="M80 66V44h14v22z" fill="#f4efe4"/><path d="M84 44q2-8 6-4 2-6 6 0v6H84z" fill="#c8302a"/><path d="m94 50 10 3-10 3z" fill="#e0a942"/><path d="M92 58h4v8h-4z" fill="#c8302a"/><circle cx="89" cy="50" r="2" fill="#2d3a33"/><path d="m56 96-2 12m14-12 2 12" stroke="#e0a942" stroke-width="3"/><ellipse cx="120" cy="96" rx="14" ry="10" fill="#d79a62"/><path d="M128 90V78h8v12z" fill="#d79a62"/><path d="m136 82 6 2-6 2z" fill="#e0a942"/><path d="M130 78q2-5 6-2v4h-6z" fill="#c8302a"/><path d="M104 104h28" stroke="#c9ad7c" stroke-width="2"/>',
   fish: '<path d="M3 80h154v31q0 16-16 16H19q-16 0-16-16z" fill="#9dcac6"/><path d="M40 92q40-80 84 0" stroke="#d7eee0" stroke-width="2" stroke-dasharray="4 5" fill="none"/><g transform="rotate(-25 80 46)"><ellipse cx="80" cy="46" rx="24" ry="10" fill="#9fb2a8"/><path d="m56 46-14-10v20z" fill="#8aa198"/><circle cx="96" cy="44" r="2.5" fill="#2d3a33"/></g><ellipse cx="124" cy="96" rx="14" ry="4" fill="#eef8f4"/>',
   geese:
     '<path d="M24 92q14-14 30 0 10-10 22 0z" fill="#f4f6f0"/><path d="M72 36q8 2 8 6 0-4 8-6M56 50q8 2 8 6 0-4 8-6m16 0q8 2 8 6 0-4 8-6M40 64q8 2 8 6 0-4 8-6m48 0q8 2 8 6 0-4 8-6M24 78q8 2 8 6 0-4 8-6m80 0q8 2 8 6 0-4 8-6" stroke="#4e5650" stroke-width="3" fill="none" stroke-linecap="round"/>',

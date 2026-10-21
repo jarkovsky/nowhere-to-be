@@ -207,6 +207,31 @@ export function createAudio() {
     tone(from, start, 0.05 + Math.random() * 0.06, { end: from * (1.8 + Math.random()), volume });
   }
 
+  /** A long rising and falling wolf howl, with a slight waver. */
+  function howl(start, pitch, volume) {
+    const oscillator = context.createOscillator();
+    const wobble = context.createOscillator();
+    const depth = context.createGain();
+    const gain = context.createGain();
+    oscillator.frequency.setValueAtTime(300 * pitch, start);
+    oscillator.frequency.linearRampToValueAtTime(560 * pitch, start + 0.7);
+    oscillator.frequency.linearRampToValueAtTime(500 * pitch, start + 2);
+    oscillator.frequency.linearRampToValueAtTime(380 * pitch, start + 2.7);
+    wobble.frequency.value = 5;
+    depth.gain.value = 6;
+    wobble.connect(depth).connect(oscillator.frequency);
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(volume, start + 0.35);
+    gain.gain.setValueAtTime(volume, start + 2);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 2.8);
+    oscillator.connect(gain).connect(master);
+    for (const node of [oscillator, wobble]) {
+      node.start(start);
+      node.stop(start + 2.9);
+    }
+    oscillator.onended = () => gain.disconnect();
+  }
+
   const playable = () => enabled && context && context.state === 'running';
 
   return {
@@ -299,6 +324,13 @@ export function createAudio() {
         tone(392, now + 0.5, 0.6, { end: 311, volume: 0.05 });
       } else if (kind === 'honk') {
         [0, 0.3].forEach(t => tone(560, now + t, 0.16, { type: 'square', end: 470, volume: 0.03 }));
+      } else if (kind === 'cluck') {
+        [0, 0.13, 0.26].forEach(t => tone(620, now + t, 0.07, { type: 'triangle', end: 480, volume: 0.05 }));
+        tone(520, now + 0.42, 0.22, { type: 'triangle', end: 900, volume: 0.05 });
+      } else if (kind === 'howl') {
+        // Two wolves, the second joining in a little later and a little higher.
+        howl(now, 1, 0.045);
+        howl(now + 0.9, 1.12, 0.03);
       }
     },
 
