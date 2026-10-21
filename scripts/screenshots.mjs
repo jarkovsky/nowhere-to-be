@@ -56,6 +56,79 @@ try {
   `,
   );
   await capture(page, 'roadworks', 3000);
+
+  // Parked below the lookout tower on the snowy summit.
+  await inGame(
+    page,
+    `
+    const track = L.TRACKS.find(t => t.id === 'summit').path;
+    const p = track.at(track.length - 2);
+    const toTower = Math.atan2(L.SUMMIT.x - p.x, L.SUMMIT.z - p.z);
+    g.teleport(p.x, p.z, toTower + Math.PI);
+    const eye = { x: p.x - Math.sin(toTower) * 13 + Math.cos(toTower) * 6, z: p.z - Math.cos(toTower) * 13 - Math.sin(toTower) * 6 };
+    const top = T.terrainHeight(L.SUMMIT.x, L.SUMMIT.z);
+    g.shot([eye.x, T.terrainHeight(eye.x, eye.z) + 3, eye.z], [L.SUMMIT.x, top + 6, L.SUMMIT.z]);
+  `,
+  );
+  await capture(page, 'summit', 2000);
+
+  // The upland farm: the plough at work with gulls behind it, seen from the track between the fields.
+  await inGame(
+    page,
+    `
+    const p = L.fieldPoint(1, 30);
+    const ahead = L.fieldPoint(1, 40);
+    g.teleport(p.x, p.z, Math.atan2(-(ahead.x - p.x), -(ahead.z - p.z)));
+    const [plough] = g.getState().fields;
+    const eye = L.fieldPoint(-20, -48);
+    g.shot([eye.x, T.terrainHeight(eye.x, eye.z) + 16, eye.z], [plough.x, T.terrainHeight(plough.x, plough.z) - 2, plough.z]);
+  `,
+  );
+  await capture(page, 'fields', 2000);
+
+  // The wolf pack on the slopes below the summit.
+  await inGame(
+    page,
+    `
+    const wolves = g.getState().wildlife.wolves;
+    const p = L.WOLF_ROUTE.at(wolves.s);
+    g.teleport(p.x - p.dz * 24, p.z + p.dx * 24, 0);
+    const near = L.WOLF_ROUTE.at(wolves.s - 3);
+    const h = T.terrainHeight(near.x, near.z);
+    g.shot([near.x - near.dz * 9 + near.dx * 5, h + 2.2, near.z + near.dx * 9 + near.dz * 5], [near.x, h + 0.8, near.z]);
+  `,
+  );
+  await capture(page, 'wolves', 1800);
+
+  // An ambulance coming along the trail, with the others pulled over.
+  await inGame(
+    page,
+    `
+    g.followCar();
+    const p = L.ROAD.offset(L.ROAD.length * 0.2, 8);
+    g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz));
+    g.callOut();
+  `,
+  );
+  await page.waitForFunction(
+    () => {
+      const { emergency, car } = window.__game.getState();
+      return emergency && Math.hypot(emergency.x - car.x, emergency.z - car.z) < 42;
+    },
+    null,
+    { timeout: 60000 },
+  );
+  await inGame(
+    page,
+    `
+    // From the verge a little way ahead of it.
+    const { emergency } = g.getState();
+    const eye = L.ROAD.offset(emergency.s + emergency.direction * 34, -emergency.direction * 7.5);
+    const ground = T.terrainHeight(emergency.x, emergency.z);
+    g.shot([eye.x, T.terrainHeight(eye.x, eye.z) + 3, eye.z], [emergency.x, ground + 1.4, emergency.z]);
+  `,
+  );
+  await capture(page, 'ambulance', 350);
   await inGame(page, `g.followCar();`);
 
   await inGame(
@@ -140,8 +213,9 @@ try {
   await page.getByRole('button', { name: /^Car/ }).click();
   await page.getByRole('button', { name: 'Flag' }).click();
   await page.getByRole('button', { name: 'Teddy' }).click();
+  await page.getByRole('button', { name: 'Roof tent' }).click();
   await page.waitForFunction(() => document.getElementById('toast').hidden, null, { timeout: 30000 });
-  await capture(page, 'garage', 2000);
+  await capture(page, 'garage', 2500);
 
   const phone = await browser.newContext({
     viewport: { width: 390, height: 844 },
