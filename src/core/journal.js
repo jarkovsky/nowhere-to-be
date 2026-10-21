@@ -36,7 +36,7 @@ export const STICKERS = [
   'yeti',
 ];
 export const COLORS = ['orange', 'sage', 'blue', 'berry', 'yellow', 'rainbow'];
-export const DECORATIONS = ['flag', 'teddy', 'gnome'];
+export const DECORATIONS = ['flag', 'teddy', 'tent', 'gnome'];
 export const VEHICLES = ['offroader', 'pickup', 'van', 'saloon', 'tractor'];
 
 const DEFAULTS = {

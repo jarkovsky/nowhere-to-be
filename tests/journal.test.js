@@ -15,7 +15,13 @@ test('stickers and gnomes are recorded once and survive a reload', () => {
   assert.equal(journal.discover('dragon'), false);
   assert.equal(journal.collectGnome(3), true);
   assert.equal(journal.collectGnome(3), false);
-  journal.save({ color: 'blue', vehicle: 'tractor', decorations: ['flag', 'teddy'], horn: 'quack', camp: true });
+  journal.save({
+    color: 'blue',
+    vehicle: 'tractor',
+    decorations: ['flag', 'teddy', 'tent'],
+    horn: 'quack',
+    camp: true,
+  });
   assert.deepEqual(createJournal(storage).get(), journal.get());
 });
 

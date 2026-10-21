@@ -330,6 +330,20 @@ export function createGame(canvas) {
   function applyChoices() {
     const { color, decorations, vehicle } = journal.get();
     car.customize(color, decorations, vehicle);
+    hasTent = decorations.includes('tent');
+  }
+
+  // --- Roof tent -----------------------------------------------------------------------
+
+  // It folds away while the car is moving and opens once it has stood still for a moment.
+  let hasTent = false;
+  let tentOpen = 0;
+  let parkedFor = 0;
+  function updateTent(dt, night) {
+    if (!hasTent) return;
+    const target = mode !== 'driving' || parkedFor > 2.5 ? 1 : 0;
+    tentOpen = target > tentOpen ? Math.min(1, tentOpen + dt * 0.6) : Math.max(0, tentOpen - dt * 1.6);
+    car.setTent(tentOpen, night);
   }
 
   // --- Garage view -------------------------------------------------------------------------
@@ -495,6 +509,7 @@ export function createGame(canvas) {
     if (mode === 'paused') {
       if (showroom) {
         car.animate(now / 1000);
+        updateTent(dt, 1 - atmosphere.getState().day);
         chase.update(dt, carView(), cameraOptions());
         renderer.render(scene, camera);
       } else if (needsRender) {
@@ -523,6 +538,7 @@ export function createGame(canvas) {
       updateCarModel(dt);
       wasBraking = input.brake || (input.backward && state.speed > 0.5) || (input.forward && state.speed < -0.5);
       throttle = !input.brake && (input.forward || input.backward || input.cruise) ? 1 : 0;
+      parkedFor = Math.abs(state.speed) < 0.3 && !throttle ? parkedFor + dt : 0;
       for (const place of PLACES) {
         if (Math.hypot(state.x - place.x, state.z - place.z) < place.radius) discovered(place.id);
       }
@@ -534,6 +550,7 @@ export function createGame(canvas) {
     atmosphere.update(dt, state, mode !== 'title');
     car.setLights(night, driving && wasBraking);
     car.animate(clock);
+    updateTent(dt, night);
     scenery.update(dt);
     train.update(dt, { player: state });
     helicopter.update(dt);
@@ -601,6 +618,7 @@ export function createGame(canvas) {
         camera: camera.position.toArray(),
         pixelRatio,
         input: controls.read(),
+        tentOpen,
         calls: renderer.info.render.calls,
         triangles: renderer.info.render.triangles,
       }),

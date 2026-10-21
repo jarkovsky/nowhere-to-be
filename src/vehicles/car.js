@@ -2,7 +2,7 @@
 // in the garage. They all drive the same way. Paint is a separate material so
 // the colour can change; everything else on each vehicle is one merged mesh.
 import * as THREE from 'three';
-import { PartsBuilder, flatMaterial } from '../world/build.js';
+import { PartsBuilder, flatMaterial, prism } from '../world/build.js';
 
 export const CAR_COLORS = {
   orange: '#d16b38',
@@ -53,9 +53,13 @@ function arches(painted, wheels) {
   }
 }
 
-/** Each builder paints into `painted` (takes the chosen colour) and `trim`, and describes its wheels, lamps and roof spots. */
+/**
+ * Each builder paints into `painted` (takes the chosen colour), `trim`, and `cargo` (luggage
+ * that makes way for the roof tent), and describes its wheels, lamps and where things go:
+ * `mounts` for the decorations, and `tent` as [x, y, z, length] for the roof tent.
+ */
 const VEHICLE_BUILDERS = {
-  offroader(painted, trim) {
+  offroader(painted, trim, cargo) {
     painted.box(2.05, 0.62, 3.8, '#ffffff', { y: 1.03 });
     painted.box(1.9, 0.32, 1.15, '#ffffff', { y: 1.48, z: -1.25 }); // bonnet
     // Cabin: painted up to the window line, glass all round above it, and
@@ -82,9 +86,9 @@ const VEHICLE_BUILDERS = {
     // Roof rack with a duffel bag and a cooler.
     for (const x of [-0.76, 0.76]) trim.box(0.06, 0.13, 2, RUBBER, { x, y: 2.64, z: 0.35 });
     for (const z of [-0.55, 1.22]) trim.box(1.58, 0.13, 0.06, RUBBER, { y: 2.64, z });
-    trim.box(1.15, 0.4, 0.8, '#758676', { x: -0.12, y: 2.85, z: 0.65 });
-    trim.box(1.19, 0.045, 0.1, CREAM, { x: -0.12, y: 2.9, z: 0.65 });
-    trim.box(0.6, 0.25, 0.7, CREAM, { x: 0.35, y: 2.78, z: -0.23 });
+    cargo.box(1.15, 0.4, 0.8, '#758676', { x: -0.12, y: 2.85, z: 0.65 });
+    cargo.box(1.19, 0.045, 0.1, CREAM, { x: -0.12, y: 2.9, z: 0.65 });
+    cargo.box(0.6, 0.25, 0.7, CREAM, { x: 0.35, y: 2.78, z: -0.23 });
     // Spare wheel on the tailgate.
     trim.add(new THREE.CylinderGeometry(0.54, 0.54, 0.3, 12), RUBBER, { y: 1.58, z: 2.07, rx: Math.PI / 2 });
     trim.add(new THREE.CylinderGeometry(0.29, 0.29, 0.32, 10), CREAM, { y: 1.58, z: 2.07, rx: Math.PI / 2 });
@@ -96,6 +100,7 @@ const VEHICLE_BUILDERS = {
       headlamps: { x: 0.77, y: 1.23, z: -1.97 },
       brakeLights: { x: 0.77, y: 1.21, z: 1.94 },
       mounts: { flag: [0.7, 2.71, 1.22], teddy: [-0.38, 2.66, -0.38], gnome: [0, 1.63, -1.45] },
+      tent: [0, 2.71, 0.3, 2.2],
     };
   },
 
@@ -136,6 +141,7 @@ const VEHICLE_BUILDERS = {
       headlamps: { x: 0.77, y: 1.2, z: -2.33 },
       brakeLights: { x: 0.8, y: 1.3, z: 2.6 },
       mounts: { flag: [0.82, 1.73, 2.4], teddy: [-0.35, 2.48, -0.4], gnome: [0, 1.63, -1.8] },
+      tent: [0, 2.48, -0.1, 1.8],
     };
   },
 
@@ -159,6 +165,7 @@ const VEHICLE_BUILDERS = {
       headlamps: { x: 0.68, y: 1.12, z: -2.16 },
       brakeLights: { x: 0.85, y: 1.3, z: 2.16 },
       mounts: { flag: [0.7, 3.06, 1.7], teddy: [-0.35, 3.06, -0.7], gnome: [0.4, 3.06, 0.6] },
+      tent: [0, 3.06, 0.35, 2.4],
     };
   },
 
@@ -185,6 +192,7 @@ const VEHICLE_BUILDERS = {
       headlamps: { x: 0.62, y: 0.98, z: -2.06, square: true },
       brakeLights: { x: 0.66, y: 0.98, z: 2.06 },
       mounts: { flag: [0.6, 1.84, 0.95], teddy: [-0.3, 1.84, -0.1], gnome: [0, 1.26, -1.55] },
+      tent: [0, 1.84, 0.2, 2],
     };
   },
 
@@ -225,6 +233,7 @@ const VEHICLE_BUILDERS = {
       headlamps: { x: 0.3, y: 1.62, z: -2.09, radius: 0.12 },
       brakeLights: { x: 0.98, y: 1.6, z: 1.92 },
       mounts: { flag: [0.6, 2.9, 1.5], teddy: [-0.35, 2.9, 0.6], gnome: [0, 1.9, -1.55] },
+      tent: [0, 2.9, 0.85, 1.8],
     };
   },
 };
@@ -247,9 +256,17 @@ export function createCar() {
   for (const [name, build] of Object.entries(VEHICLE_BUILDERS)) {
     const painted = new PartsBuilder();
     const trim = new PartsBuilder();
-    const spec = build(painted, trim);
+    const cargoParts = new PartsBuilder();
+    const spec = build(painted, trim, cargoParts);
     const shell = new THREE.Group();
     shell.add(painted.mesh({ material: paint }), trim.mesh());
+    const cargo = cargoParts.isEmpty ? null : cargoParts.mesh();
+    if (cargo) shell.add(cargo);
+    const [tx, ty, tz, length] = spec.tent;
+    const tent = createRoofTent(length, ty);
+    tent.root.position.set(tx, ty, tz);
+    tent.root.visible = false;
+    shell.add(tent.root);
     for (const side of [-1, 1]) {
       const { x, y, z, square, radius = 0.19 } = spec.headlamps;
       const lamp = square
@@ -271,7 +288,7 @@ export function createCar() {
       root.add(wheel.pivot);
       return { ...wheel, front: z < 0 };
     });
-    vehicles[name] = { shell, wheels, spec };
+    vehicles[name] = { shell, wheels, spec, cargo, tent };
   }
 
   // One spotlight between the headlamps keeps the light count (and cost) down.
@@ -290,12 +307,13 @@ export function createCar() {
 
   let current = vehicles.offroader;
   let rainbow = false;
+  let tentOpen = 0;
   const car = {
     root,
     body,
     wheels: current.wheels,
     headlight,
-    /** `chosen` lists the roof decorations to show; they all fit at once. */
+    /** `chosen` lists the roof items to show; they all fit at once. With the tent, the roof ones ride on it. */
     customize(color, chosen = [], vehicle = 'offroader') {
       current = vehicles[vehicle] ?? vehicles.offroader;
       car.wheels = current.wheels;
@@ -308,10 +326,26 @@ export function createCar() {
       headlight.target.position.set(0, -1, headlamps.z - 20);
       rainbow = color === 'rainbow';
       if (!rainbow) paint.color.set(CAR_COLORS[color] ?? CAR_COLORS.orange);
+      const withTent = chosen.includes('tent');
+      for (const v of Object.values(vehicles)) {
+        v.tent.root.visible = withTent && v === current;
+        if (v.cargo) v.cargo.visible = !withTent;
+      }
       for (const [name, object] of Object.entries(decorations)) {
         object.visible = chosen.includes(name);
-        object.position.set(...mounts[name]);
+        const onRoof = mounts[name][1] >= current.spec.tent[1] - 0.1;
+        if (withTent && onRoof) current.tent.carry(name, object);
+        else {
+          body.add(object);
+          object.position.set(...mounts[name]);
+        }
       }
+      car.setTent(tentOpen, 0);
+    },
+    /** Opens the roof tent by `amount` (0 folded, 1 open); `night` lights the lantern inside. */
+    setTent(amount, night) {
+      tentOpen = amount;
+      current.tent.open(amount, night);
     },
     setLights(night, braking) {
       headlight.intensity = night * 55;
@@ -325,6 +359,134 @@ export function createCar() {
   };
   car.customize('orange');
   return car;
+}
+
+const TENT_WIDTH = 1.5;
+const TENT_SHELL = '#3f4541';
+const CANVAS = '#d9893b';
+/** How far the lid swings over: past upright, so it hangs out to the side like an awning. */
+const LID_SWING = 2.45;
+
+/** A triangular prism, `width` across and one metre tall, running `length` along Z, with its ends open. */
+function ridgeGeometry(width, length) {
+  const w = width / 2;
+  const d = length / 2;
+  return prism([
+    [-w, 0, d],
+    [0, 1, -d],
+    [-w, 0, -d],
+    [-w, 0, d],
+    [0, 1, d],
+    [0, 1, -d],
+    [w, 0, d],
+    [w, 0, -d],
+    [0, 1, -d],
+    [w, 0, d],
+    [0, 1, -d],
+    [0, 1, d],
+  ]);
+}
+
+/**
+ * A roof tent: a low box on the roof that opens into a little ridge tent. The lid
+ * swings over to one side, the canvas rises and a ladder slides down to the ground.
+ * There is room at the front for the teddy. The origin is the middle of the base,
+ * which sits `roof` metres above the ground.
+ */
+function createRoofTent(length, roof) {
+  const half = length / 2;
+  const w = TENT_WIDTH / 2;
+  const porch = 0.45;
+  const tentLength = length - porch;
+  const middle = porch / 2; // the tent's centre, behind the porch
+  const root = new THREE.Group();
+  root.add(
+    new PartsBuilder()
+      .box(TENT_WIDTH, 0.2, length, TENT_SHELL, { y: 0.1 })
+      .box(TENT_WIDTH + 0.02, 0.04, length + 0.02, '#c9c3b0', { y: 0.2 })
+      .mesh(),
+  );
+
+  // The lid turns about its left-hand edge.
+  const lid = new THREE.Group();
+  lid.position.set(-w, 0.22, middle);
+  root.add(lid);
+  lid.add(new PartsBuilder().box(TENT_WIDTH, 0.2, tentLength, TENT_SHELL, { x: w, y: 0.1 }).mesh());
+
+  // The canvas, with a doorway at the back that is lit from inside after dark.
+  const tent = new THREE.Group();
+  tent.position.set(0, 0.22, middle);
+  root.add(tent);
+  const canvas = new THREE.Mesh(
+    ridgeGeometry(TENT_WIDTH - 0.04, tentLength),
+    flatMaterial(CANVAS, { side: THREE.DoubleSide }),
+  );
+  canvas.castShadow = true;
+  const ends = new PartsBuilder();
+  for (const end of [-1, 1]) {
+    ends.add(
+      prism([
+        [-w + 0.02, 0, 0],
+        [w - 0.02, 0, 0],
+        [0, 1, 0],
+      ]),
+      '#c97a33',
+      { z: (end * tentLength) / 2 },
+    );
+  }
+  const glow = new THREE.MeshLambertMaterial({ color: '#4b3b2c', emissive: '#ffbf5e', emissiveIntensity: 0 });
+  const doorway = new THREE.Mesh(
+    prism([
+      [-0.3, 0, 0],
+      [0.3, 0, 0],
+      [0, 0.78, 0],
+    ]),
+    glow,
+  );
+  doorway.position.z = tentLength / 2 + 0.01;
+  tent.add(
+    canvas,
+    ends.mesh({ material: flatMaterial('#ffffff', { vertexColors: true, side: THREE.DoubleSide }) }),
+    doorway,
+  );
+  tent.add(new PartsBuilder().box(0.06, 0.06, tentLength + 0.1, '#6b5a45', { y: 1 }).mesh({ castShadow: false })); // ridge pole
+
+  // A ladder at the side, down to the ground.
+  const ladderParts = new PartsBuilder();
+  for (const z of [-0.22, 0.22]) ladderParts.box(0.05, 1, 0.05, '#b8beb7', { y: -0.5, z });
+  for (let k = 1; k <= 5; k++) ladderParts.box(0.04, 0.035, 0.44, '#b8beb7', { y: -k / 6 });
+  const ladder = ladderParts.mesh({ receiveShadow: false });
+  ladder.position.set(w + 0.06, 0.18, middle);
+  ladder.rotation.z = 0.22;
+  root.add(ladder);
+  const reach = (roof + 0.18) / Math.cos(0.22);
+
+  const spots = {
+    flag: { parent: root, at: [w + 0.05, 0.05, half - 0.12] },
+    teddy: { parent: root, at: [-0.3, 0.22, -half + 0.24] },
+    gnome: { parent: root, at: [0.36, 0.22, -half + 0.24] },
+  };
+
+  return {
+    root,
+    carry(name, object) {
+      const spot = spots[name];
+      spot.parent.add(object);
+      object.position.set(...spot.at);
+    },
+    open(amount, night) {
+      // The lid swings over first, then the tent rises, then the ladder slides out.
+      const swing = Math.min(1, amount / 0.6);
+      const rise = Math.max(0, (amount - 0.25) / 0.75);
+      const slide = Math.max(0, (amount - 0.6) / 0.4);
+      lid.rotation.z = Math.sin((swing * Math.PI) / 2) * LID_SWING;
+      tent.visible = rise > 0;
+      tent.scale.y = Math.max(0.001, rise * 1.05);
+      glow.emissiveIntensity = night * rise * 1.5;
+      ladder.visible = slide > 0;
+      ladder.scale.y = Math.max(0.001, slide * reach);
+    },
+  };
 }
 
 /** A pennant on a pole. The group's origin is the foot of the pole. */

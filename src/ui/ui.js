@@ -10,7 +10,7 @@ const $ = id => document.getElementById(id);
 const LABELS = {
   vehicles: { offroader: 'Off-roader', pickup: 'Pickup', van: 'Camper van', saloon: 'Saloon', tractor: 'Tractor' },
   colors: { orange: 'Orange', sage: 'Sage', blue: 'Blue', berry: 'Berry', yellow: 'Yellow', rainbow: 'Rainbow' },
-  decorations: { flag: 'Flag', teddy: 'Teddy', gnome: 'Gnome' },
+  decorations: { flag: 'Flag', teddy: 'Teddy', tent: 'Roof tent', gnome: 'Gnome' },
   horns: { beep: 'Beep', bicycle: 'Bell', quack: 'Quack', twinkle: 'Twinkle' },
   sky: { auto: 'Changes over time', sunset: 'Sunset', night: 'Night', rain: 'Rain', day: 'Clear day' },
   tilt: {
