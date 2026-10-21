@@ -170,7 +170,7 @@ export function createGame(canvas) {
     onFound: index => {
       if (!journal.collectGnome(index)) return;
       sound.chime();
-      ui.gnomeToast(journal.get().gnomes.length);
+      ui.gnomeFound(journal.get().gnomes.length);
     },
   });
 

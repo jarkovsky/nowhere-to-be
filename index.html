@@ -26,6 +26,11 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12" /></svg>
       </button>
       <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+      <div id="gnome-progress" class="gnome-progress" role="status" aria-live="polite" hidden>
+        <div id="gnome-row" class="gnome-row" aria-hidden="true"></div>
+        <strong id="gnome-number" class="gnome-number" aria-hidden="true"></strong>
+        <span id="gnome-status" class="visually-hidden"></span>
+      </div>
       <button id="wake" class="button wake" hidden>Wake up</button>
     </div>
 
@@ -122,7 +127,7 @@
         <h2 tabindex="-1">Scrapbook</h2>
         <div id="sticker-grid" class="sticker-grid"></div>
         <div class="gnome-tally">
-          <div id="gnome-dots" class="gnome-dots" aria-hidden="true"></div>
+          <div id="gnome-tally-row" class="gnome-row" aria-hidden="true"></div>
           <p id="gnome-count">0 of 10 garden gnomes found</p>
         </div>
         <p id="save-note" class="note">Saved in this browser.</p>

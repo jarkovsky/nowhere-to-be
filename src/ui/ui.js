@@ -3,7 +3,7 @@
 import { CAR_COLORS } from '../vehicles/car.js';
 import { HORNS } from '../core/audio.js';
 import { STICKERS, COLORS, DECORATIONS, VEHICLES } from '../core/journal.js';
-import { STICKER_INFO, stickerArt, gnomeArt } from './stickers.js';
+import { STICKER_INFO, stickerArt, gnomeArt, gnomeIcon } from './stickers.js';
 
 const $ = id => document.getElementById(id);
 
@@ -30,6 +30,7 @@ const LABELS = {
 export function createUI({ journal, gnomeCount, on }) {
   const menu = $('menu');
   let toastTimer = null;
+  let gnomeTimer = null;
   let showroom = false;
   const toastQueue = [];
 
@@ -94,10 +95,7 @@ export function createUI({ journal, gnomeCount, on }) {
       }
       return `<article class="sticker">${stickerArt(id)}<strong>${info.name}</strong><p>${info.story}</p></article>`;
     }).join('');
-    $('gnome-dots').innerHTML = Array.from(
-      { length: gnomeCount },
-      (_, i) => `<span class="${gnomes.includes(i) ? 'found' : ''}"></span>`,
-    ).join('');
+    $('gnome-tally-row').innerHTML = gnomeRow(gnomes.length);
     $('gnome-count').textContent =
       gnomes.length === gnomeCount
         ? `All ${gnomeCount} garden gnomes found. Check the roof options!`
@@ -173,6 +171,34 @@ export function createUI({ journal, gnomeCount, on }) {
 
   // --- Toasts ---------------------------------------------------------------------
 
+  /** One gnome per hiding place, coloured in from the left as they are found. `fresh` pops in. */
+  function gnomeRow(count, fresh = -1) {
+    return Array.from(
+      { length: gnomeCount },
+      (_, i) =>
+        `<span class="${i < count ? 'found' : ''}${i === fresh ? ' fresh' : ''}" style="--i:${i}">${gnomeIcon()}</span>`,
+    ).join('');
+  }
+
+  function showGnomeProgress(count) {
+    const panel = $('gnome-progress');
+    const complete = count === gnomeCount;
+    $('gnome-row').innerHTML = gnomeRow(count, complete ? -1 : count - 1);
+    $('gnome-number').textContent = `${count} / ${gnomeCount}`;
+    $('gnome-status').textContent = `${count} of ${gnomeCount} garden gnomes found`;
+    panel.classList.toggle('complete', complete);
+    panel.classList.remove('leaving');
+    panel.hidden = false;
+    clearTimeout(gnomeTimer);
+    gnomeTimer = setTimeout(
+      () => {
+        panel.classList.add('leaving');
+        gnomeTimer = setTimeout(() => (panel.hidden = true), 400);
+      },
+      complete ? 7000 : 5000,
+    );
+  }
+
   function showNextToast() {
     const toast = $('toast');
     const next = toastQueue.shift();
@@ -225,10 +251,10 @@ export function createUI({ journal, gnomeCount, on }) {
     stickerToast(id) {
       this.toast({ art: stickerArt(id), title: STICKER_INFO[id].name, detail: 'Added to your scrapbook' });
     },
-    gnomeToast(count) {
-      const detail =
-        count === gnomeCount ? 'All found. A new roof option is waiting.' : `${count} of ${gnomeCount} found`;
-      this.toast({ art: gnomeArt(), title: 'Garden gnome', detail });
+    gnomeFound(count) {
+      showGnomeProgress(count);
+      if (count === gnomeCount)
+        this.toast({ art: gnomeArt(), title: 'All garden gnomes found', detail: 'A new roof option is waiting.' });
     },
     setSky(preset) {
       $('sky-value').textContent = LABELS.sky[preset];
