@@ -40,16 +40,22 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
     );
   }
 
+  /** `car.scale` stands the camera further back and higher for the lorries, to see over their trailers. */
   function chaseGoal(car, compact) {
     const speedFactor = clamp(Math.abs(car.speed) / 14, 0, 1);
-    const distance = (compact ? 17 : 14) + speedFactor * 2.5;
-    const height = (compact ? 7.5 : 6) + speedFactor * 0.8;
+    const scale = car.scale ?? 1;
+    const distance = ((compact ? 17 : 14) + speedFactor * 2.5) * scale;
+    const height = ((compact ? 7.5 : 6) + speedFactor * 0.8) * scale ** 1.8;
     // Directly behind the car along its (smoothed) heading, unless the player has swung it round.
     const elevation = clamp(Math.atan2(height, distance) + orbit.pitch, 0.06, 1.25);
     aroundCar(car, heading + orbit.yaw, elevation, Math.hypot(distance, height) * orbit.zoom, 0);
     // Look ahead of the car normally; at the car itself while looking around.
-    const ahead = 3 * (1 - clamp(Math.abs(orbit.yaw) / 0.6, 0, 1));
-    look.set(car.x - Math.sin(car.heading) * ahead, car.y + 2, car.z - Math.cos(car.heading) * ahead);
+    const ahead = 3 * scale * (1 - clamp(Math.abs(orbit.yaw) / 0.6, 0, 1));
+    look.set(
+      car.x - Math.sin(car.heading) * ahead * scale,
+      car.y + 2 * scale,
+      car.z - Math.cos(car.heading) * ahead * scale,
+    );
     origin.set(car.x, car.y + 1.8, car.z);
   }
 
@@ -57,9 +63,10 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
   function showroomGoal(car, dt, compact) {
     if (!orbit.dragging && orbit.idle > 2.5) orbit.yaw += dt * 0.22;
     const elevation = clamp(0.28 + orbit.pitch, 0.05, 1.2);
-    aroundCar(car, car.heading + 2.4 + orbit.yaw, elevation, (compact ? 13 : 9.5) * orbit.zoom, 1.1);
-    look.set(car.x, car.y + 1.4, car.z);
-    origin.set(car.x, car.y + 1.4, car.z);
+    const scale = car.scale ?? 1;
+    aroundCar(car, car.heading + 2.4 + orbit.yaw, elevation, (compact ? 13 : 9.5) * scale * orbit.zoom, 1.1 * scale);
+    look.set(car.x, car.y + 1.4 * scale, car.z);
+    origin.set(car.x, car.y + 1.4 * scale, car.z);
   }
 
   return {

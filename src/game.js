@@ -6,6 +6,7 @@ import { createObstacleIndex } from './core/collision.js';
 import { createCarState, placeCar, steerAngle, stepDriving } from './core/driving.js';
 import { createJournal } from './core/journal.js';
 import { chassisPose, settleWheels } from './core/suspension.js';
+import { createTrailerState, stepTrailer } from './core/trailer.js';
 import { createControls } from './input/controls.js';
 import { createLook } from './input/look.js';
 import { createTiltSteering } from './input/tilt.js';
@@ -115,7 +116,7 @@ export function createGame(canvas) {
   const ringTraffic = createTraffic(scene, RING);
   const train = createTrain(scene, { onHorn: distance => sound.trainHorn(distance) });
   const car = createCar();
-  scene.add(car.root);
+  scene.add(car.root, car.towed);
 
   const state = createCarState(SPAWN);
   if (journal.get().camp) placeCar(state, CAMP);
@@ -297,7 +298,7 @@ export function createGame(canvas) {
   function honk() {
     if (clock - lastHonk < 0.5) return;
     lastHonk = clock;
-    sound.horn(insideTunnel(state.x, state.z));
+    sound.horn(insideTunnel(state.x, state.z), car.spec.voice?.horn);
     wildlife.hearHorn(state.x, state.z);
     secrets.hearHorn(state.x, state.z);
     for (const road of [traffic, ringTraffic]) road.answerHonk(state.x, state.z, () => sound.otherHorn());
@@ -317,6 +318,9 @@ export function createGame(canvas) {
     const { color, decorations, vehicle } = journal.get();
     car.customize(color, decorations, vehicle);
     hasTent = decorations.includes('tent');
+    sound.setEngine(car.spec.voice?.engine);
+    trailer.ready = false;
+    if (car.trailer) placeTrailer();
   }
 
   // --- Roof tent -----------------------------------------------------------------------
@@ -384,6 +388,55 @@ export function createGame(canvas) {
       wheel.spin.rotation.x -= (state.speed * dt) / wheel.radius;
     }
     settleWheels(car, drivingHeight);
+    car.look(state.steering);
+    if (car.trailer) placeTrailer();
+  }
+
+  // --- The lorries' trailers ---------------------------------------------------------------
+
+  const trailer = createTrailerState();
+  const hitch = new THREE.Vector3();
+  const point = new THREE.Vector3();
+
+  /** Hangs the trailer from the lorry's hitch, lets it follow on behind and rests its wheels on the ground. */
+  function placeTrailer() {
+    const { root, axles, spec } = car.trailer;
+    const { radius } = spec.wheel;
+    car.root.localToWorld(hitch.set(...spec.hitch));
+    const moved = Math.hypot(hitch.x - trailer.x, hitch.z - trailer.z);
+    stepTrailer(trailer, hitch, state.heading, spec.axle);
+    const sin = Math.sin(trailer.heading);
+    const cos = Math.cos(trailer.heading);
+    const ground = (lx, lz) => drivingHeight(hitch.x + cos * lx + sin * lz, hitch.z - sin * lx + cos * lz);
+    const left = ground(-spec.track / 2, spec.axle);
+    const right = ground(spec.track / 2, spec.axle);
+    // Tip it until the middle axle's wheels are on the ground, and lean it with the ground beneath them.
+    const drop = (left + right) / 2 + radius + 0.01 - hitch.y - spec.rest;
+    root.position.copy(hitch);
+    root.rotation.set(
+      Math.asin(clamp(-drop / spec.axle, -0.5, 0.5)),
+      trailer.heading,
+      Math.atan((right - left) / spec.track),
+      'YXZ',
+    );
+    root.updateMatrixWorld();
+    // Then each axle rides up or down a little to meet the ground under it.
+    const roll = moved < 5 ? moved * Math.sign(state.speed) : 0;
+    for (const axle of axles) {
+      const under = (ground(-spec.track / 2, axle.z) + ground(spec.track / 2, axle.z)) / 2 + radius + 0.01;
+      const height = root.localToWorld(point.set(0, spec.rest, axle.z)).y;
+      axle.pivot.position.y = spec.rest + clamp(under - height, -0.24, 0.13);
+      axle.spin.rotation.x -= roll / radius;
+    }
+  }
+
+  /** Points along the trailer, for the other traffic and the train to stop short of. */
+  function trailerPoints() {
+    if (!car.trailer) return [];
+    return [3, 7].map(d => ({
+      x: trailer.x + Math.sin(trailer.heading) * d,
+      z: trailer.z + Math.cos(trailer.heading) * d,
+    }));
   }
 
   const carView = () => ({
@@ -392,6 +445,7 @@ export function createGame(canvas) {
     z: state.z,
     heading: state.heading,
     speed: state.speed,
+    scale: car.spec.camera ?? 1,
   });
   const compactScreen = () => innerWidth < 700 || innerHeight > innerWidth;
   const cameraOptions = () => ({ compact: compactScreen(), intro: introShot, camp: campShot, shot: debugShot });
@@ -536,7 +590,8 @@ export function createGame(canvas) {
     car.animate(clock);
     updateTent(dt, night);
     scenery.update(dt, camera.position);
-    train.update(dt, { player: state });
+    const towed = trailerPoints();
+    train.update(dt, { player: state, towed });
     helicopter.update(dt);
     planes.update(dt, { player: state });
     const crossingClosed = train.crossingClosed();
@@ -551,10 +606,10 @@ export function createGame(canvas) {
     surfaces.update(dt, state, driving);
     traffic.update(dt, {
       player: state,
-      blockers: [...wildlife.crossingDucks(), ...landmarks.crossing.blockers()],
+      blockers: [...wildlife.crossingDucks(), ...landmarks.crossing.blockers(), ...towed],
       night,
     });
-    ringTraffic.update(dt, { player: state, night });
+    ringTraffic.update(dt, { player: state, blockers: towed, night });
 
     if (mode === 'title') updateIntroShot(clock);
     chase.update(dt, carView(), cameraOptions());
@@ -613,6 +668,7 @@ export function createGame(canvas) {
         pixelRatio,
         input: controls.read(),
         tentOpen,
+        trailer: car.trailer ? { ...trailer, swing: angleDelta(state.heading, trailer.heading) } : null,
         calls: renderer.info.render.calls,
         triangles: renderer.info.render.triangles,
       }),

@@ -152,7 +152,9 @@ export function createTrain(scene, { onHorn = () => {} } = {}) {
   return {
     /** Circles the player's car collides with. */
     colliders,
-    update(dt, { player }) {
+    /** `towed` lists points along the player's trailer, which the train stops for too. */
+    update(dt, { player, towed = [] }) {
+      const room = () => Math.min(...[player, ...towed].map(p => roomAhead(p, 200)));
       if (phase === 'halt') {
         timer -= dt;
         if (timer <= 0) {
@@ -160,7 +162,7 @@ export function createTrain(scene, { onHorn = () => {} } = {}) {
           hootAt = 0;
         }
       } else if (phase === 'out') {
-        drive(dt, roomAhead(player, 200));
+        drive(dt, room());
         head += speed * dt;
         if (head >= AWAY) {
           phase = 'away';
@@ -175,7 +177,7 @@ export function createTrain(scene, { onHorn = () => {} } = {}) {
           hootAt = 1.5;
         }
       } else {
-        drive(dt, Math.min(head - AT_HALT, roomAhead(player, 200)));
+        drive(dt, Math.min(head - AT_HALT, room()));
         head -= speed * dt;
         if (head - AT_HALT < 0.05) {
           head = AT_HALT;

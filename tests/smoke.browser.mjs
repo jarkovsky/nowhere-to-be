@@ -87,7 +87,12 @@ try {
   assert.equal((await state(page)).tentOpen, 1, 'the open tent stays still');
   await page.getByRole('button', { name: 'Tractor' }).click();
   assert.equal((await state(page)).journal.vehicle, 'tractor');
+  // The characters keep their own colours, so the paint choice goes away for them.
+  await page.getByRole('button', { name: 'Oliver' }).click();
+  assert.equal(await page.locator('#color-options').isVisible(), false);
+  assert.ok((await state(page)).trailer, 'the lorry has its trailer');
   await page.getByRole('button', { name: 'Off-roader' }).click();
+  assert.ok(await page.locator('#color-options').isVisible());
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   assert.equal((await state(page)).cameraMode, 'chase');
@@ -125,6 +130,21 @@ try {
   await page.waitForTimeout(500);
   assert.equal((await state(page)).plane.phase, 'starting');
   step('a honk beside the plane at the airfield starts it up');
+
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: 'Car' }).click();
+  await page.getByRole('button', { name: 'Oliver' }).click();
+  await page.getByRole('button', { name: 'Resume' }).click();
+  await page.evaluate(() => window.__game.teleport(540, 120, -1.57));
+  assert.equal((await state(page)).trailer.swing, 0);
+  await page.keyboard.down('ArrowUp');
+  await page.keyboard.down('ArrowLeft');
+  await page.waitForTimeout(2500);
+  await page.keyboard.up('ArrowLeft');
+  await page.keyboard.up('ArrowUp');
+  const { swing } = (await state(page)).trailer;
+  assert.ok(swing < -0.05 && swing > -1.06, `the trailer swings out on the bend (${swing.toFixed(2)})`);
+  step('the lorry pulls its trailer round a bend');
 
   console.log('Phone');
   const phone = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });

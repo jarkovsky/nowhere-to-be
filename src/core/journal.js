@@ -6,7 +6,7 @@ export const SAVE_KEY = 'little-wilds-adventures-v1';
 
 export const COLORS = ['orange', 'sage', 'blue', 'berry', 'yellow', 'rainbow'];
 export const DECORATIONS = ['flag', 'teddy', 'tent', 'gnome'];
-export const VEHICLES = ['offroader', 'pickup', 'van', 'saloon', 'tractor'];
+export const VEHICLES = ['offroader', 'pickup', 'van', 'saloon', 'tractor', 'oliver', 'ruda', 'hyundai', 'mercedes'];
 
 const DEFAULTS = {
   gnomes: [],

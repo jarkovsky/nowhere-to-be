@@ -36,6 +36,7 @@ export function createAudio() {
   let siren;
   let noise;
   let enabled = true;
+  let enginePitch = 1;
   let surface = 'grass';
   let surfacePace = 0;
   let nextCrackle = 0;
@@ -270,14 +271,24 @@ export function createAudio() {
       if (value && context) ready().catch(() => {});
     },
 
-    /** A friendly two-note beep, echoing in the tunnel. */
-    horn(inTunnel = false) {
+    /** A friendly two-note beep, or the lorries' deep air horn, echoing in the tunnel. */
+    horn(inTunnel = false, kind = 'beep') {
       if (!playable()) return false;
       const now = context.currentTime;
       echoSend.gain.setValueAtTime(inTunnel ? 0.6 : 0, now);
+      if (kind === 'air') {
+        tone(185, now, 0.75, { type: 'sawtooth', volume: 0.05, echo: 1 });
+        tone(233, now, 0.75, { type: 'sawtooth', volume: 0.05, echo: 1 });
+        return true;
+      }
       tone(523, now, 0.24, { type: 'triangle', echo: 1 });
       tone(659, now, 0.24, { type: 'triangle', echo: 1 });
       return true;
+    },
+
+    /** Lower for the lorries' big engines, higher for the racing cars'. 1 is the little off-roader. */
+    setEngine(pitch = 1) {
+      enginePitch = pitch;
     },
 
     /** The other travellers' reply: a lower, two-note toot. */
@@ -392,10 +403,10 @@ export function createAudio() {
       master.gain.setTargetAtTime(enabled && active ? 0.6 : 0, now, 0.15);
 
       const rpm = engineRpm(speed, throttle);
-      const firing = rpm / 30; // four cylinders, two firings per turn
+      const firing = (rpm / 30) * enginePitch; // four cylinders, two firings per turn
       engine.pulses.frequency.setTargetAtTime(firing, now, 0.08);
       engine.body.frequency.setTargetAtTime(firing, now, 0.08);
-      engine.exhaust.frequency.setTargetAtTime(220 + rpm * 0.09 + throttle * 200, now, 0.1);
+      engine.exhaust.frequency.setTargetAtTime((220 + rpm * 0.09 + throttle * 200) * enginePitch, now, 0.1);
       const loudness = 0.05 + throttle * 0.035 + (rpm / 4000) * 0.03;
       engine.volume.gain.setTargetAtTime(engineOn ? loudness : 0, now, engineOn ? 0.15 : 0.4);
 

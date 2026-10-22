@@ -2,14 +2,24 @@
 // for a small child who can't read yet, so everything is a picture to tap; the words
 // are labels for screen readers. It knows nothing about Three.js; the game talks to
 // it through callbacks.
-import { CAR_COLORS } from '../vehicles/car.js';
+import { CAR_COLORS, CHARACTERS } from '../vehicles/car.js';
 import { COLORS, DECORATIONS, VEHICLES } from '../core/journal.js';
 import { gnomeArt, gnomeIcon, roofArt, vehicleArt } from './art.js';
 
 const $ = id => document.getElementById(id);
 
 const LABELS = {
-  vehicles: { offroader: 'Off-roader', pickup: 'Pickup', van: 'Camper van', saloon: 'Saloon', tractor: 'Tractor' },
+  vehicles: {
+    offroader: 'Off-roader',
+    pickup: 'Pickup',
+    van: 'Camper van',
+    saloon: 'Saloon',
+    tractor: 'Tractor',
+    oliver: 'Oliver',
+    ruda: 'Ruda',
+    hyundai: 'Hyundai',
+    mercedes: 'Mercedes',
+  },
   colors: { orange: 'Orange', sage: 'Sage', blue: 'Blue', berry: 'Berry', yellow: 'Yellow', rainbow: 'Rainbow' },
   decorations: { flag: 'Flag', teddy: 'Teddy', tent: 'Roof tent', gnome: 'Gnome' },
   tilt: {
@@ -131,6 +141,8 @@ export function createUI({ journal, gnomeCount, on }) {
         style: c => `--swatch:${CAR_COLORS[c] ?? 'transparent'}`,
       },
     );
+    // The characters keep their own colours.
+    $('color-options').hidden = CHARACTERS.includes(choices.vehicle);
     // Roof items can be combined, so each button toggles its own item.
     choiceButtons(
       $('decoration-options'),

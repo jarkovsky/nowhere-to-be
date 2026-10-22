@@ -14,7 +14,7 @@ test('gnomes are recorded once and survive a reload, with the car choices', () =
   assert.equal(journal.collectGnome(3), false);
   journal.save({
     color: 'blue',
-    vehicle: 'tractor',
+    vehicle: 'oliver',
     decorations: ['flag', 'teddy', 'tent'],
     camp: true,
   });

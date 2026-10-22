@@ -965,15 +965,36 @@ body.touch .keys {
   }
 
   .menu.showroom {
-    width: min(360px, 60vw);
+    width: min(470px, 56vw);
     height: 100dvh;
     max-height: 100dvh;
     inset: 0 auto 0 0;
     border-radius: 0 30px 30px 0;
   }
 
+  /* Wider rows, so the whole garage fits without scrolling. */
+  .garage-bar {
+    margin-bottom: 10px;
+  }
+
+  .vehicle-tiles {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+  }
+
   .vehicle-tiles button {
     aspect-ratio: 1.6;
+    padding: 3px;
+  }
+
+  .swatches,
+  .roof-tiles {
+    margin-top: 12px;
+  }
+
+  .roof-tiles {
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
   }
 }
 
