@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { ROAD } from '../src/world/layout.js';
-import { createTraffic, LANE } from '../src/vehicles/traffic.js';
+import { RING_ROAD, ROAD } from '../src/world/layout.js';
+import { RING, createTraffic, LANE } from '../src/vehicles/traffic.js';
 
 /** Runs the traffic with the player parked at `player`, recording what happens. */
 function watch(traffic, player, seconds) {
@@ -43,4 +43,15 @@ test('an emergency vehicle goes round a car stopped in its lane', () => {
   const player = ROAD.offset(s, direction * LANE);
   const seen = watch(traffic, player, 180);
   assert.ok(seen.closest < 9 && seen.gone, `it got past (closest ${seen.closest.toFixed(0)} m)`);
+});
+
+test('police cars and the army off-roader come along the upland ring too', () => {
+  const traffic = createTraffic(new THREE.Scene(), RING);
+  const player = RING_ROAD.offset(RING_ROAD.length * 0.3, 8);
+  assert.equal(traffic.callOut(player), true);
+  assert.equal(traffic.emergency().kind, 'police');
+  assert.ok(watch(traffic, player, 180).gone, 'the police car came past and went on its way');
+  assert.equal(traffic.callOut(player), true);
+  assert.equal(traffic.visitor().kind, 'army');
+  assert.equal(traffic.emergency(), null, 'the army has no blue lights, so nobody pulls over');
 });

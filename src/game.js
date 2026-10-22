@@ -11,7 +11,7 @@ import { createLook } from './input/look.js';
 import { createTiltSteering } from './input/tilt.js';
 import { createUI } from './ui/ui.js';
 import { createCar } from './vehicles/car.js';
-import { createTraffic } from './vehicles/traffic.js';
+import { RING, createTraffic } from './vehicles/traffic.js';
 import { createTrain } from './vehicles/train.js';
 import { createHelicopter } from './vehicles/helicopter.js';
 import { createPlanes } from './vehicles/plane.js';
@@ -112,6 +112,7 @@ export function createGame(canvas) {
   const surfaces = createSurfaces(scene, sound);
   obstacles.push(...surfaces.obstacles);
   const traffic = createTraffic(scene);
+  const ringTraffic = createTraffic(scene, RING);
   const train = createTrain(scene, { onHorn: distance => sound.trainHorn(distance) });
   const car = createCar();
   scene.add(car.root);
@@ -299,7 +300,7 @@ export function createGame(canvas) {
     sound.horn(insideTunnel(state.x, state.z));
     wildlife.hearHorn(state.x, state.z);
     secrets.hearHorn(state.x, state.z);
-    traffic.answerHonk(state.x, state.z, () => sound.otherHorn());
+    for (const road of [traffic, ringTraffic]) road.answerHonk(state.x, state.z, () => sound.otherHorn());
     train.answerHonk(state);
     helicopter.hearHorn(state);
     planes.hearHorn(state);
@@ -513,6 +514,7 @@ export function createGame(canvas) {
       moving.length = 0;
       moving.push(
         ...traffic.colliders,
+        ...ringTraffic.colliders,
         ...train.colliders,
         ...helicopter.colliders,
         ...planes.colliders,
@@ -552,6 +554,7 @@ export function createGame(canvas) {
       blockers: [...wildlife.crossingDucks(), ...landmarks.crossing.blockers()],
       night,
     });
+    ringTraffic.update(dt, { player: state, night });
 
     if (mode === 'title') updateIntroShot(clock);
     chase.update(dt, carView(), cameraOptions());
@@ -568,7 +571,7 @@ export function createGame(canvas) {
       b.level > a.level ? b : a,
     );
     sound.rotor(mode === 'title' ? 0 : rotor.level, rotor.rate);
-    sound.siren(mode === 'title' ? 0 : traffic.sirenLevel(state));
+    sound.siren(mode === 'title' ? 0 : Math.max(traffic.sirenLevel(state), ringTraffic.sirenLevel(state)));
     renderer.render(scene, camera);
     if (!UNCAPPED) adaptResolution(frameMs, dt, targetFps);
   }
@@ -596,6 +599,7 @@ export function createGame(canvas) {
         surface: surfaces.getState(),
         traffic: traffic.getState(),
         emergency: traffic.emergency(),
+        visitors: [traffic.visitor(), ringTraffic.visitor()],
         train: train.getState(),
         helicopter: helicopter.getState(),
         plane: planes.getState(),
@@ -618,7 +622,7 @@ export function createGame(canvas) {
         chase.snap(carView(), cameraOptions());
       },
       setSky: preset => atmosphere.setPreset(preset),
-      callOut: () => traffic.callOut(state),
+      callOut: kind => traffic.callOut(state, kind) || ringTraffic.callOut(state, kind),
       setClock: seconds => atmosphere.setTime(seconds),
       shot(position, target) {
         chase.setMode('shot');
