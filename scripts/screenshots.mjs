@@ -27,7 +27,7 @@ try {
   const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
   const page = await context.newPage();
   await page.goto(server.url);
-  await page.getByRole('button', { name: 'Play' }).waitFor();
+  await page.waitForFunction(() => !document.getElementById('play').disabled);
   await capture(page, 'title', 2500);
 
   await page.getByRole('button', { name: 'Play' }).click();
@@ -43,6 +43,29 @@ try {
   `,
   );
   await capture(page, 'railway', 1500);
+
+  // The plane taking off from the airfield. It has to be parked to hear the horn, so this
+  // comes before its first flight of the day.
+  await inGame(page, `g.teleport(560, 160, -1.57);`);
+  await page.keyboard.press('KeyH');
+  await inGame(page, `g.teleport(540, 236, -0.6);`);
+  await page.waitForFunction(
+    () => {
+      const { plane } = window.__game.getState();
+      return plane.phase === 'rolling' && plane.speed > 19;
+    },
+    null,
+    { timeout: 90000 },
+  );
+  await inGame(
+    page,
+    `
+    const plane = g.getState().plane;
+    g.shot([plane.x - 30, plane.y + 6, plane.z - 20], [plane.x, plane.y + 1.5, plane.z - 2]);
+  `,
+  );
+  await capture(page, 'airfield', 150);
+  await inGame(page, `g.followCar();`);
 
   await inGame(
     page,
@@ -151,6 +174,39 @@ try {
   await capture(page, 'ambulance', 350);
   await inGame(page, `g.followCar();`);
 
+  // A police car and the army off-roader on the upland road.
+  for (const kind of ['police', 'army']) {
+    await inGame(
+      page,
+      `
+      g.followCar();
+      const p = L.RING_ROAD.offset(${kind === 'police' ? 1250 : 2500}, 8);
+      g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz));
+      g.callOut('${kind}');
+    `,
+    );
+    await page.waitForFunction(
+      () => {
+        const { visitors, car } = window.__game.getState();
+        const v = visitors[1];
+        return v && Math.hypot(v.x - car.x, v.z - car.z) < 46;
+      },
+      null,
+      { timeout: 60000 },
+    );
+    await inGame(
+      page,
+      `
+      const v = g.getState().visitors[1];
+      const eye = L.RING_ROAD.offset(v.s + v.direction * 30, -v.direction * 7.5);
+      const ground = T.terrainHeight(v.x, v.z);
+      g.shot([eye.x, T.terrainHeight(eye.x, eye.z) + 2.6, eye.z], [v.x, ground + 1.2, v.z]);
+    `,
+    );
+    await capture(page, kind, 350);
+  }
+  await inGame(page, `g.followCar();`);
+
   await inGame(
     page,
     `
@@ -222,7 +278,8 @@ try {
   await inGame(page, `g.setSky('day');`);
   await page.waitForTimeout(4000);
   await page.getByRole('button', { name: 'Pause' }).click();
-  await page.getByRole('button', { name: /^Car/ }).click();
+  await capture(page, 'menu', 600);
+  await page.getByRole('button', { name: 'Car' }).click();
   await page.getByRole('button', { name: 'Flag' }).click();
   await page.getByRole('button', { name: 'Teddy' }).click();
   await page.getByRole('button', { name: 'Roof tent' }).click();
