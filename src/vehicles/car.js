@@ -56,7 +56,8 @@ function arches(painted, wheels) {
 /**
  * Each builder paints into `painted` (takes the chosen colour), `trim`, and `cargo` (luggage
  * that makes way for the roof tent), and describes its wheels, lamps and where things go:
- * `mounts` for the decorations, and `tent` as [x, y, z, length] for the roof tent.
+ * `mounts` for the decorations, and `tent` as [x, y, z, length, ladder] for the roof tent,
+ * where `ladder` is how far out to the side its ladder hangs, clear of the body and wheels.
  */
 const VEHICLE_BUILDERS = {
   offroader(painted, trim, cargo) {
@@ -100,7 +101,7 @@ const VEHICLE_BUILDERS = {
       headlamps: { x: 0.77, y: 1.23, z: -1.97 },
       brakeLights: { x: 0.77, y: 1.21, z: 1.94 },
       mounts: { flag: [0.7, 2.71, 1.22], teddy: [-0.38, 2.66, -0.38], gnome: [0, 1.63, -1.45] },
-      tent: [0, 2.71, 0.3, 2.2],
+      tent: [0, 2.71, 0.3, 2.2, 1.14],
     };
   },
 
@@ -141,7 +142,7 @@ const VEHICLE_BUILDERS = {
       headlamps: { x: 0.77, y: 1.2, z: -2.33 },
       brakeLights: { x: 0.8, y: 1.3, z: 2.6 },
       mounts: { flag: [0.82, 1.73, 2.4], teddy: [-0.35, 2.48, -0.4], gnome: [0, 1.63, -1.8] },
-      tent: [0, 2.48, -0.1, 1.8],
+      tent: [0, 2.48, -0.1, 1.8, 1.1],
     };
   },
 
@@ -165,7 +166,7 @@ const VEHICLE_BUILDERS = {
       headlamps: { x: 0.68, y: 1.12, z: -2.16 },
       brakeLights: { x: 0.85, y: 1.3, z: 2.16 },
       mounts: { flag: [0.7, 3.06, 1.7], teddy: [-0.35, 3.06, -0.7], gnome: [0.4, 3.06, 0.6] },
-      tent: [0, 3.06, 0.35, 2.4],
+      tent: [0, 3.06, 0.35, 2.4, 1.12],
     };
   },
 
@@ -192,7 +193,7 @@ const VEHICLE_BUILDERS = {
       headlamps: { x: 0.62, y: 0.98, z: -2.06, square: true },
       brakeLights: { x: 0.66, y: 0.98, z: 2.06 },
       mounts: { flag: [0.6, 1.84, 0.95], teddy: [-0.3, 1.84, -0.1], gnome: [0, 1.26, -1.55] },
-      tent: [0, 1.84, 0.2, 2],
+      tent: [0, 1.84, 0.2, 2, 0.98],
     };
   },
 
@@ -233,7 +234,7 @@ const VEHICLE_BUILDERS = {
       headlamps: { x: 0.3, y: 1.62, z: -2.09, radius: 0.12 },
       brakeLights: { x: 0.98, y: 1.6, z: 1.92 },
       mounts: { flag: [0.6, 2.9, 1.5], teddy: [-0.35, 2.9, 0.6], gnome: [0, 1.9, -1.55] },
-      tent: [0, 2.9, 0.85, 1.8],
+      tent: [0, 2.9, 0.85, 1.8, 1.2],
     };
   },
 };
@@ -270,8 +271,8 @@ export function createCar() {
     shell.add(painted.mesh({ material: paint }), trim.mesh());
     const cargo = cargoParts.isEmpty ? null : cargoParts.mesh();
     if (cargo) shell.add(cargo);
-    const [tx, ty, tz, length] = spec.tent;
-    const tent = createRoofTent(length, ty);
+    const [tx, ty, tz, length, ladder] = spec.tent;
+    const tent = createRoofTent(length, ty, ladder);
     tent.root.position.set(tx, ty, tz);
     tent.root.visible = false;
     shell.add(tent.root);
@@ -396,11 +397,12 @@ function ridgeGeometry(width, length) {
 /**
  * A roof tent: a low box on the roof that opens into a little ridge tent. The lid
  * flips right over to lie flat beside it as an awning, two poles slide down to hold
- * it up, the canvas rises and a ladder slides down on the other side. There is room
- * at the front for the teddy. The origin is the middle of the base, which sits
- * `roof` metres above the ground.
+ * it up, the canvas rises and a ladder slides down on the other side, hooked onto
+ * the base on brackets so it hangs `ladderOut` metres from the middle, clear of the
+ * vehicle. There is room at the front for the teddy. The origin is the middle of the
+ * base, which sits `roof` metres above the ground.
  */
-function createRoofTent(length, roof) {
+function createRoofTent(length, roof, ladderOut) {
   const half = length / 2;
   const w = TENT_WIDTH / 2;
   const porch = 0.45;
@@ -477,15 +479,22 @@ function createRoofTent(length, roof) {
   );
   tent.add(new PartsBuilder().box(0.06, 0.06, tentLength + 0.1, '#6b5a45', { y: 1 }).mesh({ castShadow: false })); // ridge pole
 
-  // A ladder at the side, down to the ground.
+  // A ladder at the side, leaning out a little, down to the ground.
   const ladderParts = new PartsBuilder();
   for (const z of [-0.22, 0.22]) ladderParts.box(0.05, 1, 0.05, '#b8beb7', { y: -0.5, z });
   for (let k = 1; k <= 5; k++) ladderParts.box(0.04, 0.035, 0.44, '#b8beb7', { y: -k / 6 });
   const ladder = ladderParts.mesh({ receiveShadow: false });
-  ladder.position.set(-w - 0.06, 0.18, middle);
-  ladder.rotation.z = -0.22;
+  ladder.position.set(-ladderOut, 0.18, middle);
+  ladder.rotation.z = -0.2;
   root.add(ladder);
-  const reach = (roof + 0.18) / Math.cos(0.22);
+  const reach = (roof + 0.18) / Math.cos(0.2);
+  // The brackets it hangs from, out from the edge of the base.
+  const bracketParts = new PartsBuilder();
+  for (const z of [-0.22, 0.22]) {
+    bracketParts.box(ladderOut - w + 0.04, 0.05, 0.05, '#b8beb7', { x: -(w + ladderOut) / 2, y: 0.17, z: middle + z });
+  }
+  const brackets = bracketParts.mesh({ receiveShadow: false });
+  root.add(brackets);
 
   const spots = {
     flag: { parent: root, at: [-w - 0.05, 0.05, half - 0.12] },
@@ -509,7 +518,7 @@ function createRoofTent(length, roof) {
       tent.visible = rise > 0;
       tent.scale.y = Math.max(0.001, rise * 1.05);
       glow.emissiveIntensity = night * rise * 1.5;
-      ladder.visible = poles.visible = valance.visible = slide > 0;
+      ladder.visible = brackets.visible = poles.visible = valance.visible = slide > 0;
       ladder.scale.y = Math.max(0.001, slide * reach);
       poles.scale.y = Math.max(0.001, slide * (roof + 0.02));
       valance.scale.y = Math.max(0.001, slide * 0.24);
