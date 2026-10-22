@@ -39,6 +39,10 @@ Play it at [nowhere-to-be.jarkovsky.com](https://nowhere-to-be.jarkovsky.com).
   <img src="docs/combine.jpg" width="49%" alt="A combine harvester cutting the wheat at the upland farm">
 </p>
 <p>
+  <img src="docs/lorry.jpg" width="49%" alt="Oliver, a blue lorry with a face and a trailer, on the upland road">
+  <img src="docs/rally.jpg" width="49%" alt="A rally car with a face on the track up to the summit">
+</p>
+<p>
   <img src="docs/menu.jpg" width="49%" alt="The pause menu: a play button and picture buttons for the car, sound and cruise control">
   <img src="docs/garage.jpg" width="49%" alt="Choosing a vehicle, a colour and roof items, with the roof tent open on the car">
 </p>
@@ -83,7 +87,7 @@ To play on your phone from your own computer, run `npm run dev` and open the **N
 - **Animals.** Deer, sheep, cows, chickens, a rabbit, foxes (one hunts mice by the fields), ducks, geese, an eagle, fish that jump in the lake, a pack of wolves below the summit and an owl that only comes out at night.
 - **Things on the move.** A railbus runs between the halt and a tunnel in the hills, and the level crossing closes while it passes. At the roadworks an excavator loads a dump truck while a roller, a grader and a skid steer loader work on the new road. Two tractors plough and mow the upland fields, and a combine harvester cuts the wheat. A camper van, a pickup, a saloon and a bus drive the trail, and a fuel tanker and a delivery van drive the upland road. Now and then an ambulance, a fire engine or a police car comes by with its blue lights on while the others pull over, and sometimes an army off-roader drives through.
 - **Side tracks.** Narrow dirt tracks lead off the main trail to the farm, the tower, the windmill, the summit, the upland farm and up a hairpin to the hut, a path follows the lake shore, and a new road is being built to the south.
-- **The garage.** Pick an off-roader, a pickup, a camper van, a saloon or a tractor by its picture, then a colour and roof items. The roof tent opens when the car has been parked for a moment: the lid folds out as an awning on two poles and a ladder comes down beside the car.
+- **The garage.** Pick an off-roader, a pickup, a camper van, a saloon or a tractor by its picture, then a colour and roof items. There are also four characters with faces and colours of their own: Oliver and Ruda, a blue and a red lorry that each pull a trailer, a rally car and a racing car. Their eyes follow the steering, and the lorries have a deep air horn. The roof tent opens when the car has been parked for a moment: the lid folds out as an awning on two poles and a ladder comes down beside the car.
 - **Garden gnomes.** Ten are hidden around the valley, some of them far off the trail. Each one you find fills in a row of gnomes on screen, so you can see how many are left without reading. The same row is in the pause menu. Finding them all unlocks something for the car.
 - **A few secrets.** Try the horn in the tunnel, near the animals, at passing cars and the train, at the helipad and next to the planes. Keep an eye on the snow, too.
 

@@ -286,6 +286,42 @@ try {
   await page.waitForFunction(() => document.getElementById('toast').hidden, null, { timeout: 30000 });
   await capture(page, 'garage', 2500);
 
+  // Two of the characters: Oliver the lorry on the upland road, and the rally car on the summit track.
+  for (const item of ['Flag', 'Teddy', 'Roof tent']) await page.getByRole('button', { name: item }).click();
+  for (const [name, shot, setup] of [
+    [
+      'Oliver',
+      'lorry',
+      `const p = L.RING_ROAD.offset(1000, 2.2);
+      const heading = Math.atan2(-p.dx, -p.dz);
+      g.teleport(p.x, p.z, heading);
+      const f = { x: -Math.sin(heading), z: -Math.cos(heading) };
+      const eye = { x: p.x + f.x * 15 - f.z * 7, z: p.z + f.z * 15 + f.x * 7 };
+      const y = T.terrainHeight(p.x, p.z);
+      g.shot([eye.x, Math.max(y, T.terrainHeight(eye.x, eye.z)) + 2.6, eye.z], [p.x - f.x * 4, y + 2.2, p.z - f.z * 4]);`,
+    ],
+    [
+      'Hyundai',
+      'rally',
+      `const track = L.TRACKS.find(t => t.id === 'summit').path;
+      const p = track.at(track.length * 0.45);
+      const heading = Math.atan2(-p.dx, -p.dz);
+      g.teleport(p.x, p.z, heading);
+      const f = { x: -Math.sin(heading), z: -Math.cos(heading) };
+      const eye = { x: p.x + f.x * 6 + f.z * 3, z: p.z + f.z * 6 - f.x * 3 };
+      const y = T.terrainHeight(p.x, p.z);
+      g.shot([eye.x, Math.max(y, T.terrainHeight(eye.x, eye.z)) + 1.3, eye.z], [p.x, y + 0.8, p.z]);`,
+    ],
+  ]) {
+    await page.getByRole('button', { name, exact: true }).click();
+    await page.getByRole('button', { name: 'Resume' }).click();
+    await inGame(page, setup);
+    await capture(page, shot, 2500);
+    await inGame(page, `g.followCar();`);
+    await page.getByRole('button', { name: 'Pause' }).click();
+    await page.getByRole('button', { name: 'Car' }).click();
+  }
+
   const phone = await browser.newContext({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2,
