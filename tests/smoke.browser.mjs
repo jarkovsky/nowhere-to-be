@@ -116,8 +116,15 @@ try {
   assert.equal(world.traffic.length, 4);
   assert.ok(['halt', 'out', 'away', 'in'].includes(world.train.phase));
   assert.equal(world.helicopter.phase, 'parked');
+  assert.equal(world.plane.phase, 'parked');
   assert.ok(world.calls < 200, `draw calls stay low (${world.calls})`);
-  step('other travellers are on the road, the train and helicopter are about; draw calls stay low');
+  step('other travellers are on the road, the train, helicopter and plane are about; draw calls stay low');
+
+  await page.evaluate(() => window.__game.teleport(560, 160, -1.57));
+  await page.keyboard.press('KeyH');
+  await page.waitForTimeout(500);
+  assert.equal((await state(page)).plane.phase, 'starting');
+  step('a honk beside the plane at the airfield starts it up');
 
   console.log('Phone');
   const phone = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });

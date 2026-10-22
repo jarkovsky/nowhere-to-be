@@ -14,6 +14,7 @@ import { createCar } from './vehicles/car.js';
 import { createTraffic } from './vehicles/traffic.js';
 import { createTrain } from './vehicles/train.js';
 import { createHelicopter } from './vehicles/helicopter.js';
+import { createPlanes } from './vehicles/plane.js';
 import { createAtmosphere } from './world/atmosphere.js';
 import { createGnomes } from './world/collectibles.js';
 import { buildLandmarks, insideTunnel } from './world/landmarks/index.js';
@@ -26,6 +27,8 @@ import {
   ROAD_HALF_WIDTH,
   SPAWN,
   TRACKS,
+  onAirfield,
+  onPaved,
   surfaceAt,
 } from './world/layout.js';
 import { buildScenery } from './world/scenery.js';
@@ -54,6 +57,7 @@ function surfaceUnder(x, z) {
   if (patch === 'snow' || patch === 'leaves') return patch;
   if (snowCover(x, z) > 0.5) return 'snow';
   if (ROAD.isNear(x, z, ROAD_HALF_WIDTH + 0.6) || CAMP_TRAIL.isNear(x, z, 2.6)) return 'road';
+  if (onPaved(x, z, ROAD_HALF_WIDTH + 0.6) || onAirfield(x, z)) return 'road';
   if (TRACKS.some(track => track.path.isNear(x, z, 2))) return 'track';
   return 'grass';
 }
@@ -148,6 +152,7 @@ export function createGame(canvas) {
   const secrets = createSecrets(scene, { onCall: kind => sound.animal(kind) });
   obstacles.push(...secrets.obstacles);
   const helicopter = createHelicopter(scene);
+  const planes = createPlanes(scene, obstacles);
   const gnomes = createGnomes(scene, {
     found: journal.get().gnomes,
     onFound: index => {
@@ -297,6 +302,7 @@ export function createGame(canvas) {
     traffic.answerHonk(state.x, state.z, () => sound.otherHorn());
     train.answerHonk(state);
     helicopter.hearHorn(state);
+    planes.hearHorn(state);
   }
 
   function unlockRainbow() {
@@ -509,6 +515,7 @@ export function createGame(canvas) {
         ...traffic.colliders,
         ...train.colliders,
         ...helicopter.colliders,
+        ...planes.colliders,
         ...landmarks.crossing.colliders(),
         ...landmarks.machines,
       );
@@ -529,6 +536,7 @@ export function createGame(canvas) {
     scenery.update(dt, camera.position);
     train.update(dt, { player: state });
     helicopter.update(dt);
+    planes.update(dt, { player: state });
     const crossingClosed = train.crossingClosed();
     landmarks.update(dt, night, { crossingClosed, player: state });
     if (crossingClosed && clock > nextBell) {
@@ -555,7 +563,10 @@ export function createGame(canvas) {
       active: mode !== 'title' && !document.hidden,
       rain: sky.rain,
     });
-    const rotor = helicopter.rotorSound(camera.position);
+    // The helicopter and the plane share one engine sound: whichever is louder.
+    const rotor = [helicopter.rotorSound(camera.position), planes.engineSound(camera.position)].reduce((a, b) =>
+      b.level > a.level ? b : a,
+    );
     sound.rotor(mode === 'title' ? 0 : rotor.level, rotor.rate);
     sound.siren(mode === 'title' ? 0 : traffic.sirenLevel(state));
     renderer.render(scene, camera);
@@ -587,6 +598,7 @@ export function createGame(canvas) {
         emergency: traffic.emergency(),
         train: train.getState(),
         helicopter: helicopter.getState(),
+        plane: planes.getState(),
         fields: landmarks.fields.getState(),
         gnomes: gnomes.getState(),
         wildlife: wildlife.getState(),

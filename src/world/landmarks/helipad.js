@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { HELIPAD } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder, localFrame } from '../build.js';
+import { buildWindsock } from './windsock.js';
 
 export const PAD_RADIUS = 8.5;
 
@@ -32,33 +33,13 @@ export function buildHelipad(scene, obstacles) {
   }
   scene.add(lamps);
 
-  // The windsock: a striped cone on a swivel at the top of a pole, beside the pad.
-  const pole = local(PAD_RADIUS + 3, -2);
-  const poleY = terrainHeight(pole.x, pole.z);
-  parts.add(new THREE.CylinderGeometry(0.06, 0.09, 5, 6), '#d9d6cc', { x: pole.x, y: poleY + 2.5, z: pole.z });
+  // The windsock, beside the pad.
+  const windsock = buildWindsock(scene, parts, obstacles, local(PAD_RADIUS + 3, -2));
   scene.add(parts.mesh());
-  const swivel = new THREE.Group();
-  swivel.position.set(pole.x, poleY + 4.8, pole.z);
-  const sock = new PartsBuilder();
-  for (let i = 0; i < 4; i++) {
-    const r0 = 0.42 - i * 0.07;
-    sock.add(new THREE.CylinderGeometry(r0 - 0.07, r0, 0.5, 10, 1, true), i % 2 ? '#f4f2ea' : '#e2672f', {
-      z: 0.25 + i * 0.5,
-      rx: Math.PI / 2,
-    });
-  }
-  const sockMesh = sock.mesh({
-    material: new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, flatShading: true }),
-  });
-  swivel.add(sockMesh);
-  scene.add(swivel);
-  obstacles.push({ x: pole.x, z: pole.z, radius: 0.3 });
 
   return {
     update(time, night) {
-      // The wind comes and goes; the sock swings round and droops when it drops.
-      const gust = 0.6 + 0.4 * Math.sin(time * 0.3) * Math.sin(time * 0.17 + 1);
-      swivel.rotation.set((1 - gust) * 0.9, 1.2 + Math.sin(time * 0.21) * 0.5, 0, 'YXZ');
+      windsock(time);
       lights.emissiveIntensity = 0.2 + night * 1.2;
     },
   };

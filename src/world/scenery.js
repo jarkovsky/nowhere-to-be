@@ -35,6 +35,11 @@ import {
   SURFACES,
   YETI,
   GNOMES,
+  RING_ROAD,
+  LINKS,
+  AIRFIELD,
+  onAirfield,
+  onPaved,
   lakeDistance,
 } from './layout.js';
 import { AXIS, GRID, heights, terrainHeight, naturalHeight, creekLevel, snowCover, POOL } from './terrain.js';
@@ -161,10 +166,9 @@ const PACKED_SNOW = new THREE.Color('#e3e8e4');
  * A strip draped over the ground along a path, optionally offset sideways or
  * skipping a stretch. Where it crosses snow it is snowed over too.
  */
-export function ribbon(path, halfWidth, color, { lift = 0.06, offset = 0, skip = () => false } = {}) {
+export function ribbon(path, halfWidth, color, { lift = 0.06, offset = 0, skip = () => false, across = 4 } = {}) {
   const base = new THREE.Color(color);
   const tint = new THREE.Color();
-  const across = 4;
   const rows = [];
   for (const sample of path.samples) {
     if (skip(sample.s)) {
@@ -339,6 +343,8 @@ const CLEARINGS = [
   { x: SUMMIT.x, z: SUMMIT.z, r: 16 },
   { x: FARMSTEAD.x, z: FARMSTEAD.z, r: 22 },
   { x: FIELDS.x, z: FIELDS.z, r: FIELDS.radius },
+  { ...AIRFIELD.hangar, r: 22 },
+  { ...AIRFIELD.tower, r: 12 },
   ...GNOMES.map(gnome => ({ ...gnome, r: 4 })),
   ...SURFACES.map(p => ({ x: p.x, z: p.z, r: Math.max(p.rx, p.rz) + 4 })),
 ];
@@ -358,6 +364,10 @@ function isClearGround(x, z, { road = 9 } = {}) {
   if (nearWalkway(HABITATS.deer, x, z, 5) || nearWalkway(HABITATS.ducks, x, z, 5)) return false;
   if (ROAD.isNear(x, z, road) || CAMP_TRAIL.isNear(x, z, 6) || RAILWAY.isNear(x, z, 9)) return false;
   if (TRACKS.some(track => track.path.isNear(x, z, 5))) return false;
+  if (onPaved(x, z, road)) return false;
+  // The airfield's levelled ground is kept as open, mown grass.
+  const { ground } = AIRFIELD;
+  if (x > ground.x0 - 6 && x < ground.x1 + 6 && z > ground.z0 - 6 && z < ground.z1 + 6) return false;
   if (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 10)) return false;
   return true;
 }
@@ -486,11 +496,12 @@ function buildTrees(scene, obstacles, details) {
   const rounds = [];
   const birches = [];
   const bushes = [];
-  for (let i = 0; i < 6800; i++) {
-    const x = (random() - 0.5) * 1360;
-    const z = (random() - 0.5) * 1360;
+  for (let i = 0; i < 10500; i++) {
+    const x = (random() - 0.5) * 1700;
+    const z = (random() - 0.5) * 1700;
     const r = Math.hypot(x, z);
-    if (r > 670 || !isClearGround(x, z)) continue;
+    // Beyond the fence the woods are thinner: only seen from afar, through the haze.
+    if (r > 840 || (r > VALLEY_RADIUS + 10 && random() < 0.6) || !isClearGround(x, z)) continue;
     // Dense woods in some places, open meadows in others.
     const woods = smoothstep(fractalNoise(x / 150 + 3.3, z / 150 + 8.1, 2, 5), 0.36, 0.6);
     if (random() > 0.1 + woods * 0.9) continue;
@@ -551,7 +562,7 @@ function buildRocks(scene, obstacles) {
   const add = rock => lists[Math.floor(random() * shapes.length)].push(rock);
 
   // Boulders scattered across the valley, often with a few smaller stones beside them.
-  for (let i = 0; i < 400; i++) {
+  for (let i = 0; i < 680; i++) {
     const x = (random() - 0.5) * 2 * VALLEY_RADIUS;
     const z = (random() - 0.5) * 2 * VALLEY_RADIUS;
     if (!isClearGround(x, z, { road: 8 })) continue;
@@ -569,7 +580,7 @@ function buildRocks(scene, obstacles) {
   }
   // Outcrops on steep ground, mostly up in the northern crags.
   let outcrops = 0;
-  for (let i = 0; i < 9000 && outcrops < 240; i++) {
+  for (let i = 0; i < 15000 && outcrops < 340; i++) {
     const x = (random() - 0.5) * 2 * VALLEY_RADIUS;
     const z = (random() - 0.5) * 2 * VALLEY_RADIUS;
     if (Math.hypot(x, z) > VALLEY_RADIUS + 15 || steepness(x, z) < 0.55 || !isClearGround(x, z, { road: 10 })) continue;
@@ -604,7 +615,7 @@ function buildGroundCover(scene, details) {
   const flowerColors = ['#f3efdf', '#e9c75a', '#b49ac8', '#dd8f6e', '#8fa56a', '#8fa56a', '#8fa56a'];
   const flowers = [];
   const tufts = [];
-  for (let i = 0; i < 19000 && flowers.length < 4800; i++) {
+  for (let i = 0; i < 32000 && flowers.length < 7800; i++) {
     const x = (random() - 0.5) * 2 * VALLEY_RADIUS;
     const z = (random() - 0.5) * 2 * VALLEY_RADIUS;
     if (Math.hypot(x, z) > VALLEY_RADIUS - 4 || !isClearGround(x, z, { road: 6 })) continue;
@@ -666,7 +677,7 @@ function buildPeaks(scene) {
   const tones = ['#8caaa3', '#97aaa8', '#9eafb0', '#899e99'];
   for (let m = 0; m < 30; m++) {
     const angle = (m / 30) * Math.PI * 2;
-    const distance = 700 + random() * 190;
+    const distance = 880 + random() * 200;
     const cx = Math.sin(angle) * distance;
     const cz = Math.cos(angle) * distance;
     const radius = 110 + random() * 110;
@@ -758,6 +769,53 @@ function buildFences(scene) {
     trailPosts.box(0.22, 1.5, 0.22, '#a3956f', { x: p.x, y: y + 0.35, z: p.z, ry: i });
   }
   scene.add(trailPosts.mesh());
+
+  // White marker posts with a black band along the paved roads, on alternate sides.
+  const markers = new PartsBuilder();
+  for (const path of [RING_ROAD, ...LINKS.map(link => link.path)]) {
+    for (let s = 20, i = 0; s < path.length - 20; s += 24, i++) {
+      const side = i % 2 ? 1 : -1;
+      const p = path.offset(s, side * (ROAD_HALF_WIDTH + 1.2));
+      if (onAirfield(p.x, p.z, 4) || ROAD.isNear(p.x, p.z, ROAD_HALF_WIDTH + 3)) continue;
+      if (PAVED_JOINS.some(join => Math.hypot(join.x - p.x, join.z - p.z) < 14)) continue;
+      const y = terrainHeight(p.x, p.z);
+      const yaw = Math.atan2(p.dx, p.dz);
+      markers.box(0.16, 1.1, 0.12, '#f2f0e8', { x: p.x, y: y + 0.45, z: p.z, ry: yaw });
+      markers.box(0.17, 0.22, 0.13, '#2c302d', { x: p.x, y: y + 0.85, z: p.z, ry: yaw });
+    }
+  }
+  scene.add(markers.mesh());
+}
+
+/** Where the link roads meet the ring. */
+const PAVED_JOINS = LINKS.map(link => link.path.at(link.path.length));
+
+const ASPHALT = '#7d7f79';
+
+/** The paved roads: grey asphalt with a dashed white line down the middle. */
+function buildPavedRoads(scene) {
+  const dashes = s => s % 9 > 4.5;
+  // The ring goes all the way round, so it is laid in pieces and the ones out of view are skipped.
+  const pieces = 12;
+  for (let k = 0; k < pieces; k++) {
+    const from = (k / pieces) * RING_ROAD.length;
+    const to = ((k + 1) / pieces) * RING_ROAD.length + 1.5;
+    const outside = s => s < from || s > to;
+    scene.add(ribbon(RING_ROAD, ROAD_HALF_WIDTH, ASPHALT, { lift: 0.07, skip: outside }));
+    scene.add(ribbon(RING_ROAD, 0.1, '#eeece2', { lift: 0.09, across: 1, skip: s => outside(s) || dashes(s) }));
+  }
+  for (const { path } of LINKS) {
+    // Each one stops at the edge of the trail, and tucks under the ring where it joins it.
+    const between = s => s < ROAD_HALF_WIDTH || s > path.length - 3;
+    scene.add(ribbon(path, ROAD_HALF_WIDTH, ASPHALT, { lift: 0.06, skip: between }));
+    scene.add(
+      ribbon(path, 0.1, '#eeece2', {
+        lift: 0.08,
+        across: 1,
+        skip: s => between(s) || s > path.length - 6 || dashes(s),
+      }),
+    );
+  }
 }
 
 export function buildScenery(scene) {
@@ -765,13 +823,20 @@ export function buildScenery(scene) {
   scene.add(buildGround());
   scene.add(ribbon(ROAD, ROAD_HALF_WIDTH, '#cfc29c', { skip: onBridge }));
   scene.add(ribbon(CAMP_TRAIL, 2.1, '#c7b994', { lift: 0.05 }));
+  buildPavedRoads(scene);
   for (const track of TRACKS) {
     // The roadworks lay their own surface.
     if (track.id === 'roadworks') continue;
+    // Tracks that leave a paved road start at its edge.
+    const paved = s => {
+      const p = track.path.at(s);
+      return onPaved(p.x, p.z, ROAD_HALF_WIDTH + 0.4);
+    };
     if (track.ruts) {
-      for (const offset of [-0.85, 0.85]) scene.add(ribbon(track.path, 0.32, '#b3a078', { lift: 0.05, offset }));
+      for (const offset of [-0.85, 0.85])
+        scene.add(ribbon(track.path, 0.32, '#b3a078', { lift: 0.05, offset, skip: paved }));
     } else {
-      scene.add(ribbon(track.path, 0.8, '#cdbf96', { lift: 0.05 }));
+      scene.add(ribbon(track.path, 0.8, '#cdbf96', { lift: 0.05, skip: paved }));
     }
   }
   const water = buildWater(scene);

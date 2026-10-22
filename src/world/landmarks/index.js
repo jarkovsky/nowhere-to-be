@@ -15,6 +15,7 @@ import { buildChapel } from './chapel.js';
 import { buildSummit } from './summit.js';
 import { buildFields } from './fields.js';
 import { buildSigns } from './signs.js';
+import { buildAirfield } from './airfield.js';
 
 export { insideTunnel } from './tunnel.js';
 
@@ -36,12 +37,13 @@ export function buildLandmarks(scene, obstacles) {
   buildChapel(scene, obstacles);
   buildSummit(scene, obstacles);
   const fields = buildFields(scene, obstacles);
+  const airfield = buildAirfield(scene, obstacles);
   buildSigns(scene, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard });
 
   let time = 0;
   const machines = [];
   return {
-    occluders: [...tunnel.occluders, ...waterfall.occluders],
+    occluders: [...tunnel.occluders, ...waterfall.occluders, ...airfield.occluders],
     fire: camps.fire,
     /** The level crossing: where traffic waits, and the barriers while they are down. */
     crossing,
@@ -63,6 +65,7 @@ export function buildLandmarks(scene, obstacles) {
       machines.length = 0;
       machines.push(...roadworks.colliders, ...fields.colliders);
       helipad.update(time, night);
+      airfield.update(time, night, player);
     },
   };
 }

@@ -19,6 +19,10 @@ import {
   UPLANDS_RADIUS,
   SUMMIT,
   FIELDS,
+  RING_ROAD,
+  LINKS,
+  AIRFIELD,
+  onAirfield,
   surfaceAt,
   SURFACES,
 } from '../src/world/layout.js';
@@ -40,6 +44,34 @@ test('the whole trail loop, the camp spur and the side tracks are driveable', ()
     assert.ok(isDriveable(p.x, p.z), `blocked at ${p.x}, ${p.z}`);
   assert.ok(isDriveable(SPAWN.x, SPAWN.z));
   assert.ok(isDriveable(CAMP.x, CAMP.z));
+});
+
+test('the upland ring and the roads up to it are driveable, level across and climb steadily', () => {
+  for (const path of [RING_ROAD, ...LINKS.map(link => link.path)]) {
+    // Away from where they join other roads.
+    for (let s = 20; s <= path.length - (path.closed ? 0 : 20); s += 2) {
+      const p = path.at(s);
+      const back = path.at(s - 10);
+      assert.ok(isDriveable(p.x, p.z), `blocked at ${p.x}, ${p.z}`);
+      const left = terrainHeight(p.x + p.dz * 3, p.z - p.dx * 3);
+      const right = terrainHeight(p.x - p.dz * 3, p.z + p.dx * 3);
+      assert.ok(Math.abs(left - right) < 0.6, `tilted by ${Math.abs(left - right).toFixed(2)} at ${p.x}, ${p.z}`);
+      const grade = Math.abs(terrainHeight(p.x, p.z) - terrainHeight(back.x, back.z)) / 10;
+      assert.ok(grade < (path === RING_ROAD ? 0.12 : 0.24), `${(grade * 100).toFixed(0)}% at ${p.x}, ${p.z}`);
+    }
+  }
+});
+
+test('the airfield is flat, inside the fence and clear of the upland road', () => {
+  const level = terrainHeight(AIRFIELD.x, (AIRFIELD.z0 + AIRFIELD.z1) / 2);
+  for (let z = AIRFIELD.z0; z <= AIRFIELD.z1; z += 4) {
+    for (const x of [AIRFIELD.x - AIRFIELD.width / 2, AIRFIELD.x, AIRFIELD.x + AIRFIELD.width / 2]) {
+      assert.ok(Math.abs(terrainHeight(x, z) - level) < 0.05, `bump on the runway at ${x}, ${z}`);
+      assert.ok(Math.hypot(x, z) < VALLEY_RADIUS - 20);
+    }
+  }
+  for (const p of RING_ROAD.samples)
+    assert.ok(!onAirfield(p.x, p.z, 10), `the ring crosses the airfield at ${p.x}, ${p.z}`);
 });
 
 test('the trail is level from side to side', () => {

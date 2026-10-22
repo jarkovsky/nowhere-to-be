@@ -23,6 +23,9 @@ import {
   ROADWORKS,
   SUMMIT,
   FARMSTEAD,
+  LINKS,
+  AIRFIELD,
+  RING_ROAD,
 } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder } from '../build.js';
@@ -120,6 +123,47 @@ function paintPlate(text, ink = '#2f3d55') {
   };
 }
 
+/** A blue road sign with a white plane on it, for the way to the airfield. No words needed. */
+function paintAirfieldSign(arrow) {
+  return (ctx, w, h) => {
+    ctx.fillStyle = '#f4f2ea';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#2d5fa8';
+    ctx.beginPath();
+    ctx.roundRect(14, 14, w - 28, h - 28, 26);
+    ctx.fill();
+    ctx.fillStyle = '#f4f2ea';
+    // The plane, seen from above, nose up.
+    ctx.save();
+    ctx.translate(w / 2, h * 0.36);
+    const u = w / 300;
+    ctx.scale(u, u);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 13, 72, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-10, -12);
+    ctx.lineTo(-100, 18);
+    ctx.lineTo(-100, 34);
+    ctx.lineTo(-10, 18);
+    ctx.lineTo(10, 18);
+    ctx.lineTo(100, 34);
+    ctx.lineTo(100, 18);
+    ctx.lineTo(10, -12);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-8, 50);
+    ctx.lineTo(-38, 68);
+    ctx.lineTo(-38, 78);
+    ctx.lineTo(38, 78);
+    ctx.lineTo(38, 68);
+    ctx.lineTo(8, 50);
+    ctx.fill();
+    ctx.restore();
+    if (arrow) drawArrow(ctx, w / 2, h * 0.79, w * 0.42, arrow);
+  };
+}
+
 /** Which way an arrow should point for someone reading the sign from the front or back. */
 function arrowFor(from, yaw, to, back) {
   const vx = to.x - from.x;
@@ -153,6 +197,26 @@ function addSign(scene, parts, { x, z, yaw, text, destination, width = 3.6, heig
     const face = new THREE.Mesh(new THREE.PlaneGeometry(width - 0.04, height - 0.04), material);
     const push = back ? -0.065 : 0.065;
     face.position.set(x + sin * push, y + postHeight - height / 2, z + cos * push);
+    face.rotation.y = yaw + (back ? Math.PI : 0);
+    scene.add(face);
+  }
+}
+
+/** A square sign on a pole showing the way to the airfield, readable from both sides. */
+function airfieldSign(scene, parts, { x, z, yaw }) {
+  const y = terrainHeight(x, z);
+  const size = 1.3;
+  parts.box(0.12, 2.6, 0.12, '#8e938d', { x, y: y + 1.3, z, ry: yaw });
+  parts.box(size, size, 0.06, '#d9d6cc', { x, y: y + 2.2, z, ry: yaw });
+  const destination = { x: AIRFIELD.x, z: (AIRFIELD.z0 + AIRFIELD.z1) / 2 };
+  for (const back of [false, true]) {
+    const arrow = arrowFor({ x, z }, yaw, destination, back);
+    const face = new THREE.Mesh(
+      new THREE.PlaneGeometry(size - 0.04, size - 0.04),
+      new THREE.MeshLambertMaterial({ map: canvasTexture(256, 256, paintAirfieldSign(arrow)) }),
+    );
+    const push = back ? -0.035 : 0.035;
+    face.position.set(x + Math.sin(yaw) * push, y + 2.2, z + Math.cos(yaw) * push);
     face.rotation.y = yaw + (back ? Math.PI : 0);
     scene.add(face);
   }
@@ -214,6 +278,14 @@ function paintMap(ctx, w, h) {
     ctx.lineTo(px(p.x + p.dz * 4), pz(p.z - p.dx * 4));
     ctx.stroke();
   }
+  // The paved roads out to the ring, as solid grey lines running off the edge.
+  ctx.strokeStyle = '#7d7f79';
+  ctx.lineWidth = 7;
+  for (const { path } of LINKS) {
+    ctx.beginPath();
+    path.samples.forEach((p, i) => (i ? ctx.lineTo(px(p.x), pz(p.z)) : ctx.moveTo(px(p.x), pz(p.z))));
+    ctx.stroke();
+  }
   trail(ROAD, 6);
   trail(CAMP_TRAIL, 4);
   for (const track of TRACKS) trail(track.path, 3, [5, 7]);
@@ -241,6 +313,7 @@ function paintMap(ctx, w, h) {
     chapel: 'Chapel',
     summit: 'Velká Deštná',
     fields: 'Upland farm',
+    airfield: 'Airfield',
   };
   ctx.font = `700 26px ${FONT}`;
   ctx.textAlign = 'center';
@@ -345,6 +418,19 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
     trailSign(scene, parts, s - 12, Math.sign(side) || 1, text, destination);
   }
   addMapBoard(scene, parts);
+
+  // Plane signs where the east road leaves the trail, and on the ring either side of the airfield road.
+  const east = LINKS.find(link => link.id === 'east').path;
+  const start = ROAD.nearest(east.at(14).x, east.at(14).z);
+  const side = Math.sign(start.side) || 1;
+  const before = ROAD.offset(start.s - 16, side * (ROAD_HALF_WIDTH + 2.4));
+  airfieldSign(scene, parts, { ...before, yaw: Math.atan2(-before.dx, -before.dz) + side * 0.35 });
+  const join = LINKS.find(link => link.id === 'airfield').path.at(0);
+  const at = RING_ROAD.nearest(join.x, join.z).s;
+  for (const along of [-18, 18]) {
+    const p = RING_ROAD.offset(at + along, ROAD_HALF_WIDTH + 2.4);
+    airfieldSign(scene, parts, { ...p, yaw: Math.atan2(-p.dx, -p.dz) });
+  }
 
   // A board on the summit, facing the end of the track.
   const summitTrack = TRACKS.find(track => track.id === 'summit').path;

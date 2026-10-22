@@ -26,29 +26,52 @@ import {
   SUMMIT,
   FIELDS,
   UPLAND_HILLS,
+  AIRFIELD,
+  LINKS,
+  RING_ROAD,
   lakeDistance,
+  ringRadius,
 } from './layout.js';
 
 const HALF = WORLD_SIZE / 2;
 const INNER = 560;
-const FINE_CELL = 3.5;
-const FINE_CELLS = Math.round((2 * INNER) / FINE_CELL);
-const COARSE_CELLS = 26;
-const COARSE_CELL = (HALF - INNER) / COARSE_CELLS;
+const MIDDLE = 780;
+
+/**
+ * The grid along each axis: fine 3.5 m cells across the middle, where the car
+ * can go, medium cells out to the far side of the fence, then coarse ones under
+ * the distant mountains.
+ */
+const BANDS = [
+  { from: -HALF, to: -MIDDLE, cells: 20 },
+  { from: -MIDDLE, to: -INNER, cells: 40 },
+  { from: -INNER, to: INNER, cells: 320 },
+  { from: INNER, to: MIDDLE, cells: 40 },
+  { from: MIDDLE, to: HALF, cells: 20 },
+];
+{
+  let start = 0;
+  for (const band of BANDS) {
+    Object.assign(band, { start, size: (band.to - band.from) / band.cells });
+    start += band.cells;
+  }
+}
+const FINE = BANDS[2];
 
 /** World coordinate of every grid line, identical for X and Z. */
 export const AXIS = Float64Array.from([
-  ...Array.from({ length: COARSE_CELLS }, (_, i) => -HALF + i * COARSE_CELL),
-  ...Array.from({ length: FINE_CELLS + 1 }, (_, i) => -INNER + i * FINE_CELL),
-  ...Array.from({ length: COARSE_CELLS }, (_, i) => INNER + (i + 1) * COARSE_CELL),
+  ...BANDS.flatMap(band => Array.from({ length: band.cells }, (_, i) => band.from + i * band.size)),
+  HALF,
 ]);
 export const GRID = AXIS.length;
 
 function gridCoordinate(value) {
   let g;
-  if (value < -INNER) g = (value + HALF) / COARSE_CELL;
-  else if (value <= INNER) g = COARSE_CELLS + (value + INNER) / FINE_CELL;
-  else g = COARSE_CELLS + FINE_CELLS + (value - INNER) / COARSE_CELL;
+  if (value >= -INNER && value <= INNER) g = FINE.start + (value + INNER) / FINE.size;
+  else {
+    const band = BANDS.find(b => value <= b.to) ?? BANDS[BANDS.length - 1];
+    g = band.start + (value - band.from) / band.size;
+  }
   return clamp(g, 0, GRID - 1.000001);
 }
 
@@ -69,12 +92,12 @@ function rimHeight(r, angle) {
   const valley = (r0 => Math.max(0, r0 - 180) * 0.2 + Math.max(0, r0 - 245) * 0.12 * lobes)(Math.min(r, 330));
   const climb = 0.2 + 0.12 * lobes;
   const uplands = r > 330 ? climb * 42 * (1 - Math.exp(-(r - 330) / 42)) : 0;
-  const wall = softplus((r - 512) / 14) * 14 * (0.45 + 0.12 * lobes);
+  const wall = softplus((r - 672) / 14) * 14 * (0.45 + 0.12 * lobes);
   return valley + uplands + wall;
 }
 
-/** The landscape before the farmland is levelled and the lake dug out. */
-function roughHeight(x, z) {
+/** The landscape before anything is levelled or dug out. */
+function wildHeight(x, z) {
   const r = Math.hypot(x, z);
   const angle = Math.atan2(z, x);
   // Noise is sampled on rotated axes so no ridge lines up with the grid.
@@ -98,14 +121,52 @@ function roughHeight(x, z) {
     const out = smoothstep(r, 345, 430);
     const near = Math.max(0, fractalNoise(v / 52, u / 52, 3, 23) - 0.3) * 34;
     const far = out > 0 ? Math.max(0, fractalNoise(v / 95 + 4.1, u / 95 + 2.7, 3, 29) - 0.32) * 62 : 0;
-    h += crags * lerp(near, far, out);
+    // They give way to a pass where the upland road goes through.
+    const pass = r > 420 ? 1 - smoothstep(Math.abs(r - ringRadius(angle)), 30, 120) : 0;
+    h += crags * lerp(near, far, out) * (1 - 0.9 * pass);
   }
   // A shelf behind the waterfall, so the stream drops off real high ground.
   h += 12 * smoothstep(x - WATERFALL.x, 4, 36) * (1 - smoothstep(Math.abs(z - WATERFALL.z), 26, 70));
   return h;
 }
 
+// The upland road runs along a broad shelf: near its line the ground eases towards
+// a gently graded profile, so the road climbs and dips with the land without cliffs
+// or crags in the way.
+const RING_STEPS = 720;
+const ringProfile = (() => {
+  const raw = Array.from({ length: RING_STEPS }, (_, i) => {
+    const angle = (i / RING_STEPS) * Math.PI * 2;
+    const radius = ringRadius(angle);
+    return wildHeight(Math.cos(angle) * radius, Math.sin(angle) * radius);
+  });
+  const reach = 30; // fifteen degrees either way
+  return raw.map((_, i) => {
+    let sum = 0;
+    for (let k = -reach; k <= reach; k++) sum += raw[(i + k + RING_STEPS) % RING_STEPS];
+    return sum / (2 * reach + 1);
+  });
+})();
+
+/** The landscape before the farmland is levelled and the lake dug out. */
+function roughHeight(x, z) {
+  const h = wildHeight(x, z);
+  const r = Math.hypot(x, z);
+  if (r < 420) return h;
+  const angle = Math.atan2(z, x);
+  const shelf = 1 - smoothstep(Math.abs(r - ringRadius(angle)), 18, 100);
+  if (shelf <= 0) return h;
+  const u = ((((angle / (Math.PI * 2)) * RING_STEPS) % RING_STEPS) + RING_STEPS) % RING_STEPS;
+  const i = Math.floor(u);
+  const level = lerp(ringProfile[i], ringProfile[(i + 1) % RING_STEPS], u - i);
+  return lerp(h, level, shelf);
+}
+
 const FIELDS_LEVEL = roughHeight(FIELDS.x, FIELDS.z);
+const AIRFIELD_LEVEL = roughHeight(
+  (AIRFIELD.ground.x0 + AIRFIELD.ground.x1) / 2,
+  (AIRFIELD.ground.z0 + AIRFIELD.ground.z1) / 2,
+);
 
 /**
  * The untouched landscape: rolling meadows, a few hills, crags to the north,
@@ -118,6 +179,9 @@ export function naturalHeight(x, z) {
     const gentle = FIELDS_LEVEL + Math.sin(x * 0.015) * 1.5 + Math.cos(z * 0.012) * 1.5;
     h = lerp(h, gentle, farmland * 0.9);
   }
+  const { ground } = AIRFIELD;
+  const outside = Math.hypot(Math.max(0, ground.x0 - x, x - ground.x1), Math.max(0, ground.z0 - z, z - ground.z1));
+  if (outside < 50) h = lerp(h, AIRFIELD_LEVEL, 1 - smoothstep(outside, 0, 50));
   const lake = lakeDistance(x, z);
   if (lake < 2.1) h = lerp(LAKE_BED, h, smoothstep(lake, 0.92, 2.1));
   return h;
@@ -184,18 +248,63 @@ function smoothProfile(values, window, closed) {
   });
 }
 
-/** Level the ground across a path so the car doesn't lean sideways on it. */
-function levelAlong(path, flatWidth, falloff) {
-  const profile = smoothProfile(
-    path.samples.map(p => sampleGrid(p.x, p.z)),
-    14,
-    path.closed,
-  );
+/**
+ * Keeps a profile from climbing or falling faster than `grade`: halfway between the
+ * highest and the lowest profiles that can't, so where the ground is steeper the road
+ * cuts into it about as much as it runs on a bank.
+ */
+function limitGrade(profile, spacing, grade, closed) {
+  const n = profile.length;
+  const step = grade * spacing;
+  const envelope = pick => {
+    const out = [...profile];
+    for (let pass = 0; pass < (closed ? 2 : 1); pass++) {
+      for (let i = 1; i < n + (closed ? 1 : 0); i++)
+        out[i % n] = pick(out[i % n], out[i - 1] + step * (pick === Math.min ? 1 : -1));
+      for (let i = n - 2; i >= (closed ? -1 : 0); i--)
+        out[(i + n) % n] = pick(out[(i + n) % n], out[(i + 1) % n] + step * (pick === Math.min ? 1 : -1));
+    }
+    return out;
+  };
+  const upper = envelope(Math.min);
+  const lower = envelope(Math.max);
+  const out = upper.map((u, i) => (u + lower[i]) / 2);
+  if (closed) return out;
+  // An open path keeps its ends where they were, so it meets the roads at either end.
+  const start = profile[0] - out[0];
+  const end = profile[n - 1] - out[n - 1];
+  return out.map((h, i) => h + lerp(start, end, i / (n - 1)));
+}
+
+/**
+ * Level the ground across a path so the car doesn't lean sideways on it. The profile
+ * along it is the ground smoothed over `window` metres either way, and no steeper than
+ * `grade`; `banks` widens the sides of deeper cuttings and embankments so they slope gently.
+ */
+function levelAlong(path, flatWidth, falloff, { window = 14, banks = 0, grade = Infinity, flatEnds = 0, levels } = {}) {
+  const smooth =
+    levels ??
+    smoothProfile(
+      path.samples.map(p => sampleGrid(p.x, p.z)),
+      Math.round(window / path.spacing),
+      path.closed,
+    );
+  const profile = Number.isFinite(grade) ? limitGrade(smooth, path.spacing, grade, path.closed) : smooth;
+  if (flatEnds) {
+    // Level for the first and last few metres, so it meets the roads at its ends square on.
+    const last = profile.length - 1;
+    const [start, end] = [profile[0], profile[last]];
+    path.samples.forEach(({ s }, i) => {
+      profile[i] = lerp(start, profile[i], smoothstep(s, flatEnds * 0.4, flatEnds * 1.6));
+      profile[i] = lerp(end, profile[i], smoothstep(path.length - s, flatEnds * 0.4, flatEnds * 1.6));
+    });
+  }
   const reach = s => flatWidth(s) + falloff;
-  const maxReach = Math.max(...path.samples.map(p => reach(p.s)));
+  const maxReach = Math.max(...path.samples.map(p => reach(p.s))) + (banks ? 24 : 0);
   for (const [vertex, { index, distance }] of nearestSamples(path, maxReach)) {
     const s = path.samples[index].s;
-    const weight = 1 - smoothstep(distance, flatWidth(s), reach(s));
+    const bank = banks ? Math.min(24, Math.abs(heights[vertex] - profile[index]) * banks) : 0;
+    const weight = 1 - smoothstep(distance, flatWidth(s), reach(s) + bank);
     heights[vertex] = lerp(heights[vertex], profile[index], weight);
   }
   return profile;
@@ -256,12 +365,22 @@ function levelRailway() {
 
 levelAlong(CAMP_TRAIL, () => 2.4, 6);
 for (const track of TRACKS) levelAlong(track.path, () => track.width ?? 2, 8);
+const PAVED_WIDTH = () => ROAD_HALF_WIDTH + 1.4;
+const ringLevels = levelAlong(RING_ROAD, PAVED_WIDTH, 10, { window: 30, banks: 1.5, grade: 0.1 });
 const railProfile = levelRailway();
 // Pads come after the side tracks so the tracks run up onto level ground.
 flattenPads();
 
 // The tunnel floor is levelled wider than the bore so no ground pokes inside.
-const roadProfile = levelAlong(ROAD, s => (isInTunnel(s) ? 9 : ROAD_HALF_WIDTH + 1.4), 10);
+const trailWidth = s => (isInTunnel(s) ? 9 : ROAD_HALF_WIDTH + 1.4);
+const roadProfile = levelAlong(ROAD, trailWidth, 10);
+// The paved roads up to the ring leave the finished trail and meet the ring on the level,
+// and climb steadily in between, cutting into the hillside or running on low banks. The
+// trail and the ring are then put back where the roads joined them.
+for (const link of LINKS)
+  levelAlong(link.path, PAVED_WIDTH, 10, { window: 30, banks: 1.5, grade: link.grade, flatEnds: 10 });
+levelAlong(ROAD, trailWidth, 0.5, { levels: roadProfile });
+levelAlong(RING_ROAD, PAVED_WIDTH, 0.5, { levels: ringLevels });
 
 /** Height of the trail surface at the bridge, used to dig the creek deep enough. */
 const roadAtBridge = roadProfile[ROAD.samples.findIndex(p => p.s === BRIDGE.s)];

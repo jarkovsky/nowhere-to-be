@@ -2,9 +2,9 @@
 // agree on the same coordinates. +X is east, +Z is south, heights are metres.
 import { createPath, headingOf } from './path.js';
 
-export const WORLD_SIZE = 2000;
+export const WORLD_SIZE = 2400;
 /** The fence: the car can't drive further from the centre than this. */
-export const VALLEY_RADIUS = 520;
+export const VALLEY_RADIUS = 680;
 /** The old fence line. Inside it is the valley; between it and the fence are the uplands. */
 export const UPLANDS_RADIUS = 355;
 
@@ -84,6 +84,38 @@ export const ROAD = createPath(
     [-78, 74],
     [-46, 92],
   ],
+  { closed: true },
+);
+
+/**
+ * The upland road: a paved ring round the uplands, given as its distance from the
+ * centre every 15 degrees, starting due east and turning towards the south (+Z).
+ * It swings in on the east side to leave room for the airfield.
+ */
+const RING_RADII = [
+  495, 500, 540, 590, 600, 600, 592, 590, 595, 600, 597, 590, 586, 585, 590, 600, 605, 600, 595, 595, 592, 585, 560,
+  520,
+];
+
+/** How far from the centre the upland road runs at an angle (radians, as from Math.atan2(z, x)). */
+export function ringRadius(angle) {
+  const n = RING_RADII.length;
+  const u = ((((angle / (Math.PI * 2)) * n) % n) + n) % n;
+  const i = Math.floor(u);
+  const t = u - i;
+  const [p0, p1, p2, p3] = [-1, 0, 1, 2].map(k => RING_RADII[(i + k + n) % n]);
+  // A periodic Catmull-Rom spline through the radii.
+  return (
+    0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t ** 3)
+  );
+}
+
+export const RING_ROAD = createPath(
+  Array.from({ length: 180 }, (_, i) => {
+    const angle = (i / 180) * Math.PI * 2;
+    const radius = ringRadius(angle);
+    return [Math.cos(angle) * radius, Math.sin(angle) * radius];
+  }),
   { closed: true },
 );
 
@@ -197,9 +229,15 @@ export const TRACKS = [
     path: createPath(fromRoad(64, 108, [74, 128], [86, 150], [96, 170], [100, 186])),
   },
   {
+    // Off the west road, up onto the flat-topped hill.
     id: 'windmill',
     ruts: true,
-    path: createPath(fromRoad(-186, -6, [-210, 4], [-232, 15], [-251, 25])),
+    path: createPath([
+      [-212, -17],
+      [-224, 0],
+      [-238, 15],
+      [-251, 25],
+    ]),
   },
   {
     id: 'chata',
@@ -268,6 +306,100 @@ export const TRACKS = [
   },
 ];
 
+/** A point on the upland road at an angle in degrees (0 is due east, 90 due south). */
+function ringPoint(degrees) {
+  const angle = (degrees * Math.PI) / 180;
+  const radius = ringRadius(angle);
+  return [Math.cos(angle) * radius, Math.sin(angle) * radius];
+}
+
+/**
+ * A small airfield on the eastern plateau, between the upland road and the fence. The
+ * runway runs north to south along X = `x`; planes take off to the north and land to
+ * the south. `apron` is where they park, joined to the runway by a taxiway at `taxiZ`.
+ */
+export const AIRFIELD = {
+  x: 598,
+  z0: 0,
+  z1: 232,
+  width: 16,
+  apron: { x0: 528, x1: 586, z0: 150, z1: 206 },
+  taxiZ: 196,
+  hangar: { x: 514, z: 160 },
+  tower: { x: 554, z: 132 },
+  /** The levelled ground round it all. */
+  ground: { x0: 500, x1: 612, z0: -8, z1: 240 },
+};
+
+/** The ground under the runway, the taxiway and the apron is levelled to one height. */
+export function onAirfield(x, z, margin = 0) {
+  const { apron } = AIRFIELD;
+  const runway =
+    Math.abs(x - AIRFIELD.x) < AIRFIELD.width / 2 + margin && z > AIRFIELD.z0 - margin && z < AIRFIELD.z1 + margin;
+  const parking = x > apron.x0 - margin && x < apron.x1 + margin && z > apron.z0 - margin && z < apron.z1 + margin;
+  const taxiway = x > apron.x1 - 1 && x < AIRFIELD.x && Math.abs(z - AIRFIELD.taxiZ) < 5 + margin;
+  return runway || parking || taxiway;
+}
+
+/**
+ * Paved roads up from the valley trail to the upland road, one to the east and one to
+ * the west, and a short one from the upland road to the airfield.
+ */
+export const LINKS = [
+  {
+    // Up the steep eastern side of the valley, past the waterfall.
+    id: 'east',
+    grade: 0.15,
+    path: createPath(
+      fromRoad(
+        180,
+        -80,
+        [198, -110],
+        [214, -146],
+        [244, -172],
+        [290, -180],
+        [340, -172],
+        [392, -160],
+        [442, -150],
+        [482, -143],
+        ringPoint(-15.5),
+      ),
+    ),
+  },
+  {
+    id: 'west',
+    grade: 0.12,
+    path: createPath(
+      fromRoad(
+        -186,
+        -6,
+        [-214, -18],
+        [-250, -38],
+        [-300, -50],
+        [-350, -40],
+        [-392, -8],
+        [-432, 26],
+        [-482, 46],
+        [-540, 54],
+        ringPoint(175),
+      ),
+    ),
+  },
+  {
+    id: 'airfield',
+    grade: 0.12,
+    path: createPath([ringPoint(19.5), [503, 182], [AIRFIELD.apron.x0 + 2, 188]]),
+  },
+];
+
+/** Every paved road outside the valley: the upland ring and the links to it. */
+export const PAVED = [RING_ROAD, ...LINKS.map(link => link.path)];
+
+/** True near the middle of any paved road. */
+export function onPaved(x, z, distance = ROAD_HALF_WIDTH) {
+  return PAVED.some(path => path.isNear(x, z, distance));
+}
+
 const roadworksPath = TRACKS.find(track => track.id === 'roadworks').path;
 /** Where each stage of the new road ends, in metres along it. */
 export const ROADWORKS = {
@@ -330,6 +462,7 @@ export const PLACES = [
   { id: 'chapel', x: CHAPEL.x, z: CHAPEL.z },
   { id: 'summit', x: SUMMIT.x, z: SUMMIT.z },
   { id: 'fields', x: FARMSTEAD.x, z: FARMSTEAD.z },
+  { id: 'airfield', x: AIRFIELD.x - 30, z: (AIRFIELD.z0 + AIRFIELD.z1) / 2 },
 ];
 
 /** Ground that flattens so buildings and camp furniture sit on level ground. */
