@@ -16,7 +16,6 @@ test('gnomes are recorded once and survive a reload, with the car choices', () =
     color: 'blue',
     vehicle: 'tractor',
     decorations: ['flag', 'teddy', 'tent'],
-    horn: 'quack',
     camp: true,
   });
   assert.deepEqual(createJournal(storage).get(), journal.get());
@@ -35,7 +34,7 @@ test('corrupt or edited saves fall back to safe values', () => {
   assert.deepEqual(cleaned.gnomes, [1]);
   assert.equal(cleaned.color, 'orange');
   assert.equal(cleaned.vehicle, 'offroader');
-  assert.equal(cleaned.horn, 'beep');
+  assert.equal(cleaned.horn, undefined, 'horn sounds are no longer chosen');
   assert.deepEqual(cleaned.decorations, ['flag']);
   assert.equal(cleaned.camp, false);
 });

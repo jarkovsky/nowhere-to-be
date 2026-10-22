@@ -39,13 +39,16 @@ try {
 
   await page.keyboard.press('Escape');
   assert.equal((await state(page)).mode, 'paused');
-  assert.ok(await page.getByRole('heading', { name: 'Paused' }).isVisible());
+  assert.ok(await page.locator('#menu').isVisible());
   const paused = (await state(page)).car;
   await page.waitForTimeout(300);
   assert.equal((await state(page)).car.distance, paused.distance);
   await page.getByRole('button', { name: 'Resume' }).click();
   assert.equal((await state(page)).mode, 'driving');
-  step('pauses and resumes');
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await page.mouse.click(30, 400);
+  assert.equal((await state(page)).mode, 'driving');
+  step('pauses, and resumes from the play button or a tap on the game beside the menu');
 
   await page.evaluate(async () => {
     const { GNOMES } = await import('/src/world/layout.js');
@@ -82,6 +85,9 @@ try {
   assert.equal((await state(page)).tentOpen, 1);
   await page.waitForTimeout(200);
   assert.equal((await state(page)).tentOpen, 1, 'the open tent stays still');
+  await page.getByRole('button', { name: 'Tractor' }).click();
+  assert.equal((await state(page)).journal.vehicle, 'tractor');
+  await page.getByRole('button', { name: 'Off-roader' }).click();
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   assert.equal((await state(page)).cameraMode, 'chase');
@@ -126,6 +132,13 @@ try {
   assert.ok((await state(phone)).car.distance > 2);
   assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   step('drives with the touch pedals and fits the screen');
+
+  await phone.getByRole('button', { name: 'Pause' }).tap();
+  await phone.getByRole('switch', { name: 'Cruise control' }).tap();
+  await phone.getByRole('button', { name: 'Resume' }).tap();
+  assert.equal(await phone.getByRole('button', { name: 'Drive', exact: true }).isVisible(), false);
+  assert.ok(await phone.getByRole('button', { name: 'Brake and reverse' }).isVisible());
+  step('with cruise control on, only the brake and reverse pedal shows');
 
   assert.deepEqual(errors, []);
   step('no errors in the console');

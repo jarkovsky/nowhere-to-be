@@ -1,6 +1,5 @@
 // Saved progress: gnomes, car choices and settings.
 // Stored in localStorage when available; otherwise it lasts for the visit.
-import { HORNS } from './audio.js';
 
 // The key keeps the game's original working title so existing saves survive.
 export const SAVE_KEY = 'little-wilds-adventures-v1';
@@ -14,7 +13,6 @@ const DEFAULTS = {
   color: 'orange',
   vehicle: 'offroader',
   decorations: [],
-  horn: 'beep',
   camp: false,
   sound: true,
   rainbow: false,
@@ -32,7 +30,6 @@ export function sanitise(saved) {
     vehicle: VEHICLES.includes(saved.vehicle) ? saved.vehicle : DEFAULTS.vehicle,
     // Older saves kept a single `decoration`.
     decorations: list(saved.decorations ?? [saved.decoration], id => DECORATIONS.includes(id)),
-    horn: HORNS.includes(saved.horn) ? saved.horn : DEFAULTS.horn,
     camp: saved.camp === true,
     sound: saved.sound !== false,
     rainbow,

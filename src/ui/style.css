@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Manrope:wght@500;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Fredoka:wght@600;700&family=Manrope:wght@500;700;800&display=swap');
 
 :root {
   --ink: #283e35;
@@ -7,8 +7,12 @@
   --paper-deep: #eee9d8;
   --line: rgba(40, 62, 53, 0.13);
   --accent: #c86338;
-  --serif: Georgia, 'Times New Roman', serif;
   --display: 'Manrope', system-ui, sans-serif;
+  --round: 'Fredoka', 'Manrope', system-ui, sans-serif;
+  --play: #e8813a;
+  --play-edge: #b65a23;
+  --tile: #fffdf4;
+  --tile-edge: #ddd6bf;
   font-family: 'DM Sans', system-ui, sans-serif;
   color: var(--ink);
   background: #dce5da;
@@ -59,12 +63,12 @@ button:focus-visible {
   touch-action: none;
 }
 
-/* Keeps the title legible over the landscape; fades away once you play. */
+/* A soft light at the top behind the title; fades away once you play. */
 .shade {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(90deg, rgba(240, 238, 222, 0.88), rgba(240, 238, 222, 0.35) 38%, transparent 62%);
+  background: linear-gradient(180deg, rgba(240, 238, 222, 0.55), rgba(240, 238, 222, 0.1) 40%, transparent 60%);
   transition: opacity 1.2s ease;
 }
 
@@ -104,14 +108,127 @@ body.playing .shade {
 .round-button {
   display: grid;
   place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(248, 245, 233, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 4px 0 rgba(40, 62, 53, 0.18),
+    0 8px 18px rgba(30, 50, 40, 0.12);
+}
+
+.round-button:active {
+  transform: translateY(2px);
+}
+
+/* The big round play button: on the title screen, in the menu and in the garage. */
+.play-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--play);
+  color: #fff8ec;
+  box-shadow:
+    0 7px 0 var(--play-edge),
+    0 14px 28px rgba(60, 40, 20, 0.25);
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    background 0.2s ease;
+}
+
+.play-button svg {
+  width: 52%;
+  height: 52%;
+  fill: currentColor;
+}
+
+.play-button:hover:not(:disabled) {
+  background: #ee8c45;
+}
+
+.play-button:active:not(:disabled) {
+  transform: translateY(5px);
+  box-shadow:
+    0 2px 0 var(--play-edge),
+    0 6px 14px rgba(60, 40, 20, 0.2);
+}
+
+.play-button.big {
+  width: 136px;
+  height: 136px;
+}
+
+/* A ring that keeps rippling out from the buttons to press. */
+.play-button.big::before,
+.wake::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 5px solid currentColor;
+  color: rgba(232, 129, 58, 0.55);
+  animation: ripple 2.2s ease-out infinite;
+  pointer-events: none;
+}
+
+.play-button.small {
+  width: 64px;
+  height: 64px;
+  box-shadow:
+    0 5px 0 var(--play-edge),
+    0 10px 20px rgba(60, 40, 20, 0.2);
+}
+
+/* While the world is being built, the play button waits with a turning ring. */
+.play-button:disabled {
+  cursor: progress;
+  background: #c9c4b2;
+  box-shadow: 0 7px 0 #a29d8b;
+}
+
+.play-button:disabled::before {
+  display: none;
+}
+
+.play-button:disabled svg {
+  opacity: 0;
+}
+
+.play-button:disabled::after {
+  content: '';
+  position: absolute;
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  border: 1px solid rgba(40, 62, 53, 0.12);
-  background: rgba(248, 245, 233, 0.72);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 4px 14px rgba(30, 50, 40, 0.1);
+  border: 6px solid rgba(255, 255, 255, 0.5);
+  border-top-color: #fff;
+  animation: spin 0.9s linear infinite;
+}
+
+/* Nudged down by half the button's raised edge, so the ring circles the whole button. */
+@keyframes ripple {
+  from {
+    transform: translateY(3.5px) scale(0.95);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(3.5px) scale(1.35);
+    opacity: 0;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
 }
 
 .round-button svg,
@@ -130,35 +247,55 @@ body.playing .shade {
 
 .title-screen {
   position: fixed;
-  left: max(28px, 7vw);
-  top: 50%;
-  transform: translateY(-50%);
-  max-width: 560px;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(5vh, env(safe-area-inset-top)) 24px max(4vh, env(safe-area-inset-bottom));
+  pointer-events: none;
   z-index: 2;
 }
 
-h1 {
-  font-family: var(--display);
-  font-weight: 500;
-  font-size: clamp(54px, 7vw, 104px);
-  line-height: 0.98;
-  letter-spacing: -0.055em;
-  margin: 0 0 36px;
+.title-screen > * {
+  pointer-events: auto;
 }
 
-h1 em {
+/* The name as a chunky game logo: cream letters with a dark outline and a drop. */
+.logo {
+  margin: 0;
+  font-family: var(--round);
+  font-weight: 700;
+  font-size: clamp(54px, 9vw, 116px);
+  line-height: 0.92;
+  letter-spacing: 0.01em;
+  text-align: center;
+  color: #fff7e4;
+  -webkit-text-stroke: 0.09em #2f4a3c;
+  paint-order: stroke fill;
+  text-shadow:
+    0 0.07em 0 #2f4a3c,
+    0 0.16em 0.2em rgba(20, 40, 30, 0.3);
+  transform: rotate(-2deg);
+}
+
+.logo span {
   display: block;
-  font-family: var(--serif);
-  font-weight: 400;
-  letter-spacing: -0.04em;
+  font-size: 0.7em;
+  color: #f2b541;
 }
 
-.title-screen .button {
-  min-width: 190px;
+.title-screen .play-button {
+  position: relative;
+  margin-top: auto;
+  margin-bottom: 4vh;
 }
 
 .title-hint {
-  margin: 18px 0 0;
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 99px;
+  background: rgba(248, 245, 233, 0.75);
   font-size: 13px;
   color: var(--ink-soft);
 }
@@ -301,11 +438,21 @@ h1 em {
   position: fixed;
   left: 50%;
   bottom: max(36px, env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  background: rgba(248, 245, 233, 0.92);
-  color: var(--ink);
-  box-shadow: 0 10px 30px rgba(10, 20, 30, 0.3);
+  width: 88px;
+  height: 88px;
+  margin-left: -44px;
+  background: #f2c14e;
+  color: #6b4a12;
   z-index: 3;
+}
+
+.wake::before {
+  color: rgba(242, 193, 78, 0.7);
+}
+
+.wake svg {
+  width: 46px;
+  height: 46px;
 }
 
 /* --- Touch controls ------------------------------------------------------------- */
@@ -382,6 +529,11 @@ body.tilting .touch-steer {
   visibility: hidden;
 }
 
+/* With cruise control on, only the pedal for braking and reversing is needed. */
+body.cruising .touch-controls .gas {
+  display: none;
+}
+
 @media (hover: none), (pointer: coarse) {
   .touch-controls:not([hidden]) {
     display: flex;
@@ -398,121 +550,121 @@ body.camping .touch-controls {
 
 /* --- Pause menu ----------------------------------------------------------------- */
 
+/* A card in the middle of the screen, with the game still showing round it. */
 .menu {
-  margin: 0;
-  inset: 0 auto 0 0;
-  width: min(430px, 100vw);
-  max-width: 100vw;
-  height: 100dvh;
-  max-height: 100dvh;
-  padding: max(30px, env(safe-area-inset-top)) 32px 32px max(32px, env(safe-area-inset-left));
+  margin: auto;
+  width: min(420px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  padding: 26px 24px 22px;
   border: 0;
-  border-radius: 0 18px 18px 0;
+  border-radius: 30px;
   background: var(--paper);
   color: var(--ink);
-  box-shadow: 20px 0 60px rgba(20, 40, 30, 0.18);
+  box-shadow:
+    0 8px 0 rgba(40, 62, 53, 0.12),
+    0 24px 60px rgba(20, 40, 30, 0.25);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
 .menu[open] {
-  animation: slide-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: pop-in 0.26s cubic-bezier(0.3, 1.4, 0.5, 1);
 }
 
 .menu::backdrop {
-  background: rgba(36, 59, 53, 0.22);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  background: rgba(36, 59, 53, 0.25);
+  cursor: pointer;
 }
 
-@keyframes slide-in {
+@keyframes pop-in {
   from {
-    transform: translateX(-40px);
+    transform: scale(0.9);
     opacity: 0;
   }
 }
 
 .menu h2 {
   outline: none;
-  font-family: var(--display);
-  font-weight: 500;
-  font-size: 44px;
-  letter-spacing: -0.045em;
-  margin: 8px 0 22px;
 }
 
-.menu .button.primary {
-  width: 100%;
-}
-
-.menu-list {
-  list-style: none;
-  padding: 0;
-  margin: 22px 0 0;
-}
-
-.menu-list button {
+.menu-page[data-page='main'] {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
   width: 100%;
-  min-height: 54px;
-  padding: 12px 2px;
+  margin-top: 26px;
+}
+
+/* A big square picture button. Switches turn the accent colour while they are on. */
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  aspect-ratio: 1;
   border: 0;
-  border-bottom: 1px solid var(--line);
-  background: none;
-  font-size: 15px;
-  font-weight: 500;
-  text-align: left;
+  border-radius: 22px;
+  background: var(--tile);
+  color: var(--ink);
+  box-shadow: 0 5px 0 var(--tile-edge);
+  transition:
+    transform 0.12s ease,
+    background 0.2s ease;
 }
 
-.menu-list button:hover {
-  color: #476353;
-}
-
-.value {
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--ink-soft);
-  text-align: right;
-}
-
-.value.key {
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  padding: 1px 7px;
-}
-
-.toggle {
-  position: relative;
+.tile svg {
+  width: 46%;
+  height: 46%;
   flex: none;
-  width: 38px;
-  height: 22px;
-  border-radius: 11px;
-  background: #cfd1c4;
-  transition: background 0.2s;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.toggle::after {
-  content: '';
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s;
+.tile-label {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
 }
 
-[aria-checked='true'] .toggle {
-  background: #5f7d63;
+.tile:active {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 var(--tile-edge);
 }
 
-[aria-checked='true'] .toggle::after {
-  transform: translateX(16px);
+.tile[aria-checked='true'] {
+  background: #5f8f6a;
+  color: #fff;
+  box-shadow: 0 5px 0 #3f6a4a;
+}
+
+.tile .when-off,
+.tile[aria-checked='false'] .when-on {
+  display: none;
+}
+
+.tile[aria-checked='false'] .when-off {
+  display: block;
+}
+
+.tile[aria-checked='false'] .when-off {
+  opacity: 0.55;
+}
+
+#camp {
+  background: #3d4d6b;
+  color: #f6e6a8;
+  box-shadow: 0 5px 0 #26324a;
 }
 
 .note {
@@ -520,22 +672,25 @@ body.camping .touch-controls {
   line-height: 1.5;
   color: var(--ink-soft);
   margin: 16px 0 0;
+  text-align: center;
 }
 
 .keys {
   display: grid;
-  gap: 8px;
-  margin: 28px 0 0;
-  font-size: 13px;
+  grid-template-columns: repeat(3, auto);
+  justify-content: center;
+  gap: 6px 16px;
+  width: 100%;
+  margin: 20px 0 0;
+  font-size: 12px;
+  color: var(--ink-soft);
 }
 
 .keys div {
   display: flex;
-  justify-content: space-between;
-}
-
-.keys dt {
-  color: var(--ink-soft);
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
 }
 
 .keys dd {
@@ -551,46 +706,24 @@ kbd {
   border-radius: 5px;
   padding: 2px 6px;
   background: #fff;
+  color: var(--ink);
 }
 
 body.touch .keys {
   display: none;
 }
 
-.back {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 0;
-  background: none;
-  padding: 6px 0;
-  font-size: 14px;
-  color: var(--ink-soft);
-}
-
-.back svg {
-  width: 18px;
-  height: 18px;
-}
-
 .gnome-tally {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  margin-top: 16px;
-  padding: 12px 14px;
-  border-radius: 10px;
+  justify-content: center;
+  margin-top: 22px;
+  padding: 12px 16px;
+  border-radius: 18px;
   background: var(--paper-deep);
 }
 
-.gnome-tally p {
-  margin: 0;
-  font-size: 13px;
-}
-
 .gnome-tally .gnome-row {
-  gap: 3px;
+  gap: 4px;
 }
 
 .gnome-tally .gnome-row span {
@@ -600,68 +733,124 @@ body.touch .keys {
 
 /* --- Garage --------------------------------------------------------------------- */
 
-/* In the garage the backdrop clears so the real car shows beside the panel. */
+/* In the garage the panel moves to the side (a sheet at the bottom on phones) and the
+   backdrop clears, so the real car shows beside it. */
 .menu.showroom {
+  margin: 0;
+  inset: 0 auto 0 0;
+  width: min(400px, 100vw);
+  height: 100dvh;
+  max-height: 100dvh;
+  padding: max(20px, env(safe-area-inset-top)) 22px 24px max(22px, env(safe-area-inset-left));
+  border-radius: 0 30px 30px 0;
   touch-action: pan-y;
 }
 
 .menu.showroom::backdrop {
   background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
   cursor: grab;
 }
 
-.menu fieldset {
-  border: 0;
-  padding: 0;
-  margin: 22px 0 0;
+.garage-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
 }
 
-.menu legend {
-  font-size: 13px;
-  color: var(--ink-soft);
-  margin-bottom: 10px;
+.garage-bar .back {
+  background: var(--tile);
+  box-shadow: 0 5px 0 var(--tile-edge);
 }
 
-.swatches,
-.choices {
+.garage-bar .back svg {
+  width: 28px;
+  height: 28px;
+}
+
+.vehicle-tiles,
+.roof-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.roof-tiles {
+  grid-template-columns: repeat(4, 1fr);
+  margin-top: 20px;
+}
+
+.vehicle-tiles button,
+.roof-tiles button {
+  display: grid;
+  place-items: center;
+  padding: 6px;
+  border: 3px solid transparent;
+  border-radius: 18px;
+  background: var(--tile);
+  box-shadow: 0 4px 0 var(--tile-edge);
+}
+
+.vehicle-tiles button {
+  aspect-ratio: 1.45;
+}
+
+.roof-tiles button {
+  aspect-ratio: 1;
+}
+
+.vehicle-tiles svg,
+.roof-tiles svg {
+  width: 100%;
+  height: 100%;
+}
+
+.roof-tiles svg {
+  width: 78%;
+  height: 78%;
+}
+
+.vehicle-tiles .paint {
+  fill: var(--paint);
+}
+
+.vehicle-tiles.rainbow .paint {
+  fill: url(#rainbow);
+}
+
+.vehicle-tiles button[aria-pressed='true'],
+.roof-tiles button[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: #f3edd9;
+}
+
+.roof-tiles button[aria-pressed='false'] svg {
+  opacity: 0.6;
+}
+
+.swatches {
   display: flex;
   flex-wrap: wrap;
+  justify-content: space-between;
   gap: 8px;
+  margin-top: 20px;
 }
 
 .swatches button {
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  border: 3px solid var(--paper);
-  outline: 1px solid #c9cdb9;
+  border: 4px solid var(--paper);
+  outline: 2px solid #c9cdb9;
   background: var(--swatch);
 }
 
 .swatches button[aria-pressed='true'] {
-  outline: 2px solid var(--ink);
+  outline: 4px solid var(--ink);
 }
 
 .swatches button[data-value='rainbow'] {
   background: conic-gradient(#d16b38, #dfbb57, #72947d, #5f97ab, #ac6075, #d16b38);
-}
-
-.choices button {
-  flex: 1 1 auto;
-  min-height: 42px;
-  padding: 8px 14px;
-  border-radius: 8px;
-  border: 1px solid #c8ccb8;
-  background: #fffdf4;
-  font-size: 13px;
-}
-
-.choices button[aria-pressed='true'] {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--paper);
 }
 
 /* --- Error ---------------------------------------------------------------------- */
@@ -682,33 +871,18 @@ body.touch .keys {
 /* --- Small screens ------------------------------------------------------------ */
 
 @media (max-width: 600px) {
-  .shade {
-    background: linear-gradient(180deg, rgba(240, 238, 222, 0.85), rgba(240, 238, 222, 0.3) 55%, transparent 75%);
+  .tiles {
+    gap: 10px;
   }
 
-  .title-screen {
-    top: 14%;
-    transform: none;
-    right: 28px;
-  }
-
-  h1 {
-    margin-bottom: 26px;
-  }
-
-  .menu {
-    border-radius: 0;
-    padding-left: 22px;
-    padding-right: 22px;
-  }
-
-  /* On phones the garage becomes a bottom sheet, with the car above it. */
+  /* On phones the garage becomes a sheet at the bottom, with the car above it. */
   .menu.showroom {
     inset: auto 0 0 0;
-    height: 58dvh;
-    max-height: 58dvh;
-    padding-top: 18px;
-    border-radius: 18px 18px 0 0;
+    width: 100vw;
+    height: 60dvh;
+    max-height: 60dvh;
+    padding: 16px 18px 20px;
+    border-radius: 30px 30px 0 0;
   }
 
   .touch-controls button {
@@ -731,21 +905,75 @@ body.touch .keys {
     height: 34px;
   }
 
+  .gnome-tally .gnome-row span {
+    width: 22px;
+    height: 32px;
+  }
+
   .touch-controls .gas {
     width: 72px;
     height: 72px;
   }
 }
 
+/* Phones held sideways: everything on the card side by side, and smaller. */
 @media (max-height: 500px) {
-  .title-screen {
-    top: 50%;
-    transform: translateY(-50%);
+  .logo {
+    font-size: 46px;
   }
 
-  h1 {
-    font-size: 48px;
-    margin-bottom: 18px;
+  .play-button.big {
+    width: 104px;
+    height: 104px;
+  }
+
+  .menu {
+    width: min(560px, calc(100vw - 32px));
+    padding: 16px 20px;
+  }
+
+  .menu-page[data-page='main'] {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    column-gap: 20px;
+  }
+
+  .menu-page[data-page='main'] > :not(#resume) {
+    grid-column: 2;
+  }
+
+  #resume {
+    grid-row: 1 / span 4;
+    width: 88px;
+    height: 88px;
+  }
+
+  .tiles {
+    margin-top: 0;
+    grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+  }
+
+  .gnome-tally {
+    margin-top: 12px;
+    padding: 8px 10px;
+  }
+
+  .gnome-tally .gnome-row span {
+    width: 18px;
+    height: 26px;
+  }
+
+  .menu.showroom {
+    width: min(360px, 60vw);
+    height: 100dvh;
+    max-height: 100dvh;
+    inset: 0 auto 0 0;
+    border-radius: 0 30px 30px 0;
+  }
+
+  .vehicle-tiles button {
+    aspect-ratio: 1.6;
   }
 }
 

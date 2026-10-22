@@ -16,8 +16,12 @@
     <div class="shade" aria-hidden="true"></div>
 
     <main id="title-screen" class="title-screen">
-      <h1>Nowhere <em>to be</em></h1>
-      <button id="play" class="button primary" disabled>Loading…</button>
+      <h1 class="logo">Nowhere <span>to Be</span></h1>
+      <button id="play" class="play-button big" aria-label="Play" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M8.6 6.3v11.4a1.1 1.1 0 0 0 1.7.95l8.9-5.7a1.1 1.1 0 0 0 0-1.9l-8.9-5.7a1.1 1.1 0 0 0-1.7.95Z" />
+        </svg>
+      </button>
       <p id="title-hint" class="title-hint">Arrow keys or WASD to drive</p>
     </main>
 
@@ -31,7 +35,14 @@
         <strong id="gnome-number" class="gnome-number" aria-hidden="true"></strong>
         <span id="gnome-status" class="visually-hidden"></span>
       </div>
-      <button id="wake" class="button wake" hidden>Wake up</button>
+      <button id="wake" class="round-button wake" aria-label="Wake up" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" />
+          <path
+            d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"
+          />
+        </svg>
+      </button>
     </div>
 
     <div id="touch-controls" class="touch-controls" hidden>
@@ -60,38 +71,67 @@
 
     <dialog id="menu" class="menu" aria-labelledby="menu-title">
       <section class="menu-page" data-page="main">
-        <h2 id="menu-title" tabindex="-1">Paused</h2>
-        <button id="resume" class="button primary">Resume</button>
+        <h2 id="menu-title" class="visually-hidden" tabindex="-1">Paused</h2>
+        <button id="resume" class="play-button" data-resume aria-label="Resume">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8.6 6.3v11.4a1.1 1.1 0 0 0 1.7.95l8.9-5.7a1.1 1.1 0 0 0 0-1.9l-8.9-5.7a1.1 1.1 0 0 0-1.7.95Z" />
+          </svg>
+        </button>
+        <div class="tiles">
+          <button class="tile" data-open="garage" aria-label="Car">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 16.5v-3.2l1.8-4.1A2 2 0 0 1 6.6 8h8.1a2 2 0 0 1 1.4.6l3 3.1h1.4a1 1 0 0 1 1 1v3.8" />
+              <path d="M9.5 16.5h5M3 16.5h1.5M19.5 16.5H21M5 11.5h12" />
+              <circle cx="7" cy="16.5" r="2.2" />
+              <circle cx="17" cy="16.5" r="2.2" />
+            </svg>
+            <span class="tile-label" aria-hidden="true">Car</span>
+          </button>
+          <button class="tile" id="sound" role="switch" aria-checked="true" aria-label="Sound">
+            <svg class="when-on" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 10v4h3l5 4V6L7 10H4Zm12-1a4 4 0 0 1 0 6m2.5-8.5a8 8 0 0 1 0 11" />
+            </svg>
+            <svg class="when-off" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 10v4h3l5 4V6L7 10H4Zm12 0 5 5m0-5-5 5" />
+            </svg>
+            <span class="tile-label" aria-hidden="true">Sound</span>
+          </button>
+          <button class="tile" id="cruise" role="switch" aria-checked="false" aria-label="Cruise control">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4.2 16.5a8.5 8.5 0 1 1 15.6 0" />
+              <path d="m12 14.5 4.2-4.6" />
+              <circle cx="12" cy="14.8" r="1.4" />
+              <path d="M7.4 10.2 6.3 9.4M12 7.4V6M16.6 10.2l1.1-.8" />
+            </svg>
+            <span class="tile-label" aria-hidden="true">Cruise</span>
+          </button>
+          <button class="tile touch-only" id="tilt" role="switch" aria-checked="false" aria-label="Tilt to steer">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="7" y="3.5" width="10" height="17" rx="2.2" transform="rotate(-22 12 12)" />
+              <path d="M3 9.5a9.5 9.5 0 0 1 3-5M21 14.5a9.5 9.5 0 0 1-3 5" />
+            </svg>
+            <span class="tile-label" aria-hidden="true">Tilt</span>
+          </button>
+          <button class="tile" id="tilt-center" aria-label="Re-centre tilt" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="7.5" />
+              <circle cx="12" cy="12" r="1.6" />
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+            </svg>
+            <span class="tile-label" aria-hidden="true">Centre</span>
+          </button>
+          <button class="tile" id="camp" aria-label="Stay the night" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M2.5 20.5 10 8l7.5 12.5ZM10 20.5v-5" />
+              <path d="M17.2 3.2a3.6 3.6 0 1 0 3.6 5.4 3 3 0 0 1-3.6-5.4Z" />
+            </svg>
+            <span class="tile-label" aria-hidden="true">Sleep</span>
+          </button>
+        </div>
         <div class="gnome-tally">
           <div id="gnome-tally-row" class="gnome-row" aria-hidden="true"></div>
-          <p id="gnome-count">0 of 10 garden gnomes found</p>
+          <p id="gnome-count" class="visually-hidden">0 of 10 garden gnomes found</p>
         </div>
-        <ul class="menu-list">
-          <li>
-            <button data-open="garage">Car <span class="value">Vehicle, colour, roof, horn</span></button>
-          </li>
-          <li>
-            <button id="sky">Sky <span id="sky-value" class="value">Changes over time</span></button>
-          </li>
-          <li>
-            <button id="sound" role="switch" aria-checked="true">Sound <span class="toggle"></span></button>
-          </li>
-          <li>
-            <button id="cruise" role="switch" aria-checked="false">Cruise control <span class="toggle"></span></button>
-          </li>
-          <li class="touch-only">
-            <button id="tilt" role="switch" aria-checked="false">Tilt to steer <span class="toggle"></span></button>
-          </li>
-          <li id="tilt-center-row" hidden>
-            <button id="tilt-center">Re-centre tilt <span class="value">Hold the device level first</span></button>
-          </li>
-          <li id="camp-row" hidden>
-            <button id="camp">Stay the night <span class="value">You're at the campsite</span></button>
-          </li>
-          <li>
-            <button id="home"><span id="home-label">Back to the start</span> <span class="value key">R</span></button>
-          </li>
-        </ul>
         <p id="tilt-status" class="note" hidden></p>
         <p id="save-note" class="note" hidden>Saving is unavailable here, so progress lasts for this visit.</p>
         <dl class="keys">
@@ -108,10 +148,6 @@
             <dd><kbd>H</kbd></dd>
           </div>
           <div>
-            <dt>Look</dt>
-            <dd>Drag the view</dd>
-          </div>
-          <div>
             <dt>Cruise</dt>
             <dd><kbd>E</kbd></dd>
           </div>
@@ -123,29 +159,32 @@
       </section>
 
       <section class="menu-page" data-page="garage" hidden>
-        <button class="back" data-open="main" aria-label="Back to menu">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg> Back
-        </button>
-        <h2 tabindex="-1">Car</h2>
-        <p class="note">Drag next to the menu to turn the car.</p>
-        <fieldset>
-          <legend>Vehicle</legend>
-          <div id="vehicle-options" class="choices"></div>
-        </fieldset>
-        <fieldset>
-          <legend>Colour</legend>
-          <div id="color-options" class="swatches"></div>
-        </fieldset>
-        <fieldset>
-          <legend>On the roof</legend>
-          <div id="decoration-options" class="choices"></div>
-        </fieldset>
-        <fieldset>
-          <legend>Horn</legend>
-          <div id="horn-options" class="choices"></div>
-        </fieldset>
+        <div class="garage-bar">
+          <button class="round-button back" data-open="main" aria-label="Back to menu">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg>
+          </button>
+          <h2 class="visually-hidden" tabindex="-1">Car</h2>
+          <button class="play-button small" data-resume aria-label="Resume">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8.6 6.3v11.4a1.1 1.1 0 0 0 1.7.95l8.9-5.7a1.1 1.1 0 0 0 0-1.9l-8.9-5.7a1.1 1.1 0 0 0-1.7.95Z" />
+            </svg>
+          </button>
+        </div>
+        <div id="vehicle-options" class="vehicle-tiles" role="group" aria-label="Vehicle"></div>
+        <div id="color-options" class="swatches" role="group" aria-label="Colour"></div>
+        <div id="decoration-options" class="roof-tiles" role="group" aria-label="On the roof"></div>
       </section>
     </dialog>
+
+    <svg class="visually-hidden" aria-hidden="true" width="0" height="0">
+      <linearGradient id="rainbow" x1="0" x2="1">
+        <stop offset="0" stop-color="#d16b38" />
+        <stop offset="0.25" stop-color="#dfbb57" />
+        <stop offset="0.5" stop-color="#72947d" />
+        <stop offset="0.75" stop-color="#5f97ab" />
+        <stop offset="1" stop-color="#ac6075" />
+      </linearGradient>
+    </svg>
 
     <div id="error" class="error" hidden>
       <h2>This browser can't show the game</h2>

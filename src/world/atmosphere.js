@@ -143,10 +143,6 @@ export function createAtmosphere(scene, sun, ambient) {
     setPreset(value) {
       if (SKY_PRESETS.includes(value)) preset = value;
     },
-    cycle() {
-      preset = SKY_PRESETS[(SKY_PRESETS.indexOf(preset) + 1) % SKY_PRESETS.length];
-      return preset;
-    },
     getState: () => ({ preset, time, day, sunset, rain }),
     setTime(seconds) {
       time = seconds;

@@ -1,9 +1,10 @@
-// The DOM side of the game: title screen, pause menu, garage and toasts.
-// It knows nothing about Three.js; the game talks to it through callbacks.
+// The DOM side of the game: title screen, pause menu, garage and toasts. It is made
+// for a small child who can't read yet, so everything is a picture to tap; the words
+// are labels for screen readers. It knows nothing about Three.js; the game talks to
+// it through callbacks.
 import { CAR_COLORS } from '../vehicles/car.js';
-import { HORNS } from '../core/audio.js';
 import { COLORS, DECORATIONS, VEHICLES } from '../core/journal.js';
-import { gnomeArt, gnomeIcon } from './art.js';
+import { gnomeArt, gnomeIcon, roofArt, vehicleArt } from './art.js';
 
 const $ = id => document.getElementById(id);
 
@@ -11,8 +12,6 @@ const LABELS = {
   vehicles: { offroader: 'Off-roader', pickup: 'Pickup', van: 'Camper van', saloon: 'Saloon', tractor: 'Tractor' },
   colors: { orange: 'Orange', sage: 'Sage', blue: 'Blue', berry: 'Berry', yellow: 'Yellow', rainbow: 'Rainbow' },
   decorations: { flag: 'Flag', teddy: 'Teddy', tent: 'Roof tent', gnome: 'Gnome' },
-  horns: { beep: 'Beep', bicycle: 'Bell', quack: 'Quack', twinkle: 'Twinkle' },
-  sky: { auto: 'Changes over time', sunset: 'Sunset', night: 'Night', rain: 'Rain', day: 'Clear day' },
   tilt: {
     off: '',
     permission: 'Allow motion access when asked.',
@@ -38,7 +37,7 @@ export function createUI({ journal, gnomeCount, on }) {
 
   $('play').addEventListener('click', () => on.play());
   $('pause').addEventListener('click', () => on.pause());
-  $('resume').addEventListener('click', () => on.resume());
+  for (const button of menu.querySelectorAll('[data-resume]')) button.addEventListener('click', () => on.resume());
   $('wake').addEventListener('click', () => on.wake());
   menu.addEventListener('cancel', event => {
     event.preventDefault();
@@ -47,12 +46,21 @@ export function createUI({ journal, gnomeCount, on }) {
   });
   // Browsers may close a dialog on their own (e.g. a quick double Escape).
   menu.addEventListener('close', () => on.resume());
-  // Clicking the dimmed backdrop beside the panel resumes the game.
-  menu.addEventListener('click', event => {
-    // In the garage, the space beside the panel is for turning the car instead.
-    if (event.target !== menu || showroom) return;
+  // A tap on the game around the menu goes back to it. In the garage a drag there turns
+  // the car instead, so only a tap that stays put counts.
+  let pressedAt = null;
+  const outside = event => {
     const box = menu.getBoundingClientRect();
-    if (event.clientX > box.right) on.resume();
+    return (
+      event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom
+    );
+  };
+  menu.addEventListener('pointerdown', event => {
+    pressedAt = event.target === menu && outside(event) ? { x: event.clientX, y: event.clientY } : null;
+  });
+  menu.addEventListener('click', event => {
+    if (event.target !== menu || !outside(event) || !pressedAt) return;
+    if (Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) < 10) on.resume();
   });
 
   // --- Menu pages -----------------------------------------------------------------
@@ -76,18 +84,22 @@ export function createUI({ journal, gnomeCount, on }) {
     button.addEventListener('click', () => showPage(button.dataset.open));
   }
 
-  $('sky').addEventListener('click', () => on.sky());
   $('sound').addEventListener('click', () => on.sound());
   $('cruise').addEventListener('click', () => on.cruise());
   $('tilt').addEventListener('click', () => on.tilt());
   $('tilt-center').addEventListener('click', () => on.tiltCenter());
-  $('home').addEventListener('click', () => on.home());
   $('camp').addEventListener('click', () => on.camp());
 
-  /** A row of buttons. `isPressed(value)` marks the chosen ones; `choose(value)` returns the change to save. */
-  function choiceButtons(container, values, labels, isPressed, choose) {
+  /**
+   * A row of picture buttons. `art(value)` draws each one, `isPressed(value)` marks the
+   * chosen ones and `choose(value)` returns the change to save.
+   */
+  function choiceButtons(container, values, { label, art, isPressed, choose, style = () => '' }) {
     container.innerHTML = values
-      .map(value => `<button data-value="${value}" aria-pressed="${isPressed(value)}">${labels[value]}</button>`)
+      .map(
+        value =>
+          `<button data-value="${value}" aria-label="${label(value)}" aria-pressed="${isPressed(value)}" style="${style(value)}">${art(value)}</button>`,
+      )
       .join('');
     for (const button of container.querySelectorAll('button')) {
       button.addEventListener('click', () => {
@@ -99,57 +111,48 @@ export function createUI({ journal, gnomeCount, on }) {
 
   function renderGarage() {
     const choices = journal.get();
+    const vehicles = $('vehicle-options');
+    vehicles.style.setProperty('--paint', CAR_COLORS[choices.color] ?? CAR_COLORS.orange);
+    vehicles.classList.toggle('rainbow', choices.color === 'rainbow');
+    choiceButtons(vehicles, VEHICLES, {
+      label: v => LABELS.vehicles[v],
+      art: vehicleArt,
+      isPressed: v => v === choices.vehicle,
+      choose: v => ({ vehicle: v }),
+    });
     choiceButtons(
-      $('vehicle-options'),
-      VEHICLES,
-      LABELS.vehicles,
-      v => v === choices.vehicle,
-      v => ({ vehicle: v }),
+      $('color-options'),
+      COLORS.filter(c => c !== 'rainbow' || choices.rainbow),
+      {
+        label: c => LABELS.colors[c],
+        art: () => '',
+        isPressed: c => c === choices.color,
+        choose: c => ({ color: c }),
+        style: c => `--swatch:${CAR_COLORS[c] ?? 'transparent'}`,
+      },
     );
-    const colors = COLORS.filter(c => c !== 'rainbow' || choices.rainbow);
-    $('color-options').innerHTML = colors
-      .map(
-        c =>
-          `<button data-value="${c}" style="--swatch:${CAR_COLORS[c] ?? 'transparent'}" aria-label="${LABELS.colors[c]}" aria-pressed="${c === choices.color}"></button>`,
-      )
-      .join('');
-    for (const button of $('color-options').querySelectorAll('button')) {
-      button.addEventListener('click', () => {
-        on.choose({ color: button.dataset.value });
-        renderGarage();
-      });
-    }
-    const decorations = DECORATIONS.filter(d => d !== 'gnome' || choices.gnomes.length === gnomeCount);
     // Roof items can be combined, so each button toggles its own item.
     choiceButtons(
       $('decoration-options'),
-      decorations,
-      LABELS.decorations,
-      d => choices.decorations.includes(d),
-      d => ({
-        decorations: choices.decorations.includes(d)
-          ? choices.decorations.filter(item => item !== d)
-          : [...choices.decorations, d],
-      }),
-    );
-    choiceButtons(
-      $('horn-options'),
-      HORNS,
-      LABELS.horns,
-      h => h === choices.horn,
-      h => ({ horn: h }),
+      DECORATIONS.filter(d => d !== 'gnome' || choices.gnomes.length === gnomeCount),
+      {
+        label: d => LABELS.decorations[d],
+        art: roofArt,
+        isPressed: d => choices.decorations.includes(d),
+        choose: d => ({
+          decorations: choices.decorations.includes(d)
+            ? choices.decorations.filter(item => item !== d)
+            : [...choices.decorations, d],
+        }),
+      },
     );
   }
 
-  /** The gnomes found so far, the way home, and a note if progress can't be saved. */
+  /** The gnomes found so far, and a note if progress can't be saved. */
   function refreshMenu() {
-    const { gnomes, camp } = journal.get();
+    const { gnomes } = journal.get();
     $('gnome-tally-row').innerHTML = gnomeRow(gnomes.length);
-    $('gnome-count').textContent =
-      gnomes.length === gnomeCount
-        ? `All ${gnomeCount} garden gnomes found. Check the roof options!`
-        : `${gnomes.length} of ${gnomeCount} garden gnomes found`;
-    $('home-label').textContent = camp ? 'Back to camp' : 'Back to the start';
+    $('gnome-count').textContent = `${gnomes.length} of ${gnomeCount} garden gnomes found`;
     $('save-note').hidden = journal.isPersistent();
   }
   refreshMenu();
@@ -204,7 +207,6 @@ export function createUI({ journal, gnomeCount, on }) {
   return {
     ready(touch) {
       $('play').disabled = false;
-      $('play').textContent = 'Play';
       document.body.classList.toggle('touch', touch);
       if (touch) $('title-hint').textContent = 'Drive with the on-screen pedals. Tilt steering is in the menu.';
     },
@@ -216,7 +218,7 @@ export function createUI({ journal, gnomeCount, on }) {
     },
     openMenu({ nearCamp, camping }) {
       refreshMenu();
-      $('camp-row').hidden = !nearCamp || camping;
+      $('camp').hidden = !nearCamp || camping;
       showPage('main');
       if (!menu.open) menu.showModal();
     },
@@ -238,15 +240,14 @@ export function createUI({ journal, gnomeCount, on }) {
       if (count === gnomeCount)
         this.toast({ art: gnomeArt(), title: 'All garden gnomes found', detail: 'A new roof option is waiting.' });
     },
-    setSky(preset) {
-      $('sky-value').textContent = LABELS.sky[preset];
-    },
     setSwitch(id, on) {
       $(id).setAttribute('aria-checked', String(on));
+      // With cruise control on, the car drives itself: the pedal for going forward isn't needed.
+      if (id === 'cruise') document.body.classList.toggle('cruising', on);
     },
     setTilt(state) {
       $('tilt').setAttribute('aria-checked', String(state.enabled || state.pending));
-      $('tilt-center-row').hidden = !state.enabled;
+      $('tilt-center').hidden = !state.enabled;
       const message = LABELS.tilt[state.status];
       $('tilt-status').textContent = message;
       $('tilt-status').hidden = !message;

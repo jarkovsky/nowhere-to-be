@@ -18,10 +18,9 @@ test('the automatic sky passes through day, sunset, night and rain', () => {
   assert.ok(samples.some(s => s.rain > 0.6));
 });
 
-test('presets cycle in order and night settles in', () => {
+test('night settles in', () => {
   const sky = atmosphere();
-  assert.equal(sky.cycle(), 'sunset');
-  assert.equal(sky.cycle(), 'night');
+  sky.setPreset('night');
   for (let i = 0; i < 150; i++) sky.update(0.05, { x: 0, z: 0 }, true);
   assert.ok(sky.getState().day < 0.01);
 });

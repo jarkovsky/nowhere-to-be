@@ -1,5 +1,4 @@
 // Everything you hear is synthesised with Web Audio: no sound files.
-export const HORNS = ['beep', 'bicycle', 'quack', 'twinkle'];
 
 /**
  * Engine speed for a road speed in m/s: a four-speed gearbox that shifts up
@@ -271,23 +270,13 @@ export function createAudio() {
       if (value && context) ready().catch(() => {});
     },
 
-    horn(kind = 'beep', inTunnel = false) {
+    /** A friendly two-note beep, echoing in the tunnel. */
+    horn(inTunnel = false) {
       if (!playable()) return false;
       const now = context.currentTime;
       echoSend.gain.setValueAtTime(inTunnel ? 0.6 : 0, now);
-      const echo = 1;
-      if (kind === 'bicycle') {
-        tone(1300, now, 0.4, { echo });
-        tone(1700, now + 0.12, 0.4, { echo });
-      } else if (kind === 'quack') {
-        tone(420, now, 0.17, { type: 'sawtooth', end: 230, volume: 0.07, echo });
-        tone(370, now + 0.2, 0.2, { type: 'sawtooth', end: 190, volume: 0.07, echo });
-      } else if (kind === 'twinkle') {
-        [660, 830, 990, 1320].forEach((f, i) => tone(f, now + i * 0.1, 0.25, { echo }));
-      } else {
-        tone(523, now, 0.24, { type: 'triangle', echo });
-        tone(659, now, 0.24, { type: 'triangle', echo });
-      }
+      tone(523, now, 0.24, { type: 'triangle', echo: 1 });
+      tone(659, now, 0.24, { type: 'triangle', echo: 1 });
       return true;
     },
 

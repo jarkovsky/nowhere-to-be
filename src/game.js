@@ -126,16 +126,7 @@ export function createGame(canvas) {
       pause: () => pause(),
       resume,
       wake,
-      home: () => {
-        if (pausedFrom === 'camping') {
-          pausedFrom = 'driving';
-          leaveCamp();
-        }
-        goHome();
-        resume();
-      },
       camp: stayTheNight,
-      sky: () => ui.setSky(atmosphere.cycle()),
       sound: toggleSound,
       cruise: toggleCruise,
       tilt: () => {
@@ -149,7 +140,6 @@ export function createGame(canvas) {
         journal.save(patch);
         applyChoices();
         needsRender = true;
-        if (patch.horn) honk();
       },
     },
   });
@@ -279,7 +269,6 @@ export function createGame(canvas) {
     updateCarModel(0);
     journal.save({ camp: true });
     atmosphere.setPreset('night');
-    ui.setSky('night');
     ui.closeMenu();
     mode = 'camping';
     chase.setMode('camp');
@@ -294,7 +283,6 @@ export function createGame(canvas) {
 
   function leaveCamp() {
     atmosphere.wakeUp();
-    ui.setSky('auto');
     ui.setCamping(false);
     chase.setMode('chase');
   }
@@ -303,7 +291,7 @@ export function createGame(canvas) {
   function honk() {
     if (clock - lastHonk < 0.5) return;
     lastHonk = clock;
-    sound.horn(journal.get().horn, insideTunnel(state.x, state.z));
+    sound.horn(insideTunnel(state.x, state.z));
     wildlife.hearHorn(state.x, state.z);
     secrets.hearHorn(state.x, state.z);
     traffic.answerHonk(state.x, state.z, () => sound.otherHorn());
