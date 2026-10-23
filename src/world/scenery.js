@@ -146,14 +146,19 @@ export function ribbon(path, halfWidth, color, options) {
 }
 
 /** Shaded like the ground beneath it, so it doesn't show its facets where the ground doesn't. */
-function ribbonMesh(geometry) {
+export function ribbonMesh(geometry) {
   const material = groundMaterial({ polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.receiveShadow = true;
   return mesh;
 }
 
-function ribbonGeometry(path, halfWidth, color, { lift = 0.06, offset = 0, skip = () => false, across = 4 } = {}) {
+export function ribbonGeometry(
+  path,
+  halfWidth,
+  color,
+  { lift = 0.06, offset = 0, skip = () => false, across = 4 } = {},
+) {
   const base = new THREE.Color(color);
   const tint = new THREE.Color();
   const rows = [];
@@ -387,7 +392,8 @@ const CLEARINGS = [
   { x: HABITATS.burrow.x, z: HABITATS.burrow.z, r: 10 },
   { x: YETI.x, z: YETI.z, r: 10 },
   { ...RAILWAY.at((HALT.from + HALT.to) / 2), r: 24 },
-  { x: ROADWORKS.site.x, z: ROADWORKS.site.z, r: 32 },
+  { ...ROADWORKS.path.at(0), r: 20 },
+  { ...ROADWORKS.path.at(ROADWORKS.gravel), r: 40 },
   { x: HELIPAD.x, z: HELIPAD.z, r: 20 },
   { x: CHAPEL.x, z: CHAPEL.z, r: 9 },
   { x: SUMMIT.x, z: SUMMIT.z, r: 16 },
@@ -1165,10 +1171,10 @@ function buildFences(scene, scatter) {
   scene.add(markers.mesh());
 }
 
-/** Where the link roads meet the ring. */
-const PAVED_JOINS = LINKS.map(link => link.path.at(link.path.length));
+/** Where the link roads and the new road meet the ring. */
+const PAVED_JOINS = [...LINKS.map(link => link.path.at(link.path.length)), ROADWORKS.path.at(0)];
 
-const ASPHALT = '#7d7f79';
+export const ASPHALT = '#7d7f79';
 
 /**
  * Lays a long road in pieces about 300 m long, so the pieces out of view are skipped:
@@ -1240,8 +1246,6 @@ export function buildScenery(parent) {
   buildPavedRoads(scene);
   buildGravelRoads(scene);
   for (const track of TRACKS) {
-    // The roadworks lay their own surface.
-    if (track.id === 'roadworks') continue;
     // Tracks that leave a paved or gravel road start at its edge.
     const paved = s => {
       const p = track.path.at(s);

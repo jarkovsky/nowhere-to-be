@@ -613,13 +613,6 @@ export const TRACKS = [
     path: createPath(fromRoad(128, -118, [158, -138], [182, -156], [194, -170], [188, -182], [168, -190], [152, -194])),
   },
   {
-    // A new road being built: finished asphalt, then a gravel base, then bare earth where the digging is.
-    id: 'roadworks',
-    ruts: false,
-    width: 3.6,
-    path: createPath(fromRoad(3, 111, [0, 128], [-4, 146], [-10, 164], [-16, 180])),
-  },
-  {
     // Up the long north-west slope and round three hairpins to the summit.
     id: 'summit',
     ruts: true,
@@ -827,22 +820,33 @@ export const LINKS = [
   },
 ];
 
-/** Every paved road outside the valley: the upland ring and the links to it. */
-export const PAVED = [RING_ROAD, ...LINKS.map(link => link.path)];
+/**
+ * A new road being built in from the upland road, on open ground south of where the west road
+ * joins it. It leaves the ring square on, as wide as the ring, and is finished asphalt for the
+ * first `asphalt` metres, then a gravel base up to `gravel`, then bare earth up to `site`,
+ * where the digging is. `finished` is the asphalt stretch on its own.
+ */
+export const ROADWORKS = (() => {
+  const join = RING_ROAD.at(RING_ROAD.nearest(...ringPoint(161)).s);
+  const inward = join.dz * join.x - join.dx * join.z > 0 ? { x: -join.dz, z: join.dx } : { x: join.dz, z: -join.dx };
+  // `along` metres in from the ring, and `aside` metres to the south of a straight line.
+  const point = (along, aside) => [
+    join.x + inward.x * along - inward.z * aside,
+    join.z + inward.z * along + inward.x * aside,
+  ];
+  const path = createPath([point(0, 0), point(20, 0), point(45, 2), point(70, 6), point(92, 12)]);
+  const asphalt = 40;
+  const finished = createPath(path.samples.filter(p => p.s <= asphalt).map(p => [p.x, p.z]));
+  return { path, asphalt, gravel: 64, site: path.at(path.length), finished };
+})();
+
+/** Every paved road outside the valley: the upland ring, the links to it and the new road's finished stretch. */
+export const PAVED = [RING_ROAD, ...LINKS.map(link => link.path), ROADWORKS.finished];
 
 /** True near the middle of any paved road. */
 export function onPaved(x, z, distance = ROAD_HALF_WIDTH) {
   return PAVED.some(path => path.isNear(x, z, distance));
 }
-
-const roadworksPath = TRACKS.find(track => track.id === 'roadworks').path;
-/** Where each stage of the new road ends, in metres along it. */
-export const ROADWORKS = {
-  path: roadworksPath,
-  asphalt: roadworksPath.length * 0.42,
-  gravel: roadworksPath.length * 0.74,
-  site: roadworksPath.at(roadworksPath.length),
-};
 
 // The deck runs straight between two points on the curving trail, so the
 // trail never strays far from the middle of the bridge.

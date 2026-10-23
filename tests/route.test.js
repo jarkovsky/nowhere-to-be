@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { angleDelta, clamp } from '../src/core/math.js';
 import { createObstacleIndex, penetration } from '../src/core/collision.js';
 import { createCarState, stepDriving } from '../src/core/driving.js';
-import { ROAD, CAMP_TRAIL, TRACKS, JETTY, GNOMES } from '../src/world/layout.js';
+import { ROAD, CAMP_TRAIL, TRACKS, JETTY, GNOMES, RING_ROAD, ROADWORKS } from '../src/world/layout.js';
 import { headingOf } from '../src/world/path.js';
 import { drivingHeight, isDriveable, waterLevel } from '../src/world/terrain.js';
 import { buildScenery } from '../src/world/scenery.js';
@@ -102,6 +102,13 @@ test('every side track can be driven from end to end', () => {
   }
 });
 
+test('the new road can be driven from the upland road to where the digging is', () => {
+  const { path } = ROADWORKS;
+  const result = followPath(path, path.length - 4);
+  assert.equal(result.stuck, undefined, result.stuck);
+  assert.ok(result.progress >= path.length - 4, `only reached ${result.progress.toFixed(0)} m`);
+});
+
 test('the car can drive from the shore path out to the end of the jetty', () => {
   const out = { x: -Math.sin(JETTY.heading), z: -Math.cos(JETTY.heading) };
   const start = { x: JETTY.x - out.x * 8, z: JETTY.z - out.z * 8 };
@@ -113,9 +120,9 @@ test('the car can drive from the shore path out to the end of the jetty', () => 
   assert.ok(drivingHeight(car.x, car.z) > waterLevel(car.x, car.z), 'still on the planks, above the water');
 });
 
-test("nothing stands in the other travellers' lanes", () => {
+test("nothing stands in the other travellers' lanes, on the trail or the upland road", () => {
   const index = createObstacleIndex(obstacles);
-  for (const p of ROAD.samples) {
+  for (const p of [...ROAD.samples, ...RING_ROAD.samples]) {
     for (const side of [-LANE, LANE]) {
       const x = p.x - p.dz * side;
       const z = p.z + p.dx * side;

@@ -73,9 +73,9 @@ try {
     const { path, asphalt, gravel } = L.ROADWORKS;
     const car = path.at(asphalt - 6);
     g.teleport(car.x, car.z, Math.atan2(-car.dx, -car.dz));
-    const eye = path.offset(asphalt - 16, -5);
-    const at = path.offset(gravel + 4, 1);
-    g.shot([eye.x, T.terrainHeight(eye.x, eye.z) + 4.5, eye.z], [at.x, T.terrainHeight(at.x, at.z) + 1, at.z]);
+    const eye = path.offset(asphalt - 22, 3);
+    const at = path.offset(gravel + 10, -1);
+    g.shot([eye.x, T.terrainHeight(eye.x, eye.z) + 6, eye.z], [at.x, T.terrainHeight(at.x, at.z) + 1, at.z]);
   `,
   );
   await capture(page, 'roadworks', 3000);

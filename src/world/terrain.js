@@ -33,6 +33,7 @@ import {
   UPLAND_HILLS,
   AIRFIELD,
   LINKS,
+  ROADWORKS,
   RING_ROAD,
   OUTER_ROAD,
   CONNECTORS,
@@ -495,6 +496,8 @@ const roadProfile = levelAlong(ROAD, trailWidth, 10);
 // then put back where they were.
 for (const link of LINKS)
   levelAlong(link.path, PAVED_WIDTH, 10, { window: 30, banks: 1.5, grade: link.grade, flatEnds: 10 });
+// The new road being built off the ring does too, and stays gentle all the way to the site.
+levelAlong(ROADWORKS.path, PAVED_WIDTH, 10, { window: 30, banks: 1.5, grade: 0.04, flatEnds: 10 });
 for (const { path } of CONNECTORS) levelAlong(path, GRAVEL_WIDTH, 10, { ...GRAVEL_GRADE, flatEnds: 10 });
 TRACKS.filter(offGravel).forEach(levelTrack);
 levelAlong(ROAD, trailWidth, 0.5, { levels: roadProfile });

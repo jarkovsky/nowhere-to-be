@@ -1,23 +1,27 @@
-// Roadworks on a new road south of the trail. The first stretch is freshly
-// asphalted; a road roller and a grader work the gravel base after it; at the
-// far end an excavator digs and loads a dump truck, while a skid steer loader
-// fetches gravel from a pile. A site cabin, piles, pipes and cones lie around.
+// Roadworks on a new road off the upland road. The first stretch is finished
+// asphalt, like the road it joins; a road roller and a grader work the gravel
+// base after it; at the far end an excavator digs and loads a dump truck, while
+// a skid steer loader fetches gravel from a pile. A site cabin, piles, pipes and
+// cones lie around.
 import * as THREE from 'three';
-import { smoothstep } from '../../core/math.js';
-import { ROADWORKS } from '../layout.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { lerp, smoothstep } from '../../core/math.js';
+import { ROADWORKS, ROAD_HALF_WIDTH } from '../layout.js';
 import { headingOf } from '../path.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder } from '../build.js';
-import { ribbon } from '../scenery.js';
+import { ASPHALT, ribbonGeometry, ribbonMesh } from '../scenery.js';
 
 const YELLOW = '#e3b23c';
 const DARK = '#3b3f3c';
 const RUBBER = '#2c302e';
 const GLASS = '#4f6f73';
 const ORANGE = '#d9752e';
-const HALF_WIDTH = 3.4;
+const HALF_WIDTH = ROAD_HALF_WIDTH;
 
 const { path, asphalt, gravel } = ROADWORKS;
+/** How far along the road the skid steer fetches gravel from its pile. */
+const LOADER_AT = gravel - 4;
 
 /** A point beside the new road: `along` metres along it and `side` metres to its right, on the ground. Past the end it runs straight on. */
 function roadside(along, side = 0) {
@@ -210,11 +214,74 @@ function skidSteer() {
 function buildSurfaces(scene) {
   const end = path.length;
   const stretch = (from, to) => s => s < from || s > to;
-  scene.add(ribbon(path, HALF_WIDTH, '#5c5f5b', { lift: 0.08, skip: stretch(0, asphalt) }));
-  scene.add(ribbon(path, 0.1, '#f1ede2', { lift: 0.1, offset: HALF_WIDTH - 0.35, skip: stretch(4, asphalt) }));
-  scene.add(ribbon(path, 0.1, '#f1ede2', { lift: 0.1, offset: -HALF_WIDTH + 0.35, skip: stretch(4, asphalt) }));
-  scene.add(ribbon(path, HALF_WIDTH, '#a9a395', { lift: 0.07, skip: stretch(asphalt - 1, gravel) }));
-  scene.add(ribbon(path, HALF_WIDTH, '#9c8466', { lift: 0.06, skip: stretch(gravel - 1, end) }));
+  // The asphalt is laid just like the upland road's, with the same dashed line down the middle.
+  // It tucks under the edge of the ring where it joins it, and stops square across.
+  const dashes = s => s % 9 > 4.5;
+  const line = stretch(HALF_WIDTH + 1, asphalt - 2);
+  const surfaces = [
+    ribbonGeometry(path, HALF_WIDTH, ASPHALT, { lift: 0.06, skip: stretch(HALF_WIDTH - 1.5, asphalt) }),
+    ribbonGeometry(path, 0.1, '#eeece2', { lift: 0.08, across: 1, skip: s => line(s) || dashes(s) }),
+    ribbonGeometry(path, HALF_WIDTH, '#a9a395', { lift: 0.05, skip: stretch(asphalt - 1, gravel) }),
+    ribbonGeometry(path, HALF_WIDTH + 0.8, '#9c8466', { lift: 0.04, skip: stretch(gravel - 1, end) }),
+    junctionCorners(7),
+  ];
+  scene.add(ribbonMesh(mergeGeometries(surfaces)));
+}
+
+/**
+ * Asphalt that rounds off the two corners where the new road meets the ring, so it opens out
+ * into the junction like a real side road instead of butting square against the ring. Each
+ * fills its corner out to a quarter circle `radius` across, from a point tucked under both
+ * roads, in small pieces draped over the ground.
+ */
+function junctionCorners(radius) {
+  // `u` across the new road and `v` along it, from the middle of the ring, so the corners meet
+  // the road's edges exactly. They reach a little under the ring's edge, which doesn't run
+  // quite square to the road in this frame.
+  const at = (u, v) => path.offset(v, u);
+  const under = 0.3;
+  const color = new THREE.Color(ASPHALT).toArray();
+  const positions = [];
+  const normals = [];
+  const colors = [];
+  const triangle = (a, b, c) => {
+    const up = (b.z - a.z) * (c.x - a.x) - (b.x - a.x) * (c.z - a.z);
+    if (Math.abs(up) < 1e-6) return;
+    for (const { x, z } of up > 0 ? [a, b, c] : [a, c, b]) {
+      positions.push(x, terrainHeight(x, z) + 0.05, z);
+      const normal = new THREE.Vector3(
+        terrainHeight(x - 1, z) - terrainHeight(x + 1, z),
+        2,
+        terrainHeight(x, z - 1) - terrainHeight(x, z + 1),
+      ).normalize();
+      normals.push(normal.x, normal.y, normal.z);
+      colors.push(...color);
+    }
+  };
+  const around = 8;
+  const outward = 4;
+  for (const side of [-1, 1]) {
+    const corner = { u: side * (HALF_WIDTH - 0.8), v: HALF_WIDTH - 0.8 };
+    const arc = Array.from({ length: around + 1 }, (_, i) => {
+      const a = (i / around) * (Math.PI / 2);
+      return {
+        u: side * (HALF_WIDTH + radius * (1 - Math.cos(a))),
+        v: HALF_WIDTH - under + radius * (1 - Math.sin(a)),
+      };
+    });
+    const point = (i, k) => at(lerp(corner.u, arc[i].u, k / outward), lerp(corner.v, arc[i].v, k / outward));
+    for (let i = 0; i < around; i++) {
+      for (let k = 0; k < outward; k++) {
+        triangle(point(i, k), point(i + 1, k), point(i + 1, k + 1));
+        triangle(point(i, k), point(i + 1, k + 1), point(i, k + 1));
+      }
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  return geometry;
 }
 
 function buildClutter(parts, obstacles) {
@@ -229,7 +296,7 @@ function buildClutter(parts, obstacles) {
 
   // Piles of gravel and sand beside the gravel stretch, and dug earth by the excavator.
   for (const [along, side, radius, height, color] of [
-    [gravel - 4, 10, 3.6, 2.2, '#a9a395'],
+    [LOADER_AT, 10, 3.6, 2.2, '#a9a395'],
     [asphalt + 6, 9, 2.8, 1.6, '#d1b98a'],
     [path.length + 2, -9, 3.4, 2, '#8c7457'],
   ]) {
@@ -274,9 +341,10 @@ function buildClutter(parts, obstacles) {
   }
   obstacles.push({ x: pipes.x, z: pipes.z, radius: 1.6 });
 
-  // Cones along both edges of the unfinished stretch.
+  // Cones along both edges of the unfinished stretch, with a gap where the skid steer comes and goes.
   for (let s = asphalt + 2; s < path.length; s += 6) {
     for (const side of [-1, 1]) {
+      if (side > 0 && Math.abs(s - LOADER_AT) < 3) continue;
       const spot = roadside(s, side * (HALF_WIDTH + 0.5));
       add(new THREE.ConeGeometry(0.25, 0.75, 8), '#e2672f', spot, { y: 0.37 });
       add(new THREE.CylinderGeometry(0.16, 0.19, 0.12, 8), '#f1ede2', spot, { y: 0.42 });
@@ -299,12 +367,6 @@ function buildClutter(parts, obstacles) {
       );
     }
   }
-  // A warning triangle where the new road leaves the trail.
-  const sign = roadside(8, HALF_WIDTH + 1.5);
-  add(new THREE.CylinderGeometry(0.05, 0.05, 2, 6), '#a9ada7', sign, { y: 1 });
-  add(new THREE.CylinderGeometry(0.62, 0.62, 0.05, 3), '#c8302a', sign, { y: 2.2, t: { rx: -Math.PI / 2 } });
-  add(new THREE.CylinderGeometry(0.46, 0.46, 0.07, 3), '#f2efe6', sign, { y: 2.2, t: { rx: -Math.PI / 2 } });
-  add(new THREE.BoxGeometry(0.16, 0.26, 0.08), '#2f3430', sign, { y: 2.12 });
 }
 
 export function buildRoadworks(scene, obstacles) {
@@ -334,12 +396,13 @@ export function buildRoadworks(scene, obstacles) {
   const grade = grader();
   const loader = skidSteer();
   for (const machine of [roll, grade, loader]) scene.add(machine.root);
+  const machines = [digger.root, truck, roll.root, grade.root, loader.root];
   const shuttles = [
     { machine: roll, side: 1.1, from: asphalt + 3, to: gravel - 3, speed: 1.6, wait: 1.5, at: asphalt + 3, way: 1 },
     { machine: grade, side: -1.5, from: asphalt + 5, to: gravel - 4, speed: 1.1, wait: 3, at: gravel - 4, way: -1 },
   ];
-  const pile = roadside(gravel - 4, 10);
-  const roadEdge = roadside(gravel - 4, 3);
+  const pile = roadside(LOADER_AT, 10);
+  const roadEdge = roadside(LOADER_AT, 3);
   let loaderAt = 0; // 0 at the road, 1 at the pile
   let loaderWay = 1;
   let loaderWait = 0;
@@ -355,6 +418,9 @@ export function buildRoadworks(scene, obstacles) {
     colliders,
     update(dt, player) {
       time += dt;
+      // From further off the machines are specks; skip drawing them.
+      const inSight = !player || Math.hypot(player.x - ROADWORKS.site.x, player.z - ROADWORKS.site.z) < 330;
+      for (const machine of machines) machine.visible = inSight;
       digger.update(time);
       colliders.length = 0;
       for (const shuttle of shuttles) {

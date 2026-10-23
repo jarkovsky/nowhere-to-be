@@ -28,6 +28,9 @@ import {
   BROOK,
   FORD,
   TRACK_ROCKS,
+  ROADWORKS,
+  ROAD_HALF_WIDTH,
+  onPaved,
 } from '../src/world/layout.js';
 import {
   terrainHeight,
@@ -63,6 +66,40 @@ test('the upland ring and the roads up to it are driveable, level across and cli
       assert.ok(Math.abs(left - right) < 0.6, `tilted by ${Math.abs(left - right).toFixed(2)} at ${p.x}, ${p.z}`);
       const grade = Math.abs(terrainHeight(p.x, p.z) - terrainHeight(back.x, back.z)) / 10;
       assert.ok(grade < (path === RING_ROAD ? 0.12 : 0.24), `${(grade * 100).toFixed(0)}% at ${p.x}, ${p.z}`);
+    }
+  }
+});
+
+test('the new road leaves the upland road on the level and runs on gently to the roadworks', () => {
+  const { path, asphalt } = ROADWORKS;
+  const join = path.at(0);
+  const ring = terrainHeight(join.x, join.z);
+  // No step where it leaves the ring, and it is paved as far as the asphalt goes.
+  for (const s of [ROAD_HALF_WIDTH, ROAD_HALF_WIDTH + 5]) {
+    const p = path.at(s);
+    assert.ok(Math.abs(terrainHeight(p.x, p.z) - ring) < 0.1, `a step ${s} m in from the ring`);
+  }
+  assert.ok(onPaved(path.at(asphalt - 2).x, path.at(asphalt - 2).z));
+  assert.ok(!onPaved(path.at(asphalt + 8).x, path.at(asphalt + 8).z));
+  for (let s = 0; s <= path.length; s += 2) {
+    const p = path.at(s);
+    assert.ok(isDriveable(p.x, p.z), `blocked at ${p.x}, ${p.z}`);
+    const left = terrainHeight(p.x + p.dz * 3, p.z - p.dx * 3);
+    const right = terrainHeight(p.x - p.dz * 3, p.z + p.dx * 3);
+    assert.ok(Math.abs(left - right) < 0.6, `tilted by ${Math.abs(left - right).toFixed(2)} at s=${s}`);
+    if (s < 10) continue;
+    const back = path.at(s - 10);
+    const grade = Math.abs(terrainHeight(p.x, p.z) - terrainHeight(back.x, back.z)) / 10;
+    assert.ok(grade < 0.1, `${(grade * 100).toFixed(0)}% at s=${s}`);
+  }
+  // Nor are there cliffs round the junction or the site.
+  for (const { x: cx, z: cz } of path.samples.filter((_, i) => i % 10 === 0)) {
+    for (let x = cx - 30; x <= cx + 30; x += 3) {
+      for (let z = cz - 30; z <= cz + 30; z += 3) {
+        const h = terrainHeight(x, z);
+        const slope = Math.hypot(terrainHeight(x + 1, z) - h, terrainHeight(x, z + 1) - h);
+        assert.ok(slope < 0.6, `slope ${slope.toFixed(2)} at ${x.toFixed(0)}, ${z.toFixed(0)}`);
+      }
     }
   }
 });

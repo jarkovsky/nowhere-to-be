@@ -167,6 +167,57 @@ function paintAirfieldSign(arrow) {
   };
 }
 
+/** A white road sign with the red roadworks triangle on it, a worker digging, for the way to the roadworks. */
+function paintRoadworksSign(arrow) {
+  return (ctx, w, h) => {
+    ctx.fillStyle = '#f4f2ea';
+    ctx.fillRect(0, 0, w, h);
+    ctx.save();
+    const u = w / 300;
+    ctx.scale(u, u);
+    ctx.beginPath();
+    ctx.moveTo(150, 22);
+    ctx.lineTo(231, 162);
+    ctx.lineTo(69, 162);
+    ctx.closePath();
+    ctx.fillStyle = '#f4f2ea';
+    ctx.fill();
+    ctx.strokeStyle = '#c8302a';
+    ctx.lineWidth = 22;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    // The worker shovels earth onto a pile, in the middle of the triangle.
+    ctx.translate(150, 115);
+    ctx.fillStyle = ctx.strokeStyle = '#23262a';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(24, 34, 18, Math.PI, 0);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(-18, -22, 7, 0, Math.PI * 2);
+    ctx.fill();
+    const stroke = (width, ...points) => {
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.stroke();
+    };
+    stroke(9, [-17, -13], [-10, 10]);
+    stroke(7, [-22, 33], [-10, 10], [1, 33]);
+    stroke(6, [-16, -8], [4, 2]);
+    stroke(4, [-4, -16], [16, 20]);
+    ctx.beginPath();
+    ctx.moveTo(11, 18);
+    ctx.lineTo(22, 15);
+    ctx.lineTo(26, 26);
+    ctx.lineTo(15, 30);
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#23262a';
+    if (arrow) drawArrow(ctx, w / 2, h * 0.8, w * 0.36, arrow);
+  };
+}
+
 /** Which way an arrow should point for someone reading the sign from the front or back. */
 function arrowFor(from, yaw, to, back) {
   const vx = to.x - from.x;
@@ -208,19 +259,18 @@ function addSign(scene, parts, { x, z, yaw, text, destination, width = 3.6, heig
   }
 }
 
-/** A square sign on a pole showing the way to the airfield, readable from both sides. */
-function airfieldSign(scene, parts, { x, z, yaw }) {
+/** A square sign on a pole with `picture` on it, showing the way to `destination`, readable from both sides. */
+function pictureSign(scene, parts, { x, z, yaw }, picture, destination) {
   const y = terrainHeight(x, z);
   const size = 1.3;
   // The pole stops at the bottom edge of the sign, so it covers none of the picture.
   parts.box(0.12, 1.6, 0.12, '#8e938d', { x, y: y + 0.8, z, ry: yaw });
   parts.box(size, size, 0.06, '#d9d6cc', { x, y: y + 2.2, z, ry: yaw });
-  const destination = { x: AIRFIELD.x, z: (AIRFIELD.z0 + AIRFIELD.z1) / 2 };
   for (const back of [false, true]) {
     const arrow = arrowFor({ x, z }, yaw, destination, back);
     const face = new THREE.Mesh(
       new THREE.PlaneGeometry(size - 0.04, size - 0.04),
-      new THREE.MeshLambertMaterial({ map: canvasTexture(256, 256, paintAirfieldSign(arrow)) }),
+      new THREE.MeshLambertMaterial({ map: canvasTexture(256, 256, picture(arrow)) }),
     );
     const push = back ? -0.035 : 0.035;
     face.position.set(x + Math.sin(yaw) * push, y + 2.2, z + Math.cos(yaw) * push);
@@ -449,7 +499,6 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
     windmill: ['WINDMILL', WINDMILL],
     shore: ['JETTY', JETTY],
     chata: ['MASARYKOVA CHATA', CHATA],
-    roadworks: ['ROADWORKS', ROADWORKS.site],
     summit: ['VELKÁ DEŠTNÁ', SUMMIT],
     fields: ['UPLAND FARM', FARMSTEAD],
     spring: ['SPRING', SPRING],
@@ -465,16 +514,37 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
   addMapBoard(scene, parts);
 
   // Plane signs where the east road leaves the trail, and on the ring either side of the airfield road.
+  const airfield = { x: AIRFIELD.x, z: (AIRFIELD.z0 + AIRFIELD.z1) / 2 };
   const east = LINKS.find(link => link.id === 'east').path;
   const start = ROAD.nearest(east.at(14).x, east.at(14).z);
   const side = Math.sign(start.side) || 1;
   const before = ROAD.offset(start.s - 16, side * (ROAD_HALF_WIDTH + 2.4));
-  airfieldSign(scene, parts, { ...before, yaw: Math.atan2(-before.dx, -before.dz) + side * 0.35 });
+  pictureSign(
+    scene,
+    parts,
+    { ...before, yaw: Math.atan2(-before.dx, -before.dz) + side * 0.35 },
+    paintAirfieldSign,
+    airfield,
+  );
   const join = LINKS.find(link => link.id === 'airfield').path.at(0);
   const at = RING_ROAD.nearest(join.x, join.z).s;
   for (const along of [-18, 18]) {
     const p = RING_ROAD.offset(at + along, ROAD_HALF_WIDTH + 2.4);
-    airfieldSign(scene, parts, { ...p, yaw: Math.atan2(-p.dx, -p.dz) });
+    pictureSign(scene, parts, { ...p, yaw: Math.atan2(-p.dx, -p.dz) }, paintAirfieldSign, airfield);
+  }
+
+  // Roadworks signs on the trail before the west road, which is the way up to them, and on the
+  // ring either side of the new road, on its side.
+  const west = LINKS.find(link => link.id === 'west').path;
+  const up = ROAD.nearest(west.at(14).x, west.at(14).z);
+  const upSide = Math.sign(up.side) || 1;
+  const toWest = ROAD.offset(up.s - 26, upSide * (ROAD_HALF_WIDTH + 2.4));
+  const yawWest = Math.atan2(-toWest.dx, -toWest.dz) + upSide * 0.35;
+  pictureSign(scene, parts, { ...toWest, yaw: yawWest }, paintRoadworksSign, ROADWORKS.site);
+  const opening = RING_ROAD.nearest(ROADWORKS.path.at(20).x, ROADWORKS.path.at(20).z);
+  for (const along of [-30, 30]) {
+    const p = RING_ROAD.offset(opening.s + along, Math.sign(opening.side) * (ROAD_HALF_WIDTH + 2.4));
+    pictureSign(scene, parts, { ...p, yaw: Math.atan2(-p.dx, -p.dz) }, paintRoadworksSign, ROADWORKS.site);
   }
 
   // A board on the summit, facing the end of the track.
