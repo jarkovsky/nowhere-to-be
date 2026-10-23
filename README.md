@@ -100,7 +100,7 @@ Everything is generated in code with [Three.js](https://threejs.org) and Web Aud
 - **Terrain:** a height field built from layered noise and a few hand-placed landforms: knolls, a flat-topped hill, rocky ridges, a summit, flattened farmland and a ledge for the waterfall. Grass gives way to stony ground and then snow with height. It is fine everywhere you can drive and coarse under the distant peaks. The trails are levelled across their width, the paved roads climb no steeper than a set grade through cuttings and on banks, the railway climbs at an even grade on embankments and through a cutting, the creek is carved into the ground, and buildings sit on flattened pads, so nothing floats or sinks. A test checks there are no cliffs on the valley floor.
 - **Driving:** an arcade model with real velocity, tyre grip per surface, hill slowdown and soft collisions. Each tyre is settled onto the terrain triangle beneath it, within the travel its suspension allows.
 - **Camera:** a spring arm that pulls in when rock comes between it and the car, so the tunnel and cliffs never swallow the view. Drag to swing it round; it drifts back behind the car when you let go.
-- **Performance:** cheap Lambert materials, merged and instanced meshes, ground and scenery split into tiles so whatever is out of view is skipped, small details hidden when far away, one shadow-casting light, a 60 fps cap, no rendering while paused, and a resolution that adapts to the device.
+- **Performance:** cheap Lambert materials, merged and instanced meshes, one shadow-casting light, a 60 fps cap, no rendering while paused, and a resolution that adapts to the device. The ground is split into tiles, and tiles far from the camera are drawn with fewer, larger triangles. Trees and rocks are grouped by area so whatever is out of view is skipped, distant rocks take a simpler shape, flowers, grass and bushes are only drawn near the camera, and only what stands near the car casts shadows. So the cost of a frame depends on what is around the camera rather than on the size of the map.
 
 ```
 src/
@@ -118,8 +118,9 @@ Requires Node.js 20.19 or newer.
 ```sh
 npm install
 npm run dev            # start the game locally
-npm test               # unit tests: physics, terrain, saves, tilt, a full lap of the trail
+npm test               # unit tests: physics, terrain, scenery, saves, tilt, a full lap of the trail
 npm run test:browser   # end-to-end smoke test in Chrome
+npm run perf           # start-up time and frame cost around the map (add -- --phone for a slow phone)
 npm run screenshots    # regenerate the images in docs/
 npm run build          # static build in dist/, ready for any static host
 ```
