@@ -133,16 +133,18 @@ const GROUND_DETAIL = /* glsl */ `
  * The material for scattered trees (`kind` 'trees') or grass ('grass'): coloured by its
  * vertices, and by each one's own tint where the geometry's `tinted` attribute is 1 (the
  * leaves, but not the trunks), swaying in the wind, and with some grain in the leaves.
- * Grass also bends away from the car. Only for the scenery's instanced meshes, which are
- * never moved, so the position after the instance's matrix is in the world.
+ * Grass also bends away from the car, and grows out of the ground as it comes within
+ * `range` of the camera, so it doesn't appear all at once. Only for the scenery's instanced
+ * meshes, which are never moved, so the position after the instance's matrix is in the world.
  */
-export function foliageMaterial(kind) {
-  const key = `foliage|${kind}`;
+export function foliageMaterial(kind, range = 0) {
+  const key = `foliage|${kind}|${range}`;
   if (materials.has(key)) return materials.get(key);
   detail ??= { value: detailTexture() };
   const grass = kind === 'grass';
   const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: !grass, name: kind });
   material.defines = { [grass ? 'SWAY_GRASS' : 'SWAY_TREES']: '' };
+  if (range) material.defines.GRASS_RANGE = range.toFixed(1);
   materials.set(key, material);
   material.onBeforeCompile = shader => {
     shader.uniforms.groundDetail = detail;
@@ -173,8 +175,11 @@ const SWAY_PARS = /* glsl */ `
 const SWAY_VERTEX = /* glsl */ `
   vec4 mvPosition = vec4( transformed, 1.0 );
   #ifdef USE_INSTANCING
-    mvPosition = instanceMatrix * mvPosition;
     vec3 root = instanceMatrix[ 3 ].xyz;
+    #ifdef GRASS_RANGE
+      mvPosition.xyz *= 1.0 - smoothstep( GRASS_RANGE * 0.72, GRASS_RANGE * 0.97, distance( root.xz, cameraPosition.xz ) );
+    #endif
+    mvPosition = instanceMatrix * mvPosition;
   #else
     vec3 root = vec3( 0.0 );
   #endif

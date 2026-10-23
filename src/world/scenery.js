@@ -738,7 +738,7 @@ function buildGroundCover(scatter) {
     return { matrix: dummy.matrix.clone(), color: new THREE.Color(flower.color) };
   });
   const flowerGeometry = tintable(new PartsBuilder().add(new THREE.ConeGeometry(0.16, 0.5, 4), '#ffffff').geometry());
-  const grass = foliageMaterial('grass');
+  const grass = foliageMaterial('grass', DETAIL_RANGE);
   scatter.add({ geometry: flowerGeometry, near: DETAIL_RANGE, shadows: false, material: grass, items: flowerItems });
 
   const blades = new PartsBuilder();
@@ -769,78 +769,118 @@ function buildGroundCover(scatter) {
   });
 }
 
-/** Long grass grows this close to the camera. */
-const VERGE_RANGE = 110;
+/** Long grass grows this close to the camera, rising out of the ground as it comes into range. */
+const LONG_GRASS_RANGE = 150;
 
-/** True where long grass can grow beside a trail: off every trail, road and track, and out of the water and snow. */
-function isVerge(x, z) {
+/** True where long grass can grow: off every trail, road and track, and out of the water, the mud and the snow. */
+function isLongGrassGround(x, z) {
   if (Math.hypot(x, z) > VALLEY_RADIUS - 3) return false;
-  if (ROAD.isNear(x, z, ROAD_HALF_WIDTH + 0.4) || CAMP_TRAIL.isNear(x, z, 2.5) || RAILWAY.isNear(x, z, 4.5))
+  if (ROAD.isNear(x, z, ROAD_HALF_WIDTH + 0.8) || CAMP_TRAIL.isNear(x, z, 2.8) || RAILWAY.isNear(x, z, 4.5))
     return false;
-  if (onPaved(x, z, ROAD_HALF_WIDTH + 0.4) || onAirfield(x, z, 2)) return false;
-  if (TRACKS.some(track => track.path.isNear(x, z, track.ruts ? 1.4 : 1.1))) return false;
+  if (onPaved(x, z, ROAD_HALF_WIDTH + 0.8) || onAirfield(x, z, 2)) return false;
+  if (TRACKS.some(track => track.path.isNear(x, z, track.ruts ? 1.6 : 1.3))) return false;
   if (CLEARINGS.some(c => Math.hypot(x - c.x, z - c.z) < c.r * 0.7) || inMud(x, z)) return false;
+  if (Math.hypot(x - FIELDS.x, z - FIELDS.z) < FIELDS.radius + 4) return false;
   if (lakeDistance(x, z) < 2.4 || (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 6))) return false;
   if (BROOK.isNear(x, z, 3.2)) return false;
   const h = terrainHeight(x, z);
   return h < 92 && snowCover(x, z, h) < 0.2 && steepness(x, z) < 0.5;
 }
 
-/** Long grass along the edges of the trails and tracks, which sways and bends away from the car. */
-function buildVerges(scatter) {
-  const edges = [
-    { path: ROAD, edge: ROAD_HALF_WIDTH, skip: s => onBridge(s) || inTunnel(s) },
-    { path: CAMP_TRAIL, edge: 2.1 },
-    ...PAVED.map(path => ({ path, edge: ROAD_HALF_WIDTH })),
-    ...TRACKS.filter(track => track.id !== 'roadworks').map(track => ({
-      path: track.path,
-      edge: track.ruts ? 1.2 : 0.8,
-    })),
-  ];
+/**
+ * Long grass in patches across the meadows and along the edges of the woods, taller in the
+ * middle of a patch than at its edges. It sways, and bends away from the car. It has numbers
+ * of its own, so it doesn't move anything else.
+ */
+function buildLongGrass(scatter) {
+  const grassRandom = createRandom(6011);
   const dummy = new THREE.Object3D();
   const items = [];
-  for (const { path, edge, skip = () => false } of edges) {
-    for (let s = 0; s < path.length; s += 0.55) {
-      if (skip(s)) continue;
-      // Thicker in some stretches than others.
-      const lush = fractalNoise(s / 23 + edge, path.length / 97, 2, 61);
-      for (const side of [-1, 1]) {
-        if (random() > 0.25 + lush * 0.75) continue;
-        const p = path.offset(s, side * (edge + 0.5 + random() ** 1.6 * 3.5));
-        if (!isVerge(p.x, p.z)) continue;
-        dummy.position.set(p.x, terrainHeight(p.x, p.z) - 0.05, p.z);
-        dummy.rotation.set(0, random() * 6.3, 0);
-        dummy.scale.setScalar(0.75 + random() * 0.55);
-        dummy.updateMatrix();
-        const golden = random() < 0.22;
-        items.push({
-          matrix: dummy.matrix.clone(),
-          color: new THREE.Color().setHSL(
-            golden ? 0.11 + random() * 0.03 : 0.2 + random() * 0.05,
-            golden ? 0.6 : 0.5 + random() * 0.15,
-            golden ? 0.48 + random() * 0.08 : 0.34 + random() * 0.08,
-          ),
-        });
-      }
+  /** A clump at (x, z), `height` from 0 to 1 of the tallest, tinted round the patch's own `hue`. */
+  const clump = (x, z, height, hue) => {
+    if (!isLongGrassGround(x, z)) return;
+    dummy.position.set(x, terrainHeight(x, z) - 0.05, z);
+    dummy.rotation.set(0, grassRandom() * 6.3, 0);
+    const width = 1 + grassRandom() * 0.5;
+    dummy.scale.set(width, height * (0.8 + grassRandom() * 0.4), width);
+    dummy.updateMatrix();
+    // Some clumps have gone over to seed, golden, among the green.
+    const golden = grassRandom() < 0.12 + hue * 0.5;
+    items.push({
+      matrix: dummy.matrix.clone(),
+      color: new THREE.Color().setHSL(
+        golden ? 0.11 + grassRandom() * 0.03 : 0.2 - hue * 0.05 + grassRandom() * 0.04,
+        golden ? 0.58 : 0.45 + grassRandom() * 0.15,
+        golden ? 0.46 + grassRandom() * 0.08 : 0.34 + grassRandom() * 0.09,
+      ),
+    });
+  };
+  // Patches of it, a few metres to ten across, in some meadows and along the edges of the woods.
+  let patches = 0;
+  for (let attempt = 0; attempt < 40000 && patches < 900; attempt++) {
+    const a = grassRandom() * Math.PI * 2;
+    const r = Math.sqrt(grassRandom()) * (VALLEY_RADIUS - 8);
+    const cx = Math.cos(a) * r;
+    const cz = Math.sin(a) * r;
+    const meadow = smoothstep(fractalNoise(cx / 90 + 1.3, cz / 90 + 7.7, 2, 91), 0.45, 0.68);
+    // The same noise as the woods: there is more of it where the woods begin.
+    const woods = fractalNoise(cx / 150 + 3.3, cz / 150 + 8.1, 2, 5);
+    const edge = 1 - smoothstep(Math.abs(woods - 0.42), 0, 0.08);
+    // Most of it within sight of the trails and tracks, though not along them.
+    const seen =
+      ROAD.isNear(cx, cz, 60) ||
+      CAMP_TRAIL.isNear(cx, cz, 40) ||
+      onPaved(cx, cz, 50) ||
+      TRACKS.some(track => track.path.isNear(cx, cz, 40));
+    const chance = Math.max(meadow, edge * 0.8) * (seen ? 1 : 0.2);
+    if (grassRandom() > chance || !isLongGrassGround(cx, cz)) continue;
+    patches++;
+    const hue = grassRandom() * 0.4;
+    const radius = 3 + grassRandom() * 8;
+    const stretch = 0.55 + grassRandom() * 0.7;
+    const turn = grassRandom() * Math.PI;
+    const ragged = grassRandom() * 6.3;
+    const count = Math.round(radius * radius * stretch * Math.PI * 0.55);
+    for (let k = 0; k < count; k++) {
+      // Thicker and taller towards the middle, with a ragged edge.
+      const t = Math.sqrt(grassRandom());
+      const b = grassRandom() * Math.PI * 2;
+      const reach = t * radius * (0.75 + 0.25 * Math.sin(b * 3 + ragged));
+      const u = Math.cos(b) * reach;
+      const v = Math.sin(b) * reach * stretch;
+      clump(
+        cx + u * Math.cos(turn) - v * Math.sin(turn),
+        cz + u * Math.sin(turn) + v * Math.cos(turn),
+        1 - 0.5 * t * t,
+        hue,
+      );
     }
   }
+  // Seven flat blades leaning out from the middle, each with a face on both sides.
   const blades = new PartsBuilder();
-  for (let k = 0; k < 9; k++) {
-    const a = k * 2.4;
-    const height = 0.8 + ((k * 0.37) % 1) * 0.55;
-    blades.add(new THREE.ConeGeometry(0.09, height, 3, 1, true), '#ffffff', {
-      x: Math.cos(a) * (0.1 + (k % 3) * 0.12),
-      y: height / 2,
-      z: Math.sin(a) * 0.22,
-      rx: Math.sin(a) * 0.3,
-      rz: -Math.cos(a) * 0.3,
-    });
+  for (let k = 0; k < 7; k++) {
+    const height = 0.7 + ((k * 0.37) % 1) * 0.5;
+    for (const face of [1, -1]) {
+      const blade = new THREE.BufferGeometry();
+      blade.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute([-0.065 * face, 0, 0, 0.065 * face, 0, 0, 0, height, 0], 3),
+      );
+      blade.computeVertexNormals();
+      const spot = 0.06 + (k % 3) * 0.1;
+      blades.add(blade, '#ffffff', {
+        x: Math.cos(k * 2.4) * spot,
+        z: Math.sin(k * 2.4) * spot,
+        ry: Math.PI / 2 - k * 2.4,
+        rx: 0.18 + (k % 2) * 0.17,
+      });
+    }
   }
   scatter.add({
     geometry: tintable(blades.geometry()),
-    near: VERGE_RANGE,
+    near: LONG_GRASS_RANGE,
     shadows: false,
-    material: foliageMaterial('grass'),
+    material: foliageMaterial('grass', LONG_GRASS_RANGE),
     items,
   });
 }
@@ -1047,7 +1087,7 @@ export function buildScenery(parent) {
   buildRocks(scatter, obstacles);
   buildBrookStones(scene);
   buildGroundCover(scatter);
-  buildVerges(scatter);
+  buildLongGrass(scatter);
   buildPeaks(scene);
   buildFences(scene, scatter);
   freeze(scene);
