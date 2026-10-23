@@ -461,9 +461,13 @@ export function createTraffic(scene, network = VALLEY) {
     return false;
   }
 
-  /** Moves a vehicle to its place on the road and spins its wheels. */
+  /** Moves a vehicle to its place on the road and spins its wheels. Out of sight, only where it is matters. */
   function place(t, dt) {
     const p = road.offset(t.s, t.direction * t.offset);
+    if (!t.root.visible) {
+      t.root.position.set(p.x, t.root.position.y, p.z);
+      return;
+    }
     const heading = headingOf(p.dx * t.direction, p.dz * t.direction);
     const pose = chassisPose(p.x, p.z, heading, drivingHeight);
     t.root.position.set(p.x, pose.height + 0.06, p.z);

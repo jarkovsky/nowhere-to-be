@@ -268,7 +268,9 @@ export function createSmoke(scene, origin, { count = 6, rate = 0.11, rise = 8, s
     depthWrite: false,
   });
   const puffs = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(size, 0), material, count);
-  puffs.frustumCulled = false;
+  // Everywhere the puffs go, so the smoke isn't drawn while the chimney is out of view.
+  const drift = new THREE.Vector3(1.4, rise / 2, -0.7);
+  puffs.boundingSphere = new THREE.Sphere(drift.clone().add(origin), drift.length() + size * 3);
   scene.add(puffs);
   const dummy = new THREE.Object3D();
   return {

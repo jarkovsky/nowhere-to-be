@@ -192,20 +192,29 @@ const KINDS = {
 };
 
 /** Builds a herd's three instanced meshes from its kind's parts. */
-function herdMeshes(scene, kind, count) {
+function herdMeshes(scene, kind, herd) {
+  // The whole of the herd's patch, up and down its slopes, so it isn't drawn while the patch is out of view.
+  const patch = new THREE.Sphere(
+    new THREE.Vector3(herd.x, terrainHeight(herd.x, herd.z), herd.z),
+    herd.radius * 1.5 + 6,
+  );
   const mesh = (build, n) => {
     const instanced = new THREE.InstancedMesh(build(new PartsBuilder()).geometry(), vertexColorMaterial, n);
     instanced.castShadow = true;
-    instanced.frustumCulled = false;
+    instanced.boundingSphere = patch;
     scene.add(instanced);
     return instanced;
   };
-  return { bodies: mesh(kind.body, count), heads: mesh(kind.head, count), legs: mesh(kind.leg, count * 4) };
+  return {
+    bodies: mesh(kind.body, herd.count),
+    heads: mesh(kind.head, herd.count),
+    legs: mesh(kind.leg, herd.count * 4),
+  };
 }
 
 function createHerd(scene, herd, random) {
   const kind = KINDS[herd.kind];
-  const meshes = herdMeshes(scene, kind, herd.count);
+  const meshes = herdMeshes(scene, kind, herd);
   /** A random spot in the herd's patch, on dry ground. */
   const pasture = () => {
     for (let tries = 0; ; tries++) {

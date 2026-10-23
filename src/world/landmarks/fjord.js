@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { smoothstep } from '../../core/math.js';
 import { FJORD, FJORD_VILLAGE, TRACKS } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
-import { PartsBuilder, gableRoof, gableEnds, hipRoof, createSmoke, flatMaterial } from '../build.js';
+import { PartsBuilder, gableRoof, gableEnds, hipRoof, createSmoke, flatMaterial, prism } from '../build.js';
 import { canvasTexture } from './signs.js';
 import { framer } from './frame.js';
 
@@ -148,41 +148,23 @@ function waterfalls(scene) {
     }
     const from = new THREE.Vector3(top.x, terrainHeight(top.x, top.z) + 0.3, top.z);
     const to = new THREE.Vector3(base.x, FJORD.level, base.z);
-    return { from, to, width, along: new THREE.Vector3(-base.dz * side, 0, base.dx * side) };
+    return { from, to, width };
   });
   const sheets = new PartsBuilder();
+  const up = new THREE.Vector3(0, 1, 0);
   for (const { from, to, width } of falls) {
-    const across = new THREE.Vector3()
-      .subVectors(to, from)
-      .cross(new THREE.Vector3(0, 1, 0))
-      .normalize();
-    const out = new THREE.Vector3().subVectors(to, from).setY(0).normalize().multiplyScalar(-0.35);
-    const a = from
-      .clone()
-      .addScaledVector(across, width / 2)
-      .add(out);
-    const b = from
-      .clone()
-      .addScaledVector(across, -width / 2)
-      .add(out);
-    const c = to
-      .clone()
-      .addScaledVector(across, width / 2)
-      .add(out);
-    const d = to
-      .clone()
-      .addScaledVector(across, -width / 2)
-      .add(out);
-    const sheet = new THREE.BufferGeometry();
-    sheet.setAttribute(
-      'position',
-      new THREE.Float32BufferAttribute(
-        [a, b, c, b, d, c, a, c, b, b, c, d].flatMap(v => v.toArray()),
-        3,
-      ),
-    );
-    sheet.computeVertexNormals();
-    sheets.add(sheet, '#eef6f2');
+    const drop = new THREE.Vector3().subVectors(to, from);
+    const across = drop.clone().cross(up).normalize();
+    // A little out from the rock, so the sheet isn't lost in it.
+    const out = drop.clone().setY(0).normalize().multiplyScalar(-0.35);
+    const corner = (end, side) =>
+      end
+        .clone()
+        .addScaledVector(across, (side * width) / 2)
+        .add(out);
+    const [a, b, c, d] = [corner(from, 1), corner(from, -1), corner(to, 1), corner(to, -1)];
+    // Both faces, so it shows from either side.
+    sheets.add(prism([a, b, c, b, d, c, a, c, b, b, c, d].map(v => v.toArray())), '#eef6f2');
   }
   const material = new THREE.MeshLambertMaterial({
     vertexColors: true,
@@ -200,7 +182,9 @@ function waterfalls(scene) {
     new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.6 }),
     falls.length * PER_FALL,
   );
-  spray.frustumCulled = false;
+  // Everywhere the spray goes, so it isn't drawn while the falls are out of view.
+  spray.boundingSphere = new THREE.Sphere().setFromPoints(falls.flatMap(({ from, to }) => [from, to]));
+  spray.boundingSphere.radius += 3;
   scene.add(spray);
   const foam = new PartsBuilder();
   for (const { to, width } of falls)
