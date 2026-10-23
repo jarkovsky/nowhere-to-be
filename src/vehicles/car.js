@@ -1,8 +1,8 @@
 // The player's vehicles, built from boxes: the little off-roader and the others
 // in the garage. They all drive the same way. Paint is a separate material so
 // the colour can change; everything else on each vehicle is one merged mesh.
-// Four of them are characters with names, faces and colours of their own: two
-// lorries with trailers, a rally car and a racing car.
+// Four of them are characters with names and colours of their own: two lorries
+// with trailers, a rally car and a racing car.
 import * as THREE from 'three';
 import { PartsBuilder, flatMaterial, prism } from '../world/build.js';
 import { detailMap } from '../world/detail.js';
@@ -21,7 +21,6 @@ const METAL = '#737e73';
 const GLASS = '#4f6f73';
 const CHROME = '#c9cdc6';
 const DARK = '#2a2e33';
-const EYE_WHITE = '#f6f3ea';
 
 /** The characters, which keep their own colours whatever paint is chosen. */
 export const CHARACTERS = ['oliver', 'ruda', 'hyundai', 'mercedes'];
@@ -69,6 +68,45 @@ function profile(points, width) {
     .rotateY(Math.PI / 2);
 }
 
+/** A top view, given as [x, z] corners in order round it, made solid from `bottom` up to `top`. */
+function plan(points, bottom, top) {
+  const shape = new THREE.Shape(points.map(([x, z]) => new THREE.Vector2(x, -z)));
+  return new THREE.ExtrudeGeometry(shape, { depth: top - bottom, bevelEnabled: false })
+    .rotateX(-Math.PI / 2)
+    .translate(0, bottom, 0);
+}
+
+/**
+ * A wheel arch cut up into the bottom edge of a side view, from behind the wheel to in front
+ * of it: half a circle of `radius` round the middle of the wheel at rest, down to the `sill`.
+ */
+function archCut(wheel, radius, sill, steps = 6) {
+  const { z } = wheel;
+  const y = wheel.radius + 0.06;
+  // Where the sill is above the wheel's middle, the arch starts where the circle meets it.
+  const start = Math.asin(THREE.MathUtils.clamp((sill - y) / radius, 0, 1));
+  const points = [];
+  if (start === 0) points.push([z + radius, sill]);
+  for (let i = 0; i <= steps; i++) {
+    const a = start + (i / steps) * (Math.PI - 2 * start);
+    points.push([z + Math.cos(a) * radius, y + Math.sin(a) * radius]);
+  }
+  if (start === 0) points.push([z - radius, sill]);
+  return points;
+}
+
+/** A band round a wheel arch, from `inner` to `outer` out from the wheel's middle, down to `bottom`. */
+function archBand(wheel, inner, outer, bottom) {
+  return [...archCut(wheel, outer, bottom), ...archCut(wheel, inner, bottom).reverse()];
+}
+
+/** Dark walls `x` out from the middle inside each arch, so the far side doesn't show through. */
+function wheelWells(parts, wheels, radius, sill, x) {
+  for (const wheel of wheels) {
+    parts.add(profile(archCut(wheel, radius, sill), 0.02), DARK, { x: Math.sign(wheel.x) * x });
+  }
+}
+
 /** A darker (or lighter) version of a colour. */
 const shade = (color, amount) => `#${new THREE.Color(color).multiplyScalar(amount).getHexString()}`;
 
@@ -91,8 +129,8 @@ function raceNumber(parts, side, { x, y, z }) {
  * that makes way for the roof tent), and describes its wheels, lamps and where things go:
  * `mounts` for the decorations, and `tent` as [x, y, z, length, ladder] for the roof tent,
  * where `ladder` is how far out to the side its ladder hangs, clear of the body and wheels.
- * The characters also have a `face`, a `voice` for the engine and horn, a `camera` that
- * stands further back for the big ones, and the lorries a `trailer`.
+ * The characters also have a `voice` for the engine and horn, a `camera` that stands
+ * further back for the big ones, and the lorries a `trailer`.
  */
 const VEHICLE_BUILDERS = {
   offroader(painted, trim, cargo) {
@@ -117,8 +155,9 @@ const VEHICLE_BUILDERS = {
     trim.box(2.06, 0.14, 2.48, CREAM, { y: 2.5, z: 0.35 }); // roof
     trim.box(2.26, 0.21, 0.23, CREAM, { y: 0.86, z: -2.02 }); // bumpers
     trim.box(2.26, 0.21, 0.23, CREAM, { y: 0.86, z: 1.98 });
-    trim.box(1.23, 0.3, 0.05, RUBBER, { y: 1.18, z: -1.94 }); // grille
-    for (let i = -3; i <= 3; i++) trim.box(0.055, 0.24, 0.025, METAL, { x: i * 0.14, y: 1.18, z: -1.98 });
+    // The grille, with the lamps either side of it, inside the arches.
+    trim.box(0.72, 0.3, 0.05, RUBBER, { y: 1.18, z: -1.94 });
+    for (let i = -2; i <= 2; i++) trim.box(0.055, 0.24, 0.025, METAL, { x: i * 0.13, y: 1.18, z: -1.98 });
     // Roof rack with a duffel bag and a cooler.
     for (const x of [-0.76, 0.76]) trim.box(0.06, 0.13, 2, RUBBER, { x, y: 2.64, z: 0.35 });
     for (const z of [-0.55, 1.22]) trim.box(1.58, 0.13, 0.06, RUBBER, { y: 2.64, z });
@@ -133,8 +172,8 @@ const VEHICLE_BUILDERS = {
     arches(painted, wheels);
     return {
       wheels,
-      headlamps: { x: 0.77, y: 1.23, z: -1.97 },
-      brakeLights: { x: 0.77, y: 1.21, z: 1.94 },
+      headlamps: { x: 0.58, y: 1.19, z: -1.96, radius: 0.16 },
+      brakeLights: { x: 0.66, y: 1.2, z: 1.94, size: [0.18, 0.26] },
       mounts: { flag: [0.7, 2.71, 1.22], teddy: [-0.38, 2.66, -0.38], gnome: [0, 1.63, -1.45] },
       tent: [0, 2.71, 0.3, 2.2, 1.14],
     };
@@ -167,15 +206,16 @@ const VEHICLE_BUILDERS = {
     }
     trim.box(2.2, 0.21, 0.23, CREAM, { y: 0.84, z: -2.36 }); // bumpers
     trim.box(2.2, 0.21, 0.23, CREAM, { y: 0.84, z: 2.36 });
-    trim.box(1.3, 0.28, 0.05, RUBBER, { y: 1.16, z: -2.31 }); // grille
-    for (let i = -3; i <= 3; i++) trim.box(0.055, 0.22, 0.025, METAL, { x: i * 0.15, y: 1.16, z: -2.35 });
+    // The grille, with the lamps either side of it, inside the arches.
+    trim.box(0.72, 0.28, 0.05, RUBBER, { y: 1.16, z: -2.31 });
+    for (let i = -2; i <= 2; i++) trim.box(0.055, 0.22, 0.025, METAL, { x: i * 0.13, y: 1.16, z: -2.35 });
 
     const wheels = [-1.04, 1.04].flatMap(x => [-1.45, 1.5].map(z => ({ x, z, radius: 0.56 })));
     arches(painted, wheels);
     return {
       wheels,
-      headlamps: { x: 0.77, y: 1.2, z: -2.33 },
-      brakeLights: { x: 0.8, y: 1.3, z: 2.6 },
+      headlamps: { x: 0.56, y: 1.17, z: -2.32, radius: 0.16 },
+      brakeLights: { x: 0.84, y: 1.52, z: 2.6, size: [0.18, 0.3] },
       mounts: { flag: [0.82, 1.73, 2.4], teddy: [-0.35, 2.48, -0.4], gnome: [0, 1.63, -1.8] },
       tent: [0, 2.48, -0.1, 1.8, 1.1],
     };
@@ -183,19 +223,38 @@ const VEHICLE_BUILDERS = {
 
   van(painted, trim) {
     // Painted below the waistline, cream above it, with a pop-top roof.
-    painted.box(2.05, 1, 4.3, '#ffffff', { y: 1.12 });
+    const wheels = [-0.98, 0.98].flatMap(x => [-1.45, 1.45].map(z => ({ x, z, radius: 0.5 })));
+    const [front, back] = wheels;
+    const sill = 0.62;
+    const arch = 0.62;
+    painted.add(
+      profile(
+        [
+          [-2.15, sill],
+          [-2.15, 1.62],
+          [2.15, 1.62],
+          [2.15, sill],
+          ...archCut(back, arch, sill),
+          ...archCut(front, arch, sill),
+        ],
+        2.05,
+      ),
+      '#ffffff',
+    );
+    wheelWells(trim, wheels, arch, sill, 0.76);
     trim.box(2.05, 0.95, 4.1, CREAM, { y: 2.08, z: 0.1 });
     trim.box(2.07, 0.58, 3, GLASS, { y: 2.14, z: 0.5 }); // side windows
     trim.box(1.8, 0.6, 0.08, GLASS, { y: 2.12, z: -1.97, rx: -0.1 }); // windscreen
     trim.box(1.9, 0.2, 3.5, '#e2d7b8', { y: 2.64, z: 0.25 }); // pop-top
     trim.box(1.7, 0.36, 3.2, CREAM, { y: 2.88, z: 0.35 });
     painted.box(2.06, 0.08, 4.12, '#ffffff', { y: 1.66, z: 0.1 }); // waist stripe
-    trim.add(new THREE.CircleGeometry(0.26, 10), CREAM, { y: 1.42, z: -2.16, ry: Math.PI }); // badge
+    // Slots for the fresh air under the windscreen, and indicators above the headlamps.
+    for (const y of [1.44, 1.52]) trim.box(0.7, 0.04, 0.03, DARK, { y, z: -2.16 });
+    for (const x of [-0.68, 0.68]) trim.box(0.14, 0.08, 0.03, '#e39a3b', { x, y: 1.38, z: -2.16 });
     trim.box(2.12, 0.2, 0.25, CREAM, { y: 0.72, z: -2.2 }); // bumpers
     trim.box(2.12, 0.2, 0.25, CREAM, { y: 0.72, z: 2.2 });
     for (const x of [-1.03, 1.03]) trim.box(0.04, 0.06, 0.25, METAL, { x, y: 1.5, z: -1.2 }); // door handles
 
-    const wheels = [-0.98, 0.98].flatMap(x => [-1.45, 1.45].map(z => ({ x, z, radius: 0.5 })));
     return {
       wheels,
       headlamps: { x: 0.68, y: 1.12, z: -2.16 },
@@ -206,29 +265,99 @@ const VEHICLE_BUILDERS = {
   },
 
   saloon(painted, trim) {
-    // A boxy little saloon from the seventies, low and square.
-    painted.box(1.76, 0.56, 4.1, '#ffffff', { y: 0.86 });
-    painted.box(1.66, 0.12, 1.1, '#ffffff', { y: 1.2, z: -1.45 }); // bonnet
-    painted.box(1.66, 0.12, 0.8, '#ffffff', { y: 1.2, z: 1.62 }); // boot lid
-    trim.box(1.6, 0.52, 1.95, GLASS, { y: 1.5, z: 0.2 });
-    for (const x of [-0.8, 0.8]) {
-      for (const z of [-0.74, 0.2, 1.14]) painted.box(0.08, 0.54, 0.1, '#ffffff', { x, y: 1.5, z });
-      trim.box(0.04, 0.05, 0.22, CHROME, { x: x * 1.12, y: 1.06, z: -0.2 });
-      trim.box(0.04, 0.04, 3.8, CHROME, { x: x * 1.105, y: 0.98, z: 0 }); // side trim
+    // A family saloon from the late seventies: a flat bonnet and boot either side of an
+    // upright glasshouse with thin pillars, chrome bumpers and square lamps.
+    const wheels = [-0.9, 0.9].flatMap(x => [-1.3, 1.28].map(z => ({ x, z, radius: 0.42, hub: CHROME })));
+    const [front, back] = wheels;
+    const sill = 0.4;
+    const arch = 0.55;
+    painted.add(
+      profile(
+        [
+          [-2.02, sill],
+          [-2.07, 0.62],
+          [-2.07, 0.98],
+          [-2.02, 1.07],
+          [-0.78, 1.15],
+          [1.32, 1.16],
+          [2.0, 1.12],
+          [2.06, 1.04],
+          [2.06, 0.62],
+          [2.02, sill],
+          ...archCut(back, arch, sill),
+          ...archCut(front, arch, sill),
+        ],
+        2.0,
+      ),
+      '#ffffff',
+    );
+    wheelWells(trim, wheels, arch, sill, 0.68);
+    trim.add(
+      profile(
+        [
+          [-0.78, 1.15],
+          [-0.36, 1.78],
+          [0.98, 1.78],
+          [1.32, 1.16],
+        ],
+        1.72,
+      ),
+      GLASS,
+    );
+    painted.box(1.76, 0.06, 1.42, '#ffffff', { y: 1.79, z: 0.31 }); // roof
+    for (const side of [-1, 1]) {
+      const x = side * 0.865;
+      // Thin pillars, and a bright strip along the bottom of the windows.
+      painted.beam({ x, y: 1.15, z: -0.78 }, { x, y: 1.78, z: -0.36 }, 0.025, '#ffffff', 0.07);
+      painted.box(0.025, 0.62, 0.09, '#ffffff', { x, y: 1.47, z: 0.12 });
+      painted.add(
+        profile(
+          [
+            [0.86, 1.16],
+            [0.86, 1.78],
+            [0.98, 1.78],
+            [1.32, 1.16],
+          ],
+          0.025,
+        ),
+        '#ffffff',
+        { x },
+      );
+      trim.box(0.02, 0.025, 2.1, CHROME, { x: side * 0.87, y: 1.17, z: 0.27 });
+      // Down the sides: a bright strip broken by the arches, the door seams and handles, and a mirror.
+      for (const [from, to] of [
+        [-2.06, -1.75],
+        [-0.85, 0.83],
+        [1.73, 2.05],
+      ])
+        trim.box(0.03, 0.05, to - from, CHROME, { x: side * 1.005, y: 0.8, z: (from + to) / 2 });
+      for (const [z, bottom] of [
+        [-0.76, sill],
+        [0.13, sill],
+        [0.86, 0.84],
+      ])
+        trim.box(0.02, 1.15 - bottom, 0.02, RUBBER, { x: side * 1.003, y: (1.15 + bottom) / 2, z });
+      for (const z of [-0.06, 0.72]) trim.box(0.04, 0.035, 0.16, CHROME, { x: side * 1.01, y: 1.06, z });
+      painted.box(0.12, 0.09, 0.15, '#ffffff', { x: side * 1.05, y: 1.22, z: -0.64 });
+      trim.box(0.09, 0.06, 0.02, '#b9cfd0', { x: side * 1.06, y: 1.22, z: -0.56 });
+      // Amber indicators below the front bumper and beside the tail lamps.
+      trim.box(0.16, 0.08, 0.03, '#e39a3b', { x: side * 0.72, y: 0.49, z: -2.045 });
+      trim.box(0.14, 0.2, 0.06, '#e39a3b', { x: side * 0.4, y: 0.88, z: 2.07 });
     }
-    painted.box(1.64, 0.08, 2.02, '#ffffff', { y: 1.8, z: 0.2 }); // roof
-    trim.box(1.9, 0.16, 0.16, CHROME, { y: 0.74, z: -2.08 }); // bumpers
-    trim.box(1.9, 0.16, 0.16, CHROME, { y: 0.74, z: 2.08 });
-    trim.box(0.9, 0.2, 0.04, RUBBER, { y: 0.98, z: -2.06 }); // grille
-    for (let i = -2; i <= 2; i++) trim.box(0.04, 0.16, 0.02, CHROME, { x: i * 0.17, y: 0.98, z: -2.08 });
+    // The grille between the headlamps, and chrome bumpers with a rubber strip.
+    trim.box(0.9, 0.18, 0.03, DARK, { y: 0.86, z: -2.08 });
+    for (const y of [0.82, 0.9]) trim.box(0.86, 0.02, 0.02, CHROME, { y, z: -2.096 });
+    for (const end of [-1, 1]) {
+      trim.box(2.04, 0.13, 0.14, CHROME, { y: 0.63, z: end * 2.11 });
+      trim.box(2.06, 0.04, 0.15, RUBBER, { y: 0.63, z: end * 2.115 });
+    }
 
-    const wheels = [-0.9, 0.9].flatMap(x => [-1.3, 1.28].map(z => ({ x, z, radius: 0.42 })));
     return {
       wheels,
-      headlamps: { x: 0.62, y: 0.98, z: -2.06, square: true },
-      brakeLights: { x: 0.66, y: 0.98, z: 2.06 },
-      mounts: { flag: [0.6, 1.84, 0.95], teddy: [-0.3, 1.84, -0.1], gnome: [0, 1.26, -1.55] },
-      tent: [0, 1.84, 0.2, 2, 0.98],
+      headlamps: { x: 0.64, y: 0.86, z: -2.08, square: true, size: [0.34, 0.2] },
+      brakeLights: { x: 0.68, y: 0.88, z: 2.07, size: [0.3, 0.2] },
+      mounts: { flag: [0.6, 1.82, 0.9], teddy: [-0.3, 1.82, -0.1], gnome: [0, 1.1, -1.55] },
+      tent: [0, 1.82, 0.24, 2, 0.98],
     };
   },
 
@@ -238,7 +367,7 @@ const VEHICLE_BUILDERS = {
     painted.box(0.9, 0.82, 2, '#ffffff', { y: 1.38, z: -1.05 }); // bonnet
     painted.box(0.94, 0.12, 2.04, '#ffffff', { y: 1.84, z: -1.05 });
     trim.box(0.86, 0.66, 0.06, '#40463f', { y: 1.36, z: -2.07 }); // grille
-    for (let i = 0; i < 4; i++) trim.box(0.8, 0.04, 0.03, METAL, { y: 1.14 + i * 0.15, z: -2.1 });
+    for (let i = 0; i < 3; i++) trim.box(0.8, 0.04, 0.03, METAL, { y: 1.14 + i * 0.15, z: -2.1 });
     trim.add(new THREE.CylinderGeometry(0.06, 0.06, 1.2, 6), '#2f3430', { x: 0.28, y: 2.2, z: -1.35 }); // exhaust
     trim.add(new THREE.CylinderGeometry(0.08, 0.06, 0.12, 6), '#2f3430', { x: 0.28, y: 2.82, z: -1.35 });
     // Cab: corner posts, glass on every side and a painted roof.
@@ -267,7 +396,7 @@ const VEHICLE_BUILDERS = {
     return {
       wheels,
       headlamps: { x: 0.3, y: 1.62, z: -2.09, radius: 0.12 },
-      brakeLights: { x: 0.98, y: 1.6, z: 1.92 },
+      brakeLights: { x: 0.98, y: 1.62, z: 1.7, size: [0.22, 0.14] },
       mounts: { flag: [0.6, 2.9, 1.5], teddy: [-0.35, 2.9, 0.6], gnome: [0, 1.9, -1.55] },
       tent: [0, 2.9, 0.85, 1.8, 1.2],
     };
@@ -382,10 +511,6 @@ const VEHICLE_BUILDERS = {
       brakeLights: { x: 0.7, y: 0.86, z: 2.05 },
       mounts: { flag: [0.65, 1.56, 1.95], teddy: [-0.3, 1.48, 0.7], gnome: [0, 0.92, -1.45] },
       tent: [0, 1.48, 0.75, 1.8, 0.98],
-      face: {
-        eyes: { at: [0, 1.18, -0.425], lean: 1.0, spread: 0.6, width: 0.48, height: 0.62, iris: '#3f8fd0' },
-        mouth: { at: [0, 0.535, -2.155], width: 0.86, height: 0.23 },
-      },
       voice: { engine: 1.25 },
     };
   },
@@ -492,10 +617,6 @@ const VEHICLE_BUILDERS = {
       brakeLights: { x: 0.68, y: 0.74, z: 2.24, size: [0.36, 0.12] },
       mounts: { flag: [0.8, 1.41, 2.15], teddy: [-0.3, 1.29, 0.25], gnome: [0, 0.82, -1.5] },
       tent: [0, 1.29, 0.3, 1.6, 1.0],
-      face: {
-        eyes: { at: [0, 1.04, -0.3], lean: 1.01, spread: 0.62, width: 0.5, height: 0.62, iris: '#3f8fd0' },
-        mouth: { at: [0, 0.465, -2.32], width: 0.9, height: 0.22 },
-      },
       voice: { engine: 1.3 },
     };
   },
@@ -505,34 +626,86 @@ const VEHICLE_BUILDERS = {
 function lorry(paint) {
   return (_, trim) => {
     const line = shade(paint, 0.78);
-    // The cab sits over the front wheels, with a raised roof.
-    trim.box(2.44, 2.4, 2.3, paint, { y: 2.2, z: -1.2 });
+    const wheels = [
+      ...[-1.02, 1.02].map(x => ({ x, z: -1.5, radius: 0.52, width: 0.36, hub: CHROME })),
+      ...[-0.98, 0.98].map(x => ({ x, z: 2.1, radius: 0.52, width: 0.56, hub: CHROME })),
+    ];
+    // The cab sits over the front wheels, with its front corners cut off, a raised roof
+    // and an opening over each front wheel lined with a black mudguard.
+    const cab = back => [
+      [-1.22, back],
+      [-1.22, -2.17],
+      [-1.06, -2.35],
+      [1.06, -2.35],
+      [1.22, -2.17],
+      [1.22, back],
+    ];
+    trim.add(plan(cab(-0.05), 1.26, 3.4), paint);
+    trim.add(plan(cab(-2.06), 1.0, 1.26), paint);
+    trim.box(2.44, 0.26, 0.89, paint, { y: 1.13, z: -0.495 });
     trim.add(
       profile(
         [
-          [-2.3, 3.39],
-          [-2.04, 3.82],
+          [-2.22, 3.39],
+          [-1.98, 3.82],
           [-0.05, 3.88],
           [-0.05, 3.39],
         ],
-        2.38,
+        2.3,
       ),
       paint,
     );
-    // The front: windscreen, a sun visor with marker lamps, the grille and the bumper.
-    trim.box(2.16, 0.92, 0.04, GLASS, { y: 2.68, z: -2.36 });
-    trim.box(2.42, 0.14, 0.42, DARK, { y: 3.25, z: -2.5 });
-    for (let i = -2; i <= 2; i++) trim.box(0.14, 0.06, 0.03, '#f2c14e', { x: i * 0.45, y: 3.25, z: -2.72 });
-    trim.box(2.0, 0.8, 0.04, DARK, { y: 1.52, z: -2.36 });
-    trim.box(1.9, 0.05, 0.03, CHROME, { y: 1.98, z: -2.37 });
-    trim.box(2.44, 0.42, 0.3, paint, { y: 0.8, z: -2.3 });
-    trim.box(2.3, 0.12, 0.26, DARK, { y: 0.53, z: -2.28 });
+    const mudguard = profile(archBand(wheels[0], 0.6, 0.68, 0.75), 0.42); // over the front wheels
+    // The front: a big windscreen in a black surround with its wipers, a sun visor with marker
+    // lamps, the grille with its bright bars and the bumper with the lamps.
+    trim.box(2.1, 1.1, 0.03, DARK, { y: 2.7, z: -2.355 });
+    trim.box(2.0, 1.0, 0.04, GLASS, { y: 2.72, z: -2.365 });
+    for (const x of [-0.5, 0.45]) {
+      trim.beam({ x: x - 0.38, y: 2.27, z: -2.39 }, { x: x + 0.38, y: 2.33, z: -2.39 }, 0.03, DARK);
+    }
+    trim.box(2.12, 0.14, 0.42, DARK, { y: 3.27, z: -2.5 });
+    for (let i = -2; i <= 2; i++) trim.box(0.14, 0.06, 0.03, '#f2c14e', { x: i * 0.42, y: 3.27, z: -2.72 });
+    trim.box(1.76, 0.74, 0.03, DARK, { y: 1.7, z: -2.36 });
+    for (let i = 0; i < 4; i++) trim.box(1.76, 0.06, 0.03, CHROME, { y: 1.43 + i * 0.18, z: -2.375 });
+    trim.add(
+      plan(
+        [
+          [-1.2, -2.05],
+          [-1.2, -2.27],
+          [-1.04, -2.46],
+          [1.04, -2.46],
+          [1.2, -2.27],
+          [1.2, -2.05],
+        ],
+        0.6,
+        1.0,
+      ),
+      paint,
+    );
+    trim.add(
+      plan(
+        [
+          [-1.14, -2.1],
+          [-1.14, -2.27],
+          [-1.0, -2.43],
+          [1.0, -2.43],
+          [1.14, -2.27],
+          [1.14, -2.1],
+        ],
+        0.47,
+        0.6,
+      ),
+      DARK,
+    );
     for (const side of [-1, 1]) {
-      trim.box(0.04, 0.72, 0.9, GLASS, { x: side * 1.225, y: 2.72, z: -1.75 });
-      trim.box(0.03, 2.0, 0.03, line, { x: side * 1.225, y: 2.1, z: -1.0 }); // back of the door
-      trim.box(0.04, 0.06, 0.24, CHROME, { x: side * 1.235, y: 2.15, z: -1.25 });
+      trim.box(0.16, 0.12, 0.03, '#e39a3b', { x: side * 1.13, y: 0.82, z: -2.375, ry: -side * 0.87 });
+      trim.add(mudguard, DARK, { x: side * 1.05 });
+      trim.box(0.02, 0.26, 1.12, DARK, { x: side * 0.82, y: 1.13, z: -1.5 });
+      trim.box(0.04, 0.72, 0.92, GLASS, { x: side * 1.225, y: 2.72, z: -1.66 });
+      trim.box(0.03, 2.25, 0.03, line, { x: side * 1.225, y: 2.125, z: -0.5 }); // back of the door
+      trim.box(0.04, 0.06, 0.24, CHROME, { x: side * 1.235, y: 2.15, z: -0.72 });
       // Big mirrors on arms, and steps up to the door.
-      trim.beam({ x: side * 1.2, y: 3.0, z: -2.15 }, { x: side * 1.5, y: 2.95, z: -2.34 }, 0.06, DARK);
+      trim.beam({ x: side * 1.15, y: 3.0, z: -2.27 }, { x: side * 1.5, y: 2.95, z: -2.36 }, 0.06, DARK);
       trim.box(0.13, 0.62, 0.26, paint, { x: side * 1.52, y: 2.7, z: -2.36 });
       trim.box(0.09, 0.52, 0.02, '#b9cfd0', { x: side * 1.52, y: 2.7, z: -2.22 });
       for (const y of [0.45, 0.78]) trim.box(0.34, 0.06, 0.34, DARK, { x: side * 1.08, y, z: -0.62 });
@@ -543,10 +716,11 @@ function lorry(paint) {
         z: 0.5,
         rx: Math.PI / 2,
       });
-      trim.box(0.62, 0.06, 1.2, DARK, { x: side * 0.98, y: 1.13, z: 2.1 });
+      trim.box(0.62, 0.05, 1.2, DARK, { x: side * 0.98, y: 1.135, z: 2.1 });
       trim.box(0.6, 0.5, 0.03, DARK, { x: side * 0.98, y: 0.55, z: 2.75 });
       trim.box(0.18, 0.28, 5.6, DARK, { x: side * 0.5, y: 0.82, z: 0.55 });
     }
+    trim.box(2.1, 0.32, 0.06, DARK, { y: 0.9, z: 3.31 }); // the panel the brake lights sit on
     trim.box(1.3, 0.14, 1.1, '#3b3f3c', { y: 1.07, z: 1.9 }); // the hitch
 
     // The trailer, built from its hitch point, which rests on the lorry's hitch.
@@ -555,30 +729,24 @@ function lorry(paint) {
     trailer.box(2.54, 0.16, 10.04, DARK, { y: 0.1, z: 3.75 });
     for (const side of [-1, 1]) {
       for (let z = -0.75; z < 8.5; z += 1) trailer.box(0.04, 2.56, 0.07, line, { x: side * 1.26, y: 1.5, z });
-      trailer.box(0.2, 0.3, 9.4, DARK, { x: side * 0.5, y: -0.13, z: 4 });
-      trailer.box(0.12, 0.85, 0.12, DARK, { x: side * 0.9, y: -0.42, z: 0.9 }); // legs it stands on when unhitched
-      trailer.box(0.24, 0.05, 0.3, DARK, { x: side * 0.9, y: -0.86, z: 0.9 });
-      for (const y of [-0.22, -0.45]) trailer.box(0.04, 0.08, 3.4, METAL, { x: side * 1.2, y, z: 3.1 });
+      // The frame, the legs it stands on when unhitched and the side guards all start behind
+      // the lorry, so they stay clear of its back wheels however far the trailer swings.
+      trailer.box(0.2, 0.3, 6.7, DARK, { x: side * 0.5, y: -0.13, z: 5.35 });
+      trailer.box(0.12, 0.85, 0.12, DARK, { x: side * 0.9, y: -0.42, z: 2.4 });
+      trailer.box(0.24, 0.05, 0.3, DARK, { x: side * 0.9, y: -0.86, z: 2.4 });
+      for (const y of [-0.22, -0.45]) trailer.box(0.04, 0.08, 2.6, METAL, { x: side * 1.2, y, z: 3.9 });
     }
     // The back: two doors with their lock bars, and a bumper with the lamps.
     trailer.box(0.03, 2.56, 0.02, line, { y: 1.5, z: 8.76 });
     for (const x of [-0.95, -0.35, 0.35, 0.95]) trailer.box(0.05, 2.4, 0.04, METAL, { x, y: 1.5, z: 8.78 });
     trailer.box(2.3, 0.16, 0.14, DARK, { y: -0.42, z: 8.62 });
 
-    const wheels = [
-      ...[-1.02, 1.02].map(x => ({ x, z: -1.5, radius: 0.52, width: 0.36, hub: CHROME })),
-      ...[-0.98, 0.98].map(x => ({ x, z: 2.1, radius: 0.52, width: 0.56, hub: CHROME })),
-    ];
     return {
       wheels,
-      headlamps: { x: 0.9, y: 0.82, z: -2.46, square: true, size: [0.42, 0.2] },
+      headlamps: { x: 0.8, y: 0.82, z: -2.47, square: true, size: [0.42, 0.2] },
       brakeLights: { x: 0.9, y: 0.9, z: 3.36 },
       mounts: { flag: [0.95, 3.88, -0.3], teddy: [-0.45, 3.86, -1.75], gnome: [0.45, 3.86, -1.75] },
       tent: [0, 3.88, -1.05, 1.9, 1.42],
-      face: {
-        eyes: { at: [0, 2.66, -2.385], lean: 0, spread: 1.02, width: 0.84, height: 0.8, iris: '#8a5a2c' },
-        mouth: { at: [0, 1.66, -2.385], width: 1.45, height: 0.48 },
-      },
       voice: { engine: 0.7, horn: 'air' },
       camera: 1.6,
       trailer: {
@@ -701,8 +869,6 @@ export function createCar() {
       brake.position.set(side * spec.brakeLights.x, spec.brakeLights.y, spec.brakeLights.z);
       shell.add(lamp, brake);
     }
-    const face = spec.face ? createFace(spec.face) : null;
-    if (face) shell.add(face.root);
     body.add(shell);
     const trailer = spec.trailer ? createTrailer(spec.trailer, brakeMaterial) : null;
     if (trailer) towed.add(trailer.root);
@@ -716,11 +882,11 @@ export function createCar() {
       root.add(wheel.pivot);
       return { ...wheel, front: z < 0 };
     });
-    vehicles[name] = { shell, wheels, spec, cargo, tent, face, trailer };
+    vehicles[name] = { shell, wheels, spec, cargo, tent, trailer };
   }
 
-  // The mud goes on the body, the wheels and the trailers, but not on the lamps, the faces or
-  // what rides on the roof. Materials shared with the rest of the world get copies of their own.
+  // The mud goes on the body, the wheels and the trailers, but not on the lamps or what rides
+  // on the roof. Materials shared with the rest of the world get copies of their own.
   const muddied = new Map([[paint, addMud(paint)]]);
   const muddy = mesh => {
     if (!muddied.has(mesh.material)) muddied.set(mesh.material, addMud(mesh.material.clone()));
@@ -807,17 +973,12 @@ export function createCar() {
     animate(time) {
       decorations.flag.userData.pennant.rotation.y = Math.sin(time * 5) * 0.12;
       if (rainbow) paint.color.setHSL((time * 0.08) % 1, 0.55, 0.55);
-      current.face?.blink(time);
     },
     /** How dirty the car is, from 0 (clean) to 1. Call it once the car has been moved for the frame. */
     setMud(amount) {
       MUD.amount.value = amount;
       root.updateMatrixWorld();
       MUD.space.value.copy(root.matrixWorld).invert();
-    },
-    /** The characters look the way they are steering (1 is full left). */
-    look(steering) {
-      current.face?.look(steering);
     },
   };
   car.customize('orange');
@@ -848,72 +1009,6 @@ function createTrailer(spec, brakeMaterial) {
     return { pivot, spin, z };
   });
   return { root, axles, spec };
-}
-
-/**
- * Eyes on the windscreen and a smile on the front, for the characters. `eyes.at` is the
- * middle of the windscreen and `eyes.lean` how far it leans back from upright. The
- * pupils look the way the car is steering, and every few seconds the eyes blink.
- */
-function createFace({ eyes, mouth }) {
-  const root = new THREE.Group();
-  const holder = new THREE.Group();
-  holder.position.set(...eyes.at);
-  holder.rotation.x = eyes.lean;
-  root.add(holder);
-  const disc = new THREE.CircleGeometry(1, 16).rotateY(Math.PI); // facing forward
-  const r = Math.min(eyes.width, eyes.height) * 0.3;
-  const reach = (eyes.width / 2 - r) * 0.75;
-  const whites = new PartsBuilder();
-  const irises = new PartsBuilder();
-  for (const side of [-1, 1]) {
-    const x = (side * eyes.spread) / 2;
-    whites.add(disc, EYE_WHITE, { x, z: -0.02, sx: eyes.width / 2, sy: eyes.height / 2 });
-    irises
-      .add(disc, eyes.iris, { x, z: -0.03, sx: r, sy: r })
-      .add(disc, '#1c1f22', { x, z: -0.036, sx: r * 0.52, sy: r * 0.52 })
-      .add(disc, EYE_WHITE, { x: x - r * 0.35, y: r * 0.38, z: -0.042, sx: r * 0.22, sy: r * 0.22 });
-  }
-  const pupils = irises.mesh({ castShadow: false });
-  pupils.position.y = -eyes.height * 0.06;
-  holder.add(whites.mesh({ castShadow: false }), pupils);
-  const smile = smileParts(mouth.width, mouth.height).mesh({ castShadow: false });
-  smile.position.set(...mouth.at);
-  root.add(smile);
-  return {
-    root,
-    look(steering) {
-      pupils.position.x = -steering * reach;
-    },
-    blink(time) {
-      const phase = time % 4.6;
-      const shut = phase < 0.18 ? Math.sin((phase / 0.18) * Math.PI) : 0;
-      holder.scale.y = 1 - shut * 0.92;
-    },
-  };
-}
-
-/** A wide open smile facing forward, its top corners at the origin: teeth along the top and a tongue. */
-function smileParts(width, height) {
-  const curve = depth =>
-    Array.from({ length: 13 }, (_, i) => {
-      const t = i / 12;
-      return new THREE.Vector2((t - 0.5) * width, -Math.sin(t * Math.PI) * depth);
-    });
-  // The band between two curves that meet at the corners of the mouth.
-  const band = (upper, lower) =>
-    new THREE.ShapeGeometry(new THREE.Shape([...curve(upper), ...curve(lower).slice(1, -1).reverse()])).rotateY(
-      Math.PI,
-    );
-  return new PartsBuilder()
-    .add(band(height * 0.12, height), '#4b1f20', { z: -0.01 })
-    .add(band(height * 0.12, height * 0.38), EYE_WHITE, { z: -0.02 })
-    .add(new THREE.CircleGeometry(1, 12).rotateY(Math.PI), '#c65d55', {
-      y: -height * 0.76,
-      z: -0.02,
-      sx: width * 0.16,
-      sy: height * 0.16,
-    });
 }
 
 const TENT_WIDTH = 1.5;

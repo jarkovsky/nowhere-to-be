@@ -418,7 +418,6 @@ export function createGame(canvas) {
       wheel.spin.rotation.x -= (state.speed * dt) / wheel.radius;
     }
     settleWheels(car, drivingHeight);
-    car.look(state.steering);
     if (car.trailer) placeTrailer();
   }
 
