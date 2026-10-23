@@ -45,15 +45,35 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
 
   /**
    * Swings the camera round to look past the car at `watch` ({ x, z }), from further back and
-   * higher up, or back behind the car once there is nothing to watch.
+   * higher up, or back behind the car once there is nothing to watch. `watch` can also say how
+   * far back (`zoom`), how much higher (`pitch`), how far over towards it to look (`toward`), how
+   * far round the car it may swing (`turn`, in radians from behind it), how slowly (`ease`, below
+   * 1 for slower), and whether to look straight on past the car while it swings rather than over
+   * towards the point (`past`), which keeps the car in the middle of a narrow screen.
    */
   function frame(car, watch, dt) {
-    const aim = watch ? angleDelta(heading, Math.atan2(car.x - watch.x, car.z - watch.z)) : 0;
-    framing.yaw = damp(framing.yaw, clamp(aim, -2.6, 2.6), 1.2, dt);
-    framing.pitch = damp(framing.pitch, watch ? 0.16 : 0, 1, dt);
-    framing.zoom = damp(framing.zoom, watch ? 1.3 : 1, 1, dt);
-    framing.toward = damp(framing.toward, watch ? 0.35 : 0, 1.5, dt);
-    if (watch) Object.assign(framing, { x: watch.x, z: watch.z });
+    const { zoom = 1.3, pitch = 0.16, toward = 0.35, turn = 2.6, ease = 1 } = watch ?? {};
+    // How far round the car it swings: the shortest way from where the camera is now, so it never
+    // flips round, and over and above any other swing (dragging, or looking back at friends).
+    let aim = 0;
+    if (watch) {
+      const swung = orbit.yaw + framing.yaw;
+      const wanted = swung + angleDelta(heading + swung, Math.atan2(car.x - watch.x, car.z - watch.z));
+      aim = clamp(wanted, -turn, turn) - orbit.yaw;
+    }
+    const rate = watch ? ease : 1;
+    framing.yaw = damp(framing.yaw, aim, 1.2 * rate, dt);
+    framing.pitch = damp(framing.pitch, watch ? pitch : 0, rate, dt);
+    framing.zoom = damp(framing.zoom, watch ? zoom : 1, rate, dt);
+    // On the way back it looks at the car again first, so the car stays in view as it swings round.
+    framing.toward = damp(framing.toward, watch ? toward : 0, watch ? 1.5 * ease : 3, dt);
+    if (watch && watch.past) {
+      const reach = Math.hypot(watch.x - car.x, watch.z - car.z);
+      const facing = heading + orbit.yaw + framing.yaw;
+      Object.assign(framing, { x: car.x - Math.sin(facing) * reach, z: car.z - Math.cos(facing) * reach });
+    } else if (watch) {
+      Object.assign(framing, { x: watch.x, z: watch.z });
+    }
   }
 
   /** `car.scale` stands the camera further back and higher for the lorries, to see over their trailers. */

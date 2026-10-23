@@ -5,6 +5,7 @@ import {
   ROAD_HALF_WIDTH,
   CAMP_TRAIL,
   TRACKS,
+  TRAILS,
   BRIDGE,
   WATERFALL,
   LOOKOUT,
@@ -325,8 +326,8 @@ function paintMap(ctx, w, h) {
     }
   }
   ctx.fill();
-  const trail = (path, width, dash = [14, 9]) => {
-    ctx.strokeStyle = '#8a6440';
+  const trail = (path, width, dash = [14, 9], color = '#8a6440') => {
+    ctx.strokeStyle = color;
     ctx.lineWidth = width;
     ctx.setLineDash(dash);
     ctx.beginPath();
@@ -360,6 +361,8 @@ function paintMap(ctx, w, h) {
   trail(ROAD, 6);
   trail(CAMP_TRAIL, 4);
   for (const track of TRACKS) trail(track.path, 3, [5, 7]);
+  // The marked trails in their colours, over their footpaths.
+  for (const { path, color } of TRAILS) trail(path, 5, [9, 5], color);
   ctx.fillStyle = '#7d8e86';
   ctx.beginPath();
   ctx.moveTo(px(TUNNEL.x - 22), pz(TUNNEL.z + 16));
@@ -392,6 +395,7 @@ function paintMap(ctx, w, h) {
     depot: 'Depot',
     horses: 'Horses',
     goats: 'Goats',
+    ...Object.fromEntries(TRAILS.map(({ id }) => [`view-${id}`, 'Viewpoint'])),
   };
   /** Draws text in the current font and alignment, and returns the box it fills. */
   const write = (text, x, y, size) => {
@@ -414,7 +418,7 @@ function paintMap(ctx, w, h) {
   ctx.font = `700 26px ${FONT}`;
   ctx.textAlign = 'center';
   // Labels sit above their dot, except where that would crowd a neighbour: then below it, or beside it.
-  const below = ['bridge', 'jetty', 'lookout', 'bunker', 'helipad'];
+  const below = ['bridge', 'jetty', 'lookout', 'bunker', 'helipad', 'view-blue'];
   const beside = ['oxbow'];
   const margin = 46;
   const clampX = x => Math.min(w - margin, Math.max(margin, x));
