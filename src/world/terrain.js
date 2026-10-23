@@ -10,6 +10,11 @@ import {
   ROAD_HALF_WIDTH,
   CREEK,
   CREEK_HALF_WIDTH,
+  BROOK,
+  BROOK_HALF_WIDTH,
+  FORD,
+  SPRING,
+  TRACK_ROCKS,
   CAMP_TRAIL,
   TRACKS,
   RAILWAY,
@@ -429,6 +434,48 @@ forEachVertexNear(WATERFALL.x, WATERFALL.z, 30, (vertex, _x, _z, distance) => {
   heights[vertex] = Math.min(heights[vertex], bowl);
 });
 
+// The brook runs downhill from the spring, rises to just under the trail at the ford so the
+// water there is shallow, and runs on into the lake. Its banks are gentle where the trail
+// dips through it, and steeper elsewhere.
+const BROOK_DEPTH = 0.32;
+const roadAtFord = roadProfile[ROAD.samples.findIndex(p => p.s === FORD.s)];
+const brookBed = (() => {
+  const bank = BROOK.samples.map(p => sampleGrid(p.x, p.z));
+  const atFord = roadAtFord - 0.5;
+  let lowest = Infinity;
+  const spring = bank[0] - 0.7;
+  return BROOK.samples.map((p, i) => {
+    // No steeper than a steady fall from the spring to the ford, and never below the ford.
+    const steady = lerp(spring, atFord, Math.min(1, p.s / FORD.brook));
+    let bed = Math.max(Math.min(bank[i] - 0.7, steady), atFord);
+    if (p.s > FORD.brook) bed = lerp(atFord, LAKE.level - 1, (p.s - FORD.brook) / (BROOK.length - FORD.brook));
+    lowest = Math.min(lowest, bed);
+    return lowest;
+  });
+})();
+for (const [vertex, { index, distance }] of nearestSamples(BROOK, 14)) {
+  const sample = BROOK.samples[index];
+  const ford = 1 - smoothstep(Math.abs(sample.s - FORD.brook), 3, 8);
+  const bank = brookBed[index] + Math.max(0, distance - BROOK_HALF_WIDTH) * lerp(0.45, 0.25, ford);
+  heights[vertex] = Math.min(heights[vertex], bank);
+  // Where the brook runs across a slope, the low side is banked up a little above the water,
+  // except at the ford and where it runs out into the lake.
+  const levee = distance > BROOK_HALF_WIDTH + 0.6 && distance < BROOK_HALF_WIDTH + 6 && ford < 0.05;
+  if (levee && lakeDistance(sample.x, sample.z) > 1.2)
+    heights[vertex] = Math.max(heights[vertex], brookBed[index] + BROOK_DEPTH + 0.12);
+}
+// A small pool where the brook starts, with a rim all round.
+const SPRING_LEVEL = brookBed[0] + BROOK_DEPTH;
+forEachVertexNear(SPRING.x, SPRING.z, SPRING.radius + 8, (vertex, _x, _z, distance) => {
+  heights[vertex] = Math.min(heights[vertex], SPRING_LEVEL - 0.6 + Math.max(0, distance - SPRING.radius) * 0.5);
+  if (
+    distance > SPRING.radius + 0.6 &&
+    distance < SPRING.radius + 6 &&
+    !BROOK.isNear(AXIS[vertex % GRID], AXIS[Math.floor(vertex / GRID)], BROOK_HALF_WIDTH + 1)
+  )
+    heights[vertex] = Math.max(heights[vertex], SPRING_LEVEL + 0.12);
+});
+
 closestIndex = closestDistance = null;
 
 export { heights };
@@ -457,6 +504,12 @@ export function creekLevel(s) {
 
 export const POOL = { x: WATERFALL.x, z: WATERFALL.z, level: POOL_LEVEL };
 
+/** Water surface height of the brook at a distance along it. */
+export function brookLevel(s) {
+  const i = clamp(Math.round(s / BROOK.spacing), 0, brookBed.length - 1);
+  return brookBed[i] + BROOK_DEPTH;
+}
+
 /** Height of the railway's bed at distance `s` along the line. */
 export function railLevel(s) {
   const last = railBed.length - 1;
@@ -476,6 +529,8 @@ export function waterLevel(x, z) {
     const creek = CREEK.nearest(x, z);
     if (creek.distance < CREEK_HALF_WIDTH + 4) level = Math.max(level, creekLevel(creek.s));
   }
+  if (BROOK.isNear(x, z, BROOK_HALF_WIDTH + 4)) level = Math.max(level, brookLevel(BROOK.nearest(x, z).s));
+  if (Math.hypot(x - SPRING.x, z - SPRING.z) < SPRING.radius + 2) level = Math.max(level, SPRING_LEVEL);
   return level;
 }
 
@@ -539,9 +594,32 @@ export function onDeck(x, z) {
   return jettyHeight(x, z) !== null && JETTY_DECK > terrainHeight(x, z);
 }
 
-/** The surface the tyres rest on: a deck where there is one, otherwise the ground. */
+// --- The rocks on the spring track ------------------------------------------------
+
+const rocksBox = TRACK_ROCKS.reduce(
+  (b, r) => ({
+    x0: Math.min(b.x0, r.x - r.r),
+    x1: Math.max(b.x1, r.x + r.r),
+    z0: Math.min(b.z0, r.z - r.r),
+    z1: Math.max(b.z1, r.z + r.r),
+  }),
+  { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity },
+);
+
+/** How far the rocks lift the tyres at a point: a smooth dome over each one. */
+export function rockHeight(x, z) {
+  if (x < rocksBox.x0 || x > rocksBox.x1 || z < rocksBox.z0 || z > rocksBox.z1) return 0;
+  let lift = 0;
+  for (const rock of TRACK_ROCKS) {
+    const d2 = ((x - rock.x) ** 2 + (z - rock.z) ** 2) / rock.r ** 2;
+    if (d2 < 1) lift = Math.max(lift, rock.h * (1 - d2) ** 2);
+  }
+  return lift;
+}
+
+/** The surface the tyres rest on: a deck where there is one, otherwise the ground and any rocks on it. */
 export function drivingHeight(x, z) {
-  const ground = terrainHeight(x, z);
+  const ground = terrainHeight(x, z) + rockHeight(x, z);
   const deck = bridgeHeight(x, z) ?? jettyHeight(x, z);
   return deck === null ? ground : Math.max(ground, deck);
 }

@@ -25,6 +25,9 @@ import {
   onAirfield,
   surfaceAt,
   SURFACES,
+  BROOK,
+  FORD,
+  TRACK_ROCKS,
 } from '../src/world/layout.js';
 import {
   terrainHeight,
@@ -37,6 +40,8 @@ import {
   isDriveable,
   snowCover,
   POOL,
+  brookLevel,
+  rockHeight,
 } from '../src/world/terrain.js';
 
 test('the whole trail loop, the camp spur and the side tracks are driveable', () => {
@@ -129,6 +134,27 @@ test('the creek is shallow enough to ford, but the lake is not', () => {
   const ford = CREEK.at(20);
   assert.ok(waterDepth(ford.x, ford.z) > 0.2 && isDriveable(ford.x, ford.z));
   assert.equal(isDriveable(93, -54), false);
+});
+
+test('the trail fords the brook: in shallow water for a few metres, and dry either side', () => {
+  assert.ok(waterDepth(FORD.x, FORD.z) > 0.2 && waterDepth(FORD.x, FORD.z) < 0.45);
+  assert.ok(isDriveable(FORD.x, FORD.z));
+  for (const d of [-9, 9]) {
+    const p = ROAD.at(FORD.s + d);
+    assert.equal(waterDepth(p.x, p.z), 0, `the trail is dry ${d} m from the ford`);
+  }
+  let previous = Infinity;
+  for (let s = 0; s <= BROOK.length; s += 2) {
+    assert.ok(brookLevel(s) <= previous + 1e-9, `the brook flows uphill at s=${s}`);
+    previous = brookLevel(s);
+  }
+});
+
+test('the rocks on the spring track lift the tyres over them', () => {
+  for (const rock of TRACK_ROCKS) {
+    assert.ok(Math.abs(drivingHeight(rock.x, rock.z) - terrainHeight(rock.x, rock.z) - rock.h) < 1e-6);
+    assert.equal(rockHeight(rock.x + rock.r + 0.1, rock.z), 0);
+  }
 });
 
 test('buildings and the camp stand on flat ground', () => {

@@ -10,6 +10,8 @@ import {
   LOOKOUT,
   LAKE,
   CREEK,
+  BROOK,
+  SPRING,
   CAMP,
   FARM,
   TOWER,
@@ -253,6 +255,7 @@ function paintMap(ctx, w, h) {
   ctx.lineWidth = 5;
   ctx.beginPath();
   CREEK.samples.forEach((p, i) => (i ? ctx.lineTo(px(p.x), pz(p.z)) : ctx.moveTo(px(p.x), pz(p.z))));
+  BROOK.samples.forEach((p, i) => (i ? ctx.lineTo(px(p.x), pz(p.z)) : ctx.moveTo(px(p.x), pz(p.z))));
   ctx.stroke();
   const trail = (path, width, dash = [14, 9]) => {
     ctx.strokeStyle = '#8a6440';
@@ -409,6 +412,7 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
     roadworks: ['ROADWORKS', ROADWORKS.site],
     summit: ['VELKÁ DEŠTNÁ', SUMMIT],
     fields: ['UPLAND FARM', FARMSTEAD],
+    spring: ['SPRING', SPRING],
   };
   for (const track of TRACKS) {
     const [text, destination] = destinations[track.id];

@@ -136,6 +136,22 @@ export const CREEK_HALF_WIDTH = 2.2;
 
 export const WATERFALL = { x: 226, z: -60, poolRadius: 9, height: 15 };
 
+/** A brook from a spring at the foot of the northern hills, across the trail at a ford and into the lake. */
+export const BROOK = createPath(
+  [
+    [47, -192],
+    [51, -172],
+    [55, -154],
+    [59, -134],
+    [63, -115],
+    [69, -101],
+    [74, -89],
+  ],
+  { spacing: 0.75 },
+);
+export const BROOK_HALF_WIDTH = 1.8;
+export const SPRING = { x: 47, z: -192, radius: 3.2 };
+
 /** A narrow dirt spur from the trail down to the lakeside campsite. */
 export const CAMP_TRAIL = createPath([
   [-24, 97],
@@ -300,6 +316,12 @@ export const TRACKS = [
     ),
   },
   {
+    // Up the brook's west bank to the spring, over a stretch of rocks on the way.
+    id: 'spring',
+    ruts: true,
+    path: createPath(fromRoad(52, -112, [46, -128], [42, -145], [41, -162], [43, -178])),
+  },
+  {
     id: 'shore',
     ruts: false,
     path: createPath([[33, -12], [46, -5], [60, 4], [74, 13], [90, 11], [104, 9], [117, 22], ...fromRoad(128, 40)]),
@@ -411,6 +433,29 @@ export const ROADWORKS = {
 
 // The deck runs straight between two points on the curving trail, so the
 // trail never strays far from the middle of the bridge.
+/**
+ * Rocks across the spring track to drive over, as bumps in the surface the tyres rest on:
+ * `h` high in the middle, easing off to nothing `r` metres away. They lie under one wheel
+ * or the other in turn, so the car rocks from side to side.
+ */
+export const TRACK_ROCKS = (() => {
+  const { path } = TRACKS.find(track => track.id === 'spring');
+  return Array.from({ length: 11 }, (_, k) => {
+    const p = path.offset(15 + k * 2.2, (k % 2 ? 1 : -1) * (0.75 + ((k * 0.37) % 0.4)));
+    return { x: p.x, z: p.z, r: 0.85 + ((k * 0.53) % 0.35), h: 0.22 + ((k * 0.71) % 0.18) };
+  });
+})();
+
+/** Where the trail fords the brook: `s` along the trail and `brook` along the brook. */
+export const FORD = (() => {
+  let best = { distance: Infinity };
+  for (const sample of ROAD.samples) {
+    const { distance, s } = BROOK.nearest(sample.x, sample.z);
+    if (distance < best.distance) best = { x: sample.x, z: sample.z, s: sample.s, brook: s, distance };
+  }
+  return best;
+})();
+
 const crossing = findCrossing();
 const bridgeEnds = [ROAD.at(crossing.s - 11), ROAD.at(crossing.s + 11)];
 const span = Math.hypot(bridgeEnds[1].x - bridgeEnds[0].x, bridgeEnds[1].z - bridgeEnds[0].z);

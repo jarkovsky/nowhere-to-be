@@ -7,6 +7,11 @@ import {
   ROAD_HALF_WIDTH,
   CREEK,
   CREEK_HALF_WIDTH,
+  BROOK,
+  BROOK_HALF_WIDTH,
+  SPRING,
+  TRACK_ROCKS,
+  FORD,
   CAMP_TRAIL,
   TRACKS,
   RAILWAY,
@@ -43,8 +48,9 @@ import {
   onPaved,
   lakeDistance,
 } from './layout.js';
-import { terrainHeight, naturalHeight, creekLevel, snowCover, POOL } from './terrain.js';
-import { PartsBuilder, flatMaterial, freeze, prism, tintable } from './build.js';
+import { terrainHeight, naturalHeight, brookLevel, creekLevel, snowCover, POOL } from './terrain.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { PartsBuilder, flatMaterial, freeze, prism, tintable, vertexColorMaterial } from './build.js';
 import { SWAY, foliageMaterial, groundMaterial } from './detail.js';
 import { createGround } from './ground.js';
 import { boulderGeometry } from './rocks.js';
@@ -84,6 +90,7 @@ function groundColor(x, z, h, up, out) {
     const creek = CREEK.nearest(x, z);
     if (creek.distance < 9) out.lerp(GROUND.bank, 1 - smoothstep(creek.distance, 5, 9));
   }
+  if (BROOK.isNear(x, z, 6)) out.lerp(GROUND.bank, 1 - smoothstep(BROOK.nearest(x, z).distance, 2.5, 6));
   for (const patch of SURFACES) {
     // Mud's ragged edge comes from noise rather than the shared random numbers, so that
     // adding a patch of it doesn't move every tree placed after the ground.
@@ -201,6 +208,39 @@ function buildWater(scene) {
   creek.receiveShadow = true;
   scene.add(creek);
 
+  // The brook, from its spring pool down over the ford and into the lake.
+  // Its edges reach into the banks, which hide them, and it stops at the lake's shore.
+  const brookPositions = [];
+  let last = null;
+  const brookWidth = BROOK_HALF_WIDTH + 3;
+  for (const sample of BROOK.samples) {
+    const level = brookLevel(sample.s);
+    if (lakeDistance(sample.x, sample.z) < 1.03) break;
+    if (sample.s < SPRING.radius) continue;
+    const left = [sample.x + sample.dz * brookWidth, level, sample.z - sample.dx * brookWidth];
+    const right = [sample.x - sample.dz * brookWidth, level, sample.z + sample.dx * brookWidth];
+    if (last) brookPositions.push(...last[0], ...last[1], ...left, ...last[1], ...right, ...left);
+    last = [left, right];
+  }
+  const brookGeometry = new THREE.BufferGeometry();
+  brookGeometry.setAttribute('position', new THREE.Float32BufferAttribute(brookPositions, 3));
+  brookGeometry.computeVertexNormals();
+  // Clear enough to see the trail under the water at the ford.
+  const brookMaterial = new THREE.MeshLambertMaterial({
+    color: '#7fb8bb',
+    emissive: '#285f63',
+    emissiveIntensity: 0.3,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+  });
+  const brook = new THREE.Mesh(brookGeometry, brookMaterial);
+  brook.receiveShadow = true;
+  scene.add(brook);
+  const spring = new THREE.Mesh(new THREE.CircleGeometry(SPRING.radius + 1.2, 20).rotateX(-Math.PI / 2), brookMaterial);
+  spring.position.set(SPRING.x, brookLevel(0), SPRING.z);
+  scene.add(spring);
+
   const poolGeometry = new THREE.CircleGeometry(WATERFALL.poolRadius + 2.5, 28);
   poolGeometry.rotateX(-Math.PI / 2);
   const pool = new THREE.Mesh(poolGeometry, creekMaterial);
@@ -208,7 +248,7 @@ function buildWater(scene) {
   scene.add(pool);
 
   // Flecks of foam drifting downstream and gentle glints on the lake.
-  const foamCount = 46;
+  const foamCount = 66;
   const foam = new THREE.InstancedMesh(
     new THREE.PlaneGeometry(0.6, 0.1),
     new THREE.MeshBasicMaterial({ color: '#e4f3ee', transparent: true, opacity: 0.55 }),
@@ -251,10 +291,13 @@ function buildWater(scene) {
       });
       glintMesh.instanceMatrix.needsUpdate = true;
       const usable = CREEK.length * 0.72;
+      const brookReach = BROOK.length * 0.86;
       foamSeeds.forEach((seed, i) => {
-        const s = ((seed.offset + time * seed.speed) % 1) * usable;
-        const p = CREEK.offset(s, seed.side);
-        dummy.position.set(p.x, creekLevel(s) + 0.03, p.z);
+        // Every third fleck drifts down the brook instead of the creek.
+        const inBrook = i % 3 === 0;
+        const s = ((seed.offset + time * seed.speed) % 1) * (inBrook ? brookReach : usable);
+        const p = (inBrook ? BROOK : CREEK).offset(s, seed.side * (inBrook ? 0.6 : 1));
+        dummy.position.set(p.x, (inBrook ? brookLevel(s) : creekLevel(s)) + 0.03, p.z);
         dummy.rotation.set(-Math.PI / 2, 0, Math.atan2(p.dx, p.dz) + Math.PI / 2);
         dummy.updateMatrix();
         foam.setMatrixAt(i, dummy.matrix);
@@ -326,6 +369,7 @@ function isClearGround(x, z, { road = 9 } = {}) {
   const { ground } = AIRFIELD;
   if (x > ground.x0 - 6 && x < ground.x1 + 6 && z > ground.z0 - 6 && z < ground.z1 + 6) return false;
   if (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 10)) return false;
+  if (BROOK.isNear(x, z, 7) || Math.hypot(x - SPRING.x, z - SPRING.z) < SPRING.radius + 6) return false;
   return true;
 }
 
@@ -580,6 +624,42 @@ function buildTrees(scatter, obstacles) {
   }
 }
 
+/**
+ * Stones along the brook and round its spring, and the rocks across the spring track, which
+ * the car drives over rather than bumps into (see rockHeight). They have numbers of their
+ * own, so they don't move anything else that is scattered.
+ */
+function buildBrookStones(scene) {
+  const stoneRandom = createRandom(5150);
+  const shapes = [0, 1, 2, 3].map(seed => boulderGeometry(seed + 11, { moss: 0.5 }));
+  const parts = [];
+  const stone = (x, z, size, tall = 0.7) => {
+    const shape = shapes[Math.floor(stoneRandom() * shapes.length)];
+    const matrix = new THREE.Matrix4().compose(
+      new THREE.Vector3(x, terrainHeight(x, z) - size * 0.12, z),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, stoneRandom() * 6.3, 0)),
+      new THREE.Vector3(size, size * tall, size),
+    );
+    parts.push(shape.clone().applyMatrix4(matrix));
+  };
+  for (let s = 2; s < BROOK.length - 14; s += 2.6) {
+    if (Math.abs(s - FORD.brook) < 10) continue;
+    const side = stoneRandom() < 0.5 ? -1 : 1;
+    const p = BROOK.offset(s, side * (BROOK_HALF_WIDTH + 0.4 + stoneRandom() * 1.4));
+    stone(p.x, p.z, 0.25 + stoneRandom() * 0.4);
+  }
+  for (let k = 0; k < 9; k++) {
+    const a = (k / 9) * Math.PI * 2 + stoneRandom() * 0.4;
+    const d = SPRING.radius + 0.8 + stoneRandom() * 0.8;
+    stone(SPRING.x + Math.cos(a) * d, SPRING.z + Math.sin(a) * d, 0.3 + stoneRandom() * 0.45);
+  }
+  // The track's rocks: as high as the bumps the tyres ride over, a little wider than them.
+  for (const rock of TRACK_ROCKS) stone(rock.x, rock.z, rock.r * 0.85, rock.h / (rock.r * 0.85 * 0.72));
+  const mesh = new THREE.Mesh(mergeGeometries(parts), vertexColorMaterial);
+  mesh.castShadow = mesh.receiveShadow = true;
+  scene.add(mesh);
+}
+
 function buildRocks(scatter, obstacles) {
   const shapes = [0, 1, 2, 3, 4].map(seed => boulderGeometry(seed));
   const lists = shapes.map(() => []);
@@ -701,6 +781,7 @@ function isVerge(x, z) {
   if (TRACKS.some(track => track.path.isNear(x, z, track.ruts ? 1.4 : 1.1))) return false;
   if (CLEARINGS.some(c => Math.hypot(x - c.x, z - c.z) < c.r * 0.7) || inMud(x, z)) return false;
   if (lakeDistance(x, z) < 2.4 || (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 6))) return false;
+  if (BROOK.isNear(x, z, 3.2)) return false;
   const h = terrainHeight(x, z);
   return h < 92 && snowCover(x, z, h) < 0.2 && steepness(x, z) < 0.5;
 }
@@ -964,6 +1045,7 @@ export function buildScenery(parent) {
   const scatter = createScatter(scene);
   buildTrees(scatter, obstacles);
   buildRocks(scatter, obstacles);
+  buildBrookStones(scene);
   buildGroundCover(scatter);
   buildVerges(scatter);
   buildPeaks(scene);
