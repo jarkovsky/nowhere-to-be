@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { createRandom, smoothstep } from '../core/math.js';
 import { terrainHeight } from './terrain.js';
+import { HAZE, createSkyDome } from './sky.js';
 
 const SKY_PRESETS = ['auto', 'sunset', 'night', 'rain', 'day'];
 const DAY_LENGTH = 360;
@@ -12,7 +13,9 @@ const around = (seed, centre, size) => centre + ((((seed - centre) % size) + siz
 /** Target sky for a moment in the automatic cycle, or for a fixed preset. */
 export function skyConditions(time, preset = 'auto') {
   const phase = (time / DAY_LENGTH + 0.2) % 1;
-  let altitude = Math.sin(phase * Math.PI * 2);
+  // The sun lingers low in the sky, so mornings and evenings last longer than they would.
+  const arc = Math.sin(phase * Math.PI * 2);
+  let altitude = Math.sign(arc) * Math.abs(arc) ** 1.8;
   let rain = smoothstep(Math.sin(time / 31 - 2.1), 0.6, 0.92) * 0.75;
   if (preset === 'sunset') [altitude, rain] = [0.04, 0];
   if (preset === 'night') [altitude, rain] = [-0.8, 0];
@@ -23,35 +26,77 @@ export function skyConditions(time, preset = 'auto') {
   return { day, sunset, rain };
 }
 
-const COLORS = {
-  nightSky: new THREE.Color('#233a55'),
-  daySky: new THREE.Color('#dce5da'),
-  sunsetSky: new THREE.Color('#efb38c'),
-  rainSky: new THREE.Color('#aebfc0'),
-  sunDay: new THREE.Color('#fff0cc'),
-  sunEvening: new THREE.Color('#ffc087'),
-  sunNight: new THREE.Color('#9abadd'),
-  skyNight: new THREE.Color('#9ebbd0'),
-  skyDay: new THREE.Color('#eef5ee'),
-  groundNight: new THREE.Color('#526477'),
-  groundDay: new THREE.Color('#788567'),
-  skyEvening: new THREE.Color('#f4c7a0'),
-};
+/**
+ * The first morning from day `first` on, `hour` (0 to 1) of the way through the day, when it
+ * isn't raining and won't start to for `dryFor` seconds.
+ */
+function dryMorning(first, hour, dryFor = 0) {
+  for (let day = first; day < first + 10; day++) {
+    const time = (day + hour) * DAY_LENGTH;
+    let dry = true;
+    for (let t = 0; t <= dryFor && dry; t += 10) dry = skyConditions(time + t).rain < 0.05;
+    if (dry) return time;
+  }
+  return (first + hour) * DAY_LENGTH;
+}
+
+const COLORS = Object.fromEntries(
+  Object.entries({
+    // The haze away from the sun, which is also the colour of the sky at the horizon.
+    nightHaze: '#22385a',
+    dayHaze: '#c8dcdf',
+    sunsetHaze: '#e8b4a0',
+    rainHaze: '#aebfc0',
+    // The sky overhead.
+    nightZenith: '#0d1a31',
+    dayZenith: '#78b2d6',
+    sunsetZenith: '#7f7fae',
+    rainZenith: '#8c9da5',
+    // The haze and the sky around the sun (or the moon, at night).
+    nightGlow: '#3b5781',
+    dayGlow: '#f7ead0',
+    sunsetGlow: '#ffb067',
+    rainGlow: '#c3cdca',
+    sunDay: '#ffefcc',
+    sunEvening: '#ffb47a',
+    sunNight: '#9abadd',
+    skyNight: '#9ebbd0',
+    skyDay: '#dce8f0',
+    groundNight: '#526477',
+    groundDay: '#7c735a',
+    skyEvening: '#f4c7a0',
+    discDay: '#fff4d8',
+    discEvening: '#ffcf8e',
+    nightCloud: '#2c3d5e',
+    dayCloud: '#f6f6f2',
+    sunsetCloud: '#f3b9a6',
+    rainCloud: '#b9c2c3',
+  }).map(([name, hex]) => [name, new THREE.Color(hex)]),
+);
+
+/** The sun rises and sets in the same quarter of the sky, behind the valley as seen from the start. */
+const SUN_BEARING = new THREE.Vector2(-490, -760).normalize();
+const MOON_DIRECTION = new THREE.Vector3(340, 420, -820).normalize();
 
 export function createAtmosphere(scene, sun, ambient) {
   const random = createRandom(1538);
   let preset = 'auto';
-  let time = 0;
+  // The game starts early on a dry morning, with the sun still low.
+  let time = dryMorning(0, 0.86, 100);
   let day = 1;
   let sunset = 0;
   let rain = 0;
 
+  const dome = createSkyDome(scene.fog.color);
+  scene.add(dome);
+  const sky = dome.material.uniforms;
+  const glow = new THREE.Color();
+  const glowDirection = new THREE.Vector3();
+
   const sphere = new THREE.SphereGeometry(1, 16, 12);
-  const sunDisc = new THREE.Mesh(sphere, new THREE.MeshBasicMaterial({ color: '#fff0c2', fog: false }));
-  sunDisc.scale.setScalar(18);
   const moon = new THREE.Mesh(sphere, new THREE.MeshBasicMaterial({ color: '#f3efcf', fog: false }));
   moon.scale.setScalar(11);
-  scene.add(sunDisc, moon);
+  scene.add(moon);
 
   const starPositions = [];
   for (let i = 0; i < 450; i++) {
@@ -150,13 +195,7 @@ export function createAtmosphere(scene, sun, ambient) {
     /** Back to the automatic cycle, on a dry morning. */
     wakeUp() {
       preset = 'auto';
-      for (let day = 1; day < 10; day++) {
-        const morning = (day + 0.83) * DAY_LENGTH;
-        if (skyConditions(morning).rain < 0.05) {
-          time = morning;
-          break;
-        }
-      }
+      time = dryMorning(1, 0.83);
     },
     /** `centre` is where the car is: the sun, rain and fireflies are centred on it. */
     update(dt, centre, running) {
@@ -167,27 +206,68 @@ export function createAtmosphere(scene, sun, ambient) {
       sunset += (target.sunset - sunset) * blend;
       rain += (target.rain - rain) * blend;
 
-      scene.background
-        .copy(COLORS.nightSky)
-        .lerp(COLORS.daySky, day)
-        .lerp(COLORS.sunsetSky, sunset * 0.8)
-        .lerp(COLORS.rainSky, rain * 0.65);
-      scene.fog.color.copy(scene.background);
-      scene.fog.density = 0.0013 + rain * 0.003;
-      ambient.intensity = 0.85 + day * 0.95 + sunset * 0.35;
+      const haze = scene.fog.color
+        .copy(COLORS.nightHaze)
+        .lerp(COLORS.dayHaze, day)
+        .lerp(COLORS.sunsetHaze, sunset * 0.8)
+        .lerp(COLORS.rainHaze, rain * 0.65);
+      scene.background.copy(haze);
+      scene.fog.density = 0.0011 + rain * 0.0035;
+      sky.zenith.value
+        .copy(COLORS.nightZenith)
+        .lerp(COLORS.dayZenith, day)
+        .lerp(COLORS.sunsetZenith, sunset * 0.7)
+        .lerp(COLORS.rainZenith, rain * 0.7);
+      glow
+        .copy(COLORS.nightGlow)
+        .lerp(COLORS.dayGlow, day)
+        .lerp(COLORS.sunsetGlow, sunset)
+        .lerp(COLORS.rainGlow, rain * 0.8)
+        .toArray(HAZE.sunColor);
+      ambient.intensity = 0.85 + day * 0.4 + sunset * 0.3;
       ambient.color
         .copy(COLORS.skyNight)
         .lerp(COLORS.skyDay, day)
         .lerp(COLORS.skyEvening, sunset * 0.55);
       ambient.groundColor.copy(COLORS.groundNight).lerp(COLORS.groundDay, day);
-      sun.intensity = Math.max(0.25, 0.4 + day * 2 + sunset * 1.1 - rain * 1.3);
+
+      // The sun is never high, and low on the horizon in the evening, where the haze glows round it.
+      const elevation = 0.03 + day * 0.42 - sunset * 0.06;
+      const sunDirection = sky.sunDirection.value.set(
+        SUN_BEARING.x * Math.cos(elevation),
+        Math.sin(elevation),
+        SUN_BEARING.y * Math.cos(elevation),
+      );
+      glowDirection
+        .copy(MOON_DIRECTION)
+        .lerp(sunDirection, smoothstep(day, 0.12, 0.4))
+        .normalize()
+        .toArray(HAZE.sunDirection);
+      sky.sunColor.value
+        .copy(COLORS.discDay)
+        .lerp(COLORS.discEvening, sunset)
+        .multiplyScalar(smoothstep(day, 0.08, 0.2) * (1 - smoothstep(rain, 0.3, 0.6)));
+      sky.cloudColor.value
+        .copy(COLORS.nightCloud)
+        .lerp(COLORS.dayCloud, day)
+        .lerp(COLORS.sunsetCloud, sunset * 0.8)
+        .lerp(COLORS.rainCloud, rain);
+      sky.cloudCover.value = 0.3 + rain * 0.7;
+      sky.time.value = time;
+
+      // The light comes from the same side, a little higher, so the evening shadows are long.
+      const ground = terrainHeight(centre.x, centre.z);
+      const light = 0.32 + day * 0.58 - sunset * 0.22;
+      sun.intensity = Math.max(0.25, 0.4 + day * 2.7 + sunset * 1.1 - rain * 1.6);
       sun.color.copy(COLORS.sunNight).lerp(COLORS.sunDay, day).lerp(COLORS.sunEvening, sunset);
-      sun.position.set(centre.x - 90, 80 + day * 80 - sunset * 35, centre.z - 85);
-      sun.target.position.set(centre.x, 0, centre.z);
+      sun.target.position.set(centre.x, ground, centre.z);
+      sun.position.set(
+        centre.x + SUN_BEARING.x * Math.cos(light) * 200,
+        ground + Math.sin(light) * 200,
+        centre.z + SUN_BEARING.y * Math.cos(light) * 200,
+      );
       sun.target.updateMatrixWorld();
 
-      sunDisc.position.set(centre.x - 490, 120 + day * 340 - sunset * 70, centre.z - 760);
-      sunDisc.visible = day > 0.35 && rain < 0.5;
       moon.position.set(centre.x + 340, 420, centre.z - 820);
       moon.visible = day < 0.45;
       stars.position.set(centre.x, 0, centre.z);
