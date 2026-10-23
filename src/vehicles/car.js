@@ -406,217 +406,248 @@ const VEHICLE_BUILDERS = {
   ruda: lorry('#c43b2e'),
 
   hyundai(_, trim, cargo) {
-    // A rally car: a small hatchback on wide arches, in dark blue and pale silver with red stripes.
+    // A rally car: a short hatchback on very wide arches, with a big wing, in dark blue and
+    // pale silver with red stripes.
     const navy = '#1f2b4b';
     const pale = '#c6cdd8';
     const red = '#d0392f';
-    trim.add(
-      profile(
-        [
-          [-2.06, 0.24],
-          [-2.1, 0.62],
-          [-1.98, 0.78],
-          [-0.8, 0.94],
-          [1.9, 1.0],
-          [2.04, 0.96],
-          [2.06, 0.3],
-          [1.92, 0.22],
-        ],
-        1.82,
-      ),
-      pale,
-    );
-    trim.box(1.86, 0.38, 4.24, navy, { y: 0.41, z: -0.02 }); // dark below the waist, and the front bumper
-    for (const points of [
-      [
-        [-1.92, 0.34],
-        [-1.84, 0.78],
-        [-1.6, 0.88],
-        [-1.0, 0.9],
-        [-0.76, 0.78],
-        [-0.7, 0.34],
-      ],
-      [
-        [0.68, 0.34],
-        [0.76, 0.8],
-        [1.0, 0.96],
-        [1.65, 0.98],
-        [1.88, 0.82],
-        [1.94, 0.34],
-      ],
-    ])
-      trim.add(profile(points, 1.98), navy); // wide arches
-    // Glass all round, a dark roof and pillars, and a big wing at the back of the roof.
-    trim.add(
-      profile(
-        [
-          [-0.8, 0.94],
-          [-0.05, 1.42],
-          [1.5, 1.42],
-          [1.94, 1.0],
-        ],
-        1.54,
-      ),
-      GLASS,
-    );
-    trim.box(1.58, 0.06, 1.62, navy, { y: 1.45, z: 0.72 });
-    for (const side of [-1, 1]) {
-      trim.add(
-        profile(
-          [
-            [1.0, 1.0],
-            [1.0, 1.415],
-            [1.5, 1.42],
-            [1.94, 1.0],
-          ],
-          0.04,
-        ),
-        pale,
-        { x: side * 0.765 },
-      );
-      trim.box(0.04, 0.44, 0.1, navy, { x: side * 0.77, y: 1.2, z: 0.35 });
-      trim.beam({ x: side * 0.76, y: 0.95, z: -0.78 }, { x: side * 0.74, y: 1.41, z: -0.06 }, 0.07, navy);
-      // Red and orange stripes sweeping back along the doors, and the race number.
-      trim.box(0.02, 0.1, 1.3, red, { x: side * 0.915, y: 0.72, z: -0.35, rx: -0.22 });
-      trim.box(0.02, 0.06, 1.1, '#e58a3a', { x: side * 0.915, y: 0.86, z: -0.45, rx: -0.22 });
-      raceNumber(trim, side, { x: side * 0.915, y: 0.78, z: 0.55 });
-      trim.box(0.2, 0.12, 0.16, navy, { x: side * 0.86, y: 1.05, z: -0.62 }); // mirrors
-      trim.box(0.04, 0.03, 0.14, '#b9cfd0', { x: side * 0.86, y: 1.05, z: -0.535 });
-      for (const z of [-1.3 + 0.48, 1.3 + 0.48]) trim.box(0.36, 0.3, 0.03, navy, { x: side * 0.86, y: 0.3, z }); // mud flaps
-      trim.box(0.3, 0.16, 0.04, DARK, { x: side * 0.72, y: 0.35, z: -2.13 }); // air intakes
-    }
-    // A pale bonnet with a dark stripe and two red pinstripes.
-    trim.box(0.5, 0.02, 1.15, navy, { y: 0.875, z: -1.39, rx: -0.135 });
-    for (const side of [-1, 1]) trim.box(0.06, 0.02, 1.15, red, { x: side * 0.31, y: 0.875, z: -1.39, rx: -0.135 });
-    trim.box(1.0, 0.26, 0.04, DARK, { y: 0.42, z: -2.13 }); // grille
-    trim.box(1.94, 0.05, 0.3, DARK, { y: 0.21, z: -2.02 }); // splitter
-    trim.box(1.94, 0.03, 0.04, red, { y: 0.24, z: -2.17 });
-    trim.box(1.66, 0.05, 0.45, navy, { y: 1.53, z: 1.86, rx: -0.1 }); // wing
-    for (const side of [-1, 1]) {
-      trim.box(0.03, 0.25, 0.52, navy, { x: side * 0.84, y: 1.48, z: 1.86 });
-      trim.box(0.05, 0.12, 0.3, DARK, { x: side * 0.5, y: 1.46, z: 1.78 });
-    }
-    trim.box(1.6, 0.14, 0.1, DARK, { y: 0.3, z: 2.08 }); // diffuser
-    trim.add(new THREE.CylinderGeometry(0.08, 0.08, 0.2, 10), METAL, { x: 0.5, y: 0.3, z: 2.1, rx: Math.PI / 2 });
-    // The air scoop on the roof makes way for the roof tent.
-    cargo.box(0.32, 0.12, 0.42, red, { y: 1.54, z: 0.2 });
-    cargo.box(0.24, 0.07, 0.02, DARK, { y: 1.55, z: -0.015 });
-
     const wheels = [-0.86, 0.86].flatMap(x =>
       [-1.3, 1.3].map(z => ({ x, z, radius: 0.42, width: 0.34, hub: '#d6a537' })),
     );
-    return {
-      wheels,
-      headlamps: { x: 0.62, y: 0.7, z: -2.07, square: true },
-      brakeLights: { x: 0.7, y: 0.86, z: 2.05 },
-      mounts: { flag: [0.65, 1.56, 1.95], teddy: [-0.3, 1.48, 0.7], gnome: [0, 0.92, -1.45] },
-      tent: [0, 1.48, 0.75, 1.8, 0.98],
-      voice: { engine: 1.25 },
-    };
-  },
-
-  mercedes(_, trim) {
-    // A racing car: low and wide, silver, with a long bonnet, a grille of upright bars and a big wing.
-    const silver = '#ced2d4';
-    const red = '#c8372d';
+    const [front, back] = wheels;
+    const sill = 0.3;
+    const arch = 0.54;
+    // The middle of the body, and the sides with the arches cut out of them, standing on wide
+    // flared arches, with the glass on top. The line under the windows kicks up at the back.
+    // A wall inside each side closes off the arches above the bonnet.
+    const nose = [
+      [-2.02, sill],
+      [-2.08, 0.38],
+      [-2.08, 0.66],
+      [-2.05, 0.8],
+    ];
+    const tail = [
+      [1.86, 1.13],
+      [2.0, 0.98],
+      [2.04, 0.9],
+      [2.07, 0.62],
+      [2.03, sill],
+    ];
+    trim.add(profile([...nose, [-1.94, 0.86], [-0.86, 0.99], [1.0, 1.06], ...tail], 1.32), pale);
+    const outline = [...nose, [-1.9, 0.92], [-1.62, 1.05], [-0.9, 1.03], [-0.8, 0.995], [1.0, 1.06], ...tail];
+    const wall = profile(outline, 0.04);
+    const flank = profile([...outline, ...archCut(back, arch, sill), ...archCut(front, arch, sill)], 0.24);
+    const flares = [profile(archBand(front, arch, 0.61, sill), 0.36), profile(archBand(back, arch, 0.6, sill), 0.36)];
+    wheelWells(trim, wheels, arch, sill, 0.695);
     trim.add(
       profile(
         [
-          [-2.3, 0.22],
-          [-2.3, 0.64],
-          [-2.12, 0.73],
-          [-1.9, 0.75],
-          [-0.6, 0.86],
-          [1.0, 0.9],
-          [2.02, 0.94],
-          [2.22, 0.86],
-          [2.25, 0.38],
-          [2.1, 0.22],
-        ],
-        1.94,
-      ),
-      silver,
-    );
-    for (const points of [
-      [
-        [-2.08, 0.34],
-        [-1.98, 0.74],
-        [-1.75, 0.82],
-        [-1.15, 0.84],
-        [-0.88, 0.74],
-        [-0.82, 0.34],
-      ],
-      [
-        [0.72, 0.34],
-        [0.8, 0.82],
-        [1.05, 0.92],
-        [1.75, 0.94],
-        [1.98, 0.82],
-        [2.02, 0.34],
-      ],
-    ])
-      trim.add(profile(points, 2.04), silver); // arches
-    // A low glass cabin with a fastback.
-    trim.add(
-      profile(
-        [
-          [-0.6, 0.86],
-          [0.02, 1.24],
-          [0.6, 1.26],
-          [1.3, 0.9],
+          [-0.86, 0.99],
+          [-0.1, 1.44],
+          [1.4, 1.46],
+          [1.86, 1.13],
+          [1.0, 1.06],
         ],
         1.5,
       ),
       GLASS,
     );
-    trim.box(1.46, 0.05, 0.62, silver, { y: 1.265, z: 0.31 });
+    trim.box(1.54, 0.06, 1.54, navy, { y: 1.47, z: 0.65 }); // roof
     for (const side of [-1, 1]) {
+      trim.add(wall, pale, { x: side * 0.66 });
+      trim.add(flank, pale, { x: side * 0.8 });
+      for (const flare of flares) trim.add(flare, navy, { x: side * 0.86 });
+      // Dark pillars, and a pale one at the back.
+      trim.beam({ x: side * 0.755, y: 0.99, z: -0.86 }, { x: side * 0.755, y: 1.44, z: -0.1 }, 0.03, navy, 0.07);
+      trim.box(0.03, 0.44, 0.1, navy, { x: side * 0.755, y: 1.22, z: 0.32 });
       trim.add(
         profile(
           [
-            [0.55, 0.88],
-            [0.55, 1.25],
-            [0.62, 1.26],
-            [1.3, 0.9],
+            [1.0, 1.06],
+            [1.0, 1.455],
+            [1.4, 1.46],
+            [1.86, 1.13],
           ],
-          0.04,
+          0.03,
         ),
-        silver,
+        pale,
         { x: side * 0.755 },
       );
-      trim.beam({ x: side * 0.74, y: 0.86, z: -0.58 }, { x: side * 0.72, y: 1.25, z: 0.04 }, 0.07, silver);
-      trim.box(0.06, 0.12, 1.9, DARK, { x: side * 0.98, y: 0.3, z: -0.05 }); // side skirts
-      raceNumber(trim, side, { x: side * 0.975, y: 0.6, z: 0.15 });
-      trim.box(0.2, 0.1, 0.16, silver, { x: side * 0.86, y: 0.95, z: -0.42 }); // mirrors
-      trim.box(0.04, 0.03, 0.14, '#b9cfd0', { x: side * 0.86, y: 0.95, z: -0.335 });
-      trim.box(0.36, 0.02, 0.45, DARK, { x: side * 0.32, y: 0.805, z: -1.3, rx: -0.085 }); // bonnet vents
-      trim.box(0.22, 0.03, 0.26, red, { x: side * 0.86, y: 0.4, z: -2.2 }); // canards
-      trim.box(0.04, 0.46, 0.14, DARK, { x: side * 0.5, y: 1.13, z: 2.0 }); // wing posts
-      trim.box(0.03, 0.28, 0.52, DARK, { x: side * 0.99, y: 1.33, z: 2.08 });
-      trim.add(new THREE.CylinderGeometry(0.06, 0.06, 0.16, 8), METAL, {
-        x: side * 0.35,
-        y: 0.3,
-        z: 2.28,
-        rx: Math.PI / 2,
-      });
+      trim.box(0.2, 0.12, 0.16, navy, { x: side * 0.86, y: 1.06, z: -0.66 }); // mirrors
+      trim.box(0.04, 0.08, 0.02, '#b9cfd0', { x: side * 0.86, y: 1.06, z: -0.575 });
+      // Side skirts, red and orange stripes sweeping back along the doors, and the race number.
+      trim.box(0.08, 0.1, 1.48, DARK, { x: side * 0.95, y: 0.35 });
+      trim.box(0.02, 0.22, 1.5, navy, { x: side * 0.925, y: 0.44 });
+      trim.box(0.02, 0.07, 1.48, red, { x: side * 0.925, y: 0.62, rx: -0.12 });
+      trim.box(0.02, 0.04, 0.8, '#e58a3a', { x: side * 0.925, y: 0.7, z: -0.3, rx: -0.12 });
+      raceNumber(trim, side, { x: side * 0.935, y: 0.82, z: 0.36 });
+      // Mud flaps behind the wheels, and two little wings on each corner of the front bumper.
+      for (const z of [-0.77, 1.85]) trim.box(0.34, 0.26, 0.025, DARK, { x: side * 0.86, y: 0.27, z });
+      for (const y of [0.44, 0.58]) {
+        trim.box(0.14, 0.025, 0.16, DARK, { x: side * 0.99, y, z: -1.98, rz: side * 0.25 });
+      }
+      // The brake ducts in the bumper, and vents in the bonnet either side of the stripe.
+      trim.box(0.18, 0.16, 0.03, DARK, { x: side * 0.8, y: 0.47, z: -2.09 });
+      trim.box(0.36, 0.02, 0.34, DARK, { x: side * 0.36, y: 0.955, z: -1.2, rx: -0.12 });
+      trim.box(0.05, 0.02, 1.05, red, { x: side * 0.13, y: 0.926, z: -1.43, rx: -0.12 });
+      // Big end plates for the wing.
+      trim.add(
+        profile(
+          [
+            [1.58, 1.63],
+            [2.1, 1.66],
+            [2.08, 1.34],
+            [1.72, 1.4],
+          ],
+          0.03,
+        ),
+        navy,
+        { x: side * 0.92 },
+      );
+      trim.box(0.04, 0.3, 0.14, DARK, { x: side * 0.3, y: 1.39, z: 1.72 }); // the wing's posts
     }
-    // The grille's upright bars, the dark mouth of the bumper below it and the splitter.
-    trim.box(0.9, 0.15, 0.03, DARK, { y: 0.565, z: -2.31 });
-    for (let i = -5; i <= 5; i++) trim.box(0.022, 0.13, 0.02, CHROME, { x: i * 0.075, y: 0.565, z: -2.325 });
-    for (const side of [-1, 1]) trim.box(0.3, 0.16, 0.03, DARK, { x: side * 0.72, y: 0.33, z: -2.31 });
-    trim.box(2.0, 0.05, 0.36, DARK, { y: 0.2, z: -2.22 });
-    trim.box(1.96, 0.05, 0.44, DARK, { y: 1.38, z: 2.08, rx: 0.08 }); // wing
-    trim.box(1.6, 0.14, 0.12, DARK, { y: 0.3, z: 2.24 }); // diffuser
+    // The bonnet stripe, the grilles in a dark blue bumper, the splitter with a red edge, and the wing.
+    trim.box(0.18, 0.02, 1.05, navy, { y: 0.927, z: -1.43, rx: -0.12 });
+    trim.box(0.9, 0.07, 0.03, DARK, { y: 0.74, z: -2.065 });
+    trim.box(1.86, 0.3, 0.02, navy, { y: 0.47, z: -2.083 });
+    trim.box(1.28, 0.22, 0.03, DARK, { y: 0.47, z: -2.09 });
+    trim.box(2.0, 0.04, 0.3, DARK, { y: 0.29, z: -2.0 });
+    trim.box(2.0, 0.025, 0.03, red, { y: 0.3, z: -2.15 });
+    trim.box(1.86, 0.04, 0.44, navy, { y: 1.57, z: 1.84, rx: -0.12 });
+    // At the back: a dark strip between the lamps, and the diffuser with its fins and the exhaust.
+    trim.box(0.98, 0.06, 0.03, DARK, { y: 0.94, z: 2.03 });
+    trim.box(1.5, 0.14, 0.26, DARK, { y: 0.37, z: 1.98 });
+    for (const x of [-0.4, 0, 0.4]) trim.box(0.03, 0.14, 0.24, navy, { x, y: 0.3, z: 2.0 });
+    trim.add(new THREE.CylinderGeometry(0.08, 0.08, 0.2, 10), METAL, { x: 0.55, y: 0.37, z: 2.1, rx: Math.PI / 2 });
+    // The air scoop on the roof makes way for the roof tent.
+    cargo.box(0.32, 0.12, 0.42, red, { y: 1.53, z: 0.2 });
+    cargo.box(0.24, 0.07, 0.02, DARK, { y: 1.54, z: -0.015 });
 
+    return {
+      wheels,
+      headlamps: { x: 0.66, y: 0.72, z: -2.07, square: true, size: [0.34, 0.11] },
+      brakeLights: { x: 0.64, y: 0.94, z: 2.04, size: [0.3, 0.1] },
+      mounts: { flag: [0.65, 1.61, 1.95], teddy: [-0.3, 1.5, 0.7], gnome: [0, 0.93, -1.5] },
+      tent: [0, 1.5, 0.6, 1.8, 0.98],
+      voice: { engine: 1.25 },
+    };
+  },
+
+  mercedes(_, trim) {
+    // A racing car: low and wide, silver, with a long bonnet, the cabin set far back under a
+    // fastback roof, a grille of upright bars and a big wing on curved posts.
+    const silver = '#ced2d4';
     const wheels = [-0.9, 0.9].flatMap(x =>
       [-1.45, 1.35].map(z => ({ x, z, radius: 0.4, width: 0.34, hub: '#45494e' })),
     );
+    const [front, back] = wheels;
+    const sill = 0.26;
+    const arch = 0.51;
+    // The middle of the body, the sides with the arches cut out of them, rising over the front
+    // wheels and into the haunches at the back, the flared arches and the glass on top. A wall
+    // inside each side closes off the arches above the bonnet.
+    const nose = [
+      [-2.26, sill],
+      [-2.33, 0.32],
+      [-2.33, 0.6],
+      [-2.27, 0.7],
+    ];
+    const tail = [
+      [2.16, 1.01],
+      [2.24, 1.03],
+      [2.28, 0.9],
+      [2.3, 0.56],
+      [2.24, sill],
+    ];
+    trim.add(profile([...nose, [-2.14, 0.75], [-1.5, 0.82], [-0.5, 0.9], [1.52, 0.98], ...tail], 1.36), silver);
+    const outline = [
+      ...nose,
+      [-2.12, 0.79],
+      [-1.88, 0.93],
+      [-1.6, 1.01],
+      [-1.2, 1.0],
+      [-0.86, 0.93],
+      [-0.5, 0.905],
+      [0.6, 0.95],
+      [1.0, 1.04],
+      [1.7, 1.06],
+      ...tail,
+    ];
+    const wall = profile(outline, 0.04);
+    const flank = profile([...outline, ...archCut(back, arch, sill), ...archCut(front, arch, sill)], 0.26);
+    const flares = [profile(archBand(front, arch, 0.57, sill), 0.37), profile(archBand(back, arch, 0.58, sill), 0.37)];
+    wheelWells(trim, wheels, arch, sill, 0.715);
+    trim.add(
+      profile(
+        [
+          [-0.5, 0.9],
+          [0.18, 1.3],
+          [0.6, 1.31],
+          [1.52, 0.98],
+        ],
+        1.42,
+      ),
+      GLASS,
+    );
+    trim.box(1.44, 0.04, 0.48, silver, { y: 1.322, z: 0.39 }); // roof
+    for (const side of [-1, 1]) {
+      trim.add(wall, silver, { x: side * 0.68 });
+      trim.add(flank, silver, { x: side * 0.83 });
+      for (const flare of flares) trim.add(flare, silver, { x: side * 0.885 });
+      // The pillars, and the panel behind the side window.
+      trim.beam({ x: side * 0.715, y: 0.9, z: -0.5 }, { x: side * 0.715, y: 1.3, z: 0.18 }, 0.03, silver, 0.07);
+      trim.add(
+        profile(
+          [
+            [0.7, 0.945],
+            [0.7, 1.274],
+            [1.52, 0.98],
+          ],
+          0.03,
+        ),
+        silver,
+        { x: side * 0.715 },
+      );
+      trim.box(0.2, 0.1, 0.16, silver, { x: side * 0.84, y: 0.97, z: -0.3 }); // mirrors
+      trim.box(0.04, 0.06, 0.02, '#b9cfd0', { x: side * 0.84, y: 0.97, z: -0.215 });
+      raceNumber(trim, side, { x: side * 0.975, y: 0.62, z: 0.1 });
+      // Side skirts with the exhausts coming out of them in front of the back wheels.
+      trim.box(0.08, 0.1, 1.64, DARK, { x: side * 0.98, y: 0.31, z: -0.04 });
+      for (const z of [0.62, 0.75]) {
+        trim.add(new THREE.CylinderGeometry(0.05, 0.05, 0.12, 6), METAL, { x: side, y: 0.32, z, rz: Math.PI / 2 });
+        trim.add(new THREE.CircleGeometry(0.032, 6), DARK, { x: side * 1.061, y: 0.32, z, ry: side * (Math.PI / 2) });
+      }
+      // Vents: behind the front wheels, on top of the front wings and in the bonnet.
+      trim.box(0.02, 0.24, 0.24, DARK, { x: side * 0.965, y: 0.66, z: -0.8 });
+      trim.box(0.26, 0.02, 0.5, DARK, { x: side * 0.8, y: 1.016, z: -1.4 });
+      for (const z of [-1.55, -1.4, -1.25]) trim.box(0.26, 0.02, 0.03, silver, { x: side * 0.8, y: 1.03, z });
+      trim.box(0.34, 0.02, 0.42, DARK, { x: side * 0.3, y: 0.866, z: -1.0, rx: -0.08 });
+      // Air intakes at the corners of the bumper, with two little wings outside each.
+      trim.box(0.3, 0.18, 0.03, DARK, { x: side * 0.72, y: 0.42, z: -2.34 });
+      for (const y of [0.38, 0.5]) {
+        trim.box(0.16, 0.02, 0.2, DARK, { x: side * 0.98, y, z: -2.16, rz: side * 0.2 });
+      }
+      // The wing's end plates, and its posts curving up from the boot and over onto it.
+      trim.box(0.03, 0.3, 0.5, DARK, { x: side * 0.98, y: 1.3, z: 2.1 });
+      trim.beam({ x: side * 0.45, y: 0.99, z: 1.84 }, { x: side * 0.45, y: 1.44, z: 1.94 }, 0.04, DARK, 0.1);
+      trim.beam({ x: side * 0.45, y: 1.44, z: 1.94 }, { x: side * 0.45, y: 1.37, z: 2.06 }, 0.04, DARK, 0.1);
+    }
+    // The grille's upright bars, the deep splitter, the wing, a dark strip between the tail
+    // lamps and the diffuser.
+    trim.box(0.8, 0.26, 0.03, DARK, { y: 0.46, z: -2.34 });
+    for (let i = -4; i <= 4; i++) trim.box(0.024, 0.22, 0.02, CHROME, { x: i * 0.085, y: 0.46, z: -2.355 });
+    trim.box(2.08, 0.04, 0.4, DARK, { y: 0.22, z: -2.22 });
+    trim.box(1.96, 0.04, 0.42, DARK, { y: 1.34, z: 2.08, rx: -0.1 });
+    trim.box(0.8, 0.05, 0.03, DARK, { y: 0.86, z: 2.29 });
+    trim.box(1.6, 0.16, 0.3, DARK, { y: 0.33, z: 2.2 });
+    for (const x of [-0.5, -0.17, 0.17, 0.5]) trim.box(0.03, 0.18, 0.3, DARK, { x, y: 0.28, z: 2.22 });
+
     return {
       wheels,
-      headlamps: { x: 0.66, y: 0.63, z: -2.26, square: true },
-      brakeLights: { x: 0.68, y: 0.74, z: 2.24, size: [0.36, 0.12] },
-      mounts: { flag: [0.8, 1.41, 2.15], teddy: [-0.3, 1.29, 0.25], gnome: [0, 0.82, -1.5] },
-      tent: [0, 1.29, 0.3, 1.6, 1.0],
+      headlamps: { x: 0.7, y: 0.645, z: -2.3, square: true, size: [0.36, 0.09] },
+      brakeLights: { x: 0.62, y: 0.86, z: 2.29, size: [0.42, 0.08] },
+      mounts: { flag: [0.8, 1.37, 2.15], teddy: [-0.3, 1.34, 0.4], gnome: [0, 0.82, -1.5] },
+      tent: [0, 1.34, 0.3, 1.6, 1.0],
       voice: { engine: 1.3 },
     };
   },
