@@ -19,6 +19,9 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
   const lookAt = new THREE.Vector3();
   // Offsets from dragging: yaw and pitch in radians, zoom as a factor of the boom length.
   const orbit = { yaw: 0, pitch: 0, zoom: 1, idle: Infinity, dragging: false };
+  // Offsets for keeping something else in view as well as the car, such as the tractor
+  // coming to pull it out of the mud, and how far the view looks over towards it.
+  const framing = { yaw: 0, pitch: 0, zoom: 1, toward: 0 };
 
   /** Shortens the boom so nothing solid sits between the car and the camera. */
   function clearLineOfSight(from, to) {
@@ -40,6 +43,19 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
     );
   }
 
+  /**
+   * Swings the camera round to look past the car at `watch` ({ x, z }), from further back and
+   * higher up, or back behind the car once there is nothing to watch.
+   */
+  function frame(car, watch, dt) {
+    const aim = watch ? angleDelta(heading, Math.atan2(car.x - watch.x, car.z - watch.z)) : 0;
+    framing.yaw = damp(framing.yaw, clamp(aim, -2.6, 2.6), 1.2, dt);
+    framing.pitch = damp(framing.pitch, watch ? 0.16 : 0, 1, dt);
+    framing.zoom = damp(framing.zoom, watch ? 1.3 : 1, 1, dt);
+    framing.toward = damp(framing.toward, watch ? 0.35 : 0, 1.5, dt);
+    if (watch) Object.assign(framing, { x: watch.x, z: watch.z });
+  }
+
   /** `car.scale` stands the camera further back and higher for the lorries, to see over their trailers. */
   function chaseGoal(car, compact) {
     const speedFactor = clamp(Math.abs(car.speed) / 14, 0, 1);
@@ -47,15 +63,21 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
     const distance = ((compact ? 17 : 14) + speedFactor * 2.5) * scale;
     const height = ((compact ? 7.5 : 6) + speedFactor * 0.8) * scale ** 1.8;
     // Directly behind the car along its (smoothed) heading, unless the player has swung it round.
-    const elevation = clamp(Math.atan2(height, distance) + orbit.pitch, 0.06, 1.25);
-    aroundCar(car, heading + orbit.yaw, elevation, Math.hypot(distance, height) * orbit.zoom, 0);
+    const elevation = clamp(Math.atan2(height, distance) + orbit.pitch + framing.pitch, 0.06, 1.25);
+    const boom = Math.hypot(distance, height) * orbit.zoom * framing.zoom;
+    aroundCar(car, heading + orbit.yaw + framing.yaw, elevation, boom, 0);
     // Look ahead of the car normally; at the car itself while looking around.
-    const ahead = 3 * scale * (1 - clamp(Math.abs(orbit.yaw) / 0.6, 0, 1));
+    const ahead = 3 * scale * (1 - clamp(Math.abs(orbit.yaw + framing.yaw) / 0.6, 0, 1));
     look.set(
       car.x - Math.sin(car.heading) * ahead * scale,
       car.y + 2 * scale,
       car.z - Math.cos(car.heading) * ahead * scale,
     );
+    // Over towards whatever else is being watched.
+    if (framing.toward > 0.001) {
+      look.x += (framing.x - look.x) * framing.toward;
+      look.z += (framing.z - look.z) * framing.toward;
+    }
     origin.set(car.x, car.y + 1.8, car.z);
   }
 
@@ -97,9 +119,10 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
       blend = 1;
       orbit.yaw = 0;
       orbit.pitch = 0;
+      Object.assign(framing, { yaw: 0, pitch: 0, zoom: 1, toward: 0 });
       this.update(0, car, { ...options, snap: true });
     },
-    update(dt, car, { compact = false, intro, camp, shot, snap = false }) {
+    update(dt, car, { compact = false, intro, camp, shot, watch = null, snap = false }) {
       blend = Math.min(1, blend + dt * 0.6);
       if (!orbit.dragging) orbit.idle += dt;
       if (mode === 'chase') {
@@ -111,6 +134,7 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
           orbit.pitch = damp(orbit.pitch, 0, settle, dt);
           orbit.zoom = damp(orbit.zoom, 1, settle * 0.5, dt);
         }
+        frame(car, watch, dt);
         chaseGoal(car, compact);
       } else if (mode === 'showroom') {
         showroomGoal(car, dt, compact);

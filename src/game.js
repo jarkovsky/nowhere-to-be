@@ -22,6 +22,7 @@ import { createAtmosphere } from './world/atmosphere.js';
 import { separateMeshKinds } from './world/build.js';
 import { createGnomes } from './world/collectibles.js';
 import { buildLandmarks, insideTunnel } from './world/landmarks/index.js';
+import { createMudHole } from './world/mudhole.js';
 import {
   CAMP,
   CAMP_TRAIL,
@@ -205,6 +206,7 @@ export function createGame(canvas) {
     isDriveable,
     waterDepth: wadingDepth,
   };
+  const mudHole = createMudHole(scene, { obstacles: world.obstacles, onToot: () => sound.otherHorn() });
 
   const tilt = createTiltSteering(window, info => ui.setTilt(info));
   const controls = createControls({
@@ -431,9 +433,13 @@ export function createGame(canvas) {
     const wheelAngle = steerAngle(state.steering, state.speed);
     for (const wheel of car.wheels) {
       wheel.pivot.rotation.y = wheel.front ? wheelAngle : 0;
-      wheel.spin.rotation.x -= (state.speed * dt) / wheel.radius;
+      // In the mud hole the wheels can spin faster than the car goes.
+      wheel.spin.rotation.x -= ((state.speed + mudHole.slip) * dt) / wheel.radius;
     }
     settleWheels(car, drivingHeight);
+    // Sunk into the mud, wheels and all.
+    car.root.position.y -= mudHole.sink;
+    car.root.updateMatrixWorld();
     if (car.trailer) placeTrailer();
   }
 
@@ -493,7 +499,13 @@ export function createGame(canvas) {
     scale: car.spec.camera ?? 1,
   });
   const compactScreen = () => innerWidth < 700 || innerHeight > innerWidth;
-  const cameraOptions = () => ({ compact: compactScreen(), intro: introShot, camp: campShot, shot: debugShot });
+  const cameraOptions = () => ({
+    compact: compactScreen(),
+    intro: introShot,
+    camp: campShot,
+    shot: debugShot,
+    watch: mudHole.watch(),
+  });
 
   // --- Camera framing for the title screen and the night at camp -----------------------
 
@@ -623,8 +635,11 @@ export function createGame(canvas) {
         ...planes.colliders,
         ...landmarks.crossing.colliders(),
         ...landmarks.machines,
+        ...mudHole.colliders,
       );
-      stepDriving(state, input, dt, world);
+      // On the tractor's rope, the car goes where it is pulled.
+      if (!mudHole.holding()) stepDriving(state, input, dt, world);
+      mudHole.update(dt, state, input, car, trailer);
       if (state.impact > 2.5) sound.bump(state.impact);
       updateCarModel(dt);
       wasBraking = input.brake || (input.backward && state.speed > 0.5) || (input.forward && state.speed < -0.5);
@@ -651,12 +666,12 @@ export function createGame(canvas) {
     wildlife.update(dt, state, true, night);
     secrets.update(dt, state, true, night);
     gnomes.update(dt, state, driving);
-    surfaces.update(dt, state, driving);
+    surfaces.update(dt, state, driving, mudHole.slip);
     if (driving) wading.update(dt, state, car, car.trailer ? trailer : null);
     if (driving) {
       // Puddles lie on the trail, so the tyres find them rather than the driving surface.
       const surface = surfaces.getState().surface === 'puddle' ? 'puddle' : surfaceUnder(state.x, state.z);
-      dirt = stepDirt(dirt, { surface, speed: state.speed, rain: sky.rain }, dt);
+      dirt = stepDirt(dirt, { surface, speed: state.speed + mudHole.slip, rain: sky.rain }, dt);
     }
     car.setMud(dirt);
     traffic.update(dt, {
@@ -672,7 +687,7 @@ export function createGame(canvas) {
     scenery.update(dt, camera.position, sun, state);
 
     sound.update({
-      speed: driving ? state.speed : 0,
+      speed: driving ? state.speed + mudHole.slip : 0,
       throttle: driving ? throttle : 0,
       engineOn: driving,
       active: mode !== 'title' && !document.hidden,
@@ -731,6 +746,7 @@ export function createGame(canvas) {
         krystof: helicopters[1].getState(),
         plane: planes.getState(),
         fields: landmarks.fields.getState(),
+        mudHole: mudHole.getState(),
         gnomes: gnomes.getState(),
         wildlife: wildlife.getState(),
         cameraBlocked: chase.isBlocked(),

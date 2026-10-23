@@ -202,17 +202,19 @@ export function createSurfaces(scene, sound) {
     /** The grove's tree trunks, for collisions. */
     obstacles,
     getState: () => ({ surface: current, tracks: tracks.count, particles: particles.filter(p => p.life > 0).length }),
-    update(dt, car, running) {
+    /** `spin` is how much faster than the car its wheels are turning, when they spin in the mud. */
+    update(dt, car, running, spin = 0) {
       if (!running) return;
       time += dt;
       current = effectAt(car.x, car.z, puddles);
-      sound.surface(current, Math.abs(car.speed));
+      sound.surface(current, Math.abs(car.speed) + Math.abs(spin));
       const sin = Math.sin(car.heading);
       const cos = Math.cos(car.heading);
-      const moving = Math.abs(car.speed) > 0.6;
+      const spinning = Math.abs(spin) > 1;
+      const moving = Math.abs(car.speed) > 0.6 || spinning;
 
       if (moving && current !== 'grass') {
-        const rate = current === 'water' ? 0.03 : 0.045;
+        const rate = current === 'water' || spinning ? 0.03 : 0.045;
         if (time - lastParticle > rate) {
           lastParticle = time;
           for (const side of [-1, 1]) {
@@ -224,9 +226,11 @@ export function createSurfaces(scene, sound) {
             p.mesh.visible = true;
             p.life = 0.65;
             const spread = current === 'water' ? 3 : 2;
-            p.vx = cos * side * spread + (random() - 0.5);
-            p.vz = -sin * side * spread + (random() - 0.5);
-            p.vy = 2 + random() * (current === 'water' ? 3 : 2);
+            // Spinning wheels fling it out behind them, high up.
+            const fling = spin * (0.5 + random() * 0.4);
+            p.vx = cos * side * spread + sin * fling + (random() - 0.5);
+            p.vz = -sin * side * spread + cos * fling + (random() - 0.5);
+            p.vy = 2 + random() * (current === 'water' ? 3 : 2) + (spinning ? 1.5 : 0);
           }
         }
         if (current === 'snow' && (!lastTrack || Math.hypot(car.x - lastTrack.x, car.z - lastTrack.z) > 0.48)) {

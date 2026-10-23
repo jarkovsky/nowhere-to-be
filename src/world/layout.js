@@ -549,6 +549,21 @@ export const CAMP = { x: 36, z: -17, heading: headingOf(0.55, -0.83) };
 /** The farm, and its paddock in the farm's own frame (X along the barn row, Z towards the field). */
 export const FARM = { x: -76, z: 14, rotation: 0.45, paddock: { x0: -20, x1: -4, z0: 7, z1: 21 } };
 
+/** A point given in the farm's own frame. */
+const farmPoint = localFrame(FARM.x, FARM.z, FARM.rotation);
+
+/**
+ * A deep mud hole where the lane between the paddock and the wheat field runs out into the
+ * meadow below the farm. A car that drives into its soft middle, `bog` metres round, gets
+ * stuck, and the farm's tractor, parked below the paddock, comes to pull it out.
+ */
+export const MUD_HOLE = {
+  ...farmPoint(0.5, 48),
+  radius: 5.5,
+  bog: 3.4,
+  tractor: { ...farmPoint(-12, 27.5), heading: FARM.rotation - Math.PI / 2 },
+};
+
 /** A fire lookout tower on top of the southern knoll. */
 export const TOWER = { x: 101, z: 196 };
 
@@ -655,6 +670,22 @@ export const TRACKS = [
         [73, 127],
       ),
     ),
+  },
+  {
+    // From the farmyard down the lane between the paddock and the wheat field, into the mud hole.
+    id: 'lane',
+    ruts: true,
+    path: createPath([
+      [-80, 18],
+      ...[
+        [-1, 5],
+        [0.8, 12],
+        [1, 20],
+        [0.7, 28],
+        [0.5, 38],
+        [0.5, 48],
+      ].map(([lx, lz]) => Object.values(farmPoint(lx, lz))),
+    ]),
   },
   {
     id: 'tower',
@@ -1064,6 +1095,8 @@ export const SURFACES = [
   { id: 'mud', ...patchOnTrack('farm', 0.5), rx: 6, rz: 6 },
   { id: 'mud', ...patchOnTrack('tower', 0.5), rx: 7, rz: 6 },
   { id: 'mud', ...patchOnTrack('fields', 0.5), rx: 8, rz: 7 },
+  // Churned-up mud round the hole.
+  { id: 'mud', x: MUD_HOLE.x, z: MUD_HOLE.z, rx: MUD_HOLE.radius + 0.8, rz: MUD_HOLE.radius + 0.8 },
 ];
 
 export function surfaceAt(x, z) {
