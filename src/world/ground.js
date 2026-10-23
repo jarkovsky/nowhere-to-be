@@ -1,11 +1,13 @@
-// The ground: flat-shaded triangles over the height field, two to a grid cell, each with
-// its own colour. It is split into square tiles so tiles out of view are skipped, and
-// tiles far from the camera are drawn with one triangle for every four or sixteen, so
-// what it costs to draw follows how much ground is near the camera rather than how big
-// the world is. Neighbouring tiles of different detail don't quite meet, so every tile
-// has a narrow skirt hanging down from its edges to hide the gaps.
+// The ground: triangles over the height field, two to a grid cell. Each grid point has its
+// own colour and a normal worked out from the slope around it, so the light and the colours
+// change smoothly across the hills, and a detail texture drawn over it in the shader gives it
+// grain up close (see detail.js). It is split into square tiles so tiles out of view are
+// skipped, and tiles far from the camera are drawn with one triangle for every four or
+// sixteen, so what it costs to draw follows how much ground is near the camera rather than
+// how big the world is. Neighbouring tiles of different detail don't quite meet, so every
+// tile has a narrow skirt hanging down from its edges to hide the gaps.
 import * as THREE from 'three';
-import { flatMaterial } from './build.js';
+import { groundMaterial } from './detail.js';
 import { AXIS, GRID, heights } from './terrain.js';
 
 /** Most cells along a side of a tile. */
@@ -53,59 +55,34 @@ function tileSpans() {
   });
 }
 
-/** Colours of every ground triangle (two per cell), from `colorAt(x, z, height, up, out)` at its middle. */
-function triangleColors(colorAt) {
-  const colors = new Float32Array(CELLS * CELLS * 6);
-  const color = new THREE.Color();
-  const [a, b, c] = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
-  for (let iz = 0; iz < CELLS; iz++) {
-    for (let ix = 0; ix < CELLS; ix++) {
-      for (let t = 0; t < 2; t++) {
-        const [x0, z0, x1, z1, x2, z2] = corners(ix, iz, 1, t);
-        a.set(AXIS[x0], height(x0, z0), AXIS[z0]);
-        b.set(AXIS[x1], height(x1, z1), AXIS[z1]);
-        c.set(AXIS[x2], height(x2, z2), AXIS[z2]);
-        const x = (a.x + b.x + c.x) / 3;
-        const y = (a.y + b.y + c.y) / 3;
-        const z = (a.z + b.z + c.z) / 3;
-        b.sub(a);
-        c.sub(a);
-        const up = Math.abs(c.cross(b).normalize().y);
-        colorAt(x, z, y, up, color).toArray(colors, ((iz * CELLS + ix) * 2 + t) * 3);
-      }
-    }
-  }
-  return colors;
-}
-
 /**
- * Triangle colours for cells twice as wide: each coarse triangle takes the average of the
- * four fine ones it covers. The first triangle of a cell covers the fine cells before its
- * diagonal and the second those after it, and the two cells on it are split the same way.
- * Halving twice averages the same sixteen triangles as going to four times as wide at once.
+ * The normal and colour of every grid point, as bytes: the normal from the slope between its
+ * neighbours, and the colour from `colorAt(x, z, height, up, out)`, where `up` is 1 on level ground.
  */
-function coarserColors(colors, cells) {
-  const half = cells / 2;
-  const coarse = new Float32Array(half * half * 6);
-  const add = (into, ix, iz, t) => {
-    for (let k = 0; k < 3; k++) coarse[into + k] += colors[((iz * cells + ix) * 2 + t) * 3 + k] / 4;
-  };
-  for (let iz = 0; iz < half; iz++) {
-    for (let ix = 0; ix < half; ix++) {
-      const [fx, fz] = [ix * 2, iz * 2];
-      const first = (iz * half + ix) * 6;
-      const second = first + 3;
-      add(first, fx, fz, 0);
-      add(first, fx, fz, 1);
-      add(first, fx + 1, fz, 0);
-      add(first, fx, fz + 1, 0);
-      add(second, fx + 1, fz, 1);
-      add(second, fx, fz + 1, 1);
-      add(second, fx + 1, fz + 1, 0);
-      add(second, fx + 1, fz + 1, 1);
+function gridShading(colorAt) {
+  const normals = new Int8Array(GRID * GRID * 3);
+  const colors = new Uint8Array(GRID * GRID * 4);
+  const normal = new THREE.Vector3();
+  const color = new THREE.Color();
+  for (let iz = 0; iz < GRID; iz++) {
+    const [z0, z1] = [Math.max(0, iz - 1), Math.min(CELLS, iz + 1)];
+    for (let ix = 0; ix < GRID; ix++) {
+      const [x0, x1] = [Math.max(0, ix - 1), Math.min(CELLS, ix + 1)];
+      const dx = (height(x1, iz) - height(x0, iz)) / (AXIS[x1] - AXIS[x0]);
+      const dz = (height(ix, z1) - height(ix, z0)) / (AXIS[z1] - AXIS[z0]);
+      normal.set(-dx, 1, -dz).normalize();
+      const i = iz * GRID + ix;
+      normals[i * 3] = Math.round(normal.x * 127);
+      normals[i * 3 + 1] = Math.round(normal.y * 127);
+      normals[i * 3 + 2] = Math.round(normal.z * 127);
+      colorAt(AXIS[ix], AXIS[iz], height(ix, iz), normal.y, color);
+      colors[i * 4] = Math.round(THREE.MathUtils.clamp(color.r, 0, 1) * 255);
+      colors[i * 4 + 1] = Math.round(THREE.MathUtils.clamp(color.g, 0, 1) * 255);
+      colors[i * 4 + 2] = Math.round(THREE.MathUtils.clamp(color.b, 0, 1) * 255);
+      colors[i * 4 + 3] = 255;
     }
   }
-  return coarse;
+  return { normals, colors };
 }
 
 /**
@@ -128,75 +105,79 @@ function skirtDepth(from, to, at) {
 }
 
 /** One version of a tile, with its cells `stride` grid lines across, and its skirts. */
-function tileGeometry(xs, zs, stride, colors, depths) {
-  const cells = CELLS / stride;
+function tileGeometry(xs, zs, stride, shading, depths) {
   const columns = (xs.to - xs.from) / stride;
   const rows = (zs.to - zs.from) / stride;
-  const triangles = (columns * rows + 2 * (columns + rows)) * 2;
-  const positions = new Float32Array(triangles * 9);
+  const vertices = (columns + 1) * (rows + 1) + 2 * (columns + 1) + 2 * (rows + 1);
+  const positions = new Float32Array(vertices * 3);
+  const normals = new Int8Array(vertices * 3);
   // Colours as bytes take a quarter of the memory of floats.
-  const shades = new Uint8Array(triangles * 12);
-  const rgb = [0, 0, 0];
+  const colors = new Uint8Array(vertices * 4);
+  const indices = [];
   let v = 0;
-  const vertex = (x, y, z) => {
-    positions[v * 3] = x;
-    positions[v * 3 + 1] = y;
-    positions[v * 3 + 2] = z;
-    for (let k = 0; k < 3; k++) shades[v * 4 + k] = Math.round(Math.min(1, Math.max(0, rgb[k])) * 255);
-    shades[v * 4 + 3] = 255;
-    v++;
-  };
-  const paint = (ix, iz, t) => {
-    const at = (((iz / stride) * cells + ix / stride) * 2 + t) * 3;
-    for (let k = 0; k < 3; k++) rgb[k] = colors[at + k];
+  /** Adds a vertex at grid point (ix, iz), lowered by `drop`, shaded like the point. */
+  const vertex = (ix, iz, drop = 0) => {
+    positions.set([AXIS[ix], height(ix, iz) - drop, AXIS[iz]], v * 3);
+    const i = iz * GRID + ix;
+    normals.set(shading.normals.subarray(i * 3, i * 3 + 3), v * 3);
+    colors.set(shading.colors.subarray(i * 4, i * 4 + 4), v * 4);
+    return v++;
   };
 
+  for (let iz = zs.from; iz <= zs.to; iz += stride) {
+    for (let ix = xs.from; ix <= xs.to; ix += stride) vertex(ix, iz);
+  }
+  const at = (ix, iz) => ((iz - zs.from) / stride) * (columns + 1) + (ix - xs.from) / stride;
   for (let iz = zs.from; iz < zs.to; iz += stride) {
     for (let ix = xs.from; ix < xs.to; ix += stride) {
       for (let t = 0; t < 2; t++) {
-        paint(ix, iz, t);
         const c = corners(ix, iz, stride, t);
-        for (let k = 0; k < 6; k += 2) vertex(AXIS[c[k]], height(c[k], c[k + 1]), AXIS[c[k + 1]]);
+        indices.push(at(c[0], c[1]), at(c[2], c[3]), at(c[4], c[5]));
       }
     }
   }
 
-  // Each skirt hangs from an edge segment between two grid points, faces out of the tile,
-  // and is coloured like the triangle above it.
-  const skirt = ([ax, az], [bx, bz], depth, inward) => {
-    const [pa, pb] = [height(ax, az), height(bx, bz)];
-    const quad = [
-      [AXIS[ax], pa, AXIS[az]],
-      [AXIS[bx], pb, AXIS[bz]],
-      [AXIS[bx], pb - depth, AXIS[bz]],
-      [AXIS[ax], pa - depth, AXIS[az]],
-    ];
-    // Wound so the front faces away from the tile.
-    const [ux, uz] = [quad[1][0] - quad[0][0], quad[1][2] - quad[0][2]];
-    const order = ux * inward[1] - uz * inward[0] > 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2];
-    for (const k of order) vertex(...quad[k]);
+  // Each skirt hangs from one side of the tile and faces out of it.
+  const skirt = (points, depth, inward) => {
+    const bottoms = points.map(([ix, iz]) => vertex(ix, iz, depth));
+    for (let k = 0; k + 1 < points.length; k++) {
+      const [a, b] = [at(...points[k]), at(...points[k + 1])];
+      const [ux, uz] = [AXIS[points[k + 1][0]] - AXIS[points[k][0]], AXIS[points[k + 1][1]] - AXIS[points[k][1]]];
+      const quad = [a, b, bottoms[k + 1], bottoms[k]];
+      const order = ux * inward[1] - uz * inward[0] > 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2];
+      for (const n of order) indices.push(quad[n]);
+    }
   };
-  for (let i = 0; i < columns; i++) {
-    const ix = xs.from + i * stride;
-    paint(ix, zs.from, 0);
-    skirt([ix, zs.from], [ix + stride, zs.from], depths.north, [0, 1]);
-    paint(ix, zs.to - stride, 1);
-    skirt([ix, zs.to], [ix + stride, zs.to], depths.south, [0, -1]);
-  }
-  for (let i = 0; i < rows; i++) {
-    const iz = zs.from + i * stride;
-    paint(xs.from, iz, 0);
-    skirt([xs.from, iz], [xs.from, iz + stride], depths.west, [1, 0]);
-    paint(xs.to - stride, iz, 1);
-    skirt([xs.to, iz], [xs.to, iz + stride], depths.east, [-1, 0]);
-  }
+  const along = (count, point) => Array.from({ length: count + 1 }, (_, k) => point(k * stride));
+  skirt(
+    along(columns, d => [xs.from + d, zs.from]),
+    depths.north,
+    [0, 1],
+  );
+  skirt(
+    along(columns, d => [xs.from + d, zs.to]),
+    depths.south,
+    [0, -1],
+  );
+  skirt(
+    along(rows, d => [xs.from, zs.from + d]),
+    depths.west,
+    [1, 0],
+  );
+  skirt(
+    along(rows, d => [xs.to, zs.from + d]),
+    depths.east,
+    [-1, 0],
+  );
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new THREE.BufferAttribute(shades, 4, true));
+  geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3, true));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 4, true));
+  geometry.setIndex(indices);
   geometry.computeBoundingSphere();
   // The arrays are large and aren't needed again once they are on the graphics card.
-  for (const attribute of Object.values(geometry.attributes)) {
+  for (const attribute of [...Object.values(geometry.attributes), geometry.index]) {
     attribute.onUpload(function () {
       this.array = null;
     });
@@ -206,10 +187,7 @@ function tileGeometry(xs, zs, stride, colors, depths) {
 
 /** Every tile, with its versions from the most detailed down. */
 function buildTiles(colorAt, material) {
-  // Triangle colours at each level of detail.
-  const colors = { 1: triangleColors(colorAt) };
-  colors[2] = coarserColors(colors[1], CELLS);
-  colors[4] = coarserColors(colors[2], CELLS / 2);
+  const shading = gridShading(colorAt);
   const spans = tileSpans();
   const tiles = [];
   for (const zs of spans) {
@@ -224,7 +202,7 @@ function buildTiles(colorAt, material) {
       const fits = stride => [xs.from, xs.to, zs.from, zs.to].every(i => i % stride === 0) && cell * stride <= MAX_CELL;
       const levels = LEVELS.filter(({ stride }) => stride === 1 || fits(stride)).map(level => ({
         from: level.from,
-        geometry: tileGeometry(xs, zs, level.stride, colors[level.stride], depths),
+        geometry: tileGeometry(xs, zs, level.stride, shading, depths),
       }));
       const mesh = new THREE.Mesh(levels[0].geometry, material);
       mesh.receiveShadow = true;
@@ -234,12 +212,12 @@ function buildTiles(colorAt, material) {
   return tiles;
 }
 
-/** Builds the ground. `colorAt(x, z, height, up, out)` colours a triangle; `up` is 1 on level ground. */
+/** Builds the ground. `colorAt(x, z, height, up, out)` colours a grid point; `up` is 1 on level ground. */
 export function createGround(colorAt) {
   const group = new THREE.Group();
   group.name = 'ground';
-  // Built in a function of its own, so the colours of every triangle can be let go afterwards.
-  const tiles = buildTiles(colorAt, flatMaterial('#ffffff', { vertexColors: true, name: 'ground' }));
+  // Built in a function of its own, so the shading of every grid point can be let go afterwards.
+  const tiles = buildTiles(colorAt, groundMaterial());
   for (const tile of tiles) group.add(tile.mesh);
 
   return {

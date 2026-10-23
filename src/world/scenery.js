@@ -1,6 +1,6 @@
 // The landscape itself: ground, trail, water, vegetation, distant peaks and the fence.
 import * as THREE from 'three';
-import { createRandom, fractalNoise, smoothstep } from '../core/math.js';
+import { createRandom, fractalNoise, lerp, smoothstep, valueNoise } from '../core/math.js';
 import {
   LAKE,
   ROAD,
@@ -44,6 +44,7 @@ import {
 } from './layout.js';
 import { terrainHeight, naturalHeight, creekLevel, snowCover, POOL } from './terrain.js';
 import { PartsBuilder, flatMaterial, freeze, vertexColorMaterial, triangleGeometry } from './build.js';
+import { groundMaterial } from './detail.js';
 import { createGround } from './ground.js';
 import { boulderGeometry } from './rocks.js';
 import { createScatter } from './scatter.js';
@@ -51,23 +52,23 @@ import { createScatter } from './scatter.js';
 const random = createRandom(82741);
 
 const GROUND = {
-  meadow: new THREE.Color('#a5b383'),
-  lush: new THREE.Color('#91a872'),
-  dry: new THREE.Color('#c1be8b'),
-  high: new THREE.Color('#939f87'),
-  rock: new THREE.Color('#a39d8b'),
-  alpine: new THREE.Color('#aeab9e'),
-  shore: new THREE.Color('#d3caa0'),
-  bank: new THREE.Color('#a9a78f'),
+  meadow: new THREE.Color('#9db266'),
+  lush: new THREE.Color('#7fa458'),
+  dry: new THREE.Color('#c9b96f'),
+  high: new THREE.Color('#7f9262'),
+  rock: new THREE.Color('#9a968c'),
+  alpine: new THREE.Color('#a8a596'),
+  shore: new THREE.Color('#d8c996'),
+  bank: new THREE.Color('#a6a387'),
   snow: new THREE.Color('#eef1ea'),
-  leaves: new THREE.Color('#bf8a4f'),
+  leaves: new THREE.Color('#c4873f'),
 };
 
-/** Colour of one ground triangle. `up` is the Y of its normal: 1 on flat ground. */
+/** Colour of the ground at a grid point. `up` is the Y of its normal: 1 on flat ground. */
 function groundColor(x, z, h, up, out) {
   out
     .copy(GROUND.meadow)
-    .lerp(GROUND.dry, Math.min(1, 0.3 + 0.25 * Math.sin(x * 0.009 + z * 0.017) + Math.max(0, h - 15) * 0.012));
+    .lerp(GROUND.dry, Math.min(1, 0.3 + 0.25 * Math.sin(x * 0.009 + z * 0.017) + Math.max(0, h - 15) * 0.006));
   // Patches of greener grass, so the meadows aren't one flat colour.
   out.lerp(GROUND.lush, smoothstep(fractalNoise(x / 70 + 4.1, z / 70 + 1.7, 2, 31), 0.5, 0.72) * 0.8);
   if (h > 45) out.lerp(GROUND.high, Math.min(1, (h - 45) / 80));
@@ -87,6 +88,13 @@ function groundColor(x, z, h, up, out) {
     if (d < 1 && patch.id === 'leaves') out.lerp(GROUND.leaves, 0.75);
   }
   return out.multiplyScalar(0.96 + random() * 0.08);
+}
+
+/** Which way the ground faces at a point, from the slope around it. */
+function groundNormal(x, z) {
+  const dx = (terrainHeight(x + 1, z) - terrainHeight(x - 1, z)) / 2;
+  const dz = (terrainHeight(x, z + 1) - terrainHeight(x, z - 1)) / 2;
+  return new THREE.Vector3(-dx, 1, -dz).normalize().toArray();
 }
 
 const SNOW = SURFACES.find(patch => patch.id === 'snow');
@@ -114,12 +122,14 @@ export function ribbon(path, halfWidth, color, { lift = 0.06, offset = 0, skip =
       const snow = Math.max(patch, snowCover(x, z));
       row.push({
         position: [x, terrainHeight(x, z) + lift, z],
+        normal: groundNormal(x, z),
         color: tint.copy(base).lerp(PACKED_SNOW, snow).toArray(),
       });
     }
     rows.push(row);
   }
   const positions = [];
+  const normals = [];
   const colors = [];
   const count = path.closed ? rows.length : rows.length - 1;
   for (let i = 0; i < count; i++) {
@@ -129,20 +139,17 @@ export function ribbon(path, halfWidth, color, { lift = 0.06, offset = 0, skip =
     for (let j = 0; j < across; j++) {
       for (const corner of [a[j], a[j + 1], b[j], a[j + 1], b[j + 1], b[j]]) {
         positions.push(...corner.position);
+        normals.push(...corner.normal);
         colors.push(...corner.color);
       }
     }
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  geometry.computeVertexNormals();
-  const material = flatMaterial('#ffffff', {
-    vertexColors: true,
-    polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2,
-  });
+  // Shaded like the ground beneath it, so it doesn't show its facets where the ground doesn't.
+  const material = groundMaterial({ polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.receiveShadow = true;
   return mesh;
@@ -574,56 +581,77 @@ function buildGroundCover(scatter) {
   scatter.add({ geometry: blades.geometry(), near: DETAIL_RANGE, shadows: false, items: tuftItems });
 }
 
-/** A ring of snow-capped peaks beyond the fence, merged into one mesh. */
+/**
+ * A ring of snow-capped mountains beyond the fence, merged into one mesh. Each is a cone that
+ * steepens towards its summit, with ridges running down it and snow lying lower in the gullies
+ * between them, smooth-shaded like the ground and with the same detail drawn on it.
+ */
 function buildPeaks(scene) {
+  const SIDES = 40;
+  const RINGS = 12;
   const positions = [];
   const colors = [];
-  const snow = new THREE.Color('#e6e8da');
+  const indices = [];
+  const snow = new THREE.Color('#edf0ec');
+  const forest = new THREE.Color('#62764f');
   const rock = new THREE.Color();
   const color = new THREE.Color();
-  const tones = ['#8caaa3', '#97aaa8', '#9eafb0', '#899e99'];
+  const tones = ['#7d898c', '#858f8c', '#8a9291', '#7a8689'];
   for (let m = 0; m < 30; m++) {
     const angle = (m / 30) * Math.PI * 2;
     const distance = 880 + random() * 200;
     const cx = Math.sin(angle) * distance;
     const cz = Math.cos(angle) * distance;
-    const radius = 110 + random() * 110;
-    const height = 130 + random() * 150;
+    const radius = 130 + random() * 110;
+    const height = 140 + random() * 150;
     const base = naturalHeight(cx, cz) - 18;
+    const ridges = 3 + Math.floor(random() * 3);
+    const twist = random() * Math.PI * 2;
+    const lean = { x: (random() - 0.5) * radius * 0.3, z: (random() - 0.5) * radius * 0.3 };
     rock.set(tones[m % 4]);
-    const sides = 11;
-    const rings = 6;
-    const jitter = Array.from({ length: sides }, () => 0.8 + random() * 0.4);
-    const points = [];
-    for (let j = 0; j <= rings; j++) {
-      const f = j / rings;
-      const rr = radius * (1 - f);
-      for (let k = 0; k < sides; k++) {
-        const a = (k / sides) * Math.PI * 2;
-        const wobble = j > 0 && j < rings ? (random() - 0.5) * height * 0.12 : 0;
-        points.push([
-          cx + Math.cos(a) * rr * jitter[k] + f * radius * 0.13,
-          base + height * f + wobble,
-          cz + Math.sin(a) * rr * jitter[k],
-        ]);
+    const first = positions.length / 3;
+    const summit = base + height;
+    // Where the foot of the mountain meets the ground all round, a little below it so it never floats.
+    const feet = [];
+    for (let j = 0; j <= RINGS; j++) {
+      const f = j / RINGS;
+      for (let k = 0; k < SIDES; k++) {
+        const a = (k / SIDES) * Math.PI * 2;
+        // 1 along a ridge, 0 in the gully between two.
+        const ridge = Math.abs(Math.cos(((a + twist) * ridges) / 2)) ** 2;
+        // The outline wanders round the mountain but keeps its shape on the way up, so no
+        // ring stands out beyond the one below it.
+        const wobble = fractalNoise(Math.cos(a) * 1.7 + m * 7.3, Math.sin(a) * 1.7, 2, 400 + m) - 0.5;
+        const rough = (valueNoise(k * 0.7, j * 0.9, m) - 0.5) * 0.06;
+        const reach = radius * (1 - f) * (0.82 + 0.3 * ridge + wobble * 0.4 + rough);
+        const x = cx + Math.cos(a) * reach + lean.x * f;
+        const z = cz + Math.sin(a) * reach + lean.z * f;
+        if (j === 0) feet[k] = Math.min(base, naturalHeight(x, z) - 25);
+        positions.push(x, lerp(feet[k], summit, f ** 1.35) + ridge * height * 0.05 * (1 - f) * f, z);
+        const snowline = 0.62 - 0.17 * (1 - ridge) + (valueNoise(a * 6 + m, 3.1, 77) - 0.5) * 0.16;
+        color.copy(rock).lerp(forest, 1 - smoothstep(f, 0.05, 0.3));
+        color.lerp(snow, smoothstep(f, snowline - 0.03, snowline + 0.03));
+        color.multiplyScalar(0.94 + random() * 0.1);
+        colors.push(color.r, color.g, color.b);
       }
     }
-    const triangle = (a, b, c) => {
-      positions.push(...points[a], ...points[b], ...points[c]);
-      const f = ((points[a][1] + points[b][1] + points[c][1]) / 3 - base) / height;
-      color.copy(f > 0.64 ? snow : rock).multiplyScalar(0.9 + random() * 0.16);
-      for (let k = 0; k < 3; k++) colors.push(color.r, color.g, color.b);
-    };
-    for (let j = 0; j < rings; j++) {
-      for (let k = 0; k < sides; k++) {
-        const a = j * sides + k;
-        const b = j * sides + ((k + 1) % sides);
-        triangle(a, a + sides, b);
-        if (j < rings - 1) triangle(b, a + sides, b + sides);
+    for (let j = 0; j < RINGS; j++) {
+      for (let k = 0; k < SIDES; k++) {
+        const a = first + j * SIDES + k;
+        const b = first + j * SIDES + ((k + 1) % SIDES);
+        indices.push(a, a + SIDES, b, b, a + SIDES, b + SIDES);
       }
     }
   }
-  scene.add(new THREE.Mesh(triangleGeometry(positions, colors), vertexColorMaterial));
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  const peaks = new THREE.Mesh(geometry, groundMaterial());
+  peaks.name = 'peaks';
+  scene.add(peaks);
 }
 
 /** Split-rail fence around the valley and low posts beside the trail. */
