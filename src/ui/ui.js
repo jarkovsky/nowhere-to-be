@@ -4,7 +4,7 @@
 // it through callbacks.
 import { CAR_COLORS, CHARACTERS } from '../vehicles/car.js';
 import { COLORS, DECORATIONS, VEHICLES } from '../core/journal.js';
-import { gnomeArt, gnomeIcon, roofArt, vehicleArt } from './art.js';
+import { gnomeArt, gnomeIcon, roofArt } from './art.js';
 
 const $ = id => document.getElementById(id);
 
@@ -36,7 +36,8 @@ const LABELS = {
   },
 };
 
-export function createUI({ journal, gnomeCount, on }) {
+/** `pictures` has the garage's pictures of the vehicles (see pictures.js). */
+export function createUI({ journal, gnomeCount, pictures, on }) {
   const menu = $('menu');
   let toastTimer = null;
   let gnomeTimer = null;
@@ -120,28 +121,39 @@ export function createUI({ journal, gnomeCount, on }) {
     }
   }
 
+  /** A vehicle's picture for its tile, or a soft shape in its place while it's being drawn. */
+  function vehiclePicture(vehicle, color) {
+    const url = pictures.get(vehicle, color);
+    if (!url) return '<span class="waiting"></span>';
+    // The rainbow pictures change colour as the car does; the characters keep their own.
+    const rainbow = color === 'rainbow' && !CHARACTERS.includes(vehicle);
+    return `<img src="${url}" alt=""${rainbow ? ' class="rainbow"' : ''}>`;
+  }
+
+  const offeredColors = choices => COLORS.filter(c => c !== 'rainbow' || choices.rainbow);
+
+  /** Asks for the garage's pictures in every paint on offer, the chosen one first. */
+  function preparePictures() {
+    const choices = journal.get();
+    pictures.prepare(VEHICLES, [choices.color, ...offeredColors(choices)]);
+  }
+
   function renderGarage() {
     const choices = journal.get();
-    const vehicles = $('vehicle-options');
-    vehicles.style.setProperty('--paint', CAR_COLORS[choices.color] ?? CAR_COLORS.orange);
-    vehicles.classList.toggle('rainbow', choices.color === 'rainbow');
-    choiceButtons(vehicles, VEHICLES, {
+    preparePictures();
+    choiceButtons($('vehicle-options'), VEHICLES, {
       label: v => LABELS.vehicles[v],
-      art: vehicleArt,
+      art: v => vehiclePicture(v, choices.color),
       isPressed: v => v === choices.vehicle,
       choose: v => ({ vehicle: v }),
     });
-    choiceButtons(
-      $('color-options'),
-      COLORS.filter(c => c !== 'rainbow' || choices.rainbow),
-      {
-        label: c => LABELS.colors[c],
-        art: () => '',
-        isPressed: c => c === choices.color,
-        choose: c => ({ color: c }),
-        style: c => `--swatch:${CAR_COLORS[c] ?? 'transparent'}`,
-      },
-    );
+    choiceButtons($('color-options'), offeredColors(choices), {
+      label: c => LABELS.colors[c],
+      art: () => '',
+      isPressed: c => c === choices.color,
+      choose: c => ({ color: c }),
+      style: c => `--swatch:${CAR_COLORS[c] ?? 'transparent'}`,
+    });
     // The characters keep their own colours.
     $('color-options').hidden = CHARACTERS.includes(choices.vehicle);
     // Roof items can be combined, so each button toggles its own item.
@@ -231,6 +243,7 @@ export function createUI({ journal, gnomeCount, on }) {
     },
     openMenu({ nearCamp, camping }) {
       refreshMenu();
+      preparePictures();
       $('camp').hidden = !nearCamp || camping;
       showPage('main');
       if (!menu.open) menu.showModal();
@@ -238,6 +251,14 @@ export function createUI({ journal, gnomeCount, on }) {
     openPage(name) {
       if (!menu.open) menu.showModal();
       showPage(name);
+    },
+    /** Puts the vehicles' pictures in the garage as they are drawn, in place of the shapes waiting for them. */
+    showPictures() {
+      const { color } = journal.get();
+      for (const waiting of $('vehicle-options').querySelectorAll('.waiting')) {
+        const vehicle = waiting.parentElement.dataset.value;
+        if (pictures.get(vehicle, color)) waiting.outerHTML = vehiclePicture(vehicle, color);
+      }
     },
     closeMenu() {
       setShowroom(false);

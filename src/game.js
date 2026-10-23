@@ -11,6 +11,7 @@ import { createTrailerState, stepTrailer } from './core/trailer.js';
 import { createControls } from './input/controls.js';
 import { createLook } from './input/look.js';
 import { createTiltSteering } from './input/tilt.js';
+import { createVehiclePictures } from './ui/pictures.js';
 import { createUI } from './ui/ui.js';
 import { createCar } from './vehicles/car.js';
 import { OUTER, RING, createTraffic } from './vehicles/traffic.js';
@@ -140,9 +141,11 @@ export function createGame(canvas) {
   let mode = 'title'; // 'title' | 'driving' | 'paused' | 'camping'
   let pausedFrom = 'driving';
 
+  const pictures = createVehiclePictures(renderer, { onReady: () => ui.showPictures() });
   const ui = createUI({
     journal,
     gnomeCount: GNOMES.length,
+    pictures,
     on: {
       play,
       pause: () => pause(),
@@ -575,6 +578,9 @@ export function createGame(canvas) {
     const dt = Math.min(frameMs / 1000, 0.05);
 
     if (mode === 'paused') {
+      // The garage's pictures are drawn one a frame while the game stands still. Drawing
+      // one clears the mud, which all the cars share, so the car's own is put back.
+      if (pictures.drawNext()) car.setMud(dirt);
       if (showroom) {
         car.animate(now / 1000);
         updateTent(dt, 1 - atmosphere.getState().day);

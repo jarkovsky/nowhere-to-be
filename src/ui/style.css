@@ -793,29 +793,49 @@ body.touch .keys {
 
 .vehicle-tiles button {
   aspect-ratio: 1.45;
+  /* The tile sizes its picture, which is drawn larger than it is shown, not the other way round. */
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
 }
 
 .roof-tiles button {
   aspect-ratio: 1;
 }
 
-.vehicle-tiles svg,
-.roof-tiles svg {
+.vehicle-tiles img {
   width: 100%;
   height: 100%;
+  object-fit: contain;
+  /* Taps go to the button, and a long press doesn't offer to save the picture. */
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* A soft shape where a picture goes until it is drawn. */
+.vehicle-tiles .waiting {
+  width: 72%;
+  height: 46%;
+  border-radius: 14px;
+  background: var(--paper-deep);
+}
+
+/* The rainbow paint changes colour as the car drives, and so do its pictures. */
+@media (prefers-reduced-motion: no-preference) {
+  .vehicle-tiles img.rainbow {
+    animation: rainbow 12.5s linear infinite;
+  }
+}
+
+@keyframes rainbow {
+  to {
+    filter: hue-rotate(360deg);
+  }
 }
 
 .roof-tiles svg {
   width: 78%;
   height: 78%;
-}
-
-.vehicle-tiles .paint {
-  fill: var(--paint);
-}
-
-.vehicle-tiles.rainbow .paint {
-  fill: url(#rainbow);
 }
 
 .vehicle-tiles button[aria-pressed='true'],
