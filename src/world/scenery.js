@@ -35,6 +35,7 @@ import {
   FARMSTEAD,
   KNOLLS,
   SPAWN,
+  DEPOT,
   VALLEY_RADIUS,
   UPLANDS_RADIUS,
   HABITATS,
@@ -384,6 +385,7 @@ const FAR_CELL = 480;
 /** Circles kept clear of trees and rocks. */
 const CLEARINGS = [
   { x: SPAWN.x, z: SPAWN.z, r: 16 },
+  { x: DEPOT.x, z: DEPOT.z, r: 26 },
   { x: CAMP.x, z: CAMP.z, r: 24 },
   { x: CABIN.x, z: CABIN.z, r: 14 },
   { x: LOOKOUT.x, z: LOOKOUT.z, r: 26 },

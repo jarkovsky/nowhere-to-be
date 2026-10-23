@@ -21,6 +21,7 @@ import { buildRockGate } from './rockgate.js';
 import { buildFjord } from './fjord.js';
 import { buildFarms } from './farms.js';
 import { buildVillage } from './village.js';
+import { buildDepot } from './depot.js';
 import { HELIPAD, KRYSTOF } from '../layout.js';
 
 export { insideTunnel } from './tunnel.js';
@@ -49,12 +50,19 @@ export function buildLandmarks(scene, obstacles) {
   const fjord = buildFjord(scene, obstacles);
   const farms = buildFarms(scene, obstacles);
   const village = buildVillage(scene, obstacles);
+  const depot = buildDepot(scene, obstacles);
   buildSigns(scene, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard });
 
   let time = 0;
   const machines = [];
   return {
-    occluders: [...tunnel.occluders, ...waterfall.occluders, ...airfield.occluders, ...gate.occluders],
+    occluders: [
+      ...tunnel.occluders,
+      ...waterfall.occluders,
+      ...airfield.occluders,
+      ...gate.occluders,
+      ...depot.occluders,
+    ],
     fire: camps.fire,
     /** The level crossing: where traffic waits, and the barriers while they are down. */
     crossing,
@@ -83,6 +91,7 @@ export function buildLandmarks(scene, obstacles) {
       fjord.update(dt);
       farms.update(time);
       village.update(dt);
+      depot.update(night);
     },
   };
 }

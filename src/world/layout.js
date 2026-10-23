@@ -1012,6 +1012,20 @@ export const TUNNEL = { ...tunnelCentre, length: 38, radius: 6.4 };
 const start = ROAD.at(nearestRoadSample(-36, 97).s);
 export const SPAWN = { x: start.x, z: start.z, heading: headingOf(start.dx, start.dz) };
 
+/**
+ * The depot: a garage with four open doors beside the trail a little way on from the start,
+ * where friends wait to be asked along. Its front faces the trail (its own +Z) from the left
+ * of the way the player sets off, and `s` is how far along the trail it is. Each of `bays` is a
+ * door, `x` metres along the front, and the vehicles in them stand with their noses `noses`
+ * metres out from the doors.
+ */
+export const DEPOT = (() => {
+  const s = ROAD.nearest(SPAWN.x, SPAWN.z).s + 62;
+  // Far enough back that its yard is clear of where the trail is banked into the slope.
+  const p = ROAD.offset(s, -25);
+  return { x: p.x, z: p.z, rotation: Math.atan2(-p.dz, p.dx), s, bays: [-8.25, -2.75, 2.75, 8.25], noses: 4.6 };
+})();
+
 const { x: haltX, z: haltZ } = RAILWAY.offset((HALT.from + HALT.to) / 2, HALT.side * 4);
 const haltCentre = { x: haltX, z: haltZ };
 
@@ -1030,6 +1044,7 @@ export const PLACES = [
   { id: 'chata', x: CHATA.x, z: CHATA.z },
   { id: 'bunker', x: BUNKERS[1].x, z: BUNKERS[1].z },
   { id: 'halt', ...haltCentre },
+  { id: 'depot', x: DEPOT.x, z: DEPOT.z },
   { id: 'roadworks', x: ROADWORKS.site.x, z: ROADWORKS.site.z },
   { id: 'helipad', x: HELIPAD.x, z: HELIPAD.z },
   { id: 'chapel', x: CHAPEL.x, z: CHAPEL.z },
@@ -1072,6 +1087,8 @@ export const PADS = [
   { x: CHAPEL.x, z: CHAPEL.z, radius: 5, falloff: 6 },
   { x: SUMMIT.x, z: SUMMIT.z, radius: 8, falloff: 10 },
   { x: FARMSTEAD.x, z: FARMSTEAD.z, radius: 12, falloff: 10 },
+  // Cut into the slope a little above the trail, so the yard runs gently up from it.
+  { x: DEPOT.x, z: DEPOT.z, radius: 17, falloff: 9, level: 1 },
 ];
 
 function patchOnRoad(x, z) {

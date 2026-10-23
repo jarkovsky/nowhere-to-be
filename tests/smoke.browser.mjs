@@ -192,6 +192,19 @@ try {
   assert.ok(Math.hypot(home.car.x - camp.x, home.car.z - camp.z) < 1, 'back at the start');
   step('the home button in the menu takes the car back to the start');
 
+  await page.evaluate(() => window.__game.toDepot(-5, 15));
+  await page.waitForTimeout(300);
+  await page.keyboard.press('KeyF');
+  await page.waitForTimeout(300);
+  const asked = (await state(page)).friends.filter(friend => friend.mode === 'following');
+  assert.equal(asked.length, 1);
+  await page.keyboard.down('ArrowDown');
+  await page.waitForTimeout(2500);
+  await page.keyboard.up('ArrowDown');
+  const along = (await state(page)).friends.find(friend => friend.vehicle === asked[0].vehicle);
+  assert.ok(Math.hypot(along.x - asked[0].x, along.z - asked[0].z) > 1, 'it pulls out after the car');
+  step('F by the depot asks the nearest friend along, and it follows');
+
   console.log('Phone');
   const phone = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await phone.getByRole('button', { name: 'Play' }).tap();
@@ -212,6 +225,21 @@ try {
   assert.equal(await phone.getByRole('button', { name: 'Drive', exact: true }).isVisible(), false);
   assert.ok(await phone.getByRole('button', { name: 'Brake and reverse' }).isVisible());
   step('with cruise control on, only the brake and reverse pedal shows');
+
+  await phone.evaluate(() => window.__game.toDepot(-3, 14));
+  await phone.waitForTimeout(600);
+  const target = await phone.evaluate(() => {
+    const { friends, carHeight } = window.__game.getState();
+    const friend = friends.find(f => f.bay === 1);
+    const camera = window.__game.debug.camera;
+    const p = new camera.position.constructor(friend.x, carHeight + 1.2, friend.z).project(camera);
+    return { vehicle: friend.vehicle, x: ((p.x + 1) / 2) * innerWidth, y: ((1 - p.y) / 2) * innerHeight };
+  });
+  await phone.touchscreen.tap(target.x, target.y);
+  await phone.waitForTimeout(300);
+  const tapped = (await state(phone)).friends.find(friend => friend.vehicle === target.vehicle);
+  assert.equal(tapped.mode, 'following');
+  step('a tap on a friend at the depot asks it along');
 
   assert.deepEqual(errors, []);
   step('no errors in the console');

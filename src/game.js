@@ -10,10 +10,12 @@ import { chassisPose, settleWheels } from './core/suspension.js';
 import { createTrailerState, stepTrailer } from './core/trailer.js';
 import { createControls } from './input/controls.js';
 import { createLook } from './input/look.js';
+import { createTap } from './input/tap.js';
 import { createTiltSteering } from './input/tilt.js';
 import { createVehiclePictures } from './ui/pictures.js';
 import { createUI } from './ui/ui.js';
 import { createCar } from './vehicles/car.js';
+import { createFriends } from './vehicles/friends.js';
 import { OUTER, RING, createTraffic } from './vehicles/traffic.js';
 import { createTrain } from './vehicles/train.js';
 import { AIR_AMBULANCE, VALLEY_RESCUE, createHelicopter } from './vehicles/helicopter.js';
@@ -26,6 +28,7 @@ import { createMudHole } from './world/mudhole.js';
 import {
   CAMP,
   CAMP_TRAIL,
+  DEPOT,
   GNOMES,
   LEVEL_CROSSING,
   ROAD,
@@ -198,6 +201,8 @@ export function createGame(canvas) {
 
   // Everything that moves and can be bumped into: the other travellers, the train and the crossing barriers.
   const moving = [];
+  // What the traffic and the train wait for besides the car: its trailer, and friends coming along.
+  const towed = [];
   const world = {
     obstacles: createObstacleIndex(obstacles),
     dynamic: moving,
@@ -207,6 +212,14 @@ export function createGame(canvas) {
     waterDepth: wadingDepth,
   };
   const mudHole = createMudHole(scene, { obstacles: world.obstacles, onToot: () => sound.otherHorn() });
+
+  // Friends wait at the depot to come along for the ride.
+  const friends = createFriends(scene, {
+    obstacles: world.obstacles,
+    vehicle: journal.get().vehicle,
+    color: journal.get().color,
+    onHorn: (kind, x, z) => (kind === 'air' ? sound.horn(insideTunnel(x, z), 'air') : sound.otherHorn()),
+  });
 
   const tilt = createTiltSteering(window, info => ui.setTilt(info));
   const controls = createControls({
@@ -228,6 +241,17 @@ export function createGame(canvas) {
     onZoom: amount => chase.zoom(amount),
   };
   createLook(canvas, { accepts: () => mode === 'driving', ...swing });
+  // A tap on a friend at the depot asks it along.
+  const tapRay = new THREE.Raycaster();
+  const tapPoint = new THREE.Vector2();
+  createTap(canvas, {
+    accepts: () => mode === 'driving',
+    onTap(x, y) {
+      tapPoint.set((x / innerWidth) * 2 - 1, 1 - (y / innerHeight) * 2);
+      tapRay.setFromCamera(tapPoint, camera);
+      friends.tap(tapRay.ray, state);
+    },
+  });
   createLook(menu, {
     accepts: event => {
       if (!showroom || event.target !== menu) return false;
@@ -258,6 +282,7 @@ export function createGame(canvas) {
     if (action === 'home') goHome();
     if (action === 'garage') pause('garage');
     if (action === 'cruise') toggleCruise();
+    if (action === 'invite') friends.inviteNearest();
     return true;
   }
 
@@ -351,6 +376,7 @@ export function createGame(canvas) {
     for (const helicopter of helicopters) helicopter.hearHorn(state);
     landmarks.hearHorn(state.x, state.z);
     planes.hearHorn(state);
+    friends.hearHorn();
   }
 
   function unlockRainbow() {
@@ -365,6 +391,7 @@ export function createGame(canvas) {
     car.customize(color, decorations, vehicle);
     hasTent = decorations.includes('tent');
     sound.setEngine(car.spec.voice?.engine);
+    friends.choose(vehicle, color);
     trailer.ready = false;
     if (car.trailer) placeTrailer();
   }
@@ -497,6 +524,7 @@ export function createGame(canvas) {
     heading: state.heading,
     speed: state.speed,
     scale: car.spec.camera ?? 1,
+    turn: friends.lookBack(),
   });
   const compactScreen = () => innerWidth < 700 || innerHeight > innerWidth;
   const cameraOptions = () => ({
@@ -636,6 +664,7 @@ export function createGame(canvas) {
         ...landmarks.crossing.colliders(),
         ...landmarks.machines,
         ...mudHole.colliders,
+        ...friends.colliders,
       );
       // On the tractor's rope, the car goes where it is pulled.
       if (!mudHole.holding()) stepDriving(state, input, dt, world);
@@ -653,7 +682,10 @@ export function createGame(canvas) {
     car.setLights(night, driving && wasBraking);
     car.animate(clock);
     updateTent(dt, night);
-    const towed = trailerPoints();
+    const tail = trailerPoints();
+    friends.update(dt, { state, tail, driving, night, camera, dynamic: moving });
+    towed.length = 0;
+    towed.push(...tail, ...friends.points);
     train.update(dt, { player: state, towed });
     for (const helicopter of helicopters) helicopter.update(dt);
     planes.update(dt, { player: state });
@@ -745,6 +777,7 @@ export function createGame(canvas) {
         helicopter: helicopters[0].getState(),
         krystof: helicopters[1].getState(),
         plane: planes.getState(),
+        friends: friends.getState(),
         fields: landmarks.fields.getState(),
         mudHole: mudHole.getState(),
         gnomes: gnomes.getState(),
@@ -777,6 +810,12 @@ export function createGame(canvas) {
         chase.snap(carView(), cameraOptions());
       },
       followCar: () => chase.setMode('chase'),
+      /** Puts the car in the depot's yard, `lx` along the doors and `lz` out from them, facing them. */
+      toDepot(lx, lz) {
+        const cos = Math.cos(DEPOT.rotation);
+        const sin = Math.sin(DEPOT.rotation);
+        this.teleport(DEPOT.x + lx * cos + lz * sin, DEPOT.z - lx * sin + lz * cos, DEPOT.rotation);
+      },
       /** For measuring what is drawn. */
       debug: { scene, camera, renderer, sun },
     };

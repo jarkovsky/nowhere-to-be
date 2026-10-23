@@ -51,16 +51,17 @@ Play it at [nowhere-to-be.jarkovsky.com](https://nowhere-to-be.jarkovsky.com).
 
 ![Keyboard, touch and tilt controls](docs/controls.svg)
 
-|               | Keyboard and mouse   | Phone or tablet                    |
-| ------------- | -------------------- | ---------------------------------- |
-| Drive         | `W A S D` or arrows  | Pedals (right) and steering (left) |
-| Steer         | `A` `D` or `←` `→`   | Arrows, or tilt the device         |
-| Brake         | `Space`              | Down pedal (hold to reverse)       |
-| Horn          | `H`                  | Horn button above the pedals       |
-| Look          | Drag, scroll to zoom | Drag on the scenery                |
-| Cruise        | `E`                  | In the menu                        |
-| Pause         | `Esc`                | ❚❚ button, top right               |
-| Back to start | `R`                  | Home button in the menu            |
+|                | Keyboard and mouse   | Phone or tablet                    |
+| -------------- | -------------------- | ---------------------------------- |
+| Drive          | `W A S D` or arrows  | Pedals (right) and steering (left) |
+| Steer          | `A` `D` or `←` `→`   | Arrows, or tilt the device         |
+| Brake          | `Space`              | Down pedal (hold to reverse)       |
+| Horn           | `H`                  | Horn button above the pedals       |
+| Look           | Drag, scroll to zoom | Drag on the scenery                |
+| Cruise         | `E`                  | In the menu                        |
+| Bring a friend | `F` by the depot     | Tap the friend at the depot        |
+| Pause          | `Esc`                | ❚❚ button, top right               |
+| Back to start  | `R`                  | Home button in the menu            |
 
 To carry on after pausing, press the big play button or tap the game around the menu. With cruise control on, the car keeps driving by itself, so on touch screens only the pedal for braking and reversing shows.
 
@@ -96,6 +97,7 @@ To play on your phone from your own computer, run `npm run dev` and open the **N
 - **Side tracks.** Narrow dirt tracks lead off the main trail to the farm, the tower, the windmill, the summit, the upland farm and up a hairpin to the hut, a path follows the lake shore, and a new road is being built to the south.
 - **The mud hole.** Below the farm, where the lane between the paddock and the wheat field runs out into the meadow, there is a deep mud hole. Drive into it and the car sinks in and gets stuck, its wheels spinning and throwing up mud. After a few seconds the farm's red tractor comes over, stops in front of the car, and pulls it out on a rope onto firm ground, then toots and drives home. The car can also creep back out in reverse before the tractor gets there.
 - **The garage.** Pick an off-roader, a pickup, a camper van, a saloon or a tractor by its picture, then a colour and roof items. There are also four characters with colours of their own: Oliver and Ruda, a blue and a red lorry that each pull a trailer, a rally car and a racing car. The lorries have a deep air horn. The roof tent opens when the car has been parked for a moment: the lid folds out as an awning on two poles and a ladder comes down beside the car.
+- **The depot.** A little way along the trail from the start, some of the vehicles you aren't driving wait at a depot, Oliver and Ruda among them. Drive up and an arrow bobs over each one. Tap one (or press `F`) and it honks, flashes its lamps, pulls out and follows you a little way behind, stopping when you stop and honking back when you honk. Two can come along at once. Tap one while you are stopped, or park at the depot with them, and they stay and go back to their bays.
 - **Garden gnomes.** Ten are hidden around the valley, some of them far off the trail. Each one you find fills in a row of gnomes on screen, so you can see how many are left without reading. The same row is in the pause menu. Finding them all unlocks something for the car.
 - **A few secrets.** Try the horn in the tunnel, near the animals, at passing cars and the train, at the helipads, at the fire station and next to the planes. Keep an eye on the snow, too.
 
@@ -115,7 +117,7 @@ src/
   core/       driving physics, collisions, suspension, camera, audio, save data
   input/      keyboard, touch and tilt steering
   world/      layout, terrain, scenery, landmarks, wildlife, weather, secrets
-  vehicles/   the player's vehicles, the other travellers, the train, the helicopters and the planes
+  vehicles/   the player's vehicles, the friends, the other travellers, the train, the helicopters and the planes
   ui/         title screen, pause menu, garage, styles
 ```
 

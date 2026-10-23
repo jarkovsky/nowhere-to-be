@@ -14,6 +14,7 @@ import {
   OXBOW,
   SPRING,
   CAMP,
+  DEPOT,
   FARM,
   TOWER,
   WINDMILL,
@@ -388,6 +389,7 @@ function paintMap(ctx, w, h) {
     rockhill: 'Rocky hill',
     fjord: 'Fjord',
     village: 'Fire station',
+    depot: 'Depot',
     horses: 'Horses',
     goats: 'Goats',
   };
@@ -507,6 +509,7 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
   const parts = new PartsBuilder();
   const junction = ROAD.nearest(CAMP_TRAIL.samples[0].x, CAMP_TRAIL.samples[0].z).s;
   trailSign(scene, parts, junction - 10, -1, 'CAMPSITE', CAMP);
+  trailSign(scene, parts, DEPOT.s - 24, -1, 'DEPOT', DEPOT);
   trailSign(scene, parts, BRIDGE.s - 16, 1, 'WHISPERING FALLS', WATERFALL);
   const lookout = ROAD.nearest(LOOKOUT.x, LOOKOUT.z).s;
   trailSign(scene, parts, lookout - 12, -1, 'LOOKOUT', LOOKOUT);

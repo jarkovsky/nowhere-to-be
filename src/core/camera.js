@@ -127,10 +127,11 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
       if (!orbit.dragging) orbit.idle += dt;
       if (mode === 'chase') {
         heading += angleDelta(heading, car.heading) * (1 - Math.exp(-2.6 * dt));
-        // Once the player lets go, the view drifts back behind the car.
+        // Once the player lets go, the view drifts back behind the car, or round to `car.turn`
+        // (to look back past the car at friends waiting behind it).
         if (!orbit.dragging && orbit.idle > 1.2) {
           const settle = Math.abs(car.speed) > 1 ? 2.2 : 0.9;
-          orbit.yaw = damp(angleDelta(0, orbit.yaw), 0, settle, dt);
+          orbit.yaw = damp(angleDelta(0, orbit.yaw), car.turn ?? 0, settle, dt);
           orbit.pitch = damp(orbit.pitch, 0, settle, dt);
           orbit.zoom = damp(orbit.zoom, 1, settle * 0.5, dt);
         }

@@ -21,6 +21,7 @@ const ACTION_KEYS = {
   KeyC: 'garage',
   KeyM: 'sound',
   KeyE: 'cruise',
+  KeyF: 'invite',
 };
 
 const KONAMI = [
