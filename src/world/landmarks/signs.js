@@ -11,6 +11,7 @@ import {
   LAKE,
   CREEK,
   BROOK,
+  OXBOW,
   SPRING,
   CAMP,
   FARM,
@@ -312,6 +313,17 @@ function paintMap(ctx, w, h) {
   CREEK.samples.forEach((p, i) => (i ? ctx.lineTo(px(p.x), pz(p.z)) : ctx.moveTo(px(p.x), pz(p.z))));
   BROOK.samples.forEach((p, i) => (i ? ctx.lineTo(px(p.x), pz(p.z)) : ctx.moveTo(px(p.x), pz(p.z))));
   ctx.stroke();
+  // The oxbow, as wide as it is: along one bank and back along the other.
+  ctx.fillStyle = '#8fbcbf';
+  ctx.beginPath();
+  const banks = OXBOW.path.samples.filter(({ s }) => OXBOW.halfWidth(s) > 0);
+  for (const side of [1, -1]) {
+    for (const { s } of side > 0 ? banks : [...banks].reverse()) {
+      const p = OXBOW.path.offset(s, side * OXBOW.halfWidth(s));
+      ctx.lineTo(px(p.x), pz(p.z));
+    }
+  }
+  ctx.fill();
   const trail = (path, width, dash = [14, 9]) => {
     ctx.strokeStyle = '#8a6440';
     ctx.lineWidth = width;
@@ -361,6 +373,7 @@ function paintMap(ctx, w, h) {
     lookout: 'Lookout',
     farm: 'Farm',
     tower: 'Fire Tower',
+    oxbow: 'Deep ford',
     windmill: 'Windmill',
     jetty: 'Jetty',
     chata: 'Masarykova chata',
@@ -398,8 +411,9 @@ function paintMap(ctx, w, h) {
   const taken = [write('VALLEY TRAIL', 40, 62, 40)];
   ctx.font = `700 26px ${FONT}`;
   ctx.textAlign = 'center';
-  // Labels sit above their dot, except where that would crowd a neighbour.
+  // Labels sit above their dot, except where that would crowd a neighbour: then below it, or beside it.
   const below = ['bridge', 'jetty', 'lookout', 'bunker', 'helipad'];
+  const beside = ['oxbow'];
   const margin = 46;
   const clampX = x => Math.min(w - margin, Math.max(margin, x));
   const clampY = y => Math.min(h - margin, Math.max(34, y));
@@ -407,7 +421,11 @@ function paintMap(ctx, w, h) {
   for (const place of PLACES) {
     const [x, y] = [px(place.x), pz(place.z)];
     if (clampX(x) !== x || clampY(y) !== y) beyond.push(place);
-    else taken.push(dot(x, y, 7), write(labels[place.id], x, y + (below.includes(place.id) ? 32 : -16), 26));
+    else if (beside.includes(place.id)) {
+      ctx.textAlign = 'left';
+      taken.push(dot(x, y, 7), write(labels[place.id], x + 14, y + 9, 26));
+      ctx.textAlign = 'center';
+    } else taken.push(dot(x, y, 7), write(labels[place.id], x, y + (below.includes(place.id) ? 32 : -16), 26));
   }
   ctx.fillStyle = '#c75b32';
   taken.push(dot(px(SPAWN.x), pz(SPAWN.z), 11), write('You are here', px(SPAWN.x), pz(SPAWN.z) + 38, 26));

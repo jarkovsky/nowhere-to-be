@@ -14,6 +14,7 @@ import {
   BROOK_HALF_WIDTH,
   FORD,
   SPRING,
+  OXBOW,
   TRACK_ROCKS,
   CAMP_TRAIL,
   TRACKS,
@@ -476,7 +477,8 @@ for (const [vertex, { index, distance }] of nearestSamples(FJORD.path, 170)) {
 levelAlong(CAMP_TRAIL, () => 2.4, 6);
 // Tracks off the gravel roads are laid after the roads, so they leave them where the roads now are.
 const offGravel = ({ path }) => GRAVEL.some(road => road.isNear(path.samples[0].x, path.samples[0].z, 1));
-const levelTrack = track => levelAlong(track.path, () => track.width ?? 2, 8, { grade: track.grade });
+const levelTrack = track =>
+  levelAlong(track.path, () => track.width ?? 2, 8, { grade: track.grade, window: track.window });
 TRACKS.filter(track => !offGravel(track)).forEach(levelTrack);
 const PAVED_WIDTH = () => ROAD_HALF_WIDTH + 1.4;
 const ringLevels = levelAlong(RING_ROAD, PAVED_WIDTH, 10, { window: 30, banks: 1.5, grade: 0.1 });
@@ -624,6 +626,25 @@ forEachVertexNear(SPRING.x, SPRING.z, SPRING.radius + 8, (vertex, _x, _z, distan
     heights[vertex] = Math.max(heights[vertex], SPRING_LEVEL + 0.12);
 });
 
+// The oxbow's water lies just below the lowest ground around it, so it fills the channel dug
+// for it and no more. The channel shelves smoothly down to its deepest along the middle, which
+// keeps the ford's slopes gentle, and its banks rise out of the water, more gently where the
+// track goes down into it and up out again.
+const OXBOW_REACH = 12;
+export const OXBOW_LEVEL =
+  Math.min(...nearestSamples(OXBOW.path, OXBOW_REACH).map(([vertex]) => heights[vertex])) - 0.05;
+const oxbowTrack = TRACKS.find(track => track.id === 'oxbow').path;
+for (const [vertex, { index, distance }] of nearestSamples(OXBOW.path, OXBOW_REACH + 6)) {
+  const { s } = OXBOW.path.samples[index];
+  const halfWidth = OXBOW.halfWidth(s);
+  const onTrack =
+    1 - smoothstep(oxbowTrack.nearest(AXIS[vertex % GRID], AXIS[Math.floor(vertex / GRID)]).distance, 3, 7);
+  const bed =
+    distance < halfWidth
+      ? OXBOW_LEVEL - OXBOW.depth(s) * (0.5 + 0.5 * Math.cos((Math.PI * distance) / halfWidth))
+      : OXBOW_LEVEL + (distance - halfWidth) * lerp(0.35, 0.16, onTrack);
+  heights[vertex] = Math.min(heights[vertex], bed);
+}
 closestIndex = closestDistance = null;
 
 export { heights };
@@ -679,6 +700,7 @@ export function waterLevel(x, z) {
   }
   if (BROOK.isNear(x, z, BROOK_HALF_WIDTH + 4)) level = Math.max(level, brookLevel(BROOK.nearest(x, z).s));
   if (Math.hypot(x - SPRING.x, z - SPRING.z) < SPRING.radius + 2) level = Math.max(level, SPRING_LEVEL);
+  if (OXBOW.path.isNear(x, z, OXBOW_REACH)) level = Math.max(level, OXBOW_LEVEL);
   const river = nearRiver(x, z, 10);
   if (river) level = Math.max(level, riverLevel(river.river, river.s));
   if (inFjord(x, z, 6)) level = Math.max(level, FJORD.level);
@@ -790,6 +812,11 @@ export function drivingHeight(x, z) {
   const ground = terrainHeight(x, z) + rockHeight(x, z);
   const deck = bridgeHeight(x, z) ?? jettyHeight(x, z);
   return deck === null ? ground : Math.max(ground, deck);
+}
+
+/** How deep the water is that the tyres are in: none on the planks of the bridge or the jetty. */
+export function wadingDepth(x, z) {
+  return onDeck(x, z) ? 0 : waterDepth(x, z);
 }
 
 /** True where the car is allowed to be: inside the fence and out of deep water. */

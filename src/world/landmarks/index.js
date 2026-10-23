@@ -6,6 +6,7 @@ import { buildFarm } from './farm.js';
 import { buildTower } from './tower.js';
 import { buildWindmill } from './windmill.js';
 import { buildJetty } from './jetty.js';
+import { buildOxbow } from './oxbow.js';
 import { buildHut } from './hut.js';
 import { buildBunkers } from './bunkers.js';
 import { buildRailway } from './railway.js';
@@ -34,6 +35,7 @@ export function buildLandmarks(scene, obstacles) {
   const tower = buildTower(scene, obstacles);
   const windmill = buildWindmill(scene, obstacles);
   const jetty = buildJetty(scene, obstacles);
+  buildOxbow(scene, obstacles);
   const hut = buildHut(scene, obstacles);
   buildBunkers(scene, obstacles);
   const crossing = buildRailway(scene, obstacles);

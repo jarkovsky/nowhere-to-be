@@ -42,7 +42,17 @@ import { SHADOW_LAYER } from './world/scatter.js';
 import { buildScenery } from './world/scenery.js';
 import { createSecrets } from './world/secrets.js';
 import { createSurfaces } from './world/surfaces.js';
-import { drivingHeight, isDriveable, onDeck, snowCover, terrainHeight, waterDepth } from './world/terrain.js';
+import {
+  drivingHeight,
+  isDriveable,
+  onDeck,
+  snowCover,
+  terrainHeight,
+  wadingDepth,
+  waterDepth,
+  waterLevel,
+} from './world/terrain.js';
+import { createWake } from './world/wake.js';
 import { createWildlife } from './world/wildlife.js';
 
 const MAX_PIXEL_RATIO = 1.5;
@@ -125,6 +135,7 @@ export function createGame(canvas) {
   const landmarks = buildLandmarks(scene, obstacles);
   const atmosphere = createAtmosphere(scene, sun, ambient);
   const surfaces = createSurfaces(scene, sound);
+  const wading = createWake(scene);
   obstacles.push(...surfaces.obstacles);
   const traffic = createTraffic(scene);
   const ringTraffic = createTraffic(scene, RING);
@@ -192,6 +203,7 @@ export function createGame(canvas) {
     surface: surfaceUnder,
     slope: slopeAlong,
     isDriveable,
+    waterDepth: wadingDepth,
   };
 
   const tilt = createTiltSteering(window, info => ui.setTilt(info));
@@ -202,7 +214,9 @@ export function createGame(canvas) {
     onAction: handleAction,
   });
 
-  const chase = createChaseCamera(camera, { occluders: landmarks.occluders, groundHeight: terrainHeight });
+  // The camera keeps above the water as well as the ground.
+  const aboveGround = (x, z) => Math.max(terrainHeight(x, z), waterLevel(x, z));
+  const chase = createChaseCamera(camera, { occluders: landmarks.occluders, groundHeight: aboveGround });
 
   // Drag to look around: on the scenery while driving, and beside the menu in the garage.
   const menu = document.getElementById('menu');
@@ -410,7 +424,9 @@ export function createGame(canvas) {
     }
     body.lastSpeed = state.speed;
     body.lastHeading = state.heading;
-    car.body.rotation.set(body.pitch, 0, body.roll);
+    // In deep water the body also rides up a little on its springs and rocks.
+    car.body.position.y = wading.float.lift;
+    car.body.rotation.set(body.pitch + wading.float.pitch, 0, body.roll + wading.float.roll);
 
     const wheelAngle = steerAngle(state.steering, state.speed);
     for (const wheel of car.wheels) {
@@ -636,6 +652,7 @@ export function createGame(canvas) {
     secrets.update(dt, state, true, night);
     gnomes.update(dt, state, driving);
     surfaces.update(dt, state, driving);
+    if (driving) wading.update(dt, state, car, car.trailer ? trailer : null);
     if (driving) {
       // Puddles lie on the trail, so the tyres find them rather than the driving surface.
       const surface = surfaces.getState().surface === 'puddle' ? 'puddle' : surfaceUnder(state.x, state.z);

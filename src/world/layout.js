@@ -494,6 +494,47 @@ export const BROOK = createPath(
 export const BROOK_HALF_WIDTH = 1.8;
 export const SPRING = { x: 47, z: -192, radius: 3.2 };
 
+const oxbowPath = createPath([
+  [60, 136],
+  [52, 142],
+  [45.5, 148],
+  [39, 155],
+  [32, 162],
+  [24, 167],
+  [15, 170],
+]);
+const OXBOW_FORD = 19;
+/**
+ * An oxbow in the hollow south of the trail: a curving arm of still water, left behind where a
+ * river once looped. `halfWidth(s)` is how far the water reaches either side of its middle,
+ * `s` metres along it from the north-eastern end, and `depth(s)` how deep it is along its
+ * middle. It is widest and deepest at the ford, where it comes up to a car's doors, and
+ * shallows off towards its ends; past them `halfWidth` is below nothing and the ground is dry.
+ */
+export const OXBOW = {
+  path: oxbowPath,
+  /** Where the oxbow track fords it, and the way across from its north-western bank. */
+  ford: (() => {
+    const p = oxbowPath.at(OXBOW_FORD);
+    return { s: OXBOW_FORD, x: p.x, z: p.z, dx: p.dz, dz: -p.dx };
+  })(),
+  halfWidth(s) {
+    const ford = 1 - smoothstep(Math.abs(s - OXBOW_FORD), 3, 14);
+    const ends = smoothstep(Math.min(s, oxbowPath.length - s), 0, 14);
+    return (lerp(5.5, 8, ford) + 2) * ends - 2;
+  },
+  depth(s) {
+    const ford = 1 - smoothstep(Math.abs(s - OXBOW_FORD), 2, 12);
+    return lerp(0.66, 0.78, ford) * smoothstep(Math.min(s, oxbowPath.length - s), 2, 16);
+  },
+};
+
+/** A point `t` metres across the oxbow at the ford, from its middle towards the south-eastern bank. */
+function acrossOxbow(t) {
+  const { x, z, dx, dz } = OXBOW.ford;
+  return [x + dx * t, z + dz * t];
+}
+
 /** A narrow dirt spur from the trail down to the lakeside campsite. */
 export const CAMP_TRAIL = createPath([
   [-24, 97],
@@ -586,10 +627,35 @@ function fromOuterRoad(...points) {
 
 /**
  * Narrow side tracks: two dirt ruts with grass between, or a footpath along the shore.
- * `grade`, where given, is the steepest they climb.
+ * `grade`, where given, is the steepest they climb, and `window` how far either way the lie of
+ * the land is smoothed along them (14 m unless given).
  */
 export const TRACKS = [
   { id: 'farm', ruts: true, path: createPath(fromRoad(-118, 52, [-104, 38], [-92, 27], [-80, 18])) },
+  {
+    // Down into the hollow, through the oxbow at the ford and round to the tower track. It is
+    // levelled before the tower track, so it meets that track as it is, and keeps close to the
+    // lie of the land, so it goes down to the water rather than out over it.
+    id: 'oxbow',
+    ruts: true,
+    grade: 0.2,
+    window: 9,
+    path: createPath(
+      fromRoad(
+        22,
+        109,
+        [26, 121],
+        [32, 132],
+        acrossOxbow(-9),
+        acrossOxbow(0),
+        acrossOxbow(9),
+        [60, 156],
+        [66, 149],
+        [70, 139],
+        [73, 127],
+      ),
+    ),
+  },
   {
     id: 'tower',
     ruts: true,
@@ -927,6 +993,7 @@ export const PLACES = [
   { id: 'lookout', x: LOOKOUT.x, z: LOOKOUT.z },
   { id: 'farm', x: FARM.x, z: FARM.z },
   { id: 'tower', x: TOWER.x, z: TOWER.z },
+  { id: 'oxbow', x: OXBOW.ford.x, z: OXBOW.ford.z },
   { id: 'windmill', x: WINDMILL.x, z: WINDMILL.z },
   { id: 'jetty', x: JETTY.x, z: JETTY.z + 6 },
   { id: 'chata', x: CHATA.x, z: CHATA.z },

@@ -1,7 +1,7 @@
 // Arcade off-road handling, independent of rendering so it can be unit tested.
 // The car has a velocity vector rather than just a speed, so it can slide a
 // little on loose surfaces, and its tyres pull it back into line.
-import { angleDelta, clamp, damp, lerp } from './math.js';
+import { angleDelta, clamp, damp, lerp, smoothstep } from './math.js';
 import { penetration } from './collision.js';
 
 export const CAR = {
@@ -31,6 +31,13 @@ const SURFACE_HANDLING = {
   water: { speed: 0.42, grip: 0.7 },
 };
 
+/**
+ * Water deeper than `from` metres holds the car back further: by `to` it can only crawl along
+ * at `slowest` of the pace it could keep in shallow water, and it slows to that pace quickly.
+ * It always keeps going, though, so a car never sticks in the middle of a ford.
+ */
+export const WADING = { from: 0.25, to: 0.55, slowest: 0.4 };
+
 /** Front-wheel angle: plenty of lock when slow, gentle at speed. */
 export function steerAngle(steering, speed) {
   return steering * lerp(0.58, 0.22, clamp(Math.abs(speed) / CAR.topSpeed, 0, 1));
@@ -57,7 +64,8 @@ export function placeCar(state, place) {
 /**
  * Advances the car by `dt` seconds.
  * input: { forward, backward, left, right, brake, cruise, steer (analog -1..1) }
- * world: { obstacles (index), dynamic (circles), surface(x, z), slope(x, z, heading), isDriveable(x, z) }
+ * world: { obstacles (index), dynamic (circles), surface(x, z), slope(x, z, heading), isDriveable(x, z),
+ *          waterDepth(x, z) (optional) }
  */
 export function stepDriving(state, input, dt, world) {
   dt = clamp(dt, 0, 0.05);
@@ -69,15 +77,17 @@ export function stepDriving(state, input, dt, world) {
   let lateral = state.vx * cos - state.vz * sin;
 
   // --- Throttle and brakes -------------------------------------------------------
-  const top = CAR.topSpeed * handling.speed;
+  const wading = smoothstep(world.waterDepth?.(state.x, state.z) ?? 0, WADING.from, WADING.to);
+  const top = CAR.topSpeed * handling.speed * lerp(1, WADING.slowest, wading);
   let accel = 0;
   if (input.brake) {
     accel = -Math.sign(forward) * Math.min(CAR.braking, Math.abs(forward) / dt);
   } else if (input.forward || (input.cruise && !input.backward)) {
     const target = input.forward ? top : Math.min(CAR.cruiseSpeed, top);
-    accel = forward < -0.3 ? CAR.braking : CAR.acceleration * clamp((target - forward) / 3, -1, 1);
+    accel = forward < -0.3 ? CAR.braking : CAR.acceleration * clamp((target - forward) / 3, -1 - 2 * wading, 1);
   } else if (input.backward) {
-    accel = forward > 0.3 ? -CAR.braking : -CAR.acceleration * clamp((CAR.reverseSpeed + forward) / 2, -1, 1);
+    const reverse = CAR.reverseSpeed * lerp(1, WADING.slowest, wading);
+    accel = forward > 0.3 ? -CAR.braking : -CAR.acceleration * clamp((reverse + forward) / 2, -1, 1);
   } else {
     // Let go of the pedals and the car rolls gently to a stop.
     accel = -Math.sign(forward) * Math.min(3 + Math.abs(forward) * 0.15, Math.abs(forward) / dt);

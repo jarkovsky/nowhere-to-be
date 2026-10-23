@@ -146,6 +146,43 @@ try {
   assert.ok(swing < -0.05 && swing > -1.06, `the trailer swings out on the bend (${swing.toFixed(2)})`);
   step('the lorry pulls its trailer round a bend');
 
+  // Into the oxbow at the ford and out the other side, with the throttle held all the way.
+  await page.evaluate(async () => {
+    const { OXBOW, TRACKS } = await import('/src/world/layout.js');
+    const track = TRACKS.find(t => t.id === 'oxbow').path;
+    const p = track.at(track.nearest(OXBOW.ford.x, OXBOW.ford.z).s - 12);
+    window.__game.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz));
+  });
+  const wading = [];
+  await page.keyboard.down('ArrowUp');
+  for (let i = 0; i < 18; i++) {
+    await page.waitForTimeout(350);
+    wading.push(
+      await page.evaluate(async () => {
+        const { OXBOW } = await import('/src/world/layout.js');
+        const { waterDepth, waterLevel } = await import('/src/world/terrain.js');
+        const { car, carHeight, camera } = window.__game.getState();
+        const { x, z, dx, dz } = OXBOW.ford;
+        return {
+          across: (car.x - x) * dx + (car.z - z) * dz,
+          depth: waterDepth(car.x, car.z),
+          speed: car.speed,
+          sunk: waterLevel(car.x, car.z) - carHeight,
+          camera: camera[1] - waterLevel(camera[0], camera[2]),
+        };
+      }),
+    );
+  }
+  await page.keyboard.up('ArrowUp');
+  const deep = wading.filter(w => w.depth > 0.4);
+  assert.ok(deep.length > 1, 'it went through deep water');
+  assert.ok(Math.max(...deep.map(w => w.sunk)) > 0.4, 'the lorry sank into it');
+  assert.ok(Math.min(...deep.map(w => w.speed)) > 1, 'it never stopped in the water');
+  assert.ok(Math.min(...deep.map(w => w.speed)) < 3.5, 'it slowed to a crawl');
+  assert.ok(wading.at(-1).across > 10, `it came out the other side (${wading.at(-1).across.toFixed(1)} m)`);
+  assert.ok(Math.min(...wading.map(w => w.camera)) > 1, 'the camera stayed above the water');
+  step('the lorry crawls through the deep ford, sinking into it, and comes out the other side');
+
   await page.getByRole('button', { name: 'Pause' }).click();
   await page.getByRole('button', { name: 'Back to the start' }).click();
   const home = await state(page);

@@ -10,6 +10,7 @@ import {
   BROOK,
   BROOK_HALF_WIDTH,
   SPRING,
+  OXBOW,
   TRACK_ROCKS,
   FORD,
   CAMP_TRAIL,
@@ -112,6 +113,11 @@ function groundColor(x, z, h, up, out) {
   const river = nearRiver(x, z, 12);
   if (river)
     out.lerp(GROUND.bank, 1 - smoothstep(river.distance, river.river.halfWidth + 1, river.river.halfWidth + 7));
+  // Gravel on the oxbow's shore and over its bed, where it shows through the shallows.
+  if (OXBOW.path.isNear(x, z, 16)) {
+    const { s, distance } = OXBOW.path.nearest(x, z);
+    out.lerp(GROUND.bank, 1 - smoothstep(distance - OXBOW.halfWidth(s), 0.5, 2.5));
+  }
   // Bare rock, paler in places and darker in others.
   const rocky = rockiness(x, z);
   if (rocky > 0) out.lerp(rockTone.copy(GROUND.stone).lerp(GROUND.rock, valueNoise(x / 9, z / 9, 61)), rocky * 0.9);
@@ -441,6 +447,7 @@ function isClearGround(x, z, { road = 9 } = {}) {
   if (x > ground.x0 - 6 && x < ground.x1 + 6 && z > ground.z0 - 6 && z < ground.z1 + 6) return false;
   if (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 10)) return false;
   if (BROOK.isNear(x, z, 7) || Math.hypot(x - SPRING.x, z - SPRING.z) < SPRING.radius + 6) return false;
+  if (OXBOW.path.isNear(x, z, 14)) return false;
   return !nearRiver(x, z, 11) && !inFjord(x, z, 3);
 }
 
@@ -918,7 +925,7 @@ function isLongGrassGround(x, z) {
   if (CLEARINGS.some(c => Math.hypot(x - c.x, z - c.z) < c.r * 0.7) || inMud(x, z)) return false;
   if (Math.hypot(x - FIELDS.x, z - FIELDS.z) < FIELDS.radius + 4) return false;
   if (lakeDistance(x, z) < 2.4 || (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 6))) return false;
-  if (BROOK.isNear(x, z, 3.2) || nearRiver(x, z, 7) || inFjord(x, z, 3)) return false;
+  if (BROOK.isNear(x, z, 3.2) || nearRiver(x, z, 7) || inFjord(x, z, 3) || OXBOW.path.isNear(x, z, 11)) return false;
   const h = terrainHeight(x, z);
   return h < 92 && snowCover(x, z, h) < 0.2 && steepness(x, z) < 0.5;
 }
