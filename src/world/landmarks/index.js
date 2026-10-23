@@ -16,6 +16,7 @@ import { buildSummit } from './summit.js';
 import { buildFields } from './fields.js';
 import { buildSigns } from './signs.js';
 import { buildAirfield } from './airfield.js';
+import { buildRockGate } from './rockgate.js';
 
 export { insideTunnel } from './tunnel.js';
 
@@ -38,12 +39,13 @@ export function buildLandmarks(scene, obstacles) {
   buildSummit(scene, obstacles);
   const fields = buildFields(scene, obstacles);
   const airfield = buildAirfield(scene, obstacles);
+  const gate = buildRockGate(scene, obstacles);
   buildSigns(scene, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard });
 
   let time = 0;
   const machines = [];
   return {
-    occluders: [...tunnel.occluders, ...waterfall.occluders, ...airfield.occluders],
+    occluders: [...tunnel.occluders, ...waterfall.occluders, ...airfield.occluders, ...gate.occluders],
     fire: camps.fire,
     /** The level crossing: where traffic waits, and the barriers while they are down. */
     crossing,

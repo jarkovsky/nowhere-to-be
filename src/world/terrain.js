@@ -1,6 +1,6 @@
 // The height field shared by the ground mesh, the car and everything placed
-// on the ground. Heights live on a grid that is fine across the valley floor
-// and coarse out under the distant mountains.
+// on the ground. Heights live on a grid that is fine across the valley floor,
+// a little coarser out in the outlands and coarse under the distant mountains.
 import { clamp, fractalNoise, lerp, smoothstep, valueNoise } from '../core/math.js';
 import {
   WORLD_SIZE,
@@ -34,25 +34,38 @@ import {
   AIRFIELD,
   LINKS,
   RING_ROAD,
+  OUTER_ROAD,
+  CONNECTORS,
+  GRAVEL,
+  GRAVEL_HALF_WIDTH,
+  OUTLAND_HILLS,
+  RIVERS,
+  FORD_DEPTH,
+  ROCK_HILL,
   lakeDistance,
+  nearRiver,
+  rockiness,
   ringRadius,
+  outerRadius,
 } from './layout.js';
+import { createPath } from './path.js';
 
 const HALF = WORLD_SIZE / 2;
 const INNER = 560;
-const MIDDLE = 780;
+const MIDDLE = 1060;
 
 /**
- * The grid along each axis: fine 3.5 m cells across the middle, where the car
- * can go, medium cells out to the far side of the fence, then coarse ones under
- * the distant mountains.
+ * The grid along each axis: fine 3.5 m cells across the middle, cells of about
+ * 4.5 m out to the far side of the fence, then coarse ones under the distant mountains.
+ * Every band starts on a multiple of four grid lines, so the ground can be drawn far off with
+ * every second or fourth line (see ground.js).
  */
 const BANDS = [
-  { from: -HALF, to: -MIDDLE, cells: 20 },
-  { from: -MIDDLE, to: -INNER, cells: 40 },
+  { from: -HALF, to: -MIDDLE, cells: 40 },
+  { from: -MIDDLE, to: -INNER, cells: 112 },
   { from: -INNER, to: INNER, cells: 320 },
-  { from: INNER, to: MIDDLE, cells: 40 },
-  { from: MIDDLE, to: HALF, cells: 20 },
+  { from: INNER, to: MIDDLE, cells: 112 },
+  { from: MIDDLE, to: HALF, cells: 40 },
 ];
 {
   let start = 0;
@@ -82,7 +95,11 @@ function gridCoordinate(value) {
 
 const LAKE_BED = -5.5;
 
-const bump = (x, z, cx, cz, radius, height) => height * Math.exp(-((x - cx) ** 2 + (z - cz) ** 2) / radius ** 2);
+/** A rounded hill. Further than three times its radius away it has fallen to nothing. */
+function bump(x, z, cx, cz, radius, height) {
+  const d2 = ((x - cx) ** 2 + (z - cz) ** 2) / radius ** 2;
+  return d2 > 9 ? 0 : height * Math.exp(-d2);
+}
 
 const softplus = x => (x > 30 ? x : Math.log1p(Math.exp(x)));
 
@@ -97,9 +114,11 @@ function rimHeight(r, angle) {
   const valley = (r0 => Math.max(0, r0 - 180) * 0.2 + Math.max(0, r0 - 245) * 0.12 * lobes)(Math.min(r, 330));
   const climb = 0.2 + 0.12 * lobes;
   const uplands = r > 330 ? climb * 42 * (1 - Math.exp(-(r - 330) / 42)) : 0;
-  const wall = softplus((r - 672) / 14) * 14 * (0.45 + 0.12 * lobes);
+  const wall = softplus((r - VALLEY_RADIUS + 8) / 14) * 14 * (0.45 + 0.12 * lobes);
   return valley + uplands + wall;
 }
+
+const HILLS = [...KNOLLS, SERLICH, SUMMIT, ...UPLAND_HILLS, ...OUTLAND_HILLS, ROCK_HILL];
 
 /** The landscape before anything is levelled or dug out. */
 function wildHeight(x, z) {
@@ -115,8 +134,7 @@ function wildHeight(x, z) {
   h += rimHeight(r, angle);
 
   h += bump(x, z, -125, -95, 110, 18); // the foothills of Echo Mountain
-  for (const knoll of [...KNOLLS, SERLICH, SUMMIT, ...UPLAND_HILLS])
-    h += bump(x, z, knoll.x, knoll.z, knoll.radius, knoll.height);
+  for (const hill of HILLS) h += bump(x, z, hill.x, hill.z, hill.radius, hill.height);
   h += MESA.height * (1 - smoothstep(Math.hypot(x - MESA.x, z - MESA.z), MESA.top, MESA.edge));
   // Rough, rocky hills to the north (negative Z), smoothing out on the slopes of Šerlich
   // and growing more rugged out in the uplands.
@@ -126,10 +144,17 @@ function wildHeight(x, z) {
     const out = smoothstep(r, 345, 430);
     const near = Math.max(0, fractalNoise(v / 52, u / 52, 3, 23) - 0.3) * 34;
     const far = out > 0 ? Math.max(0, fractalNoise(v / 95 + 4.1, u / 95 + 2.7, 3, 29) - 0.32) * 62 : 0;
-    // They give way to a pass where the upland road goes through.
+    // They give way to passes where the upland road and the outer road go through.
     const pass = r > 420 ? 1 - smoothstep(Math.abs(r - ringRadius(angle)), 30, 120) : 0;
-    h += crags * lerp(near, far, out) * (1 - 0.9 * pass);
+    const outerPass = r > 640 ? 1 - smoothstep(Math.abs(r - outerRadius(angle)), 25, 90) : 0;
+    h += crags * lerp(near, far, out) * (1 - 0.9 * Math.max(pass, outerPass));
   }
+  // Out in the outlands the land rolls in broader swells.
+  const outlands = smoothstep(r, 640, 760);
+  if (outlands > 0) h += outlands * (fractalNoise(u / 260 + 1.3, v / 260 + 5.7, 3, 71) - 0.5) * 34;
+  // Rocky ground is broken up into knobs and ledges.
+  const rocky = rockiness(x, z);
+  if (rocky > 0) h += rocky * (fractalNoise(u / 24 + 3.7, v / 24 + 1.9, 3, 83) - 0.45) * 9;
   // A shelf behind the waterfall, so the stream drops off real high ground.
   h += 12 * smoothstep(x - WATERFALL.x, 4, 36) * (1 - smoothstep(Math.abs(z - WATERFALL.z), 26, 70));
   return h;
@@ -304,6 +329,18 @@ function levelAlong(path, flatWidth, falloff, { window = 14, banks = 0, grade = 
       path.closed,
     );
   const profile = Number.isFinite(grade) ? limitGrade(smooth, path.spacing, grade, path.closed) : smooth;
+  // Where it fords a river it dips into the water, on ramps no steeper than it may climb.
+  for (const ford of FORDS) {
+    if (ford.path !== path) continue;
+    const flat = ford.river.halfWidth + 1;
+    const ramp = Number.isFinite(grade) ? grade : 0.15;
+    path.samples.forEach(({ s }, i) => {
+      const along = path.closed
+        ? path.length / 2 - Math.abs(path.wrap(s - ford.s) - path.length / 2)
+        : Math.abs(s - ford.s);
+      profile[i] = Math.min(profile[i], ford.level + Math.max(0, along - flat) * ramp);
+    });
+  }
   if (flatEnds) {
     // Level for the first and last few metres, so it meets the roads at its ends square on.
     const last = profile.length - 1;
@@ -377,10 +414,57 @@ function levelRailway() {
   return profile;
 }
 
+// Each river runs along a valley floor that falls all the way from its source to its mouth:
+// the lie of the land along it, smoothed, never rising again once it has fallen.
+const riverFloors = RIVERS.map(({ path }) => {
+  let lowest = Infinity;
+  const natural = smoothProfile(
+    path.samples.map(p => sampleGrid(p.x, p.z)),
+    Math.round(60 / path.spacing),
+    false,
+  );
+  const falling = natural.map(h => (lowest = Math.min(lowest, h)));
+  return smoothProfile(falling, Math.round(20 / path.spacing), false);
+});
+
+/** The water surface along each river, a little below its valley floor. */
+const riverWater = riverFloors.map(floor => floor.map(h => h - 0.4));
+
+/**
+ * Where a gravel road or a track crosses a river: `s` along the road, `level` the road's surface
+ * in the water. Found where the road comes closest to the river.
+ */
+export const FORDS = [];
+const GRAVEL_WIDTH = () => GRAVEL_HALF_WIDTH + 1.2;
+const fordable = [
+  ...GRAVEL.map(path => ({ path, width: GRAVEL_WIDTH() })),
+  ...TRACKS.map(({ path, width = 2 }) => ({ path, width })),
+];
+RIVERS.forEach((river, r) => {
+  for (const { path, width } of fordable) {
+    const n = path.samples.length;
+    const apart = path.samples.map(p => (river.path.isNear(p.x, p.z, 3) ? river.path.nearest(p.x, p.z).distance : 9));
+    const at = i => apart[path.closed ? (i + n) % n : clamp(i, 0, n - 1)];
+    path.samples.forEach((p, i) => {
+      if (apart[i] > 2 || apart[i] > at(i - 1) || apart[i] >= at(i + 1)) return;
+      const along = river.path.nearest(p.x, p.z).s;
+      const level = riverWater[r][Math.round(along / river.path.spacing)] - FORD_DEPTH;
+      FORDS.push({ river, path, width, s: p.s, x: p.x, z: p.z, level });
+    });
+  }
+});
+RIVERS.forEach((river, i) => levelAlong(river.path, () => river.halfWidth + 14, 70, { levels: riverFloors[i] }));
+
 levelAlong(CAMP_TRAIL, () => 2.4, 6);
-for (const track of TRACKS) levelAlong(track.path, () => track.width ?? 2, 8);
+// Tracks off the gravel roads are laid after the roads, so they leave them where the roads now are.
+const offGravel = ({ path }) => GRAVEL.some(road => road.isNear(path.samples[0].x, path.samples[0].z, 1));
+const levelTrack = track => levelAlong(track.path, () => track.width ?? 2, 8, { grade: track.grade });
+TRACKS.filter(track => !offGravel(track)).forEach(levelTrack);
 const PAVED_WIDTH = () => ROAD_HALF_WIDTH + 1.4;
 const ringLevels = levelAlong(RING_ROAD, PAVED_WIDTH, 10, { window: 30, banks: 1.5, grade: 0.1 });
+// The gravel road round the outlands follows the land a little more closely than the paved ones.
+const GRAVEL_GRADE = { window: 24, banks: 1.2, grade: 0.12 };
+const outerLevels = levelAlong(OUTER_ROAD, GRAVEL_WIDTH, 10, GRAVEL_GRADE);
 const railProfile = levelRailway();
 // Pads come after the side tracks so the tracks run up onto level ground.
 flattenPads();
@@ -390,11 +474,45 @@ const trailWidth = s => (isInTunnel(s) ? 9 : ROAD_HALF_WIDTH + 1.4);
 const roadProfile = levelAlong(ROAD, trailWidth, 10);
 // The paved roads up to the ring leave the finished trail and meet the ring on the level,
 // and climb steadily in between, cutting into the hillside or running on low banks. The
-// trail and the ring are then put back where the roads joined them.
+// gravel roads out to the outer road do the same from the ring. The roads they joined are
+// then put back where they were.
 for (const link of LINKS)
   levelAlong(link.path, PAVED_WIDTH, 10, { window: 30, banks: 1.5, grade: link.grade, flatEnds: 10 });
+for (const { path } of CONNECTORS) levelAlong(path, GRAVEL_WIDTH, 10, { ...GRAVEL_GRADE, flatEnds: 10 });
+TRACKS.filter(offGravel).forEach(levelTrack);
 levelAlong(ROAD, trailWidth, 0.5, { levels: roadProfile });
 levelAlong(RING_ROAD, PAVED_WIDTH, 0.5, { levels: ringLevels });
+levelAlong(OUTER_ROAD, GRAVEL_WIDTH, 0.5, { levels: outerLevels });
+
+// --- River channels ------------------------------------------------------------------------
+
+// Once the river's channel is dug, the road is put back across it. Its surface is taken here,
+// before the digging.
+const fordCrossings = FORDS.map(({ river, path, s, width }) => {
+  const reach = river.halfWidth + 8;
+  const points = [];
+  for (let k = -reach; k <= reach; k += 2) {
+    const p = path.at(s + k);
+    // An open road clamps at its ends, so the stretch stops there.
+    if (!points.length || Math.hypot(p.x - points.at(-1)[0], p.z - points.at(-1)[1]) > 0.5) points.push([p.x, p.z]);
+  }
+  const stretch = createPath(points);
+  return { stretch, width, levels: stretch.samples.map(p => sampleGrid(p.x, p.z)) };
+});
+
+// The channel: deepest in the middle, with banks rising gently from the water's edge.
+RIVERS.forEach((river, r) => {
+  const water = riverWater[r];
+  for (const [vertex, { index, distance }] of nearestSamples(river.path, river.halfWidth + 12)) {
+    const across = distance / river.halfWidth;
+    const surface =
+      across < 1
+        ? water[index] - 0.05 - river.depth * (1 - across * across)
+        : water[index] - 0.05 + (distance - river.halfWidth) * 0.35;
+    heights[vertex] = Math.min(heights[vertex], surface);
+  }
+});
+for (const { stretch, width, levels } of fordCrossings) levelAlong(stretch, () => width, 3, { levels });
 
 /** Height of the trail surface at the bridge, used to dig the creek deep enough. */
 const roadAtBridge = roadProfile[ROAD.samples.findIndex(p => p.s === BRIDGE.s)];
@@ -531,7 +649,15 @@ export function waterLevel(x, z) {
   }
   if (BROOK.isNear(x, z, BROOK_HALF_WIDTH + 4)) level = Math.max(level, brookLevel(BROOK.nearest(x, z).s));
   if (Math.hypot(x - SPRING.x, z - SPRING.z) < SPRING.radius + 2) level = Math.max(level, SPRING_LEVEL);
+  const river = nearRiver(x, z, 10);
+  if (river) level = Math.max(level, riverLevel(river.river, river.s));
   return level;
+}
+
+/** Water surface height of a river at a distance along it. */
+export function riverLevel(river, s) {
+  const water = riverWater[RIVERS.indexOf(river)];
+  return water[clamp(Math.round(s / river.path.spacing), 0, water.length - 1)];
 }
 
 /** Roughly where the snow starts, in metres above the valley floor. */
@@ -594,23 +720,28 @@ export function onDeck(x, z) {
   return jettyHeight(x, z) !== null && JETTY_DECK > terrainHeight(x, z);
 }
 
-// --- The rocks on the spring track ------------------------------------------------
+// --- The rocks on the tracks --------------------------------------------------------
 
-const rocksBox = TRACK_ROCKS.reduce(
-  (b, r) => ({
-    x0: Math.min(b.x0, r.x - r.r),
-    x1: Math.max(b.x1, r.x + r.r),
-    z0: Math.min(b.z0, r.z - r.r),
-    z1: Math.max(b.z1, r.z + r.r),
-  }),
-  { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity },
-);
+// Each rock is listed in the square cells it touches, so a point only checks the few near it.
+const ROCK_CELL = 4;
+const rockCell = (cx, cz) => cx * 65536 + cz;
+const rockCells = new Map();
+for (const rock of TRACK_ROCKS) {
+  for (let cx = Math.floor((rock.x - rock.r) / ROCK_CELL); cx <= Math.floor((rock.x + rock.r) / ROCK_CELL); cx++) {
+    for (let cz = Math.floor((rock.z - rock.r) / ROCK_CELL); cz <= Math.floor((rock.z + rock.r) / ROCK_CELL); cz++) {
+      const key = rockCell(cx, cz);
+      if (!rockCells.has(key)) rockCells.set(key, []);
+      rockCells.get(key).push(rock);
+    }
+  }
+}
 
 /** How far the rocks lift the tyres at a point: a smooth dome over each one. */
 export function rockHeight(x, z) {
-  if (x < rocksBox.x0 || x > rocksBox.x1 || z < rocksBox.z0 || z > rocksBox.z1) return 0;
+  const nearby = rockCells.get(rockCell(Math.floor(x / ROCK_CELL), Math.floor(z / ROCK_CELL)));
+  if (!nearby) return 0;
   let lift = 0;
-  for (const rock of TRACK_ROCKS) {
+  for (const rock of nearby) {
     const d2 = ((x - rock.x) ** 2 + (z - rock.z) ** 2) / rock.r ** 2;
     if (d2 < 1) lift = Math.max(lift, rock.h * (1 - d2) ** 2);
   }

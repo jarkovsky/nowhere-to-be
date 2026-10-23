@@ -1,12 +1,15 @@
 // Where everything in the valley is. Pure data, so tests and the renderer
 // agree on the same coordinates. +X is east, +Z is south, heights are metres.
+import { createRandom, lerp, smoothstep } from '../core/math.js';
 import { createPath, headingOf } from './path.js';
 
-export const WORLD_SIZE = 2400;
+export const WORLD_SIZE = 3600;
 /** The fence: the car can't drive further from the centre than this. */
-export const VALLEY_RADIUS = 680;
-/** The old fence line. Inside it is the valley; between it and the fence are the uplands. */
+export const VALLEY_RADIUS = 1000;
+/** The first fence line. Inside it is the valley; between it and the second are the uplands. */
 export const UPLANDS_RADIUS = 355;
+/** The second fence line. Between it and the fence are the outlands. */
+export const OUTLANDS_RADIUS = 680;
 
 export const LAKE = { x: 93, z: -54, rx: 61, rz: 44, level: -2.2 };
 
@@ -97,27 +100,181 @@ const RING_RADII = [
   520,
 ];
 
-/** How far from the centre the upland road runs at an angle (radians, as from Math.atan2(z, x)). */
-export function ringRadius(angle) {
-  const n = RING_RADII.length;
-  const u = ((((angle / (Math.PI * 2)) * n) % n) + n) % n;
-  const i = Math.floor(u);
-  const t = u - i;
-  const [p0, p1, p2, p3] = [-1, 0, 1, 2].map(k => RING_RADII[(i + k + n) % n]);
-  // A periodic Catmull-Rom spline through the radii.
-  return (
-    0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t ** 3)
+/**
+ * A road's distance from the centre at any angle (radians, as from Math.atan2(z, x)), from
+ * `radii` given at even steps round from due east: a periodic Catmull-Rom spline through them.
+ */
+function radiusAround(radii) {
+  const n = radii.length;
+  return angle => {
+    const u = ((((angle / (Math.PI * 2)) * n) % n) + n) % n;
+    const i = Math.floor(u);
+    const t = u - i;
+    const p0 = radii[(i + n - 1) % n];
+    const p1 = radii[i];
+    const p2 = radii[(i + 1) % n];
+    const p3 = radii[(i + 2) % n];
+    return (
+      0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t ** 3)
+    );
+  };
+}
+
+/** A closed road all the way round the centre, `radius(angle)` out from it. */
+function roadAround(radius, points) {
+  return createPath(
+    Array.from({ length: points }, (_, i) => {
+      const angle = (i / points) * Math.PI * 2;
+      return [Math.cos(angle) * radius(angle), Math.sin(angle) * radius(angle)];
+    }),
+    { closed: true },
   );
 }
 
-export const RING_ROAD = createPath(
-  Array.from({ length: 180 }, (_, i) => {
-    const angle = (i / 180) * Math.PI * 2;
-    const radius = ringRadius(angle);
-    return [Math.cos(angle) * radius, Math.sin(angle) * radius];
-  }),
-  { closed: true },
-);
+/** How far from the centre the upland road runs at an angle. */
+export const ringRadius = radiusAround(RING_RADII);
+
+export const RING_ROAD = roadAround(ringRadius, 180);
+
+// --- The outlands ------------------------------------------------------------------
+// Between the second fence line and the fence. A gravel road runs all the way round, with
+// roads out to it from the upland road. What lies out here is kept in lists that the
+// terrain, the scenery and the builders all read, so another river, rocky hill or farm is
+// a matter of adding an entry.
+
+/** A point `r` metres from the centre at an angle in degrees (0 is due east, 90 due south). */
+export function polar(degrees, r) {
+  const angle = (degrees * Math.PI) / 180;
+  return [Math.cos(angle) * r, Math.sin(angle) * r];
+}
+
+/**
+ * The outer road, every 15 degrees from due east. It swings in in the north-west and passes
+ * the foot of the rocky hill in the east.
+ */
+const OUTER_RADII = [
+  790, 815, 840, 845, 850, 855, 858, 860, 855, 848, 840, 830, 822, 815, 805, 748, 800, 830, 835, 815, 815, 800, 790,
+  770,
+];
+
+/** How far from the centre the outer road runs at an angle. */
+export const outerRadius = radiusAround(OUTER_RADII);
+
+export const OUTER_ROAD = roadAround(outerRadius, 240);
+
+/** A point on the outer road at an angle in degrees. */
+export const outerPoint = degrees => polar(degrees, outerRadius((degrees * Math.PI) / 180));
+
+/** Half the width of the gravel roads. */
+export const GRAVEL_HALF_WIDTH = 3.4;
+
+/** Gravel roads from the upland road out to the outer road. */
+export const CONNECTORS = [
+  { id: 'west', path: createPath([ringPoint(176), polar(176.5, 660), polar(177.5, 760), outerPoint(178)]) },
+  { id: 'south', path: createPath([ringPoint(84), polar(84, 660), polar(83, 760), outerPoint(84)]) },
+  { id: 'north', path: createPath([ringPoint(338), polar(336, 610), polar(330, 690), outerPoint(324)]) },
+];
+
+/** Every gravel road: the outer road and the roads out to it. */
+export const GRAVEL = [OUTER_ROAD, ...CONNECTORS.map(connector => connector.path)];
+
+/** True near the middle of any gravel road. */
+export function onGravel(x, z, distance = GRAVEL_HALF_WIDTH) {
+  return Math.hypot(x, z) > OUTLANDS_RADIUS - 140 && GRAVEL.some(path => path.isNear(x, z, distance));
+}
+
+/**
+ * Rivers in the outlands, from where they come out of the mountains to where they go back
+ * into them. Each runs down its own valley, and wherever a gravel road or a track crosses
+ * one, the road dips through the water at a ford. `depth` is in the middle of the stream.
+ */
+export const RIVERS = [
+  {
+    // In from the mountains in the south-west, round inside the outer road and out again.
+    id: 'river',
+    halfWidth: 4,
+    depth: 0.8,
+    path: createPath(
+      [
+        polar(150, 1080),
+        polar(149, 990),
+        polar(147, 900),
+        polar(145, 840),
+        polar(142, 780),
+        polar(136, 740),
+        polar(128, 725),
+        polar(120, 735),
+        polar(114, 775),
+        polar(112, 857),
+        polar(110, 950),
+        polar(108, 1080),
+      ],
+      { spacing: 1.5 },
+    ),
+  },
+];
+
+/** How deep the water is where a road fords a river. */
+export const FORD_DEPTH = 0.3;
+
+/** The river at a point, if it is within `distance` of one: { river, s, distance }, or null. */
+export function nearRiver(x, z, distance) {
+  for (const river of RIVERS) {
+    if (!river.path.isNear(x, z, distance)) continue;
+    const { s, distance: d } = river.path.nearest(x, z);
+    if (d < distance) return { river, s, distance: d };
+  }
+  return null;
+}
+
+/** A hill of bare rock out to the east, with a track that winds round it to the top. */
+export const ROCK_HILL = { x: 857, z: -198, radius: 70, height: 44 };
+
+/**
+ * Rocky ground: bare rock and scree, rough and slow to drive over. Tracks across it climb
+ * over rocks that lie under one wheel or the other, so the car rocks from side to side.
+ */
+export const ROCK_FIELDS = [{ x: ROCK_HILL.x, z: ROCK_HILL.z, radius: 150 }];
+
+/** How rocky the ground is at a point: 1 well inside a rocky area, 0 outside them all. */
+export function rockiness(x, z) {
+  let rocky = 0;
+  for (const field of ROCK_FIELDS) {
+    const d = Math.hypot(x - field.x, z - field.z);
+    if (d < field.radius) rocky = Math.max(rocky, 1 - smoothstep(d, field.radius * 0.6, field.radius));
+  }
+  return rocky;
+}
+
+/** A natural arch of rock over the outer road, below the rocky hill. `span` and `height` are of the opening. */
+export const ROCK_GATE = (() => {
+  const p = OUTER_ROAD.at(OUTER_ROAD.nearest(...outerPoint(342)).s);
+  return { ...p, span: 25, height: 18 };
+})();
+
+/** Rolling hills out in the outlands. */
+export const OUTLAND_HILLS = [
+  { x: 790, z: 120, radius: 70, height: 24 },
+  { x: 560, z: 690, radius: 80, height: 22 },
+  { x: 390, z: 830, radius: 60, height: 18 },
+  { x: -640, z: 760, radius: 70, height: 22 },
+  { x: -900, z: -200, radius: 75, height: 26 },
+  { x: -300, z: -900, radius: 80, height: 30 },
+  { x: 800, z: -420, radius: 70, height: 22 },
+];
+
+/** A track that leaves a road at `start` and winds round a hill, closing in on its top. */
+function roundAndUp(hill, [x, z], { turns = 1.35, from = 80, to = 13 } = {}) {
+  const a0 = Math.atan2(z - hill.z, x - hill.x);
+  const steps = Math.round(turns * 9);
+  const points = [[x, z]];
+  for (let k = 0; k <= steps; k++) {
+    const a = a0 - (k / steps) * turns * Math.PI * 2;
+    const d = lerp(from, to, k / steps);
+    points.push([hill.x + Math.cos(a) * d, hill.z + Math.sin(a) * d]);
+  }
+  return points;
+}
 
 /** Mountain stream: from the waterfall pool, under the bridge, into the lake. */
 export const CREEK = createPath(
@@ -236,7 +393,10 @@ function fromRoad(x, z, ...points) {
   return [[start.x, start.z], ...points];
 }
 
-/** Narrow side tracks: two dirt ruts with grass between, or a footpath along the shore. */
+/**
+ * Narrow side tracks: two dirt ruts with grass between, or a footpath along the shore.
+ * `grade`, where given, is the steepest they climb.
+ */
 export const TRACKS = [
   { id: 'farm', ruts: true, path: createPath(fromRoad(-118, 52, [-104, 38], [-92, 27], [-80, 18])) },
   {
@@ -325,6 +485,13 @@ export const TRACKS = [
     id: 'shore',
     ruts: false,
     path: createPath([[33, -12], [46, -5], [60, 4], [74, 13], [90, 11], [104, 9], [117, 22], ...fromRoad(128, 40)]),
+  },
+  {
+    // Off the outer road, then round the rocky hill and over its rocks to the top.
+    id: 'rockhill',
+    ruts: true,
+    grade: 0.22,
+    path: createPath(roundAndUp(ROCK_HILL, outerPoint(354))),
   },
 ];
 
@@ -434,16 +601,29 @@ export const ROADWORKS = {
 // The deck runs straight between two points on the curving trail, so the
 // trail never strays far from the middle of the bridge.
 /**
- * Rocks across the spring track to drive over, as bumps in the surface the tyres rest on:
- * `h` high in the middle, easing off to nothing `r` metres away. They lie under one wheel
- * or the other in turn, so the car rocks from side to side.
+ * Rocks across the tracks to drive over, as bumps in the surface the tyres rest on: `h` high
+ * in the middle, easing off to nothing `r` metres away. They lie under one wheel or the other
+ * in turn, so the car rocks from side to side: a stretch of them on the spring track, and
+ * all the way across rocky ground.
  */
 export const TRACK_ROCKS = (() => {
-  const { path } = TRACKS.find(track => track.id === 'spring');
-  return Array.from({ length: 11 }, (_, k) => {
-    const p = path.offset(15 + k * 2.2, (k % 2 ? 1 : -1) * (0.75 + ((k * 0.37) % 0.4)));
+  const spring = TRACKS.find(track => track.id === 'spring').path;
+  const rocks = Array.from({ length: 11 }, (_, k) => {
+    const p = spring.offset(15 + k * 2.2, (k % 2 ? 1 : -1) * (0.75 + ((k * 0.37) % 0.4)));
     return { x: p.x, z: p.z, r: 0.85 + ((k * 0.53) % 0.35), h: 0.22 + ((k * 0.71) % 0.18) };
   });
+  const random = createRandom(4471);
+  for (const { path } of TRACKS) {
+    let side = 1;
+    for (let s = 10; s < path.length - 6; s += 1.9 + random() * 1.3) {
+      const p = path.at(s);
+      if (rockiness(p.x, p.z) < 0.5) continue;
+      side = -side;
+      const q = path.offset(s, side * (0.7 + random() * 0.45));
+      rocks.push({ x: q.x, z: q.z, r: 0.8 + random() * 0.4, h: 0.2 + random() * 0.22 });
+    }
+  }
+  return rocks;
 })();
 
 /** Where the trail fords the brook: `s` along the trail and `brook` along the brook. */
@@ -508,6 +688,7 @@ export const PLACES = [
   { id: 'summit', x: SUMMIT.x, z: SUMMIT.z },
   { id: 'fields', x: FARMSTEAD.x, z: FARMSTEAD.z },
   { id: 'airfield', x: AIRFIELD.x - 30, z: (AIRFIELD.z0 + AIRFIELD.z1) / 2 },
+  { id: 'rockhill', x: ROCK_HILL.x, z: ROCK_HILL.z },
 ];
 
 /** Ground that flattens so buildings and camp furniture sit on level ground. */

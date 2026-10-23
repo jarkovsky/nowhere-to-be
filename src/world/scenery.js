@@ -44,11 +44,19 @@ import {
   LINKS,
   AIRFIELD,
   PAVED,
+  GRAVEL,
+  GRAVEL_HALF_WIDTH,
+  RIVERS,
+  ROCK_FIELDS,
+  ROCK_GATE,
   onAirfield,
   onPaved,
+  onGravel,
+  nearRiver,
+  rockiness,
   lakeDistance,
 } from './layout.js';
-import { terrainHeight, naturalHeight, brookLevel, creekLevel, snowCover, POOL } from './terrain.js';
+import { terrainHeight, naturalHeight, brookLevel, creekLevel, riverLevel, snowCover, POOL, FORDS } from './terrain.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PartsBuilder, flatMaterial, freeze, prism, tintable, vertexColorMaterial } from './build.js';
 import { SWAY, foliageMaterial, groundMaterial } from './detail.js';
@@ -70,7 +78,9 @@ const GROUND = {
   snow: new THREE.Color('#eef1ea'),
   leaves: new THREE.Color('#c4873f'),
   mud: new THREE.Color('#7a6446'),
+  stone: new THREE.Color('#b3a891'),
 };
+const rockTone = new THREE.Color();
 
 /** Colour of the ground at a grid point. `up` is the Y of its normal: 1 on flat ground. */
 function groundColor(x, z, h, up, out) {
@@ -91,6 +101,12 @@ function groundColor(x, z, h, up, out) {
     if (creek.distance < 9) out.lerp(GROUND.bank, 1 - smoothstep(creek.distance, 5, 9));
   }
   if (BROOK.isNear(x, z, 6)) out.lerp(GROUND.bank, 1 - smoothstep(BROOK.nearest(x, z).distance, 2.5, 6));
+  const river = nearRiver(x, z, 12);
+  if (river)
+    out.lerp(GROUND.bank, 1 - smoothstep(river.distance, river.river.halfWidth + 1, river.river.halfWidth + 7));
+  // Bare rock, paler in places and darker in others.
+  const rocky = rockiness(x, z);
+  if (rocky > 0) out.lerp(rockTone.copy(GROUND.stone).lerp(GROUND.rock, valueNoise(x / 9, z / 9, 61)), rocky * 0.9);
   for (const patch of SURFACES) {
     // Mud's ragged edge comes from noise rather than the shared random numbers, so that
     // adding a patch of it doesn't move every tree placed after the ground.
@@ -117,7 +133,19 @@ const PACKED_SNOW = new THREE.Color('#e3e8e4');
  * A strip draped over the ground along a path, optionally offset sideways or
  * skipping a stretch. Where it crosses snow it is snowed over too.
  */
-export function ribbon(path, halfWidth, color, { lift = 0.06, offset = 0, skip = () => false, across = 4 } = {}) {
+export function ribbon(path, halfWidth, color, options) {
+  return ribbonMesh(ribbonGeometry(path, halfWidth, color, options));
+}
+
+/** Shaded like the ground beneath it, so it doesn't show its facets where the ground doesn't. */
+function ribbonMesh(geometry) {
+  const material = groundMaterial({ polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function ribbonGeometry(path, halfWidth, color, { lift = 0.06, offset = 0, skip = () => false, across = 4 } = {}) {
   const base = new THREE.Color(color);
   const tint = new THREE.Color();
   const rows = [];
@@ -161,11 +189,7 @@ export function ribbon(path, halfWidth, color, { lift = 0.06, offset = 0, skip =
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  // Shaded like the ground beneath it, so it doesn't show its facets where the ground doesn't.
-  const material = groundMaterial({ polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.receiveShadow = true;
-  return mesh;
+  return geometry;
 }
 
 function inTunnel(s) {
@@ -175,6 +199,31 @@ function inTunnel(s) {
 function onBridge(s) {
   const delta = Math.abs(ROAD.wrap(s - BRIDGE.s + ROAD.length / 2) - ROAD.length / 2);
   return delta < BRIDGE.length / 2 - 0.6;
+}
+
+/**
+ * A flat strip of water along a stream, `halfWidth` either side of it at `level(s)`, leaving
+ * out the stretches where `skip(s)` and stopping for good where `until(s)`.
+ */
+function waterStrip(path, halfWidth, level, { skip = () => false, until = () => false } = {}) {
+  const positions = [];
+  let previous = null;
+  for (const { x, z, dx, dz, s } of path.samples) {
+    if (until(s)) break;
+    if (skip(s)) {
+      previous = null;
+      continue;
+    }
+    const y = level(s);
+    const left = [x + dz * halfWidth, y, z - dx * halfWidth];
+    const right = [x - dz * halfWidth, y, z + dx * halfWidth];
+    if (previous) positions.push(...previous[0], ...previous[1], ...left, ...previous[1], ...right, ...left);
+    previous = [left, right];
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.computeVertexNormals();
+  return geometry;
 }
 
 function buildWater(scene) {
@@ -190,42 +239,16 @@ function buildWater(scene) {
 
   // The creek: a ribbon of water following the bed, stopping where it meets the lake.
   const creekMaterial = flatMaterial('#86bfc0', { emissive: '#285f63', emissiveIntensity: 0.3 });
-  const halfWidth = CREEK_HALF_WIDTH + 1.7;
-  const positions = [];
-  let previous = null;
-  for (const sample of CREEK.samples) {
-    const level = creekLevel(sample.s);
-    if (level < LAKE.level) break;
-    const left = [sample.x + sample.dz * halfWidth, level, sample.z - sample.dx * halfWidth];
-    const right = [sample.x - sample.dz * halfWidth, level, sample.z + sample.dx * halfWidth];
-    if (previous) positions.push(...previous[0], ...previous[1], ...left, ...previous[1], ...right, ...left);
-    previous = [left, right];
-  }
-  const creekGeometry = new THREE.BufferGeometry();
-  creekGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  creekGeometry.computeVertexNormals();
-  const creek = new THREE.Mesh(creekGeometry, creekMaterial);
+  const creek = new THREE.Mesh(
+    waterStrip(CREEK, CREEK_HALF_WIDTH + 1.7, creekLevel, { until: s => creekLevel(s) < LAKE.level }),
+    creekMaterial,
+  );
   creek.receiveShadow = true;
   scene.add(creek);
 
-  // The brook, from its spring pool down over the ford and into the lake.
-  // Its edges reach into the banks, which hide them, and it stops at the lake's shore.
-  const brookPositions = [];
-  let last = null;
-  const brookWidth = BROOK_HALF_WIDTH + 3;
-  for (const sample of BROOK.samples) {
-    const level = brookLevel(sample.s);
-    if (lakeDistance(sample.x, sample.z) < 1.03) break;
-    if (sample.s < SPRING.radius) continue;
-    const left = [sample.x + sample.dz * brookWidth, level, sample.z - sample.dx * brookWidth];
-    const right = [sample.x - sample.dz * brookWidth, level, sample.z + sample.dx * brookWidth];
-    if (last) brookPositions.push(...last[0], ...last[1], ...left, ...last[1], ...right, ...left);
-    last = [left, right];
-  }
-  const brookGeometry = new THREE.BufferGeometry();
-  brookGeometry.setAttribute('position', new THREE.Float32BufferAttribute(brookPositions, 3));
-  brookGeometry.computeVertexNormals();
-  // Clear enough to see the trail under the water at the ford.
+  // The brook, from its spring pool down over the ford and into the lake, and the rivers out
+  // in the outlands. Their edges reach into the banks, which hide them. They are clear enough
+  // to see the road under the water at the fords.
   const brookMaterial = new THREE.MeshLambertMaterial({
     color: '#7fb8bb',
     emissive: '#285f63',
@@ -234,9 +257,27 @@ function buildWater(scene) {
     opacity: 0.72,
     depthWrite: false,
   });
-  const brook = new THREE.Mesh(brookGeometry, brookMaterial);
+  const atLake = s => {
+    const p = BROOK.at(s);
+    return lakeDistance(p.x, p.z) < 1.03;
+  };
+  const brook = new THREE.Mesh(
+    waterStrip(BROOK, BROOK_HALF_WIDTH + 3, brookLevel, { skip: s => s < SPRING.radius, until: atLake }),
+    brookMaterial,
+  );
   brook.receiveShadow = true;
   scene.add(brook);
+  for (const river of RIVERS) {
+    inPieces(river.path, outside => {
+      const level = s => riverLevel(river, s);
+      const water = new THREE.Mesh(
+        waterStrip(river.path, river.halfWidth + 3, level, { skip: outside }),
+        brookMaterial,
+      );
+      water.receiveShadow = true;
+      scene.add(water);
+    });
+  }
   const spring = new THREE.Mesh(new THREE.CircleGeometry(SPRING.radius + 1.2, 20).rotateX(-Math.PI / 2), brookMaterial);
   spring.position.set(SPRING.x, brookLevel(0), SPRING.z);
   scene.add(spring);
@@ -315,6 +356,11 @@ const UNDERGROWTH_RANGE = 250;
 const ROCK_DETAIL = 300;
 /** The fence beyond this is thinner than a pixel. */
 const FENCE_RANGE = 450;
+/**
+ * Trees and rocks far off are drawn a square of this side at a time. Their far shapes are so
+ * plain that drawing some out of view costs less than drawing more, smaller squares.
+ */
+const FAR_CELL = 480;
 
 /** Circles kept clear of trees and rocks. */
 const CLEARINGS = [
@@ -341,6 +387,7 @@ const CLEARINGS = [
   { x: FIELDS.x, z: FIELDS.z, r: FIELDS.radius },
   { ...AIRFIELD.hangar, r: 22 },
   { ...AIRFIELD.tower, r: 12 },
+  { x: ROCK_GATE.x, z: ROCK_GATE.z, r: ROCK_GATE.span },
   ...GNOMES.map(gnome => ({ ...gnome, r: 4 })),
   // The mud lies on the tracks, which are kept clear anyway.
   ...SURFACES.filter(p => p.id !== 'mud').map(p => ({ x: p.x, z: p.z, r: Math.max(p.rx, p.rz) + 4 })),
@@ -364,13 +411,13 @@ function isClearGround(x, z, { road = 9 } = {}) {
   if (nearWalkway(HABITATS.deer, x, z, 5) || nearWalkway(HABITATS.ducks, x, z, 5)) return false;
   if (ROAD.isNear(x, z, road) || CAMP_TRAIL.isNear(x, z, 6) || RAILWAY.isNear(x, z, 9)) return false;
   if (TRACKS.some(track => track.path.isNear(x, z, 5))) return false;
-  if (onPaved(x, z, road)) return false;
+  if (onPaved(x, z, road) || onGravel(x, z, road - 1)) return false;
   // The airfield's levelled ground is kept as open, mown grass.
   const { ground } = AIRFIELD;
   if (x > ground.x0 - 6 && x < ground.x1 + 6 && z > ground.z0 - 6 && z < ground.z1 + 6) return false;
   if (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 10)) return false;
   if (BROOK.isNear(x, z, 7) || Math.hypot(x - SPRING.x, z - SPRING.z) < SPRING.radius + 6) return false;
-  return true;
+  return !nearRiver(x, z, 11);
 }
 
 /** Rise over run of the ground at a point. */
@@ -526,18 +573,21 @@ function buildTrees(scatter, obstacles) {
   const rounds = [];
   const birches = [];
   const bushes = [];
-  for (let i = 0; i < 10500; i++) {
-    const x = (random() - 0.5) * 1700;
-    const z = (random() - 0.5) * 1700;
+  // One try for every 275 square metres, out to a band of woods beyond the fence.
+  const reach = VALLEY_RADIUS + 160;
+  for (let i = 0; i < (2 * reach) ** 2 / 275; i++) {
+    const x = (random() - 0.5) * 2 * reach;
+    const z = (random() - 0.5) * 2 * reach;
     const r = Math.hypot(x, z);
     // Beyond the fence the woods are thinner: only seen from afar, through the haze.
-    if (r > 840 || (r > VALLEY_RADIUS + 10 && random() < 0.6) || !isClearGround(x, z)) continue;
+    if (r > reach || (r > VALLEY_RADIUS + 10 && random() < 0.6) || !isClearGround(x, z)) continue;
     // Woods in some places, open meadows in others. They are kept open enough to drive through.
     const woods = smoothstep(fractalNoise(x / 150 + 3.3, z / 150 + 8.1, 2, 5), 0.36, 0.6);
     if (random() > 0.1 + woods * 0.9) continue;
     const height = terrainHeight(x, z);
-    // Trees thin out towards the treeline and stop at it.
+    // Trees thin out towards the treeline and stop at it, and hardly grow on bare rock.
     if (random() < smoothstep(height, 84, 104) || steepness(x, z) > 0.9) continue;
+    if (random() < rockiness(x, z) * 0.85) continue;
     const tree = { x, z, scale: 0.65 + random() * 1.0, rotation: random() * Math.PI * 2 };
     const roll = random();
     if ((r > 300 && r < UPLANDS_RADIUS + 40) || height > 45 || r > VALLEY_RADIUS) pines.push(tree);
@@ -566,20 +616,19 @@ function buildTrees(scatter, obstacles) {
   const trees = foliageMaterial('trees');
   const round = roundTreeGeometry();
   const birch = birchGeometry();
-  // Pines are everywhere, so they are grouped into smaller cells than the rest.
   scatter.add({
     geometry: pineGeometry(true),
     far: pineGeometry(false),
     near: PINE_DETAIL,
-    cell: 240,
+    cell: FAR_CELL,
     material: trees,
     items: pines.map(tinted(conifer)),
   });
-  scatter.add({ geometry: round, far: round, cell: 240, material: trees, items: rounds.map(tinted(turned)) });
+  scatter.add({ geometry: round, far: round, cell: FAR_CELL, material: trees, items: rounds.map(tinted(turned)) });
   scatter.add({
     geometry: birch,
     far: birch,
-    cell: 240,
+    cell: FAR_CELL,
     material: trees,
     items: birches.map(tinted(() => (random() < 0.4 ? 'yellow' : 'birch'))),
   });
@@ -595,11 +644,11 @@ function buildTrees(scatter, obstacles) {
       obstacles.push({ x: tree.x, z: tree.z, radius: 0.3 * tree.scale });
   }
 
-  // Stumps and fallen logs in the woods.
+  // Stumps and fallen logs in the woods, by about one pine in sixty.
   const stumps = [];
   const logs = [];
-  for (const tree of pines.slice(0, 900)) {
-    if (random() > 0.06 || Math.hypot(tree.x, tree.z) > VALLEY_RADIUS - 8) continue;
+  for (const tree of pines) {
+    if (random() > 1 / 60 || Math.hypot(tree.x, tree.z) > VALLEY_RADIUS - 8) continue;
     const a = random() * Math.PI * 2;
     const spot = { x: tree.x + Math.cos(a) * 5, z: tree.z + Math.sin(a) * 5, scale: 0.8 + random() * 0.5, rotation: a };
     if (!isClearGround(spot.x, spot.z, { road: 7 }) || steepness(spot.x, spot.z) > 0.35) continue;
@@ -625,9 +674,8 @@ function buildTrees(scatter, obstacles) {
 }
 
 /**
- * Stones along the brook and round its spring, and the rocks across the spring track, which
- * the car drives over rather than bumps into (see rockHeight). They have numbers of their
- * own, so they don't move anything else that is scattered.
+ * Stones along the brook and round its spring. They have numbers of their own, so they
+ * don't move anything else that is scattered.
  */
 function buildBrookStones(scene) {
   const stoneRandom = createRandom(5150);
@@ -653,11 +701,54 @@ function buildBrookStones(scene) {
     const d = SPRING.radius + 0.8 + stoneRandom() * 0.8;
     stone(SPRING.x + Math.cos(a) * d, SPRING.z + Math.sin(a) * d, 0.3 + stoneRandom() * 0.45);
   }
-  // The track's rocks: as high as the bumps the tyres ride over, a little wider than them.
-  for (const rock of TRACK_ROCKS) stone(rock.x, rock.z, rock.r * 0.85, rock.h / (rock.r * 0.85 * 0.72));
   const mesh = new THREE.Mesh(mergeGeometries(parts), vertexColorMaterial);
   mesh.castShadow = mesh.receiveShadow = true;
   scene.add(mesh);
+}
+
+/**
+ * The rocks across the tracks, which the car drives over rather than bumps into (see
+ * rockHeight): as high as the bumps the tyres ride over, a little wider than them.
+ */
+function buildTrackRocks(scatter) {
+  const stoneRandom = createRandom(6421);
+  const shapes = [0, 1, 2, 3].map(seed => boulderGeometry(seed + 11, { moss: 0.3 }));
+  const items = TRACK_ROCKS.map(rock => {
+    const size = rock.r * 0.85;
+    const matrix = new THREE.Matrix4().compose(
+      new THREE.Vector3(rock.x, terrainHeight(rock.x, rock.z) - size * 0.12, rock.z),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, stoneRandom() * 6.3, 0)),
+      new THREE.Vector3(size, rock.h / 0.72, size),
+    );
+    return { matrix, shape: Math.floor(stoneRandom() * shapes.length) };
+  });
+  scatter.add({ geometry: shapes, far: shapes[0], near: UNDERGROWTH_RANGE, range: 600, items });
+}
+
+/** Stones along the rivers' edges, though not where the roads ford them. They have numbers of their own. */
+function buildRiverStones(scatter) {
+  const stoneRandom = createRandom(7321);
+  const shapes = [0, 1, 2, 3].map(seed => boulderGeometry(seed + 11, { moss: 0.5 }));
+  const items = [];
+  for (const river of RIVERS) {
+    const fords = FORDS.filter(ford => ford.river === river);
+    for (let s = 2; s < river.path.length; s += 1.8 + stoneRandom() * 2.4) {
+      const side = stoneRandom() < 0.5 ? -1 : 1;
+      const p = river.path.offset(s, side * (river.halfWidth - 0.8 + stoneRandom() * 2.6));
+      const size = 0.3 + stoneRandom() * 0.6;
+      const turn = stoneRandom() * 6.3;
+      const shape = Math.floor(stoneRandom() * shapes.length);
+      if (Math.hypot(p.x, p.z) > VALLEY_RADIUS + 60) continue;
+      if (fords.some(ford => Math.hypot(ford.x - p.x, ford.z - p.z) < river.halfWidth + 8)) continue;
+      const matrix = new THREE.Matrix4().compose(
+        new THREE.Vector3(p.x, terrainHeight(p.x, p.z) - size * 0.12, p.z),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, turn, 0)),
+        new THREE.Vector3(size, size * 0.7, size),
+      );
+      items.push({ matrix, shape });
+    }
+  }
+  scatter.add({ geometry: shapes, near: UNDERGROWTH_RANGE, items });
 }
 
 function buildRocks(scatter, obstacles) {
@@ -665,10 +756,12 @@ function buildRocks(scatter, obstacles) {
   const lists = shapes.map(() => []);
   const add = rock => lists[Math.floor(random() * shapes.length)].push(rock);
 
-  // Boulders scattered across the valley, often with a few smaller stones beside them.
-  for (let i = 0; i < 680; i++) {
-    const x = (random() - 0.5) * 2 * VALLEY_RADIUS;
-    const z = (random() - 0.5) * 2 * VALLEY_RADIUS;
+  const across = 2 * VALLEY_RADIUS;
+  // Boulders scattered across the valley, one try for every 2720 square metres, often with a
+  // few smaller stones beside them.
+  for (let i = 0; i < across ** 2 / 2720; i++) {
+    const x = (random() - 0.5) * across;
+    const z = (random() - 0.5) * across;
     if (!isClearGround(x, z, { road: 8 })) continue;
     // Stony ground up high has more of them.
     if (terrainHeight(x, z) < 80 && Math.hypot(x, z) > UPLANDS_RADIUS && random() < 0.4) continue;
@@ -682,14 +775,30 @@ function buildRocks(scatter, obstacles) {
         add({ ...stone, rotation: random() * 6.3, tilt: random() * 0.4 });
     }
   }
-  // Outcrops on steep ground, mostly up in the northern crags.
+  // Outcrops on steep ground, mostly up in the northern crags: a try for every 123 square
+  // metres, and no more than one for every 5440.
   let outcrops = 0;
-  for (let i = 0; i < 15000 && outcrops < 340; i++) {
-    const x = (random() - 0.5) * 2 * VALLEY_RADIUS;
-    const z = (random() - 0.5) * 2 * VALLEY_RADIUS;
+  for (let i = 0; i < across ** 2 / 123 && outcrops < across ** 2 / 5440; i++) {
+    const x = (random() - 0.5) * across;
+    const z = (random() - 0.5) * across;
     if (Math.hypot(x, z) > VALLEY_RADIUS + 15 || steepness(x, z) < 0.55 || !isClearGround(x, z, { road: 10 })) continue;
     add({ x, z, size: 1.6 + random() * 2.6, rotation: random() * 6.3, tilt: (random() - 0.5) * 0.4, tall: 1.4 });
     outcrops++;
+  }
+  // Rocky ground is strewn with boulders, a try for every 70 square metres, and here and
+  // there a tall tower of rock stands among them, away from the roads.
+  for (const field of ROCK_FIELDS) {
+    for (let i = 0; i < (Math.PI * field.radius ** 2) / 70; i++) {
+      const a = random() * Math.PI * 2;
+      const d = Math.sqrt(random()) * field.radius;
+      const x = field.x + Math.cos(a) * d;
+      const z = field.z + Math.sin(a) * d;
+      if (random() > rockiness(x, z) || !isClearGround(x, z, { road: 7 })) continue;
+      const tower = random() < 0.06 && !onGravel(x, z, 16) && !TRACKS.some(track => track.path.isNear(x, z, 12));
+      const size = tower ? 2.4 + random() * 1.8 : 0.5 + random() ** 2 * 2.6;
+      const tall = tower ? 2.6 + random() * 1.6 : 1;
+      add({ x, z, size, rotation: random() * 6.3, tilt: (random() - 0.5) * 0.3, tall });
+    }
   }
 
   const items = [];
@@ -711,7 +820,7 @@ function buildRocks(scatter, obstacles) {
     }
   });
   // Far off, one plainer shape stands in for all five.
-  scatter.add({ geometry: shapes, far: boulderGeometry(5, { detail: 0 }), near: ROCK_DETAIL, cell: 240, items });
+  scatter.add({ geometry: shapes, far: boulderGeometry(5, { detail: 0 }), near: ROCK_DETAIL, cell: FAR_CELL, items });
 }
 
 /** Wildflowers and grass tufts: tiny, numerous and shadowless. */
@@ -720,9 +829,11 @@ function buildGroundCover(scatter) {
   const flowerColors = ['#f3efdf', '#e9c75a', '#b49ac8', '#dd8f6e', '#8fa56a', '#8fa56a', '#8fa56a'];
   const flowers = [];
   const tufts = [];
-  for (let i = 0; i < 32000 && flowers.length < 7800; i++) {
-    const x = (random() - 0.5) * 2 * VALLEY_RADIUS;
-    const z = (random() - 0.5) * 2 * VALLEY_RADIUS;
+  // A try for every 58 square metres, and no more than one flower for every 237.
+  const across = 2 * VALLEY_RADIUS;
+  for (let i = 0; i < across ** 2 / 58 && flowers.length < across ** 2 / 237; i++) {
+    const x = (random() - 0.5) * across;
+    const z = (random() - 0.5) * across;
     if (Math.hypot(x, z) > VALLEY_RADIUS - 4 || !isClearGround(x, z, { road: 6 }) || inMud(x, z)) continue;
     if (terrainHeight(x, z) > 96) continue;
     // Flowers gather in drifts; tufts of long grass grow everywhere else.
@@ -778,11 +889,12 @@ function isLongGrassGround(x, z) {
   if (ROAD.isNear(x, z, ROAD_HALF_WIDTH + 0.8) || CAMP_TRAIL.isNear(x, z, 2.8) || RAILWAY.isNear(x, z, 4.5))
     return false;
   if (onPaved(x, z, ROAD_HALF_WIDTH + 0.8) || onAirfield(x, z, 2)) return false;
+  if (onGravel(x, z, GRAVEL_HALF_WIDTH + 0.8)) return false;
   if (TRACKS.some(track => track.path.isNear(x, z, track.ruts ? 1.6 : 1.3))) return false;
   if (CLEARINGS.some(c => Math.hypot(x - c.x, z - c.z) < c.r * 0.7) || inMud(x, z)) return false;
   if (Math.hypot(x - FIELDS.x, z - FIELDS.z) < FIELDS.radius + 4) return false;
   if (lakeDistance(x, z) < 2.4 || (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 6))) return false;
-  if (BROOK.isNear(x, z, 3.2)) return false;
+  if (BROOK.isNear(x, z, 3.2) || nearRiver(x, z, 7)) return false;
   const h = terrainHeight(x, z);
   return h < 92 && snowCover(x, z, h) < 0.2 && steepness(x, z) < 0.5;
 }
@@ -815,9 +927,11 @@ function buildLongGrass(scatter) {
       ),
     });
   };
-  // Patches of it, a few metres to ten across, in some meadows and along the edges of the woods.
+  // Patches of it, a few metres to ten across, in some meadows and along the edges of the woods:
+  // a try for every 35 square metres inside the fence, and no more than a patch for every 1580.
   let patches = 0;
-  for (let attempt = 0; attempt < 40000 && patches < 900; attempt++) {
+  const area = Math.PI * VALLEY_RADIUS ** 2;
+  for (let attempt = 0; attempt < area / 35 && patches < area / 1580; attempt++) {
     const a = grassRandom() * Math.PI * 2;
     const r = Math.sqrt(grassRandom()) * (VALLEY_RADIUS - 8);
     const cx = Math.cos(a) * r;
@@ -831,6 +945,7 @@ function buildLongGrass(scatter) {
       ROAD.isNear(cx, cz, 60) ||
       CAMP_TRAIL.isNear(cx, cz, 40) ||
       onPaved(cx, cz, 50) ||
+      onGravel(cx, cz, 50) ||
       TRACKS.some(track => track.path.isNear(cx, cz, 40));
     const chance = Math.max(meadow, edge * 0.8) * (seen ? 1 : 0.2);
     if (grassRandom() > chance || !isLongGrassGround(cx, cz)) continue;
@@ -891,6 +1006,7 @@ function buildLongGrass(scatter) {
  * between them, smooth-shaded like the ground and with the same detail drawn on it.
  */
 function buildPeaks(scene) {
+  const MOUNTAINS = 40;
   const SIDES = 40;
   const RINGS = 12;
   const positions = [];
@@ -901,9 +1017,9 @@ function buildPeaks(scene) {
   const rock = new THREE.Color();
   const color = new THREE.Color();
   const tones = ['#7d898c', '#858f8c', '#8a9291', '#7a8689'];
-  for (let m = 0; m < 30; m++) {
-    const angle = (m / 30) * Math.PI * 2;
-    const distance = 880 + random() * 200;
+  for (let m = 0; m < MOUNTAINS; m++) {
+    const angle = (m / MOUNTAINS) * Math.PI * 2;
+    const distance = VALLEY_RADIUS + 200 + random() * 250;
     const cx = Math.sin(angle) * distance;
     const cz = Math.cos(angle) * distance;
     const radius = 130 + random() * 110;
@@ -1030,18 +1146,31 @@ const PAVED_JOINS = LINKS.map(link => link.path.at(link.path.length));
 
 const ASPHALT = '#7d7f79';
 
+/**
+ * Lays a long road in pieces about 300 m long, so the pieces out of view are skipped:
+ * `lay(outside)` is called for each, with `outside(s)` true away from that piece.
+ */
+function inPieces(path, lay) {
+  const pieces = Math.max(1, Math.round(path.length / 300));
+  for (let k = 0; k < pieces; k++) {
+    const from = (k / pieces) * path.length;
+    const to = ((k + 1) / pieces) * path.length + 1.5;
+    lay(s => s < from || s > to);
+  }
+}
+
 /** The paved roads: grey asphalt with a dashed white line down the middle. */
 function buildPavedRoads(scene) {
   const dashes = s => s % 9 > 4.5;
-  // The ring goes all the way round, so it is laid in pieces and the ones out of view are skipped.
-  const pieces = 12;
-  for (let k = 0; k < pieces; k++) {
-    const from = (k / pieces) * RING_ROAD.length;
-    const to = ((k + 1) / pieces) * RING_ROAD.length + 1.5;
-    const outside = s => s < from || s > to;
-    scene.add(ribbon(RING_ROAD, ROAD_HALF_WIDTH, ASPHALT, { lift: 0.07, skip: outside }));
-    scene.add(ribbon(RING_ROAD, 0.1, '#eeece2', { lift: 0.09, across: 1, skip: s => outside(s) || dashes(s) }));
-  }
+  inPieces(RING_ROAD, outside => {
+    const asphalt = ribbonGeometry(RING_ROAD, ROAD_HALF_WIDTH, ASPHALT, { lift: 0.07, skip: outside });
+    const line = ribbonGeometry(RING_ROAD, 0.1, '#eeece2', {
+      lift: 0.09,
+      across: 1,
+      skip: s => outside(s) || dashes(s),
+    });
+    scene.add(ribbonMesh(mergeGeometries([asphalt, line])));
+  });
   for (const { path } of LINKS) {
     // Each one stops at the edge of the trail, and tucks under the ring where it joins it.
     const between = s => s < ROAD_HALF_WIDTH || s > path.length - 3;
@@ -1056,6 +1185,25 @@ function buildPavedRoads(scene) {
   }
 }
 
+/** The gravel roads in the outlands: pale gravel worn darker in two wheel tracks. */
+function buildGravelRoads(scene) {
+  for (const path of GRAVEL) {
+    // The roads out from the ring start at its edge, and tuck under the outer road where they join it.
+    const off = s => {
+      const p = path.at(s);
+      return onPaved(p.x, p.z, ROAD_HALF_WIDTH + 0.4) || (!path.closed && s > path.length - 3);
+    };
+    inPieces(path, outside => {
+      const skip = s => outside(s) || off(s);
+      const gravel = ribbonGeometry(path, GRAVEL_HALF_WIDTH, '#bdae8b', { lift: 0.06, skip });
+      const tracks = [-1.15, 1.15].map(offset =>
+        ribbonGeometry(path, 0.4, '#a69676', { lift: 0.075, offset, across: 1, skip }),
+      );
+      scene.add(ribbonMesh(mergeGeometries([gravel, ...tracks])));
+    });
+  }
+}
+
 export function buildScenery(parent) {
   // None of it ever moves, so it is kept together and frozen in place.
   const scene = new THREE.Group();
@@ -1066,13 +1214,14 @@ export function buildScenery(parent) {
   scene.add(ribbon(ROAD, ROAD_HALF_WIDTH, '#cfc29c', { skip: onBridge }));
   scene.add(ribbon(CAMP_TRAIL, 2.1, '#c7b994', { lift: 0.05 }));
   buildPavedRoads(scene);
+  buildGravelRoads(scene);
   for (const track of TRACKS) {
     // The roadworks lay their own surface.
     if (track.id === 'roadworks') continue;
-    // Tracks that leave a paved road start at its edge.
+    // Tracks that leave a paved or gravel road start at its edge.
     const paved = s => {
       const p = track.path.at(s);
-      return onPaved(p.x, p.z, ROAD_HALF_WIDTH + 0.4);
+      return onPaved(p.x, p.z, ROAD_HALF_WIDTH + 0.4) || onGravel(p.x, p.z, GRAVEL_HALF_WIDTH + 0.2);
     };
     if (track.ruts) {
       for (const offset of [-0.85, 0.85])
@@ -1086,6 +1235,8 @@ export function buildScenery(parent) {
   buildTrees(scatter, obstacles);
   buildRocks(scatter, obstacles);
   buildBrookStones(scene);
+  buildTrackRocks(scatter);
+  buildRiverStones(scatter);
   buildGroundCover(scatter);
   buildLongGrass(scatter);
   buildPeaks(scene);

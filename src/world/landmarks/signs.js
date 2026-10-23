@@ -321,49 +321,80 @@ function paintMap(ctx, w, h) {
     summit: 'Velká Deštná',
     fields: 'Upland farm',
     airfield: 'Airfield',
+    rockhill: 'Rocky hill',
   };
+  /** Draws text in the current font and alignment, and returns the box it fills. */
+  const write = (text, x, y, size) => {
+    ctx.fillText(text, x, y);
+    const width = ctx.measureText(text).width;
+    const x0 = ctx.textAlign === 'left' ? x : ctx.textAlign === 'right' ? x - width : x - width / 2;
+    return { x0, x1: x0 + width, y0: y - size * 0.8, y1: y + size * 0.25 };
+  };
+  const dot = (x, y, r) => {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    return { x0: x - r, x1: x + r, y0: y - r, y1: y + r };
+  };
+  ctx.fillStyle = '#3f4f45';
+  ctx.font = `800 40px ${FONT}`;
+  ctx.textAlign = 'left';
+  // Everything written on the map so far, so the labels at its edge can keep clear of it.
+  const taken = [write('VALLEY TRAIL', 40, 62, 40)];
   ctx.font = `700 26px ${FONT}`;
   ctx.textAlign = 'center';
   // Labels sit above their dot, except where that would crowd a neighbour.
   const below = ['bridge', 'jetty', 'lookout', 'bunker', 'helipad'];
   const margin = 46;
+  const clampX = x => Math.min(w - margin, Math.max(margin, x));
+  const clampY = y => Math.min(h - margin, Math.max(34, y));
+  const beyond = [];
   for (const place of PLACES) {
-    ctx.fillStyle = '#3f4f45';
-    // Places in the uplands are off the edge of the map: an arrow at the edge points the way.
-    const x = px(place.x);
-    const y = pz(place.z);
-    const ex = Math.min(w - margin, Math.max(margin, x));
-    const ey = Math.min(h - margin, Math.max(34, y));
-    if (ex !== x || ey !== y) {
-      const angle = Math.atan2(y - ey, x - ex);
-      ctx.save();
-      ctx.translate(ex, ey);
-      ctx.rotate(angle);
-      ctx.beginPath();
-      ctx.moveTo(16, 0);
-      ctx.lineTo(-8, -13);
-      ctx.lineTo(-8, 13);
-      ctx.fill();
-      ctx.restore();
-      ctx.textAlign = ex > w / 2 ? 'right' : 'left';
-      ctx.fillText(labels[place.id], ex + (ex > w / 2 ? -26 : 26), ey + 9);
-      ctx.textAlign = 'center';
-      continue;
-    }
-    ctx.beginPath();
-    ctx.arc(px(place.x), pz(place.z), 7, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillText(labels[place.id], px(place.x), pz(place.z) + (below.includes(place.id) ? 32 : -16));
+    const [x, y] = [px(place.x), pz(place.z)];
+    if (clampX(x) !== x || clampY(y) !== y) beyond.push(place);
+    else taken.push(dot(x, y, 7), write(labels[place.id], x, y + (below.includes(place.id) ? 32 : -16), 26));
   }
   ctx.fillStyle = '#c75b32';
-  ctx.beginPath();
-  ctx.arc(px(SPAWN.x), pz(SPAWN.z), 11, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillText('You are here', px(SPAWN.x), pz(SPAWN.z) + 38);
+  taken.push(dot(px(SPAWN.x), pz(SPAWN.z), 11), write('You are here', px(SPAWN.x), pz(SPAWN.z) + 38, 26));
   ctx.fillStyle = '#3f4f45';
-  ctx.font = `800 40px ${FONT}`;
-  ctx.textAlign = 'left';
-  ctx.fillText('VALLEY TRAIL', 40, 62);
+
+  // Places beyond the valley are off the edge of the map: an arrow at the edge points the way,
+  // moved along the edge as far as it takes to keep its label clear of everything else.
+  const overlaps = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+  for (const place of beyond) {
+    const [x, y] = [px(place.x), pz(place.z)];
+    // It slides along the edge it lies furthest beyond, and from a corner down the other edge too.
+    const pastX = Math.max(margin - x, x - (w - margin));
+    const pastY = Math.max(34 - y, y - (h - margin));
+    const steps = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6];
+    const slides = [
+      ...steps.map(step => (pastY >= pastX ? [step, 0] : [0, step])),
+      ...(pastX > 0 && pastY > 0 ? steps.map(step => (pastY >= pastX ? [0, step] : [step, 0])) : []),
+    ];
+    const spots = slides.map(([sx, sy]) => {
+      const ex = clampX(clampX(x) + sx * 30);
+      const ey = clampY(clampY(y) + sy * 30);
+      const right = ex > w / 2;
+      const width = ctx.measureText(labels[place.id]).width;
+      const [x0, x1] = right ? [ex - 26 - width, ex + 18] : [ex - 18, ex + 26 + width];
+      return { ex, ey, right, box: { x0, x1, y0: ey - 18, y1: ey + 18 } };
+    });
+    const { ex, ey, right, box } = spots.find(spot => !taken.some(t => overlaps(t, spot.box))) ?? spots[0];
+    ctx.save();
+    ctx.translate(ex, ey);
+    ctx.rotate(Math.atan2(y - ey, x - ex));
+    // A shaft and a head, so the way it points is plain even on a slant.
+    ctx.fillRect(-16, -3.5, 18, 7);
+    ctx.beginPath();
+    ctx.moveTo(18, 0);
+    ctx.lineTo(0, -11);
+    ctx.lineTo(0, 11);
+    ctx.fill();
+    ctx.restore();
+    ctx.textAlign = right ? 'right' : 'left';
+    ctx.fillText(labels[place.id], ex + (right ? -26 : 26), ey + 9);
+    taken.push(box);
+  }
 }
 
 function addMapBoard(scene, parts) {
@@ -418,7 +449,8 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
     fields: ['UPLAND FARM', FARMSTEAD],
     spring: ['SPRING', SPRING],
   };
-  for (const track of TRACKS) {
+  // Tracks out in the outlands leave the gravel road rather than the trail, and have no sign.
+  for (const track of TRACKS.filter(track => track.id in destinations)) {
     const [text, destination] = destinations[track.id];
     const fromStart = track.id !== 'shore'; // the shore path ends at the trail rather than starting there
     const inward = track.path.at(fromStart ? 14 : track.path.length - 14);
