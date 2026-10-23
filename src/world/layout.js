@@ -488,11 +488,22 @@ function patchOnRoad(x, z) {
   return { x: p.x, z: p.z };
 }
 
+/** The point `fraction` of the way along a side track. */
+function patchOnTrack(id, fraction) {
+  const { path } = TRACKS.find(track => track.id === id);
+  const p = path.at(path.length * fraction);
+  return { x: p.x, z: p.z };
+}
+
 /** Special driving surfaces. Ellipses with radii rx/rz. */
 export const SURFACES = [
   { id: 'puddle', ...patchOnRoad(40, 110), rx: 9, rz: 6 },
   { id: 'leaves', ...patchOnRoad(-150, 40), rx: 20, rz: 18 },
   { id: 'snow', ...patchOnRoad(-92, -116), rx: 26, rz: 22 },
+  // Muddy stretches of the side tracks.
+  { id: 'mud', ...patchOnTrack('farm', 0.5), rx: 6, rz: 6 },
+  { id: 'mud', ...patchOnTrack('tower', 0.5), rx: 7, rz: 6 },
+  { id: 'mud', ...patchOnTrack('fields', 0.5), rx: 8, rz: 7 },
 ];
 
 export function surfaceAt(x, z) {

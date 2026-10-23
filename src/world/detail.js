@@ -61,6 +61,12 @@ function detailTexture() {
 const materials = new Map();
 let detail = null;
 
+/** The detail texture, as a uniform to share with other shaders. */
+export function detailMap() {
+  detail ??= { value: detailTexture() };
+  return detail;
+}
+
 /** Shared by everything that sways: the time, and where the car is, for the grass to bend away from it. */
 export const SWAY = { time: { value: 0 }, pusher: { value: new THREE.Vector3(0, -1000, 0) } };
 

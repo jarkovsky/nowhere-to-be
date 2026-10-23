@@ -3,6 +3,7 @@ import { angleDelta, clamp, damp } from './core/math.js';
 import { createAudio } from './core/audio.js';
 import { createChaseCamera } from './core/camera.js';
 import { createObstacleIndex } from './core/collision.js';
+import { stepDirt } from './core/dirt.js';
 import { createCarState, placeCar, steerAngle, stepDriving } from './core/driving.js';
 import { createJournal } from './core/journal.js';
 import { chassisPose, settleWheels } from './core/suspension.js';
@@ -57,7 +58,7 @@ function surfaceUnder(x, z) {
   if (onDeck(x, z)) return 'road';
   if (waterDepth(x, z) > 0.15) return 'water';
   const patch = surfaceAt(x, z);
-  if (patch === 'snow' || patch === 'leaves') return patch;
+  if (patch === 'snow' || patch === 'leaves' || patch === 'mud') return patch;
   if (snowCover(x, z) > 0.5) return 'snow';
   if (ROAD.isNear(x, z, ROAD_HALF_WIDTH + 0.6) || CAMP_TRAIL.isNear(x, z, 2.6)) return 'road';
   if (onPaved(x, z, ROAD_HALF_WIDTH + 0.6) || onAirfield(x, z)) return 'road';
@@ -540,6 +541,7 @@ export function createGame(canvas) {
 
   let lastFrame = 0;
   let clock = 0;
+  let dirt = 0;
   let nextBell = 0;
   let wasBraking = false;
   let throttle = 0;
@@ -610,6 +612,12 @@ export function createGame(canvas) {
     secrets.update(dt, state, true, night);
     gnomes.update(dt, state, driving);
     surfaces.update(dt, state, driving);
+    if (driving) {
+      // Puddles lie on the trail, so the tyres find them rather than the driving surface.
+      const surface = surfaces.getState().surface === 'puddle' ? 'puddle' : surfaceUnder(state.x, state.z);
+      dirt = stepDirt(dirt, { surface, speed: state.speed, rain: sky.rain }, dt);
+    }
+    car.setMud(dirt);
     traffic.update(dt, {
       player: state,
       blockers: [...wildlife.crossingDucks(), ...landmarks.crossing.blockers(), ...towed],
@@ -685,6 +693,7 @@ export function createGame(canvas) {
         pixelRatio,
         input: controls.read(),
         tentOpen,
+        dirt,
         trailer: car.trailer ? { ...trailer, swing: angleDelta(state.heading, trailer.heading) } : null,
         calls: renderer.info.render.calls,
         triangles: renderer.info.render.triangles,
@@ -697,6 +706,7 @@ export function createGame(canvas) {
       setSky: preset => atmosphere.setPreset(preset),
       callOut: kind => traffic.callOut(state, kind) || ringTraffic.callOut(state, kind),
       setClock: seconds => atmosphere.setTime(seconds),
+      setDirt: amount => (dirt = amount),
       shot(position, target) {
         chase.setMode('shot');
         debugShot.position.set(...position);

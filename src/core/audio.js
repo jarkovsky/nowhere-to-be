@@ -20,6 +20,7 @@ export function engineRpm(speed, throttle) {
 const SURFACE_BEDS = {
   water: { cutoff: 700, gain: 0.035, bubbles: 1 },
   puddle: { cutoff: 900, gain: 0.02, bubbles: 0.5 },
+  mud: { cutoff: 420, gain: 0.03, bubbles: 0.8 },
   snow: { cutoff: 1600, gain: 0.01, bubbles: 0 },
   leaves: { cutoff: 2400, gain: 0.008, bubbles: 0 },
 };
@@ -380,7 +381,7 @@ export function createAudio() {
       if (!playable() || speed < 0.6) return;
       const now = context.currentTime;
       const profile = SURFACE_BEDS[kind];
-      if (entering && (kind === 'water' || kind === 'puddle') && speed > 2.5)
+      if (entering && (kind === 'water' || kind === 'puddle' || kind === 'mud') && speed > 2.5)
         burst('lowpass', 500, 0.5, 0.05 * surfacePace);
       if (profile?.bubbles && now > nextBubble) {
         bubble(0.012 + 0.012 * surfacePace);

@@ -1,7 +1,8 @@
-// Puddles and creek splashes, crunchy leaves, and tyre tracks in the snow.
+// Puddles and creek splashes, crunchy leaves, mud, and tyre tracks in the snow.
 import * as THREE from 'three';
-import { createRandom } from '../core/math.js';
+import { createRandom, valueNoise } from '../core/math.js';
 import { ROAD, ROAD_HALF_WIDTH, SURFACES, TRACKS, surfaceAt } from './layout.js';
+import { groundMaterial } from './detail.js';
 import { onDeck, snowCover, terrainHeight, waterDepth } from './terrain.js';
 
 const TRACK_CAPACITY = 6000;
@@ -28,6 +29,46 @@ function layOnGround(dummy, x, z, heading) {
   lay.setFromEuler(flat.set(-Math.PI / 2, 0, heading));
   dummy.position.set(x, h + 0.06, z);
   dummy.quaternion.copy(tilt).multiply(lay);
+}
+
+/**
+ * A patch of mud laid over the ground: a disc with a ragged edge, following the ground's
+ * shape, with darker wet hollows here and there.
+ */
+function mudGeometry(patch, seed) {
+  const RINGS = 5;
+  const SIDES = 20;
+  const positions = [];
+  const colors = [];
+  const color = new THREE.Color();
+  const point = (ring, side) => {
+    const a = (side / SIDES) * Math.PI * 2;
+    const edge = 0.75 + valueNoise(Math.cos(a) * 2 + seed, Math.sin(a) * 2, 23) * 0.35;
+    const f = (ring / RINGS) * edge;
+    const x = patch.x + Math.cos(a) * patch.rx * f;
+    const z = patch.z + Math.sin(a) * patch.rz * f;
+    const wet = valueNoise(x / 1.8, z / 1.8, 31 + seed);
+    color.set('#5b4b3a').lerp(new THREE.Color('#342a20'), Math.max(0, wet - 0.45) * 1.6);
+    return { position: [x, terrainHeight(x, z) + 0.08, z], color: color.toArray() };
+  };
+  const rings = Array.from({ length: RINGS + 1 }, (_, ring) =>
+    Array.from({ length: SIDES }, (_, side) => point(ring, side)),
+  );
+  for (let ring = 0; ring < RINGS; ring++) {
+    for (let side = 0; side < SIDES; side++) {
+      const next = (side + 1) % SIDES;
+      const quad = [rings[ring][side], rings[ring + 1][side], rings[ring + 1][next], rings[ring][next]];
+      for (const k of [0, 2, 1, 0, 3, 2]) {
+        positions.push(...quad[k].position);
+        colors.push(...quad[k].color);
+      }
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.computeVertexNormals();
+  return geometry;
 }
 
 export function createSurfaces(scene, sound) {
@@ -102,6 +143,14 @@ export function createSurfaces(scene, sound) {
   }
   scene.add(crowns);
 
+  // Mud across the side tracks, with the same grain as the ground around it.
+  const mudMaterial = groundMaterial({ polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  SURFACES.filter(p => p.id === 'mud').forEach((patch, i) => {
+    const mud = new THREE.Mesh(mudGeometry(patch, i * 5), mudMaterial);
+    mud.receiveShadow = true;
+    scene.add(mud);
+  });
+
   const tracks = new THREE.InstancedMesh(
     new THREE.PlaneGeometry(0.39, 0.68),
     new THREE.MeshLambertMaterial({ color: '#b3c3c4', polygonOffset: true, polygonOffsetFactor: -4 }),
@@ -116,6 +165,7 @@ export function createSurfaces(scene, sound) {
     water: new THREE.MeshBasicMaterial({ color: '#d4f2f2' }),
     puddle: new THREE.MeshBasicMaterial({ color: '#c6eff3' }),
     leaves: new THREE.MeshLambertMaterial({ color: '#e0a449' }),
+    mud: new THREE.MeshLambertMaterial({ color: '#5e4630' }),
     snow: new THREE.MeshBasicMaterial({ color: '#faffff' }),
   };
   const particles = Array.from({ length: 72 }, () => {

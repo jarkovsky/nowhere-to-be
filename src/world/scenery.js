@@ -63,6 +63,7 @@ const GROUND = {
   bank: new THREE.Color('#a6a387'),
   snow: new THREE.Color('#eef1ea'),
   leaves: new THREE.Color('#c4873f'),
+  mud: new THREE.Color('#7a6446'),
 };
 
 /** Colour of the ground at a grid point. `up` is the Y of its normal: 1 on flat ground. */
@@ -84,9 +85,13 @@ function groundColor(x, z, h, up, out) {
     if (creek.distance < 9) out.lerp(GROUND.bank, 1 - smoothstep(creek.distance, 5, 9));
   }
   for (const patch of SURFACES) {
-    const d = Math.hypot((x - patch.x) / patch.rx, (z - patch.z) / patch.rz) + (random() - 0.5) * 0.12;
+    // Mud's ragged edge comes from noise rather than the shared random numbers, so that
+    // adding a patch of it doesn't move every tree placed after the ground.
+    const ragged = patch.id === 'mud' ? (valueNoise(x / 2.5, z / 2.5, 9) - 0.5) * 0.5 : (random() - 0.5) * 0.12;
+    const d = Math.hypot((x - patch.x) / patch.rx, (z - patch.z) / patch.rz) + ragged;
     if (d < 1 && patch.id === 'snow') out.copy(GROUND.snow);
     if (d < 1 && patch.id === 'leaves') out.lerp(GROUND.leaves, 0.75);
+    if (d < 1.2 && patch.id === 'mud') out.lerp(GROUND.mud, 0.85 * (1 - smoothstep(d, 0.8, 1.2)));
   }
   return out.multiplyScalar(0.96 + random() * 0.08);
 }
@@ -294,8 +299,12 @@ const CLEARINGS = [
   { ...AIRFIELD.hangar, r: 22 },
   { ...AIRFIELD.tower, r: 12 },
   ...GNOMES.map(gnome => ({ ...gnome, r: 4 })),
-  ...SURFACES.map(p => ({ x: p.x, z: p.z, r: Math.max(p.rx, p.rz) + 4 })),
+  // The mud lies on the tracks, which are kept clear anyway.
+  ...SURFACES.filter(p => p.id !== 'mud').map(p => ({ x: p.x, z: p.z, r: Math.max(p.rx, p.rz) + 4 })),
 ];
+
+/** True in or just around a patch of mud. */
+const inMud = (x, z) => SURFACES.some(p => p.id === 'mud' && Math.hypot((x - p.x) / p.rx, (z - p.z) / p.rz) < 1.15);
 
 function nearWalkway({ start, end }, x, z, clearance) {
   const dx = end.x - start.x;
@@ -634,7 +643,7 @@ function buildGroundCover(scatter) {
   for (let i = 0; i < 32000 && flowers.length < 7800; i++) {
     const x = (random() - 0.5) * 2 * VALLEY_RADIUS;
     const z = (random() - 0.5) * 2 * VALLEY_RADIUS;
-    if (Math.hypot(x, z) > VALLEY_RADIUS - 4 || !isClearGround(x, z, { road: 6 })) continue;
+    if (Math.hypot(x, z) > VALLEY_RADIUS - 4 || !isClearGround(x, z, { road: 6 }) || inMud(x, z)) continue;
     if (terrainHeight(x, z) > 96) continue;
     // Flowers gather in drifts; tufts of long grass grow everywhere else.
     const drift = fractalNoise(x / 40 + 2, z / 40 + 6, 2, 17);
@@ -690,7 +699,7 @@ function isVerge(x, z) {
     return false;
   if (onPaved(x, z, ROAD_HALF_WIDTH + 0.4) || onAirfield(x, z, 2)) return false;
   if (TRACKS.some(track => track.path.isNear(x, z, track.ruts ? 1.4 : 1.1))) return false;
-  if (CLEARINGS.some(c => Math.hypot(x - c.x, z - c.z) < c.r * 0.7)) return false;
+  if (CLEARINGS.some(c => Math.hypot(x - c.x, z - c.z) < c.r * 0.7) || inMud(x, z)) return false;
   if (lakeDistance(x, z) < 2.4 || (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 6))) return false;
   const h = terrainHeight(x, z);
   return h < 92 && snowCover(x, z, h) < 0.2 && steepness(x, z) < 0.5;

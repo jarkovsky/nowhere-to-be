@@ -5,6 +5,7 @@
 // lorries with trailers, a rally car and a racing car.
 import * as THREE from 'three';
 import { PartsBuilder, flatMaterial, prism } from '../world/build.js';
+import { detailMap } from '../world/detail.js';
 
 export const CAR_COLORS = {
   orange: '#d16b38',
@@ -606,6 +607,55 @@ export function vehicleParts(name) {
   return { painted, trim, spec };
 }
 
+/**
+ * Mud thrown up over the car from below: `amount` (0 clean to 1 caked) sets how high it
+ * reaches, and `space` turns world positions into the car's own, where y is the height
+ * above the ground under it, so the splashes stay put on the car as it moves.
+ */
+const MUD = {
+  amount: { value: 0 },
+  color: { value: new THREE.Color('#5e4a33') },
+  space: { value: new THREE.Matrix4() },
+};
+
+const MUD_FRAGMENT = /* glsl */ `
+  {
+    float splash = texture2D( mudDetail, vMud.xz * 0.8 + vMud.y * 0.5 ).a;
+    float spots = texture2D( mudDetail, vec2( vMud.x * 1.3 + vMud.z * 0.7, vMud.y * 1.1 ) ).r;
+    // A ragged line up to where it reaches, and spots flicked up above it.
+    float reach = mudAmount * 1.4 + ( splash - 0.5 ) * 0.4;
+    float mud = 1.0 - smoothstep( reach - 0.15, reach + 0.05, vMud.y );
+    mud = max( mud, smoothstep( 0.58, 0.66, spots ) * ( 1.0 - smoothstep( reach, reach + 0.6, vMud.y ) ) );
+    mud *= smoothstep( 0.0, 0.08, mudAmount );
+    diffuseColor.rgb = mix( diffuseColor.rgb, mudColor * ( 0.8 + 0.4 * splash ), mud * 0.85 );
+  }
+`;
+
+/** Lets `material` show the mud. */
+function addMud(material) {
+  material.onBeforeCompile = shader => {
+    Object.assign(shader.uniforms, {
+      mudAmount: MUD.amount,
+      mudColor: MUD.color,
+      mudSpace: MUD.space,
+      mudDetail: detailMap(),
+    });
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform mat4 mudSpace;\nvarying vec3 vMud;')
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvMud = ( mudSpace * modelMatrix * vec4( transformed, 1.0 ) ).xyz;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nuniform float mudAmount;\nuniform vec3 mudColor;\nuniform sampler2D mudDetail;\nvarying vec3 vMud;',
+      )
+      .replace('#include <color_fragment>', `#include <color_fragment>\n${MUD_FRAGMENT}`);
+  };
+  return material;
+}
+
 export function createCar() {
   const root = new THREE.Group();
   const body = new THREE.Group();
@@ -667,6 +717,21 @@ export function createCar() {
       return { ...wheel, front: z < 0 };
     });
     vehicles[name] = { shell, wheels, spec, cargo, tent, face, trailer };
+  }
+
+  // The mud goes on the body, the wheels and the trailers, but not on the lamps, the faces or
+  // what rides on the roof. Materials shared with the rest of the world get copies of their own.
+  const muddied = new Map([[paint, addMud(paint)]]);
+  const muddy = mesh => {
+    if (!muddied.has(mesh.material)) muddied.set(mesh.material, addMud(mesh.material.clone()));
+    mesh.material = muddied.get(mesh.material);
+  };
+  for (const v of Object.values(vehicles)) {
+    for (const part of v.shell.children) {
+      if (part.isMesh && part.material !== headlampMaterial && part.material !== brakeMaterial) muddy(part);
+    }
+    for (const wheel of v.wheels) wheel.spin.children.forEach(muddy);
+    v.trailer?.root.traverse(part => part.isMesh && part.material !== brakeMaterial && muddy(part));
   }
 
   // One spotlight between the headlamps keeps the light count (and cost) down.
@@ -743,6 +808,12 @@ export function createCar() {
       decorations.flag.userData.pennant.rotation.y = Math.sin(time * 5) * 0.12;
       if (rainbow) paint.color.setHSL((time * 0.08) % 1, 0.55, 0.55);
       current.face?.blink(time);
+    },
+    /** How dirty the car is, from 0 (clean) to 1. Call it once the car has been moved for the frame. */
+    setMud(amount) {
+      MUD.amount.value = amount;
+      root.updateMatrixWorld();
+      MUD.space.value.copy(root.matrixWorld).invert();
     },
     /** The characters look the way they are steering (1 is full left). */
     look(steering) {
