@@ -1,7 +1,7 @@
 // Animals that live in the valley: deer on their meadow walk, a family of
 // ducks crossing the trail, grazing sheep, a shy rabbit, cows at the farm,
 // foxes, fish in the lake and geese overhead. Out in the uplands there are
-// wolves, and both farms keep chickens.
+// wolves, both farms keep chickens, and herds roam the outlands.
 import * as THREE from 'three';
 import { angleDelta, createRandom, smoothstep } from '../core/math.js';
 import { FARM, HABITATS, LAKE } from './layout.js';
@@ -9,6 +9,7 @@ import { terrainHeight } from './terrain.js';
 import { PartsBuilder, localFrame } from './build.js';
 import { createWolves } from './wolves.js';
 import { createChickens } from './chickens.js';
+import { createHerds } from './herds.js';
 
 const DARK = '#394439';
 const CREAM = '#eee4c9';
@@ -552,6 +553,7 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
 
   const wolves = createWolves(scene, { onCall });
   const chickens = createChickens(scene);
+  const herds = createHerds(scene);
 
   placeWalkers();
   placeRabbit();
@@ -583,6 +585,7 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
       wolves.hearHorn(x, z);
       if (chickens.hearHorn(x, z)) onCall('cluck');
       if (near(leadGoose) < 90) onCall('honk');
+      for (const call of new Set(herds.hearHorn(x, z))) onCall(call);
     },
     getState: () => ({
       time,
@@ -590,6 +593,7 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
       deer: deerGroup.animals[0].root.position.clone(),
       geese: leadGoose.clone(),
       wolves: wolves.getState(),
+      herds: herds.getState(),
     }),
     update(dt, player, running, night = 0) {
       if (!running) return;
@@ -622,6 +626,7 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
       updateHunter(dt, player);
       wolves.update(dt, player, night);
       chickens.update(dt, player);
+      herds.update(dt, player);
 
       const close = (p, range) => Math.hypot(player.x - p.x, player.z - p.z) < range;
       for (const group of foxGroups) group.animals[0].root.visible = close(group.animals[0].root.position, 230);

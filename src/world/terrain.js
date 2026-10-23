@@ -44,6 +44,7 @@ import {
   ROCK_HILL,
   FJORD,
   inFjord,
+  PONDS,
   lakeDistance,
   nearRiver,
   rockiness,
@@ -500,6 +501,16 @@ levelAlong(ROAD, trailWidth, 0.5, { levels: roadProfile });
 levelAlong(RING_ROAD, PAVED_WIDTH, 0.5, { levels: ringLevels });
 levelAlong(OUTER_ROAD, GRAVEL_WIDTH, 0.5, { levels: outerLevels });
 
+// Ponds lie in shallow bowls dug into the levelled green, their water just below its edge.
+const pondLevels = PONDS.map(({ x, z }) => sampleGrid(x, z) - 0.3);
+PONDS.forEach((pond, i) => {
+  forEachVertexNear(pond.x, pond.z, pond.radius + 3, (vertex, _x, _z, distance) => {
+    const bowl =
+      pondLevels[i] - 1.1 * (1 - smoothstep(distance, 0, pond.radius)) + Math.max(0, distance - pond.radius) * 0.4;
+    heights[vertex] = Math.min(heights[vertex], bowl);
+  });
+});
+
 // --- River channels ------------------------------------------------------------------------
 
 // Once the river's channel is dug, the road is put back across it. Its surface is taken here,
@@ -668,8 +679,14 @@ export function waterLevel(x, z) {
   const river = nearRiver(x, z, 10);
   if (river) level = Math.max(level, riverLevel(river.river, river.s));
   if (inFjord(x, z, 6)) level = Math.max(level, FJORD.level);
+  PONDS.forEach((pond, i) => {
+    if (Math.hypot(x - pond.x, z - pond.z) < pond.radius + 2) level = Math.max(level, pondLevels[i]);
+  });
   return level;
 }
+
+/** Water surface height of a pond. */
+export const pondLevel = pond => pondLevels[PONDS.indexOf(pond)];
 
 /** Water surface height of a river at a distance along it. */
 export function riverLevel(river, s) {

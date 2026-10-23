@@ -324,6 +324,9 @@ function paintMap(ctx, w, h) {
     airfield: 'Airfield',
     rockhill: 'Rocky hill',
     fjord: 'Fjord',
+    village: 'Fire station',
+    horses: 'Horses',
+    goats: 'Goats',
   };
   /** Draws text in the current font and alignment, and returns the box it fills. */
   const write = (text, x, y, size) => {

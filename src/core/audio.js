@@ -347,6 +347,12 @@ export function createAudio() {
       } else if (kind === 'moo') {
         tone(118, now, 0.35, { type: 'sawtooth', end: 150, volume: 0.06 });
         tone(150, now + 0.35, 0.75, { type: 'sawtooth', end: 104, volume: 0.06 });
+      } else if (kind === 'neigh') {
+        // A whinny: a high call that shakes as it falls away.
+        for (let i = 0; i < 8; i++)
+          tone(860 - i * 60, now + i * 0.07, 0.09, { type: 'sawtooth', end: 800 - i * 60, volume: 0.03 });
+      } else if (kind === 'oink') {
+        [0, 0.22].forEach(t => tone(180, now + t, 0.14, { type: 'sawtooth', end: 120, volume: 0.06 }));
       } else if (kind === 'hoot') {
         tone(392, now, 0.35, { end: 330, volume: 0.05 });
         tone(392, now + 0.5, 0.6, { end: 311, volume: 0.05 });

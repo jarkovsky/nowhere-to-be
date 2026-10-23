@@ -2,6 +2,7 @@
 // agree on the same coordinates. +X is east, +Z is south, heights are metres.
 import { createRandom, lerp, smoothstep } from '../core/math.js';
 import { createPath, headingOf } from './path.js';
+import { localFrame } from './build.js';
 
 export const WORLD_SIZE = 3600;
 /** The fence: the car can't drive further from the centre than this. */
@@ -315,6 +316,8 @@ export const FJORD_VILLAGE = (() => {
     boathouses: [place(-114, 33, 0.9, { paint: '#a5382b' }), place(114, 33, 0.9, { paint: '#a5382b' })],
     church: place(70, 62, 7.2, {}),
     pier: place(-6, 30, 1.2, {}),
+    /** Where the sheep graze, up the slope beyond the church. */
+    pasture: place(96, 80, 0),
     road: hairpins(place, [
       [-50, 100, 28, 80],
       [28, 62, -24, 50],
@@ -348,6 +351,90 @@ function hairpins(place, legs) {
     }
   });
   return points;
+}
+
+/**
+ * Farms in the outlands, each down a short track from the outer road. In a farm's own frame
+ * the yard is at the middle, the track comes in from +Z, which faces out towards the road,
+ * the house and the barn stand behind the yard, and the animals' paddock is off to -X.
+ * `sty` adds a pen for pigs to +X.
+ */
+export const FARMS = [
+  farm('horses', 40, 770, { paddock: 24, walls: '#efe3c6', roof: '#a5503c' }),
+  farm('goats', 287, 772, { paddock: 15, walls: '#e6dbc2', roof: '#6f6b63', sty: true }),
+];
+
+function farm(id, degrees, r, options) {
+  const [x, z] = polar(degrees, r);
+  const rotation = Math.PI / 2 - (degrees * Math.PI) / 180;
+  const local = localFrame(x, z, rotation);
+  const paddock = { ...local(-(options.paddock + 12), 4), radius: options.paddock };
+  const sty = options.sty ? { ...local(17, 6), radius: 6 } : null;
+  return { id, x, z, rotation, ...options, paddock, sty, gate: local(0, 20) };
+}
+
+/**
+ * A village where the road out from the west meets the outer road: houses facing the road
+ * on both sides, a pond on the green across from the junction, and the fire station beside
+ * the junction with its fire engine. Places are given `along` the outer road from the
+ * junction and `side` metres off it, positive towards the middle of the map; they face the road.
+ */
+export const VILLAGE = (() => {
+  const junction = OUTER_ROAD.nearest(...outerPoint(178)).s;
+  const middleward = (() => {
+    const p = OUTER_ROAD.at(junction);
+    const q = OUTER_ROAD.offset(junction, 1);
+    return Math.hypot(q.x, q.z) < Math.hypot(p.x, p.z) ? 1 : -1;
+  })();
+  const place = (along, side, extra = {}) => {
+    const p = OUTER_ROAD.offset(junction + along, side * middleward);
+    const road = OUTER_ROAD.at(junction + along);
+    return { x: p.x, z: p.z, rotation: Math.atan2(road.x - p.x, road.z - p.z), ...extra };
+  };
+  return {
+    houses: [
+      place(-62, 15, { walls: '#efe3c6', roof: '#a5503c' }),
+      place(-40, 15, { walls: '#e9cf9a', roof: '#6f6b63' }),
+      place(52, 15, { walls: '#e2e6d8', roof: '#a5503c' }),
+      place(74, 15, { walls: '#efe3c6', roof: '#8a4a3a' }),
+      place(-54, -15, { walls: '#e9cf9a', roof: '#a5503c' }),
+      place(-32, -15, { walls: '#efe3c6', roof: '#6f6b63' }),
+      place(32, -15, { walls: '#efe3c6', roof: '#a5503c' }),
+      place(54, -15, { walls: '#e2e6d8', roof: '#8a4a3a' }),
+    ],
+    fireStation: place(26, 17),
+    pond: { ...place(0, -30), radius: 9 },
+  };
+})();
+
+/** Village ponds: still water in a shallow bowl, with a level stone edge. */
+export const PONDS = [VILLAGE.pond];
+
+/** True on a pond's water, or within `margin` metres of it. */
+export function inPond(x, z, margin = 0) {
+  return PONDS.some(pond => Math.hypot(x - pond.x, z - pond.z) < pond.radius + margin);
+}
+
+/**
+ * Herds of animals that live in the outlands. Each wanders round its own patch of ground,
+ * `radius` metres from (x, z), and runs off when a car comes close. Farm animals are fenced
+ * into their paddocks. `young` of them are smaller.
+ */
+export const HERDS = [
+  { kind: 'horse', ...FARMS[0].paddock, radius: FARMS[0].paddock.radius - 3, count: 4, young: 1 },
+  { kind: 'goat', ...FARMS[1].paddock, radius: FARMS[1].paddock.radius - 2, count: 5, young: 2 },
+  { kind: 'pig', ...FARMS[1].sty, radius: FARMS[1].sty.radius - 1.5, count: 3, young: 1 },
+  { kind: 'sheep', ...FJORD_VILLAGE.pasture, radius: 20, count: 6, young: 2 },
+  { kind: 'moose', ...spot(238, 735), radius: 45, count: 2, young: 1 },
+  { kind: 'boar', ...spot(262, 760), radius: 40, count: 5, young: 3 },
+  { kind: 'deer', ...spot(306, 750), radius: 50, count: 4, young: 1 },
+  { kind: 'mouflon', x: ROCK_HILL.x, z: ROCK_HILL.z, radius: ROCK_HILL.radius, count: 5, young: 2 },
+];
+
+/** Like `polar`, as { x, z }. */
+function spot(degrees, r) {
+  const [x, z] = polar(degrees, r);
+  return { x, z };
 }
 
 /** Rolling hills out in the outlands. */
@@ -597,6 +684,12 @@ export const TRACKS = [
     grade: 0.22,
     path: createPath(roundAndUp(ROCK_HILL, outerPoint(354))),
   },
+  // Off the outer road into each farm's yard.
+  ...FARMS.map(({ id, x, z, gate }) => ({
+    id: `farm-${id}`,
+    ruts: true,
+    path: createPath(fromOuterRoad([gate.x, gate.z], [x, z])),
+  })),
   {
     // Off the outer road and down the slope at the head of the fjord to the village.
     id: 'fjord',
@@ -801,6 +894,8 @@ export const PLACES = [
   { id: 'airfield', x: AIRFIELD.x - 30, z: (AIRFIELD.z0 + AIRFIELD.z1) / 2 },
   { id: 'rockhill', x: ROCK_HILL.x, z: ROCK_HILL.z },
   { id: 'fjord', x: FJORD_VILLAGE.pier.x, z: FJORD_VILLAGE.pier.z },
+  { id: 'village', x: VILLAGE.fireStation.x, z: VILLAGE.fireStation.z },
+  ...FARMS.map(({ id, x, z }) => ({ id, x, z })),
 ];
 
 /**
@@ -815,6 +910,10 @@ export const PADS = [
     radius: 6,
     falloff: 5,
   })),
+  ...FARMS.map(({ x, z }) => ({ x, z, radius: 16, falloff: 10 })),
+  ...VILLAGE.houses.map(({ x, z }) => ({ x, z, radius: 6, falloff: 6 })),
+  { x: VILLAGE.fireStation.x, z: VILLAGE.fireStation.z, radius: 10, falloff: 6 },
+  ...PONDS.map(({ x, z, radius }) => ({ x, z, radius: radius + 5, falloff: 8 })),
   { x: CAMP.x - 4, z: CAMP.z - 2, radius: 11, falloff: 16 },
   { x: CABIN.x, z: CABIN.z, radius: 9, falloff: 8 },
   { x: LOOKOUT.x, z: LOOKOUT.z, radius: 6, falloff: 8 },

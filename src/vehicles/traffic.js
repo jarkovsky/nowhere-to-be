@@ -286,6 +286,9 @@ function createVehicle(model) {
   return { root, wheels, lamps, beacons, radius: model.wheelRadius, length: model.length, along };
 }
 
+/** The fire engine that waits at the village fire station. */
+export const parkedFireEngine = () => createVehicle(fireEngine());
+
 const between = ([least, most]) => least + Math.random() * (most - least);
 
 /**

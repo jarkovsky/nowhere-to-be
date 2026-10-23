@@ -18,6 +18,8 @@ import { buildSigns } from './signs.js';
 import { buildAirfield } from './airfield.js';
 import { buildRockGate } from './rockgate.js';
 import { buildFjord } from './fjord.js';
+import { buildFarms } from './farms.js';
+import { buildVillage } from './village.js';
 
 export { insideTunnel } from './tunnel.js';
 
@@ -42,6 +44,8 @@ export function buildLandmarks(scene, obstacles) {
   const airfield = buildAirfield(scene, obstacles);
   const gate = buildRockGate(scene, obstacles);
   const fjord = buildFjord(scene, obstacles);
+  const farms = buildFarms(scene, obstacles);
+  const village = buildVillage(scene, obstacles);
   buildSigns(scene, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard });
 
   let time = 0;
@@ -54,6 +58,9 @@ export function buildLandmarks(scene, obstacles) {
     /** The roadworks machines and the tractors in the fields, for collisions. */
     machines,
     fields,
+    /** The fire engine at the village answers a honk nearby. */
+    hearHorn: (x, z) => village.hearHorn(x, z),
+    sirenLevel: (x, z) => village.sirenLevel(x, z),
     update(dt, night, { crossingClosed = false, player = null } = {}) {
       time += dt;
       waterfall.update(time);
@@ -71,6 +78,8 @@ export function buildLandmarks(scene, obstacles) {
       helipad.update(time, night);
       airfield.update(time, night, player);
       fjord.update(dt);
+      farms.update(time);
+      village.update(dt);
     },
   };
 }

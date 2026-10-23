@@ -327,6 +327,7 @@ export function createGame(canvas) {
     for (const road of [traffic, ringTraffic]) road.answerHonk(state.x, state.z, () => sound.otherHorn());
     train.answerHonk(state);
     helicopter.hearHorn(state);
+    landmarks.hearHorn(state.x, state.z);
     planes.hearHorn(state);
   }
 
@@ -657,7 +658,12 @@ export function createGame(canvas) {
       b.level > a.level ? b : a,
     );
     sound.rotor(mode === 'title' ? 0 : rotor.level, rotor.rate);
-    sound.siren(mode === 'title' ? 0 : Math.max(traffic.sirenLevel(state), ringTraffic.sirenLevel(state)));
+    const siren = Math.max(
+      landmarks.sirenLevel(state.x, state.z),
+      traffic.sirenLevel(state),
+      ringTraffic.sirenLevel(state),
+    );
+    sound.siren(mode === 'title' ? 0 : siren);
     renderer.render(scene, camera);
     if (!UNCAPPED) adaptResolution(frameMs, dt, targetFps);
   }
