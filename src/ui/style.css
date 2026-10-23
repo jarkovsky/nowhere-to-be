@@ -540,6 +540,22 @@ body.cruising .touch-controls .gas {
   }
 }
 
+/* A tablet held sideways is gripped by its sides, so the controls sit halfway up each edge,
+   under the thumbs. Phones are small enough to keep them at the bottom. */
+@media (hover: none) and (orientation: landscape) and (min-height: 600px),
+  (pointer: coarse) and (orientation: landscape) and (min-height: 600px) {
+  .touch-controls {
+    bottom: auto;
+    top: 50%;
+    transform: translateY(-50%);
+    align-items: center;
+  }
+
+  .touch-controls > div {
+    align-items: center;
+  }
+}
+
 body:not(.touch) .touch-only {
   display: none;
 }
