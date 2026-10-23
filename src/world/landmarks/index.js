@@ -17,6 +17,7 @@ import { buildFields } from './fields.js';
 import { buildSigns } from './signs.js';
 import { buildAirfield } from './airfield.js';
 import { buildRockGate } from './rockgate.js';
+import { buildFjord } from './fjord.js';
 
 export { insideTunnel } from './tunnel.js';
 
@@ -40,6 +41,7 @@ export function buildLandmarks(scene, obstacles) {
   const fields = buildFields(scene, obstacles);
   const airfield = buildAirfield(scene, obstacles);
   const gate = buildRockGate(scene, obstacles);
+  const fjord = buildFjord(scene, obstacles);
   buildSigns(scene, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard });
 
   let time = 0;
@@ -68,6 +70,7 @@ export function buildLandmarks(scene, obstacles) {
       machines.push(...roadworks.colliders, ...fields.colliders);
       helipad.update(time, night);
       airfield.update(time, night, player);
+      fjord.update(dt);
     },
   };
 }

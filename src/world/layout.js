@@ -149,8 +149,8 @@ export function polar(degrees, r) {
 }
 
 /**
- * The outer road, every 15 degrees from due east. It swings in in the north-west and passes
- * the foot of the rocky hill in the east.
+ * The outer road, every 15 degrees from due east. It swings in round the head of the fjord
+ * in the north-west and past the foot of the rocky hill in the east.
  */
 const OUTER_RADII = [
   790, 815, 840, 845, 850, 855, 858, 860, 855, 848, 840, 830, 822, 815, 805, 748, 800, 830, 835, 815, 815, 800, 790,
@@ -251,6 +251,104 @@ export const ROCK_GATE = (() => {
   const p = OUTER_ROAD.at(OUTER_ROAD.nearest(...outerPoint(342)).s);
   return { ...p, span: 25, height: 18 };
 })();
+
+/**
+ * A fjord in the north-west: a long arm of still, deep water between steep rock walls,
+ * reaching in from beyond the fence. Its head ends in a gentler slope with a small village
+ * at the water's edge, and a road comes down that slope in hairpins from the outer road.
+ * `level` is the height of the water; it is wider towards its mouth.
+ */
+export const FJORD = {
+  level: 30,
+  depth: 8,
+  halfWidth: s => 28 + Math.min(s, 260) * 0.06,
+  path: createPath([polar(228, 860), polar(227, 940), polar(226, 1020), polar(225, 1120), polar(224, 1320)], {
+    spacing: 2,
+  }),
+};
+
+// The fjord's extent, so points far from it are turned away at once.
+const fjordBox = (() => {
+  const reach = FJORD.halfWidth(FJORD.path.length) + 10;
+  const xs = FJORD.path.samples.map(p => p.x);
+  const zs = FJORD.path.samples.map(p => p.z);
+  return {
+    x0: Math.min(...xs) - reach,
+    x1: Math.max(...xs) + reach,
+    z0: Math.min(...zs) - reach,
+    z1: Math.max(...zs) + reach,
+  };
+})();
+
+/** True on the fjord's water, or within `margin` metres of it. */
+export function inFjord(x, z, margin = 0) {
+  if (x < fjordBox.x0 - margin || x > fjordBox.x1 + margin || z < fjordBox.z0 - margin || z > fjordBox.z1 + margin)
+    return false;
+  const { s, distance } = FJORD.path.nearest(x, z);
+  return distance < FJORD.halfWidth(s) + margin;
+}
+
+/**
+ * The village round the fjord's head. Places are given by `bearing`, in degrees from
+ * straight inland (negative to the left looking inland), and `distance` from the end of the
+ * water; they all face the water. `level` is how high each one's ground is levelled to.
+ */
+export const FJORD_VILLAGE = (() => {
+  const head = FJORD.path.at(0);
+  const place = (bearing, distance, rise, extra) => {
+    const a = (bearing * Math.PI) / 180;
+    // Inland is back along the fjord; left of that is its other side.
+    const x = head.x - head.dx * Math.cos(a) * distance - head.dz * Math.sin(a) * distance;
+    const z = head.z - head.dz * Math.cos(a) * distance + head.dx * Math.sin(a) * distance;
+    return { x, z, rotation: Math.atan2(head.x - x, head.z - z), level: FJORD.level + rise, ...extra };
+  };
+  return {
+    head,
+    houses: [
+      place(-62, 34, 1.8, { paint: '#a5382b' }),
+      place(-82, 35, 2, { paint: '#d6a94e' }),
+      place(62, 34, 1.8, { paint: '#efe8da' }),
+      place(82, 35, 2, { paint: '#a5382b' }),
+      place(-66, 50, 4.6, { paint: '#a5382b' }),
+    ],
+    // Boathouses stand with their doors to the water, at its edge along each side.
+    boathouses: [place(-114, 33, 0.9, { paint: '#a5382b' }), place(114, 33, 0.9, { paint: '#a5382b' })],
+    church: place(70, 62, 7.2, {}),
+    pier: place(-6, 30, 1.2, {}),
+    road: hairpins(place, [
+      [-50, 100, 28, 80],
+      [28, 62, -24, 50],
+      [-24, 34, -4, 32],
+    ]),
+  };
+})();
+
+/**
+ * Points for a road down a slope round the head of a valley, given as legs of
+ * [bearing, distance, bearing, distance] from the start of each to its end. Each leg runs
+ * round the head while closing in on it, so it drops steadily, and turns back on itself into
+ * the next round a half circle.
+ */
+function hairpins(place, legs) {
+  const points = [];
+  const add = (bearing, distance) => {
+    const p = place(bearing, distance, 0);
+    points.push([p.x, p.z]);
+  };
+  legs.forEach(([b0, d0, b1, d1], i) => {
+    const steps = Math.max(2, Math.round(Math.abs(b1 - b0) / 6));
+    for (let k = 0; k <= steps; k++) add(lerp(b0, b1, k / steps), lerp(d0, d1, k / steps));
+    const next = legs[i + 1];
+    if (!next) return;
+    const middle = (d1 + next[1]) / 2;
+    const radius = (d1 - next[1]) / 2;
+    for (const turn of [0.25, 0.5, 0.75]) {
+      const a = turn * Math.PI;
+      add(b1 + Math.sign(b1 - b0) * ((radius * Math.sin(a)) / middle) * (180 / Math.PI), middle + radius * Math.cos(a));
+    }
+  });
+  return points;
+}
 
 /** Rolling hills out in the outlands. */
 export const OUTLAND_HILLS = [
@@ -393,6 +491,12 @@ function fromRoad(x, z, ...points) {
   return [[start.x, start.z], ...points];
 }
 
+/** Points for a track that leaves the outer road where it passes closest to the first of them. */
+function fromOuterRoad(...points) {
+  const start = OUTER_ROAD.nearest(...points[0]).sample;
+  return [[start.x, start.z], ...points];
+}
+
 /**
  * Narrow side tracks: two dirt ruts with grass between, or a footpath along the shore.
  * `grade`, where given, is the steepest they climb.
@@ -492,6 +596,13 @@ export const TRACKS = [
     ruts: true,
     grade: 0.22,
     path: createPath(roundAndUp(ROCK_HILL, outerPoint(354))),
+  },
+  {
+    // Off the outer road and down the slope at the head of the fjord to the village.
+    id: 'fjord',
+    ruts: true,
+    grade: 0.14,
+    path: createPath(fromOuterRoad(...FJORD_VILLAGE.road)),
   },
 ];
 
@@ -689,10 +800,21 @@ export const PLACES = [
   { id: 'fields', x: FARMSTEAD.x, z: FARMSTEAD.z },
   { id: 'airfield', x: AIRFIELD.x - 30, z: (AIRFIELD.z0 + AIRFIELD.z1) / 2 },
   { id: 'rockhill', x: ROCK_HILL.x, z: ROCK_HILL.z },
+  { id: 'fjord', x: FJORD_VILLAGE.pier.x, z: FJORD_VILLAGE.pier.z },
 ];
 
-/** Ground that flattens so buildings and camp furniture sit on level ground. */
+/**
+ * Ground that flattens so buildings and camp furniture sit on level ground: to its natural
+ * height, or to `level` where one is given.
+ */
 export const PADS = [
+  ...[...FJORD_VILLAGE.houses, ...FJORD_VILLAGE.boathouses, FJORD_VILLAGE.church].map(({ x, z, level }) => ({
+    x,
+    z,
+    level,
+    radius: 6,
+    falloff: 5,
+  })),
   { x: CAMP.x - 4, z: CAMP.z - 2, radius: 11, falloff: 16 },
   { x: CABIN.x, z: CABIN.z, radius: 9, falloff: 8 },
   { x: LOOKOUT.x, z: LOOKOUT.z, radius: 6, falloff: 8 },

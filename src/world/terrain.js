@@ -42,6 +42,8 @@ import {
   RIVERS,
   FORD_DEPTH,
   ROCK_HILL,
+  FJORD,
+  inFjord,
   lakeDistance,
   nearRiver,
   rockiness,
@@ -374,7 +376,7 @@ for (let iz = 0; iz < GRID; iz++) {
 
 function flattenPads() {
   for (const pad of PADS) {
-    const level = naturalHeight(pad.x, pad.z);
+    const level = pad.level ?? naturalHeight(pad.x, pad.z);
     forEachVertexNear(pad.x, pad.z, pad.radius + pad.falloff, (vertex, _x, _z, distance) => {
       heights[vertex] = lerp(heights[vertex], level, 1 - smoothstep(distance, pad.radius, pad.radius + pad.falloff));
     });
@@ -454,6 +456,20 @@ RIVERS.forEach((river, r) => {
   }
 });
 RIVERS.forEach((river, i) => levelAlong(river.path, () => river.halfWidth + 14, 70, { levels: riverFloors[i] }));
+
+// The fjord is dug out of the land before any road is laid: deep still water, sheer walls
+// along its sides and a gentle slope round its head that steepens further back to meet the hills.
+for (const [vertex, { index, distance }] of nearestSamples(FJORD.path, 170)) {
+  const { s } = FJORD.path.samples[index];
+  const halfWidth = FJORD.halfWidth(s);
+  const bed = FJORD.level - 0.6;
+  const slope = lerp(0.22, 2.4, smoothstep(s, 20, 90));
+  const ground =
+    distance < halfWidth
+      ? bed - FJORD.depth * (1 - (distance / halfWidth) ** 2)
+      : bed + (distance - halfWidth) * slope + smoothstep(distance, 100, 170) * 70;
+  heights[vertex] = Math.min(heights[vertex], ground);
+}
 
 levelAlong(CAMP_TRAIL, () => 2.4, 6);
 // Tracks off the gravel roads are laid after the roads, so they leave them where the roads now are.
@@ -651,6 +667,7 @@ export function waterLevel(x, z) {
   if (Math.hypot(x - SPRING.x, z - SPRING.z) < SPRING.radius + 2) level = Math.max(level, SPRING_LEVEL);
   const river = nearRiver(x, z, 10);
   if (river) level = Math.max(level, riverLevel(river.river, river.s));
+  if (inFjord(x, z, 6)) level = Math.max(level, FJORD.level);
   return level;
 }
 

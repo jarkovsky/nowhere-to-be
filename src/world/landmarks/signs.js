@@ -37,7 +37,8 @@ const WOOD = '#7a5436';
 const PAINT = '#f1e3c0';
 const painters = [];
 
-function canvasTexture(width, height, paint) {
+/** A texture painted by `paint(ctx, width, height)`, painted again once the web font has loaded. */
+export function canvasTexture(width, height, paint) {
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -322,6 +323,7 @@ function paintMap(ctx, w, h) {
     fields: 'Upland farm',
     airfield: 'Airfield',
     rockhill: 'Rocky hill',
+    fjord: 'Fjord',
   };
   /** Draws text in the current font and alignment, and returns the box it fills. */
   const write = (text, x, y, size) => {

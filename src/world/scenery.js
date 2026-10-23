@@ -1,6 +1,6 @@
 // The landscape itself: ground, trail, water, vegetation, distant peaks and the fence.
 import * as THREE from 'three';
-import { createRandom, fractalNoise, lerp, smoothstep, valueNoise } from '../core/math.js';
+import { angleDelta, createRandom, fractalNoise, lerp, smoothstep, valueNoise } from '../core/math.js';
 import {
   LAKE,
   ROAD,
@@ -49,6 +49,9 @@ import {
   RIVERS,
   ROCK_FIELDS,
   ROCK_GATE,
+  FJORD,
+  FJORD_VILLAGE,
+  inFjord,
   onAirfield,
   onPaved,
   onGravel,
@@ -96,6 +99,8 @@ function groundColor(x, z, h, up, out) {
   out.lerp(GROUND.alpine, smoothstep(h, 86, 108) * 0.75);
   if (h > 90) out.lerp(GROUND.snow, snowCover(x, z, h) * smoothstep(up, 0.6, 0.78));
   if (lakeDistance(x, z) < 2.2) out.lerp(GROUND.shore, 1 - smoothstep(h, LAKE.level + 0.35, LAKE.level + 0.9));
+  if (h < FJORD.level + 1.5 && inFjord(x, z, 6))
+    out.lerp(GROUND.bank, 1 - smoothstep(h, FJORD.level + 0.4, FJORD.level + 1.5));
   if (x > 135 && x < 245 && z > -85 && z < -30) {
     const creek = CREEK.nearest(x, z);
     if (creek.distance < 9) out.lerp(GROUND.bank, 1 - smoothstep(creek.distance, 5, 9));
@@ -388,6 +393,8 @@ const CLEARINGS = [
   { ...AIRFIELD.hangar, r: 22 },
   { ...AIRFIELD.tower, r: 12 },
   { x: ROCK_GATE.x, z: ROCK_GATE.z, r: ROCK_GATE.span },
+  ...[...FJORD_VILLAGE.houses, ...FJORD_VILLAGE.boathouses].map(({ x, z }) => ({ x, z, r: 9 })),
+  { x: FJORD_VILLAGE.church.x, z: FJORD_VILLAGE.church.z, r: 12 },
   ...GNOMES.map(gnome => ({ ...gnome, r: 4 })),
   // The mud lies on the tracks, which are kept clear anyway.
   ...SURFACES.filter(p => p.id !== 'mud').map(p => ({ x: p.x, z: p.z, r: Math.max(p.rx, p.rz) + 4 })),
@@ -417,7 +424,7 @@ function isClearGround(x, z, { road = 9 } = {}) {
   if (x > ground.x0 - 6 && x < ground.x1 + 6 && z > ground.z0 - 6 && z < ground.z1 + 6) return false;
   if (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 10)) return false;
   if (BROOK.isNear(x, z, 7) || Math.hypot(x - SPRING.x, z - SPRING.z) < SPRING.radius + 6) return false;
-  return !nearRiver(x, z, 11);
+  return !nearRiver(x, z, 11) && !inFjord(x, z, 3);
 }
 
 /** Rise over run of the ground at a point. */
@@ -894,7 +901,7 @@ function isLongGrassGround(x, z) {
   if (CLEARINGS.some(c => Math.hypot(x - c.x, z - c.z) < c.r * 0.7) || inMud(x, z)) return false;
   if (Math.hypot(x - FIELDS.x, z - FIELDS.z) < FIELDS.radius + 4) return false;
   if (lakeDistance(x, z) < 2.4 || (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 6))) return false;
-  if (BROOK.isNear(x, z, 3.2) || nearRiver(x, z, 7)) return false;
+  if (BROOK.isNear(x, z, 3.2) || nearRiver(x, z, 7) || inFjord(x, z, 3)) return false;
   const h = terrainHeight(x, z);
   return h < 92 && snowCover(x, z, h) < 0.2 && steepness(x, z) < 0.5;
 }
@@ -1017,12 +1024,18 @@ function buildPeaks(scene) {
   const rock = new THREE.Color();
   const color = new THREE.Color();
   const tones = ['#7d898c', '#858f8c', '#8a9291', '#7a8689'];
+  const mouth = FJORD.path.at(FJORD.path.length);
+  const fjordAngle = Math.atan2(mouth.x, mouth.z);
   for (let m = 0; m < MOUNTAINS; m++) {
-    const angle = (m / MOUNTAINS) * Math.PI * 2;
+    let angle = (m / MOUNTAINS) * Math.PI * 2;
     const distance = VALLEY_RADIUS + 200 + random() * 250;
+    const radius = 130 + random() * 110;
+    // None stands in the way of the fjord: one that would stands beside it instead.
+    const clear = (radius + 70) / distance;
+    const off = angleDelta(fjordAngle, angle);
+    if (Math.abs(off) < clear) angle = fjordAngle + (off < 0 ? -clear : clear);
     const cx = Math.sin(angle) * distance;
     const cz = Math.cos(angle) * distance;
-    const radius = 130 + random() * 110;
     const height = 140 + random() * 150;
     const base = naturalHeight(cx, cz) - 18;
     const ridges = 3 + Math.floor(random() * 3);
