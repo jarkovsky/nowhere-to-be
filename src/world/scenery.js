@@ -42,9 +42,11 @@ import {
   onPaved,
   lakeDistance,
 } from './layout.js';
-import { AXIS, GRID, heights, terrainHeight, naturalHeight, creekLevel, snowCover, POOL } from './terrain.js';
-import { PartsBuilder, flatMaterial, vertexColorMaterial, triangleGeometry } from './build.js';
+import { terrainHeight, naturalHeight, creekLevel, snowCover, POOL } from './terrain.js';
+import { PartsBuilder, flatMaterial, freeze, vertexColorMaterial, triangleGeometry } from './build.js';
+import { createGround } from './ground.js';
 import { boulderGeometry } from './rocks.js';
+import { createScatter } from './scatter.js';
 
 const random = createRandom(82741);
 
@@ -85,78 +87,6 @@ function groundColor(x, z, h, up, out) {
     if (d < 1 && patch.id === 'leaves') out.lerp(GROUND.leaves, 0.75);
   }
   return out.multiplyScalar(0.96 + random() * 0.08);
-}
-
-/** Grid cell ranges for the ground tiles along one axis: the coarse rim at each end, the fine middle in three. */
-function tileBands() {
-  const cells = GRID - 1;
-  const coarse = AXIS.findIndex(value => value >= -UPLANDS_RADIUS - 205);
-  const fine = cells - 2 * coarse;
-  const cuts = [0, coarse, ...[1, 2].map(k => coarse + Math.round((fine * k) / 3)), cells - coarse, cells];
-  return cuts.slice(1).map((end, i) => [cuts[i], end]);
-}
-
-/** One tile of the ground: cells [x0, x1) by [z0, z1), two triangles each. */
-function groundTile([x0, x1], [z0, z1]) {
-  const count = (x1 - x0) * (z1 - z0);
-  const positions = new Float32Array(count * 18);
-  const colors = new Float32Array(count * 18);
-  const color = new THREE.Color();
-  const a = new THREE.Vector3();
-  const b = new THREE.Vector3();
-  const c = new THREE.Vector3();
-  let p = 0;
-  const vertex = (ix, iz) => {
-    positions[p] = AXIS[ix];
-    positions[p + 1] = heights[iz * GRID + ix];
-    positions[p + 2] = AXIS[iz];
-    p += 3;
-  };
-  for (let iz = z0; iz < z1; iz++) {
-    for (let ix = x0; ix < x1; ix++) {
-      // Two triangles per cell, split along the same diagonal as terrainHeight().
-      for (const triangle of [
-        [
-          [ix, iz],
-          [ix, iz + 1],
-          [ix + 1, iz],
-        ],
-        [
-          [ix + 1, iz],
-          [ix, iz + 1],
-          [ix + 1, iz + 1],
-        ],
-      ]) {
-        const start = p;
-        for (const [vx, vz] of triangle) vertex(vx, vz);
-        const cx = (positions[start] + positions[start + 3] + positions[start + 6]) / 3;
-        const cy = (positions[start + 1] + positions[start + 4] + positions[start + 7]) / 3;
-        const cz = (positions[start + 2] + positions[start + 5] + positions[start + 8]) / 3;
-        a.fromArray(positions, start);
-        b.fromArray(positions, start + 3).sub(a);
-        c.fromArray(positions, start + 6).sub(a);
-        const up = Math.abs(c.cross(b).normalize().y);
-        groundColor(cx, cz, cy, up, color);
-        for (let k = 0; k < 3; k++) colors.set([color.r, color.g, color.b], start + k * 3);
-      }
-    }
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geometry.computeBoundingSphere();
-  const mesh = new THREE.Mesh(geometry, vertexColorMaterial);
-  mesh.receiveShadow = true;
-  return mesh;
-}
-
-/** The ground, in tiles so the parts out of view can be skipped. */
-function buildGround() {
-  const ground = new THREE.Group();
-  ground.name = 'ground';
-  const bands = tileBands();
-  for (const zBand of bands) for (const xBand of bands) ground.add(groundTile(xBand, zBand));
-  return ground;
 }
 
 const SNOW = SURFACES.find(patch => patch.id === 'snow');
@@ -317,8 +247,14 @@ function buildWater(scene) {
   };
 }
 
-/** How far away flowers, grass, bushes, stumps and logs can still be made out. */
+/** How far away flowers and grass can still be made out. */
 const DETAIL_RANGE = 170;
+/** Bushes, stumps and logs are a little bigger. */
+const UNDERGROWTH_RANGE = 250;
+/** Beyond this, rocks are all drawn with one simpler shape. */
+const ROCK_DETAIL = 300;
+/** The fence beyond this is thinner than a pixel. */
+const FENCE_RANGE = 450;
 
 /** Circles kept clear of trees and rocks. */
 const CLEARINGS = [
@@ -439,59 +375,18 @@ function logGeometry() {
   return parts.geometry();
 }
 
-/** Side of the square patches that scattered scenery is grouped into: three by three across the valley. */
-const PATCH = 350;
-const patchOf = ({ x, z }) => `${Math.floor(x / PATCH + 0.5)},${Math.floor(z / PATCH + 0.5)}`;
+const placement = new THREE.Object3D();
 
-/**
- * Places a list of { x, z, scale, rotation, tilt?, sx?, sy? } as instanced meshes:
- * one per square patch of the valley, so patches out of view (or out of reach of
- * the shadows) can be skipped, and one for everything beyond the fence, which
- * never casts shadows.
- */
-function instanced(scene, geometry, items, options = {}) {
-  const groups = new Map();
-  for (const item of items) {
-    const key = Math.hypot(item.x, item.z) > VALLEY_RADIUS + 25 ? 'far' : patchOf(item);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(item);
-  }
-  for (const [key, group] of groups) {
-    instancedGroup(scene, geometry, group, { ...options, shadows: key !== 'far' && options.shadows !== false });
-  }
+/** Where a scattered item { x, z, scale, rotation, tilt?, sx?, sy? } stands: on the ground, sunk by `sink` of its size. */
+function placed(item, sink = 0.2) {
+  placement.position.set(item.x, terrainHeight(item.x, item.z) - sink * item.scale, item.z);
+  placement.rotation.set(item.tilt ?? 0, item.rotation, 0);
+  placement.scale.set(item.scale * (item.sx ?? 1), item.scale * (item.sy ?? 1), item.scale);
+  placement.updateMatrix();
+  return placement.matrix.clone();
 }
 
-/** Splits scattered items into the square patches they fall in. */
-function byPatch(items) {
-  const groups = new Map();
-  for (const item of items) {
-    const key = patchOf(item);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(item);
-  }
-  return groups.values();
-}
-
-function instancedGroup(scene, geometry, items, { shadows = true, sink = 0.2, tint, details } = {}) {
-  const dummy = new THREE.Object3D();
-  const color = new THREE.Color();
-  const mesh = new THREE.InstancedMesh(geometry, vertexColorMaterial, items.length);
-  items.forEach((item, i) => {
-    dummy.position.set(item.x, terrainHeight(item.x, item.z) - sink * item.scale, item.z);
-    dummy.rotation.set(item.tilt ?? 0, item.rotation, 0);
-    dummy.scale.set(item.scale * (item.sx ?? 1), item.scale * (item.sy ?? 1), item.scale);
-    dummy.updateMatrix();
-    mesh.setMatrixAt(i, dummy.matrix);
-    if (tint) mesh.setColorAt(i, tint(item, color));
-  });
-  mesh.castShadow = shadows;
-  mesh.receiveShadow = true;
-  mesh.computeBoundingSphere();
-  scene.add(mesh);
-  details?.push(mesh);
-}
-
-function buildTrees(scene, obstacles, details) {
+function buildTrees(scatter, obstacles) {
   const pines = [];
   const rounds = [];
   const birches = [];
@@ -524,12 +419,25 @@ function buildTrees(scene, obstacles, details) {
   // Lone trees on top of the open knolls.
   for (const knoll of KNOLLS.slice(1)) rounds.push({ x: knoll.x, z: knoll.z, scale: 1.7, rotation: knoll.x });
 
-  const leafy = (hue, spread) => (_, color) =>
-    color.setHSL(hue + random() * spread, 0.25 + random() * 0.25, 0.75 + random() * 0.3);
-  instanced(scene, pineGeometry(), pines, { tint: leafy(0.22, 0.06) });
-  instanced(scene, roundTreeGeometry(), rounds, { tint: leafy(0.16, 0.06) });
-  instanced(scene, birchGeometry(), birches, { tint: leafy(0.15, 0.05) });
-  instanced(scene, bushGeometry(), bushes, { sink: 0.1, shadows: false, tint: leafy(0.2, 0.08), details });
+  const leafy =
+    (hue, spread, sink = 0.2) =>
+    tree => ({
+      matrix: placed(tree, sink),
+      color: new THREE.Color().setHSL(hue + random() * spread, 0.25 + random() * 0.25, 0.75 + random() * 0.3),
+    });
+  const pine = pineGeometry();
+  const round = roundTreeGeometry();
+  const birch = birchGeometry();
+  // Pines are everywhere, so they are grouped into smaller cells than the rest.
+  scatter.add({ geometry: pine, far: pine, cell: 240, items: pines.map(leafy(0.22, 0.06)) });
+  scatter.add({ geometry: round, far: round, cell: 240, items: rounds.map(leafy(0.16, 0.06)) });
+  scatter.add({ geometry: birch, far: birch, cell: 240, items: birches.map(leafy(0.15, 0.05)) });
+  scatter.add({
+    geometry: bushGeometry(),
+    near: UNDERGROWTH_RANGE,
+    shadows: false,
+    items: bushes.map(leafy(0.2, 0.08, 0.1)),
+  });
   for (const tree of [...pines, ...rounds, ...birches]) {
     if (Math.hypot(tree.x, tree.z) < VALLEY_RADIUS + 5)
       obstacles.push({ x: tree.x, z: tree.z, radius: 0.3 * tree.scale });
@@ -545,8 +453,16 @@ function buildTrees(scene, obstacles, details) {
     if (!isClearGround(spot.x, spot.z, { road: 7 }) || steepness(spot.x, spot.z) > 0.35) continue;
     (random() < 0.5 ? stumps : logs).push(spot);
   }
-  instanced(scene, stumpGeometry(), stumps, { sink: 0.05, details });
-  instanced(scene, logGeometry(), logs, { sink: 0.08, details });
+  scatter.add({
+    geometry: stumpGeometry(),
+    near: UNDERGROWTH_RANGE,
+    items: stumps.map(stump => ({ matrix: placed(stump, 0.05) })),
+  });
+  scatter.add({
+    geometry: logGeometry(),
+    near: UNDERGROWTH_RANGE,
+    items: logs.map(log => ({ matrix: placed(log, 0.08) })),
+  });
   for (const item of stumps) obstacles.push({ x: item.x, z: item.z, radius: 0.5 * item.scale });
   for (const item of logs) {
     const half = 2.1 * item.scale;
@@ -556,7 +472,7 @@ function buildTrees(scene, obstacles, details) {
   }
 }
 
-function buildRocks(scene, obstacles) {
+function buildRocks(scatter, obstacles) {
   const shapes = [0, 1, 2, 3, 4].map(seed => boulderGeometry(seed));
   const lists = shapes.map(() => []);
   const add = rock => lists[Math.floor(random() * shapes.length)].push(rock);
@@ -588,30 +504,31 @@ function buildRocks(scene, obstacles) {
     outcrops++;
   }
 
+  const items = [];
   lists.forEach((list, shape) => {
-    const items = list.map(rock => ({
-      x: rock.x,
-      z: rock.z,
-      scale: rock.size,
-      rotation: rock.rotation,
-      tilt: rock.tilt,
-      sx: 1.25,
-      sy: rock.tall ?? 1,
-    }));
-    instanced(scene, shapes[shape], items, {
-      sink: 0.18,
-      tint: (_, color) => color.setScalar(0.92 + random() * 0.14),
-    });
+    for (const rock of list) {
+      const item = {
+        x: rock.x,
+        z: rock.z,
+        scale: rock.size,
+        rotation: rock.rotation,
+        tilt: rock.tilt,
+        sx: 1.25,
+        sy: rock.tall ?? 1,
+      };
+      items.push({ matrix: placed(item, 0.18), color: new THREE.Color().setScalar(0.92 + random() * 0.14), shape });
+    }
     for (const rock of list) {
       if (rock.size > 0.9) obstacles.push({ x: rock.x, z: rock.z, radius: rock.size * 1.05 });
     }
   });
+  // Far off, one plainer shape stands in for all five.
+  scatter.add({ geometry: shapes, far: boulderGeometry(5, { detail: 0 }), near: ROCK_DETAIL, cell: 240, items });
 }
 
 /** Wildflowers and grass tufts: tiny, numerous and shadowless. */
-function buildGroundCover(scene, details) {
+function buildGroundCover(scatter) {
   const dummy = new THREE.Object3D();
-  const tint = new THREE.Color();
   const flowerColors = ['#f3efdf', '#e9c75a', '#b49ac8', '#dd8f6e', '#8fa56a', '#8fa56a', '#8fa56a'];
   const flowers = [];
   const tufts = [];
@@ -625,21 +542,15 @@ function buildGroundCover(scene, details) {
     if (drift > 0.55) flowers.push({ x, z, color: flowerColors[Math.floor(random() * flowerColors.length)] });
     else if (random() < 0.5) tufts.push({ x, z });
   }
-  const flowerGeometry = new THREE.ConeGeometry(0.16, 0.5, 4);
-  for (const group of byPatch(flowers)) {
-    const mesh = new THREE.InstancedMesh(flowerGeometry, flatMaterial('#ffffff'), group.length);
-    group.forEach((flower, i) => {
-      dummy.position.set(flower.x, terrainHeight(flower.x, flower.z) + 0.2, flower.z);
-      dummy.rotation.set(0, random() * 3, 0);
-      dummy.scale.setScalar(0.7 + random() * 0.8);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-      mesh.setColorAt(i, tint.set(flower.color));
-    });
-    mesh.computeBoundingSphere();
-    scene.add(mesh);
-    details.push(mesh);
-  }
+  const flowerItems = flowers.map(flower => {
+    dummy.position.set(flower.x, terrainHeight(flower.x, flower.z) + 0.2, flower.z);
+    dummy.rotation.set(0, random() * 3, 0);
+    dummy.scale.setScalar(0.7 + random() * 0.8);
+    dummy.updateMatrix();
+    return { matrix: dummy.matrix.clone(), color: new THREE.Color(flower.color) };
+  });
+  const flowerGeometry = new PartsBuilder().add(new THREE.ConeGeometry(0.16, 0.5, 4), '#ffffff').geometry();
+  scatter.add({ geometry: flowerGeometry, near: DETAIL_RANGE, shadows: false, items: flowerItems });
 
   const blades = new PartsBuilder();
   for (let k = 0; k < 3; k++) {
@@ -650,21 +561,17 @@ function buildGroundCover(scene, details) {
       rz: (k - 1) * 0.2,
     });
   }
-  const tuftGeometry = blades.geometry();
-  for (const group of byPatch(tufts)) {
-    const mesh = new THREE.InstancedMesh(tuftGeometry, flatMaterial('#ffffff', { vertexColors: true }), group.length);
-    group.forEach((tuft, i) => {
-      dummy.position.set(tuft.x, terrainHeight(tuft.x, tuft.z), tuft.z);
-      dummy.rotation.set(0, random() * 6.3, 0);
-      dummy.scale.setScalar(0.8 + random() * 0.7);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-      mesh.setColorAt(i, tint.setHSL(0.2 + random() * 0.05, 0.3, 0.42 + random() * 0.12));
-    });
-    mesh.computeBoundingSphere();
-    scene.add(mesh);
-    details.push(mesh);
-  }
+  const tuftItems = tufts.map(tuft => {
+    dummy.position.set(tuft.x, terrainHeight(tuft.x, tuft.z), tuft.z);
+    dummy.rotation.set(0, random() * 6.3, 0);
+    dummy.scale.setScalar(0.8 + random() * 0.7);
+    dummy.updateMatrix();
+    return {
+      matrix: dummy.matrix.clone(),
+      color: new THREE.Color().setHSL(0.2 + random() * 0.05, 0.3, 0.42 + random() * 0.12),
+    };
+  });
+  scatter.add({ geometry: blades.geometry(), near: DETAIL_RANGE, shadows: false, items: tuftItems });
 }
 
 /** A ring of snow-capped peaks beyond the fence, merged into one mesh. */
@@ -720,7 +627,7 @@ function buildPeaks(scene) {
 }
 
 /** Split-rail fence around the valley and low posts beside the trail. */
-function buildFences(scene) {
+function buildFences(scene, scatter) {
   const radius = VALLEY_RADIUS + 1.8;
   const count = Math.ceil((2 * Math.PI * radius) / 6);
   const points = Array.from({ length: count }, (_, i) => {
@@ -729,9 +636,8 @@ function buildFences(scene) {
     const z = Math.cos(a) * radius;
     return { x, z, y: terrainHeight(x, z) };
   });
-  const material = flatMaterial('#8d886b');
-  const posts = new THREE.InstancedMesh(new THREE.BoxGeometry(0.24, 2.2, 0.24), material, count);
-  const rails = new THREE.InstancedMesh(new THREE.BoxGeometry(0.14, 0.15, 1), material, count * 2);
+  const posts = [];
+  const rails = [];
   const dummy = new THREE.Object3D();
   const a = new THREE.Vector3();
   const b = new THREE.Vector3();
@@ -741,22 +647,22 @@ function buildFences(scene) {
     dummy.rotation.set(0, 0, 0);
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
-    posts.setMatrixAt(i, dummy.matrix);
-    [0.65, 1.3].forEach((height, level) => {
+    posts.push({ matrix: dummy.matrix.clone() });
+    for (const height of [0.65, 1.3]) {
       a.set(p.x, p.y + height, p.z);
       b.set(next.x, next.y + height, next.z);
       dummy.position.copy(a).add(b).multiplyScalar(0.5);
       dummy.lookAt(b);
       dummy.scale.set(1, 1, a.distanceTo(b));
       dummy.updateMatrix();
-      rails.setMatrixAt(i * 2 + level, dummy.matrix);
-    });
+      rails.push({ matrix: dummy.matrix.clone() });
+    }
   });
-  for (const mesh of [posts, rails]) {
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    scene.add(mesh);
-  }
+  const wood = '#8d886b';
+  const post = new PartsBuilder().box(0.24, 2.2, 0.24, wood).geometry();
+  const rail = new PartsBuilder().box(0.14, 0.15, 1, wood).geometry();
+  scatter.add({ geometry: post, far: post, range: FENCE_RANGE, items: posts });
+  scatter.add({ geometry: rail, far: rail, range: FENCE_RANGE, items: rails });
 
   const trailPosts = new PartsBuilder();
   for (let i = 0; i < 44; i++) {
@@ -818,9 +724,13 @@ function buildPavedRoads(scene) {
   }
 }
 
-export function buildScenery(scene) {
+export function buildScenery(parent) {
+  // None of it ever moves, so it is kept together and frozen in place.
+  const scene = new THREE.Group();
+  scene.name = 'scenery';
   const obstacles = [];
-  scene.add(buildGround());
+  const ground = createGround(groundColor);
+  scene.add(ground.group);
   scene.add(ribbon(ROAD, ROAD_HALF_WIDTH, '#cfc29c', { skip: onBridge }));
   scene.add(ribbon(CAMP_TRAIL, 2.1, '#c7b994', { lift: 0.05 }));
   buildPavedRoads(scene);
@@ -840,22 +750,21 @@ export function buildScenery(scene) {
     }
   }
   const water = buildWater(scene);
-  // Small things that are too small to make out from far away, in patches that are hidden then.
-  const details = [];
-  buildTrees(scene, obstacles, details);
-  buildRocks(scene, obstacles);
-  buildGroundCover(scene, details);
+  const scatter = createScatter(scene);
+  buildTrees(scatter, obstacles);
+  buildRocks(scatter, obstacles);
+  buildGroundCover(scatter);
   buildPeaks(scene);
-  buildFences(scene);
+  buildFences(scene, scatter);
+  freeze(scene);
+  parent.add(scene);
   return {
     obstacles,
-    /** `eye` is where the camera is. */
-    update(dt, eye) {
+    /** `eye` is where the camera is, and `sun` the light whose shadows are drawn (if any). */
+    update(dt, eye, sun) {
       water.update(dt);
-      for (const mesh of details) {
-        const { center, radius } = mesh.boundingSphere;
-        mesh.visible = Math.hypot(center.x - eye.x, center.z - eye.z) - radius < DETAIL_RANGE;
-      }
+      ground.update(eye);
+      scatter.update(eye, sun);
     },
   };
 }

@@ -16,6 +16,52 @@ export function flatMaterial(color = '#ffffff', options = {}) {
 
 export const vertexColorMaterial = flatMaterial('#ffffff', { vertexColors: true });
 
+// The renderer builds a different shader for plain meshes, instanced meshes and instanced
+// meshes with colours of their own. When meshes of different kinds share a material, it has
+// to look the shader up again every time it switches between them, which costs more than
+// the drawing itself. So each kind gets its own copy of a shared material, and its own
+// material for drawing the sun's shadows.
+const depthMaterials = {
+  instanced: new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }),
+  tinted: new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }),
+};
+const meshKind = mesh => (!mesh.isInstancedMesh ? 'plain' : mesh.instanceColor ? 'tinted' : 'instanced');
+
+/**
+ * Gives the instanced meshes under `root` materials of their own kind (see above). Call it
+ * once everything is built. Copies don't follow changes made to the original later, so a
+ * material that changes while the game runs mustn't be shared by meshes of different kinds.
+ */
+export function separateMeshKinds(root) {
+  const kinds = new Map();
+  root.traverse(mesh => {
+    if (!mesh.isMesh) return;
+    if (!kinds.has(mesh.material)) kinds.set(mesh.material, new Set());
+    kinds.get(mesh.material).add(meshKind(mesh));
+  });
+  const copies = new Map();
+  root.traverse(mesh => {
+    if (!mesh.isInstancedMesh) return;
+    const kind = meshKind(mesh);
+    mesh.customDepthMaterial = depthMaterials[kind];
+    if (kinds.get(mesh.material).size < 2) return;
+    const key = `${mesh.material.uuid}|${kind}`;
+    if (!copies.has(key)) copies.set(key, mesh.material.clone());
+    mesh.material = copies.get(key);
+  });
+}
+
+/**
+ * Marks everything under `root` as fixed in place, so the renderer doesn't work out again
+ * where it is every frame. Only for things that never move: moving one afterwards has no effect.
+ */
+export function freeze(root) {
+  root.traverse(object => {
+    object.updateMatrix();
+    object.matrixAutoUpdate = false;
+  });
+}
+
 const matrix = new THREE.Matrix4();
 const rotation = new THREE.Quaternion();
 const euler = new THREE.Euler();

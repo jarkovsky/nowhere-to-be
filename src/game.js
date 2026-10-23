@@ -17,6 +17,7 @@ import { createTrain } from './vehicles/train.js';
 import { createHelicopter } from './vehicles/helicopter.js';
 import { createPlanes } from './vehicles/plane.js';
 import { createAtmosphere } from './world/atmosphere.js';
+import { separateMeshKinds } from './world/build.js';
 import { createGnomes } from './world/collectibles.js';
 import { buildLandmarks, insideTunnel } from './world/landmarks/index.js';
 import {
@@ -32,6 +33,7 @@ import {
   onPaved,
   surfaceAt,
 } from './world/layout.js';
+import { SHADOW_LAYER } from './world/scatter.js';
 import { buildScenery } from './world/scenery.js';
 import { createSecrets } from './world/secrets.js';
 import { createSurfaces } from './world/surfaces.js';
@@ -88,6 +90,8 @@ function createLights(scene) {
   Object.assign(sun.shadow.camera, { left: -75, right: 75, top: 75, bottom: -75, near: 1, far: 420 });
   sun.shadow.normalBias = 0.06;
   sun.shadow.bias = -0.0002;
+  // The trees and rocks cast their shadows from copies that only the sun's shadow camera sees.
+  sun.shadow.camera.layers.enable(SHADOW_LAYER);
   scene.add(ambient, sun, sun.target);
   return { ambient, sun };
 }
@@ -95,6 +99,9 @@ function createLights(scene) {
 export function createGame(canvas) {
   const renderer = createRenderer(canvas);
   const scene = new THREE.Scene();
+  // The scene itself never moves. Left to update, it would make the renderer work out again
+  // where everything in it is every frame, even the scenery that is frozen in place.
+  scene.matrixAutoUpdate = false;
   scene.background = new THREE.Color('#dce5da');
   scene.fog = new THREE.FogExp2('#dce5da', 0.0016);
   const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.5, 1900);
@@ -589,7 +596,6 @@ export function createGame(canvas) {
     car.setLights(night, driving && wasBraking);
     car.animate(clock);
     updateTent(dt, night);
-    scenery.update(dt, camera.position);
     const towed = trailerPoints();
     train.update(dt, { player: state, towed });
     helicopter.update(dt);
@@ -613,6 +619,8 @@ export function createGame(canvas) {
 
     if (mode === 'title') updateIntroShot(clock);
     chase.update(dt, carView(), cameraOptions());
+    // After the camera has moved, so the scenery around it is filled in for where it is now.
+    scenery.update(dt, camera.position, sun);
 
     sound.update({
       speed: driving ? state.speed : 0,
@@ -634,13 +642,22 @@ export function createGame(canvas) {
   // --- Start -------------------------------------------------------------------------------
 
   applyChoices();
+  separateMeshKinds(scene);
   ui.setSwitch('sound', journal.get().sound);
   updateCarModel(0);
   updateIntroShot(0);
   chase.snap(carView(), cameraOptions());
   resize();
-  ui.ready(matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
-  requestAnimationFrame(frame);
+  // The shaders are compiled before the first frame, side by side where the browser allows,
+  // so the game doesn't freeze for a moment just as it can be played. Any left over are
+  // compiled when they are first drawn.
+  renderer
+    .compileAsync(scene, camera)
+    .catch(() => {})
+    .then(() => {
+      ui.ready(matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
+      requestAnimationFrame(frame);
+    });
 
   // Hooks for the browser tests and the screenshot script (development builds only).
   if (import.meta.env.DEV) {
@@ -687,6 +704,8 @@ export function createGame(canvas) {
         chase.snap(carView(), cameraOptions());
       },
       followCar: () => chase.setMode('chase'),
+      /** For measuring what is drawn. */
+      debug: { scene, camera, renderer, sun },
     };
   }
 }

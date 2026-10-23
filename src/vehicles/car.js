@@ -701,10 +701,12 @@ export function createCar() {
       car.wheels = current.wheels;
       car.spec = current.spec;
       car.trailer = current.trailer;
+      // Only the chosen vehicle is in the scene: hidden ones would still be updated every frame.
       for (const v of Object.values(vehicles)) {
-        v.shell.visible = v === current;
-        for (const wheel of v.wheels) wheel.pivot.visible = v === current;
-        if (v.trailer) v.trailer.root.visible = v === current;
+        const attach = (parent, object) => (v === current ? parent.add(object) : parent.remove(object));
+        attach(body, v.shell);
+        for (const wheel of v.wheels) attach(root, wheel.pivot);
+        if (v.trailer) attach(towed, v.trailer.root);
       }
       const { headlamps, mounts } = current.spec;
       headlight.position.set(0, headlamps.y + 0.07, headlamps.z + 0.07);
@@ -774,7 +776,6 @@ function createTrailer(spec, brakeMaterial) {
     root.add(pivot);
     return { pivot, spin, z };
   });
-  root.visible = false;
   return { root, axles, spec };
 }
 
