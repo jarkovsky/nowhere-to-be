@@ -7,12 +7,24 @@ import { onDeck, snowCover, terrainHeight, waterDepth } from './terrain.js';
 
 const TRACK_CAPACITY = 6000;
 
-/** Which effect the tyres make at a point. */
-function effectAt(x, z) {
+/** True inside one of `puddles` ({ x, z, r, angle }: ellipses half as long again as they are wide). */
+function inPuddle(puddles, x, z) {
+  return puddles.some(({ x: px, z: pz, r, angle }) => {
+    const [dx, dz] = [x - px, z - pz];
+    const along = dx * Math.cos(angle) - dz * Math.sin(angle);
+    const across = -dx * Math.sin(angle) - dz * Math.cos(angle);
+    return (along / (1.5 * r)) ** 2 + (across / r) ** 2 < 1;
+  });
+}
+
+/** Which effect the tyres make at a point. Puddles only count where there is water in them. */
+function effectAt(x, z, puddles) {
   if (onDeck(x, z)) return 'grass'; // planks: no splashes, no tracks
   if (waterDepth(x, z) > 0.12) return 'water';
   if (snowCover(x, z) > 0.5) return 'snow';
-  return surfaceAt(x, z);
+  const patch = surfaceAt(x, z);
+  if (patch === 'puddle') return inPuddle(puddles, x, z) ? 'puddle' : 'grass';
+  return patch;
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -83,15 +95,19 @@ export function createSurfaces(scene, sound) {
     polygonOffset: true,
     polygonOffsetFactor: -4,
   });
+  const puddles = [];
   for (const patch of SURFACES.filter(p => p.id === 'puddle')) {
     for (let i = 0; i < 4; i++) {
       const x = patch.x + (random() - 0.5) * patch.rx * 1.2;
       const z = patch.z + (random() - 0.5) * patch.rz * 1.2;
-      const puddle = new THREE.Mesh(new THREE.CircleGeometry(1.2 + random() * 1.4, 9), puddleMaterial);
-      puddle.rotation.set(-Math.PI / 2, 0, random() * 3);
+      const r = 1.2 + random() * 1.4;
+      const angle = random() * 3;
+      const puddle = new THREE.Mesh(new THREE.CircleGeometry(r, 9), puddleMaterial);
+      puddle.rotation.set(-Math.PI / 2, 0, angle);
       puddle.scale.set(1.5, 1, 1);
       puddle.position.set(x, terrainHeight(x, z) + 0.1, z);
       scene.add(puddle);
+      puddles.push({ x, z, r, angle });
     }
   }
 
@@ -189,7 +205,7 @@ export function createSurfaces(scene, sound) {
     update(dt, car, running) {
       if (!running) return;
       time += dt;
-      current = effectAt(car.x, car.z);
+      current = effectAt(car.x, car.z, puddles);
       sound.surface(current, Math.abs(car.speed));
       const sin = Math.sin(car.heading);
       const cos = Math.cos(car.heading);
@@ -217,7 +233,7 @@ export function createSurfaces(scene, sound) {
           for (const side of [-1, 1]) {
             const x = car.x + cos * side * 1.08;
             const z = car.z - sin * side * 1.08;
-            if (effectAt(x, z) !== 'snow') continue;
+            if (effectAt(x, z, puddles) !== 'snow') continue;
             layOnGround(dummy, x, z, car.heading);
             dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
