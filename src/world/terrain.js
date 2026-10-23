@@ -219,15 +219,24 @@ function forEachVertexNear(x, z, radius, visit) {
   }
 }
 
-/** For every vertex near a path: the closest sample index and distance to it. */
+// Scratch space for nearestSamples(): the closest sample found so far for each vertex.
+// Only needed while the height field is built, and let go of afterwards.
+let closestIndex = new Int32Array(GRID * GRID).fill(-1);
+let closestDistance = new Float64Array(GRID * GRID);
+
+/** For every vertex near a path: the closest sample index and distance to it, as [vertex, { index, distance }]. */
 function nearestSamples(path, radius) {
-  const nearest = new Map();
+  const touched = [];
   path.samples.forEach((sample, index) => {
     forEachVertexNear(sample.x, sample.z, radius, (vertex, _x, _z, distance) => {
-      const current = nearest.get(vertex);
-      if (!current || distance < current.distance) nearest.set(vertex, { index, distance });
+      if (closestIndex[vertex] < 0) touched.push(vertex);
+      else if (distance >= closestDistance[vertex]) return;
+      closestIndex[vertex] = index;
+      closestDistance[vertex] = distance;
     });
   });
+  const nearest = touched.map(vertex => [vertex, { index: closestIndex[vertex], distance: closestDistance[vertex] }]);
+  for (const vertex of touched) closestIndex[vertex] = -1;
   return nearest;
 }
 
@@ -419,6 +428,8 @@ forEachVertexNear(WATERFALL.x, WATERFALL.z, 30, (vertex, _x, _z, distance) => {
   const bowl = POOL_LEVEL - POOL_DEPTH + Math.max(0, distance - WATERFALL.poolRadius - 0.8) * 1.4;
   heights[vertex] = Math.min(heights[vertex], bowl);
 });
+
+closestIndex = closestDistance = null;
 
 export { heights };
 

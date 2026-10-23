@@ -80,8 +80,15 @@ export function createPath(points, { closed = false, spacing = 1 } = {}) {
     return { sample: best, s: best.s, distance: Math.sqrt(bestDistance), side };
   }
 
+  // The path's extent, so points far from all of it are turned away at once.
+  const box = samples.reduce(
+    (b, p) => ({ x0: Math.min(b.x0, p.x), x1: Math.max(b.x1, p.x), z0: Math.min(b.z0, p.z), z1: Math.max(b.z1, p.z) }),
+    { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity },
+  );
+
   /** True if the path passes within `distance` of a point. Quick, but only for distances up to 24 m. */
   function isNear(x, z, distance) {
+    if (x < box.x0 - distance || x > box.x1 + distance || z < box.z0 - distance || z > box.z1 + distance) return false;
     const bx = Math.floor(x / BUCKET);
     const bz = Math.floor(z / BUCKET);
     const limit = distance * distance;
