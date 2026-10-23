@@ -92,11 +92,11 @@ To play on your phone from your own computer, run `npm run dev` and open the **N
   - A horse farm and a farm with goats and pigs.
 - **The airfield.** On a plateau to the east: a runway, a hangar you can drive into, a control tower with a beacon that turns at night, and two little planes. Every few minutes one of them taxis out, takes off, flies a loop round the uplands and lands again. It waits while you are on the runway, and goes round again if you are on it when it comes in to land.
 - **Animals.** Deer, sheep, cows, chickens, a rabbit, foxes (one hunts mice by the fields), ducks, geese, an eagle, fish that jump in the lake, a pack of wolves below the summit and an owl that only comes out at night. Out in the outlands there are horses, goats and pigs at the farms, sheep above the fjord, moose, wild boar, red deer and mouflon on the rocky hill. They graze, now and then break into a run, and run off when a car comes close.
-- **Things on the move.** A railbus runs between the halt and a tunnel in the hills, and the level crossing closes while it passes. At the roadworks an excavator loads a dump truck while a roller, a grader and a skid steer loader work on the new road. Two tractors plough and mow the upland fields, and a combine harvester cuts the wheat. A camper van, a pickup, a saloon and a bus drive the trail, and a fuel tanker and a delivery van drive the upland road. Now and then an ambulance, a fire engine or a police car comes by with its blue lights on while the others pull over, and sometimes an army off-roader drives through.
+- **Things on the move.** A railbus runs between the halt and a tunnel in the hills, and the level crossing closes while it passes. At the roadworks an excavator loads a dump truck while a roller, a grader and a skid steer loader work on the new road. Two tractors plough and mow the upland fields, and a combine harvester cuts the wheat. A camper van, a pickup, a saloon and a bus drive the trail, and a fuel tanker and a delivery van drive the upland road. Now and then an ambulance, a fire engine or a police car comes by with its blue lights on while the others pull over, and sometimes an army off-roader drives through. A convoy of three off-roaders with kayaks and jerrycans on their roofs drives the outer road, and another comes the other way. Kryštof, a yellow air ambulance, is based at the airfield: every few minutes it flies low along the outer road and under the rock arch, round the north and in along the fjord.
 - **Side tracks.** Narrow dirt tracks lead off the main trail to the farm, the tower, the windmill, the summit, the upland farm and up a hairpin to the hut, a path follows the lake shore, and a new road is being built to the south.
 - **The garage.** Pick an off-roader, a pickup, a camper van, a saloon or a tractor by its picture, then a colour and roof items. There are also four characters with faces and colours of their own: Oliver and Ruda, a blue and a red lorry that each pull a trailer, a rally car and a racing car. Their eyes follow the steering, and the lorries have a deep air horn. The roof tent opens when the car has been parked for a moment: the lid folds out as an awning on two poles and a ladder comes down beside the car.
 - **Garden gnomes.** Ten are hidden around the valley, some of them far off the trail. Each one you find fills in a row of gnomes on screen, so you can see how many are left without reading. The same row is in the pause menu. Finding them all unlocks something for the car.
-- **A few secrets.** Try the horn in the tunnel, near the animals, at passing cars and the train, at the helipad, at the fire station and next to the planes. Keep an eye on the snow, too.
+- **A few secrets.** Try the horn in the tunnel, near the animals, at passing cars and the train, at the helipads, at the fire station and next to the planes. Keep an eye on the snow, too.
 
 Progress is saved in your browser.
 
@@ -114,7 +114,7 @@ src/
   core/       driving physics, collisions, suspension, camera, audio, save data
   input/      keyboard, touch and tilt steering
   world/      layout, terrain, scenery, landmarks, wildlife, weather, secrets
-  vehicles/   the player's vehicles, the other travellers, the train, the helicopter and the planes
+  vehicles/   the player's vehicles, the other travellers, the train, the helicopters and the planes
   ui/         title screen, pause menu, garage, styles
 ```
 

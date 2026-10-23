@@ -1,15 +1,13 @@
-// A helipad on the flat-topped hill behind the windmill: a concrete pad with a
-// yellow ring and a white H, lights round the edge and a windsock.
+// A helipad: a concrete pad with a yellow ring and a white H, lights round the edge and a
+// windsock. One is on the flat-topped hill behind the windmill, another by the airfield.
 import * as THREE from 'three';
-import { HELIPAD } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder, localFrame } from '../build.js';
 import { buildWindsock } from './windsock.js';
 
 export const PAD_RADIUS = 8.5;
 
-export function buildHelipad(scene, obstacles) {
-  const { x, z, heading } = HELIPAD;
+export function buildHelipad(scene, obstacles, { x, z, heading }) {
   const y = terrainHeight(x, z);
   const local = localFrame(x, z, heading);
   const at = (lx, ly, lz, extra = {}) => ({ ...local(lx, lz), y: y + ly, ry: heading, ...extra });

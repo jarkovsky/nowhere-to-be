@@ -1,12 +1,12 @@
-// Other travellers drive the valley trail and the upland ring in both directions,
-// keeping to their side of the road and slowing for the player, each other, ducks
-// and anything else that blocks the way. Every few minutes a visitor comes along:
+// Other travellers drive the valley trail, the upland ring and the outer road in both
+// directions, keeping to their side of the road and slowing for the player, each other,
+// ducks and anything else that blocks the way. Every few minutes a visitor comes along:
 // an ambulance, a fire engine or a police car with its blue lights on, while the
 // others pull over to let it pass, or an army off-roader that just drives through.
 import * as THREE from 'three';
 import { damp } from '../core/math.js';
 import { chassisPose } from '../core/suspension.js';
-import { BRIDGE, RING_ROAD, ROAD } from '../world/layout.js';
+import { BRIDGE, OUTER_ROAD, RING_ROAD, ROAD } from '../world/layout.js';
 import { headingOf } from '../world/path.js';
 import { drivingHeight } from '../world/terrain.js';
 import { PartsBuilder } from '../world/build.js';
@@ -222,6 +222,47 @@ function armyCar() {
   return { parts, wheelX: 1.0, wheelZ: [-1.6, 1.6], wheelRadius: 0.56, length: 4.9, lampY: 1.3 };
 }
 
+/**
+ * A boxy four-by-four out exploring, with a roof rack: two kayaks on it, or jerrycans and a
+ * rolled-up tent.
+ */
+function offRoader(paint, load) {
+  return () => {
+    const parts = new PartsBuilder();
+    const dark = '#2f3430';
+    parts.box(2, 0.8, 4.4, paint, { y: 1.15 });
+    parts.box(1.96, 0.85, 2.8, paint, { y: 1.95, z: 0.55 }); // cabin
+    parts.box(1.98, 0.5, 2.5, GLASS, { y: 2.02, z: 0.55 }); // windows all round
+    parts.box(1.8, 0.5, 0.06, GLASS, { y: 2.02, z: -0.86 }); // windscreen
+    parts.box(1.6, 0.3, 0.06, dark, { y: 1.25, z: -2.22 }); // grille
+    for (const x of [-1.04, 1.04]) parts.box(0.14, 0.2, 4.2, dark, { x, y: 0.72 }); // sills
+    parts.box(2.2, 0.26, 0.3, dark, { y: 0.8, z: -2.3 }); // bumpers
+    parts.box(2.1, 0.22, 0.25, dark, { y: 0.8, z: 2.3 });
+    parts.add(new THREE.CylinderGeometry(0.42, 0.42, 0.26, 12), dark, { y: 1.4, z: 2.36, rx: Math.PI / 2 }); // spare wheel
+    parts.box(1.9, 0.06, 2.6, '#3a3f3c', { y: 2.44, z: 0.55 }); // roof rack
+    if (load === 'kayaks') {
+      for (const [x, color] of [
+        [-0.45, '#e2632e'],
+        [0.45, '#3f8fc0'],
+      ])
+        parts.add(new THREE.SphereGeometry(1, 10, 5), color, { x, y: 2.66, z: 0.4, sx: 0.32, sy: 0.18, sz: 2.4 });
+    } else {
+      for (const [x, color] of [
+        [-0.6, '#4c6b3a'],
+        [-0.15, '#b5402f'],
+      ])
+        parts.box(0.36, 0.5, 0.6, color, { x, y: 2.72, z: 1.4 });
+      parts.add(new THREE.CylinderGeometry(0.28, 0.28, 1.5, 10), '#6d7d4a', {
+        x: 0.2,
+        y: 2.75,
+        z: 0.2,
+        rz: Math.PI / 2,
+      });
+    }
+    return { parts, wheelX: 1, wheelZ: [-1.45, 1.45], wheelRadius: 0.52, length: 4.6, lampY: 1.3 };
+  };
+}
+
 /** A fuel tanker for the airfield. */
 function tanker() {
   const parts = new PartsBuilder();
@@ -330,6 +371,25 @@ export const RING = {
   ],
   firstCall: [40, 80],
   betweenCalls: [100, 180],
+};
+
+// A convoy of off-roaders, close behind each other, starting this far round the outer road.
+const CONVOY = 0.3;
+const convoyGap = 11 / OUTER_ROAD.length;
+
+/** The gravel road round the outlands: a convoy out exploring, and another off-roader on its own. */
+export const OUTER = {
+  road: OUTER_ROAD,
+  narrow: () => false,
+  travellers: [
+    [offRoader('#d2a540', 'kayaks'), CONVOY, 1, 8],
+    [offRoader('#3f6e5a', 'cans'), CONVOY - convoyGap, 1, 8],
+    [offRoader('#b5533c', 'kayaks'), CONVOY - convoyGap * 2, 1, 8],
+    [offRoader('#e7e2d4', 'cans'), 0.8, -1, 8.5],
+  ],
+  visitors: [{ model: armyCar, kind: 'army', cruise: 10 }],
+  firstCall: [60, 120],
+  betweenCalls: [120, 200],
 };
 
 export function createTraffic(scene, network = VALLEY) {

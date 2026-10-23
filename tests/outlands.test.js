@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as THREE from 'three';
 import { OUTER_ROAD, CONNECTORS, RIVERS, TRACKS, rockiness, ROCK_HILL } from '../src/world/layout.js';
 import { FORDS, isDriveable, terrainHeight, waterDepth } from '../src/world/terrain.js';
+import { OUTER, createTraffic } from '../src/vehicles/traffic.js';
 
 test('the gravel roads are driveable all the way and never steep', () => {
   for (const path of [OUTER_ROAD, ...CONNECTORS.map(c => c.path)]) {
@@ -35,4 +37,14 @@ test('the rocky hill is all rock, with a track to its top', () => {
   const top = path.at(path.length);
   assert.ok(terrainHeight(top.x, top.z) > terrainHeight(path.at(0).x, path.at(0).z) + 25, 'it climbs');
   for (const p of path.samples) assert.ok(isDriveable(p.x, p.z));
+});
+
+test('the convoy of off-roaders drives round the outer road one behind another', () => {
+  const traffic = createTraffic(new THREE.Scene(), OUTER);
+  const player = { x: 0, z: 0, speed: 0 };
+  for (let t = 0; t < 60; t += 0.1) traffic.update(0.1, { player, night: 0 });
+  const [lead, second, third] = traffic.getState();
+  for (const follower of [second, third]) assert.ok(follower.speed > 5, 'still moving');
+  const gap = Math.hypot(lead.x - second.x, lead.z - second.z);
+  assert.ok(gap > 6 && gap < 30, `${gap.toFixed(1)} m behind`);
 });

@@ -20,6 +20,7 @@ import { buildRockGate } from './rockgate.js';
 import { buildFjord } from './fjord.js';
 import { buildFarms } from './farms.js';
 import { buildVillage } from './village.js';
+import { HELIPAD, KRYSTOF } from '../layout.js';
 
 export { insideTunnel } from './tunnel.js';
 
@@ -37,7 +38,7 @@ export function buildLandmarks(scene, obstacles) {
   buildBunkers(scene, obstacles);
   const crossing = buildRailway(scene, obstacles);
   const roadworks = buildRoadworks(scene, obstacles);
-  const helipad = buildHelipad(scene, obstacles);
+  const helipads = [HELIPAD, KRYSTOF.pad].map(pad => buildHelipad(scene, obstacles, pad));
   buildChapel(scene, obstacles);
   buildSummit(scene, obstacles);
   const fields = buildFields(scene, obstacles);
@@ -75,7 +76,7 @@ export function buildLandmarks(scene, obstacles) {
       fields.update(dt, player);
       machines.length = 0;
       machines.push(...roadworks.colliders, ...fields.colliders);
-      helipad.update(time, night);
+      for (const helipad of helipads) helipad.update(time, night);
       airfield.update(time, night, player);
       fjord.update(dt);
       farms.update(time);

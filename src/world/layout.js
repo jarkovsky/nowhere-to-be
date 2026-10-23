@@ -735,6 +735,48 @@ export function onAirfield(x, z, margin = 0) {
 }
 
 /**
+ * Kryštof, the yellow air ambulance: its pad beside the airfield, how often it flies, and
+ * the way it goes. Out along the outer road and under the rock arch, round the north, in
+ * over the village at the head of the fjord and low along the water, up over the hills and
+ * home round the south. `above` is how high it flies over the highest ground or water
+ * within `reach` metres.
+ */
+export const KRYSTOF = (() => {
+  const gate = OUTER_ROAD.nearest(ROCK_GATE.x, ROCK_GATE.z).s;
+  const road = (along, above) => {
+    const { x, z } = OUTER_ROAD.at(gate + along);
+    return { x, z, above };
+  };
+  const at = (degrees, r, above, reach = 150) => ({ ...spot(degrees, r), above, reach });
+  return {
+    pad: { x: 540, z: 224, heading: Math.PI / 2 },
+    every: 210,
+    route: [
+      at(8, 690, 40),
+      road(170, 16),
+      road(70, 9),
+      road(0, 7),
+      road(-70, 9),
+      road(-170, 18),
+      at(300, 790, 45),
+      at(272, 820, 50),
+      at(250, 790, 45),
+      at(236, 760, 40),
+      at(228, 860, 22, 0),
+      at(227.5, 925, 12, 0),
+      at(226.5, 1005, 10, 0),
+      at(225.4, 1100, 10, 0),
+      at(225, 1170, 14, 0),
+      at(221, 1120, 45, 200),
+      at(212, 880, 55),
+      at(195, 600, 60),
+      at(130, 470, 60),
+      at(45, 520, 45),
+    ],
+  };
+})();
+
+/**
  * Paved roads up from the valley trail to the upland road, one to the east and one to
  * the west, and a short one from the upland road to the airfield.
  */

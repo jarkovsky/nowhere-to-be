@@ -13,9 +13,9 @@ import { createLook } from './input/look.js';
 import { createTiltSteering } from './input/tilt.js';
 import { createUI } from './ui/ui.js';
 import { createCar } from './vehicles/car.js';
-import { RING, createTraffic } from './vehicles/traffic.js';
+import { OUTER, RING, createTraffic } from './vehicles/traffic.js';
 import { createTrain } from './vehicles/train.js';
-import { createHelicopter } from './vehicles/helicopter.js';
+import { AIR_AMBULANCE, VALLEY_RESCUE, createHelicopter } from './vehicles/helicopter.js';
 import { createPlanes } from './vehicles/plane.js';
 import { createAtmosphere } from './world/atmosphere.js';
 import { separateMeshKinds } from './world/build.js';
@@ -127,6 +127,9 @@ export function createGame(canvas) {
   obstacles.push(...surfaces.obstacles);
   const traffic = createTraffic(scene);
   const ringTraffic = createTraffic(scene, RING);
+  const outerTraffic = createTraffic(scene, OUTER);
+  // The roads where nothing else needs to be waited for.
+  const openRoads = [ringTraffic, outerTraffic];
   const train = createTrain(scene, { onHorn: distance => sound.trainHorn(distance) });
   const car = createCar();
   scene.add(car.root, car.towed);
@@ -167,7 +170,7 @@ export function createGame(canvas) {
   const wildlife = createWildlife(scene, { onCall: kind => sound.animal(kind) });
   const secrets = createSecrets(scene, { onCall: kind => sound.animal(kind) });
   obstacles.push(...secrets.obstacles);
-  const helicopter = createHelicopter(scene);
+  const helicopters = [VALLEY_RESCUE, AIR_AMBULANCE].map(spec => createHelicopter(scene, spec));
   const planes = createPlanes(scene, obstacles);
   const gnomes = createGnomes(scene, {
     found: journal.get().gnomes,
@@ -324,9 +327,9 @@ export function createGame(canvas) {
     sound.horn(insideTunnel(state.x, state.z), car.spec.voice?.horn);
     wildlife.hearHorn(state.x, state.z);
     secrets.hearHorn(state.x, state.z);
-    for (const road of [traffic, ringTraffic]) road.answerHonk(state.x, state.z, () => sound.otherHorn());
+    for (const road of [traffic, ...openRoads]) road.answerHonk(state.x, state.z, () => sound.otherHorn());
     train.answerHonk(state);
-    helicopter.hearHorn(state);
+    for (const helicopter of helicopters) helicopter.hearHorn(state);
     landmarks.hearHorn(state.x, state.z);
     planes.hearHorn(state);
   }
@@ -593,9 +596,9 @@ export function createGame(canvas) {
       moving.length = 0;
       moving.push(
         ...traffic.colliders,
-        ...ringTraffic.colliders,
+        ...openRoads.flatMap(road => road.colliders),
         ...train.colliders,
-        ...helicopter.colliders,
+        ...helicopters.flatMap(helicopter => helicopter.colliders),
         ...planes.colliders,
         ...landmarks.crossing.colliders(),
         ...landmarks.machines,
@@ -616,7 +619,7 @@ export function createGame(canvas) {
     updateTent(dt, night);
     const towed = trailerPoints();
     train.update(dt, { player: state, towed });
-    helicopter.update(dt);
+    for (const helicopter of helicopters) helicopter.update(dt);
     planes.update(dt, { player: state });
     const crossingClosed = train.crossingClosed();
     landmarks.update(dt, night, { crossingClosed, player: state });
@@ -639,7 +642,7 @@ export function createGame(canvas) {
       blockers: [...wildlife.crossingDucks(), ...landmarks.crossing.blockers(), ...towed],
       night,
     });
-    ringTraffic.update(dt, { player: state, blockers: towed, night });
+    for (const road of openRoads) road.update(dt, { player: state, blockers: towed, night });
 
     if (mode === 'title') updateIntroShot(clock);
     chase.update(dt, carView(), cameraOptions());
@@ -653,15 +656,15 @@ export function createGame(canvas) {
       active: mode !== 'title' && !document.hidden,
       rain: sky.rain,
     });
-    // The helicopter and the plane share one engine sound: whichever is louder.
-    const rotor = [helicopter.rotorSound(camera.position), planes.engineSound(camera.position)].reduce((a, b) =>
-      b.level > a.level ? b : a,
-    );
+    // The helicopters and the plane share one engine sound: whichever is loudest.
+    const rotor = [
+      ...helicopters.map(helicopter => helicopter.rotorSound(camera.position)),
+      planes.engineSound(camera.position),
+    ].reduce((a, b) => (b.level > a.level ? b : a));
     sound.rotor(mode === 'title' ? 0 : rotor.level, rotor.rate);
     const siren = Math.max(
       landmarks.sirenLevel(state.x, state.z),
-      traffic.sirenLevel(state),
-      ringTraffic.sirenLevel(state),
+      ...[traffic, ...openRoads].map(road => road.sirenLevel(state)),
     );
     sound.siren(mode === 'title' ? 0 : siren);
     renderer.render(scene, camera);
@@ -700,9 +703,10 @@ export function createGame(canvas) {
         surface: surfaces.getState(),
         traffic: traffic.getState(),
         emergency: traffic.emergency(),
-        visitors: [traffic.visitor(), ringTraffic.visitor()],
+        visitors: [traffic, ...openRoads].map(road => road.visitor()),
         train: train.getState(),
-        helicopter: helicopter.getState(),
+        helicopter: helicopters[0].getState(),
+        krystof: helicopters[1].getState(),
         plane: planes.getState(),
         fields: landmarks.fields.getState(),
         gnomes: gnomes.getState(),
@@ -725,7 +729,7 @@ export function createGame(canvas) {
         chase.snap(carView(), cameraOptions());
       },
       setSky: preset => atmosphere.setPreset(preset),
-      callOut: kind => traffic.callOut(state, kind) || ringTraffic.callOut(state, kind),
+      callOut: kind => [traffic, ...openRoads].some(road => road.callOut(state, kind)),
       setClock: seconds => atmosphere.setTime(seconds),
       setDirt: amount => (dirt = amount),
       shot(position, target) {
