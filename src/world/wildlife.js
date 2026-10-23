@@ -1,7 +1,8 @@
 // Animals that live in the valley: deer on their meadow walk, a family of
 // ducks crossing the trail, grazing sheep, a shy rabbit, cows at the farm,
 // foxes, fish in the lake and geese overhead. Out in the uplands there are
-// wolves, both farms keep chickens, and herds roam the outlands.
+// wolves, both farms keep chickens, and herds roam the outlands. The ones on the
+// ground let the car come close, and run out of its way at the last moment (see dodge.js).
 import * as THREE from 'three';
 import { angleDelta, createRandom, smoothstep } from '../core/math.js';
 import { FARM, HABITATS, LAKE } from './layout.js';
@@ -10,6 +11,7 @@ import { PartsBuilder, localFrame } from './build.js';
 import { createWolves } from './wolves.js';
 import { createChickens } from './chickens.js';
 import { createHerds } from './herds.js';
+import { createDodge, stepDodge } from './dodge.js';
 
 const DARK = '#394439';
 const CREAM = '#eee4c9';
@@ -332,34 +334,48 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
   let sheepLookUp = 0;
   const rabbitState = { progress: 0, wait: 0, returning: false };
 
-  function placeWalkers() {
+  /** Where an animal is, given where its routine puts it: out of the car's way if it must be. */
+  function dodging(animal, x, z, player, dt) {
+    animal.dodge ??= createDodge();
+    if (!player) return { x, z, moving: null, facing: null };
+    return stepDodge(animal.dodge, x, z, player, dt);
+  }
+
+  function placeWalkers(player, dt = 0) {
     for (const group of walkers) {
       const dx = group.end.x - group.start.x;
       const dz = group.end.z - group.start.z;
       group.animals.forEach((animal, i) => {
         // Followers trail a little behind the leader.
         const step = walkCycle(Math.max(0, time - i * 0.65), group.wait, group.duration);
-        const x = group.start.x + dx * step.progress;
-        const z = group.start.z + dz * step.progress + i * 0.65;
+        const at = dodging(
+          animal,
+          group.start.x + dx * step.progress,
+          group.start.z + dz * step.progress + i * 0.65,
+          player,
+          dt,
+        );
+        const { x, z } = at;
+        const walking = step.walking || at.moving !== null;
         const hop = Math.max(0, Math.sin(group.startle * 9)) * group.startle * 0.8;
         // Ducks that start out on the lake swim until they reach the shore.
         const ground = terrainHeight(x, z);
         const swimming = group.kind === 'ducks' && ground < LAKE.level - 0.1;
         const y = swimming
           ? LAKE.level - 0.3 * animal.root.scale.y + Math.sin(time * 2 + i) * 0.03
-          : ground + (step.walking ? Math.abs(Math.sin(time * 5 - i)) * 0.065 : 0) + hop;
+          : ground + (walking ? Math.abs(Math.sin(time * 5 - i)) * 0.065 : 0) + hop;
         animal.root.position.set(x, y, z);
-        animal.root.rotation.y = Math.atan2(-dz, dx) + (step.returning ? Math.PI : 0);
+        animal.root.rotation.y = at.facing ?? Math.atan2(-dz, dx) + (step.returning ? Math.PI : 0);
         if (group.kind === 'deer' || group.kind === 'fox') {
-          const pace = group.kind === 'fox' ? 11 : 7;
+          const pace = (group.kind === 'fox' ? 11 : 7) * (at.moving === 'run' ? 2 : 1);
           animal.legs.forEach(
             (leg, j) =>
-              (leg.rotation.z = step.walking ? Math.sin(time * pace + (j === 0 || j === 3 ? 0 : Math.PI)) * 0.42 : 0),
+              (leg.rotation.z = walking ? Math.sin(time * pace + (j === 0 || j === 3 ? 0 : Math.PI)) * 0.42 : 0),
           );
-          const grazing = group.kind === 'deer' && !step.walking && group.startle === 0;
+          const grazing = group.kind === 'deer' && !walking && group.startle === 0;
           animal.body.rotation.z = grazing ? -0.1 + Math.sin(time * 0.8 + i) * 0.04 : 0;
         } else {
-          const paddling = step.walking && !swimming;
+          const paddling = walking && !swimming;
           animal.body.rotation.z = Math.sin(time * (paddling ? 7 : 1) + i) * (paddling ? 0.1 : 0.025);
           animal.legs.forEach((leg, j) => (leg.rotation.z = paddling ? Math.sin(time * 12 + j * Math.PI) * 0.4 : 0));
         }
@@ -367,7 +383,7 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
     }
   }
 
-  function updateHerd(dt) {
+  function updateHerd(dt, player) {
     cowsLookUp = Math.max(0, cowsLookUp - dt);
     herd.forEach((animal, i) => {
       const dx = animal.target.x - animal.x;
@@ -387,11 +403,13 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
           walking = true;
         }
       }
+      const at = dodging(animal, animal.x, animal.z, player, dt);
+      if (at.moving) walking = true;
       const head = cowsLookUp > 0 || walking ? 0.1 : -0.55 + Math.sin(time * 0.9 + i) * 0.08;
       animal.legs[0].rotation.z += (head - animal.legs[0].rotation.z) * Math.min(1, dt * 4);
-      animal.body.rotation.z = walking ? Math.sin(time * 4 + i) * 0.03 : 0;
-      animal.root.position.set(animal.x, terrainHeight(animal.x, animal.z), animal.z);
-      animal.root.rotation.y = animal.heading;
+      animal.body.rotation.z = walking ? Math.sin(time * (at.moving === 'run' ? 9 : 4) + i) * 0.03 : 0;
+      animal.root.position.set(at.x, terrainHeight(at.x, at.z), at.z);
+      animal.root.rotation.y = at.facing ?? animal.heading;
     });
   }
 
@@ -466,17 +484,20 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
     }
   }
 
-  function placeRabbit() {
+  function placeRabbit(player, dt) {
     const p = rabbitState.progress;
-    const x = burrow.x - 7 * (1 - p);
-    const z = burrow.z + 2 * (1 - p);
     const underground = smoothstep(p, 0.72, 1);
+    const at =
+      underground < 0.5
+        ? dodging(bunny, burrow.x - 7 * (1 - p), burrow.z + 2 * (1 - p), player, dt)
+        : { x: burrow.x - 7 * (1 - p), z: burrow.z + 2 * (1 - p), facing: null };
+    const { x, z } = at;
     bunny.root.position.set(
       x,
       terrainHeight(x, z) + Math.abs(Math.sin(time * 9)) * 0.25 * (1 - underground) - underground * 1.9,
       z,
     );
-    bunny.root.rotation.y = Math.atan2(2, 7) + (rabbitState.returning ? Math.PI : 0);
+    bunny.root.rotation.y = at.facing ?? Math.atan2(2, 7) + (rabbitState.returning ? Math.PI : 0);
     bunny.body.rotation.z = -Math.sin(underground * Math.PI) * 0.3;
     bunny.root.visible = underground < 0.99;
   }
@@ -602,9 +623,12 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
       for (const group of walkers) group.startle = Math.max(0, group.startle - dt * 0.9);
 
       sheepFlock.forEach((animal, i) => {
-        const grazing = sheepLookUp > 0 ? 0.25 : -0.3 + Math.sin(time * 1.2 + i) * 0.22;
+        const at = dodging(animal, animal.home.x, animal.home.z, player, dt);
+        const grazing = sheepLookUp > 0 || at.moving ? 0.25 : -0.3 + Math.sin(time * 1.2 + i) * 0.22;
         animal.legs[0].rotation.z += (grazing - animal.legs[0].rotation.z) * Math.min(1, dt * 6);
-        animal.root.position.y = terrainHeight(animal.home.x, animal.home.z) + Math.sin(time * 1.5 + i) * 0.025;
+        const bob = at.moving ? Math.abs(Math.sin(time * 12 + i)) * 0.08 : Math.sin(time * 1.5 + i) * 0.025;
+        animal.root.position.set(at.x, terrainHeight(at.x, at.z) + bob, at.z);
+        if (at.facing !== null) animal.root.rotation.y = at.facing;
       });
 
       const distance = Math.hypot(player.x - burrow.x, player.z - burrow.z);
@@ -617,9 +641,9 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
         if (distance > 32 && rabbitState.wait > 8) rabbitState.returning = true;
         if (rabbitState.returning) rabbitState.progress = Math.max(0, rabbitState.progress - dt * 0.25);
       }
-      placeRabbit();
-      placeWalkers();
-      updateHerd(dt);
+      placeRabbit(player, dt);
+      placeWalkers(player, dt);
+      updateHerd(dt, player);
       updateGeese();
       updateEagle();
       updateFish(dt, player);
