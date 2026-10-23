@@ -99,6 +99,7 @@ export function createUI({ journal, gnomeCount, on }) {
   $('tilt').addEventListener('click', () => on.tilt());
   $('tilt-center').addEventListener('click', () => on.tiltCenter());
   $('camp').addEventListener('click', () => on.camp());
+  $('home').addEventListener('click', () => on.home());
 
   /**
    * A row of picture buttons. `art(value)` draws each one, `isPressed(value)` marks the

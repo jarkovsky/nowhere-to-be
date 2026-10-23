@@ -146,6 +146,15 @@ try {
   assert.ok(swing < -0.05 && swing > -1.06, `the trailer swings out on the bend (${swing.toFixed(2)})`);
   step('the lorry pulls its trailer round a bend');
 
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: 'Back to the start' }).click();
+  const home = await state(page);
+  // Having stayed the night, the start is the camp.
+  const camp = await page.evaluate(async () => (await import('/src/world/layout.js')).CAMP);
+  assert.equal(home.mode, 'driving');
+  assert.ok(Math.hypot(home.car.x - camp.x, home.car.z - camp.z) < 1, 'back at the start');
+  step('the home button in the menu takes the car back to the start');
+
   console.log('Phone');
   const phone = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await phone.getByRole('button', { name: 'Play' }).tap();

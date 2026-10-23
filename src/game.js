@@ -141,6 +141,7 @@ export function createGame(canvas) {
       resume,
       wake,
       camp: stayTheNight,
+      home: homeFromMenu,
       sound: toggleSound,
       cruise: toggleCruise,
       tilt: () => {
@@ -276,6 +277,15 @@ export function createGame(canvas) {
     controls.clear();
     updateCarModel(0);
     chase.snap(carView(), cameraOptions());
+  }
+
+  /** The menu's home button: back to the start, driving, even from a night at camp. */
+  function homeFromMenu() {
+    if (mode !== 'paused') return;
+    ui.closeMenu();
+    if (pausedFrom === 'camping') leaveCamp();
+    mode = 'driving';
+    goHome();
   }
 
   function stayTheNight() {

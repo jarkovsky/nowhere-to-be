@@ -43,7 +43,7 @@ Play it at [nowhere-to-be.jarkovsky.com](https://nowhere-to-be.jarkovsky.com).
   <img src="docs/rally.jpg" width="49%" alt="A rally car with a face on the track up to the summit">
 </p>
 <p>
-  <img src="docs/menu.jpg" width="49%" alt="The pause menu: a play button and picture buttons for the car, sound and cruise control">
+  <img src="docs/menu.jpg" width="49%" alt="The pause menu: a play button and picture buttons for the car, sound, cruise control, a night at camp and going back to the start">
   <img src="docs/garage.jpg" width="49%" alt="Choosing a vehicle, a colour and roof items, with the roof tent open on the car">
 </p>
 
@@ -60,7 +60,7 @@ Play it at [nowhere-to-be.jarkovsky.com](https://nowhere-to-be.jarkovsky.com).
 | Look          | Drag, scroll to zoom | Drag on the scenery                |
 | Cruise        | `E`                  | In the menu                        |
 | Pause         | `Esc`                | ❚❚ button, top right               |
-| Back to start | `R`                  | —                                  |
+| Back to start | `R`                  | Home button in the menu            |
 
 To carry on after pausing, press the big play button or tap the game around the menu. With cruise control on, the car keeps driving by itself, so on touch screens only the pedal for braking and reversing shows.
 
