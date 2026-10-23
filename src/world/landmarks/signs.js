@@ -178,17 +178,20 @@ function arrowFor(from, yaw, to, back) {
 }
 
 /**
- * A board on two posts. `yaw` points the front face; the back carries the same
- * text with the arrow mirrored so it still points the right way.
+ * A board between two posts, which stand clear of its ends so they hide none of it. `yaw`
+ * points the front face; the back carries the same text with the arrow mirrored so it
+ * still points the right way.
  */
 function addSign(scene, parts, { x, z, yaw, text, destination, width = 3.6, height = 0.95, postHeight = 2.1 }) {
   const y = terrainHeight(x, z);
   const cos = Math.cos(yaw);
   const sin = Math.sin(yaw);
   for (const side of [-1, 1]) {
-    const px = x + cos * side * (width / 2 - 0.35);
-    const pz = z - sin * side * (width / 2 - 0.35);
-    parts.box(0.2, postHeight + 0.8, 0.2, '#6a4a31', { x: px, y: y + (postHeight - 0.8) / 2, z: pz, ry: yaw });
+    const px = x + cos * side * (width / 2 + 0.1);
+    const pz = z - sin * side * (width / 2 + 0.1);
+    const top = postHeight + 0.12;
+    parts.box(0.2, top + 0.8, 0.2, '#6a4a31', { x: px, y: y + (top - 0.8) / 2, z: pz, ry: yaw });
+    parts.box(0.26, 0.06, 0.26, '#5a3e29', { x: px, y: y + top + 0.03, z: pz, ry: yaw }); // cap
   }
   parts.box(width, height, 0.12, WOOD, { x, y: y + postHeight - height / 2, z, ry: yaw });
   for (const back of [false, true]) {
@@ -208,7 +211,8 @@ function addSign(scene, parts, { x, z, yaw, text, destination, width = 3.6, heig
 function airfieldSign(scene, parts, { x, z, yaw }) {
   const y = terrainHeight(x, z);
   const size = 1.3;
-  parts.box(0.12, 2.6, 0.12, '#8e938d', { x, y: y + 1.3, z, ry: yaw });
+  // The pole stops at the bottom edge of the sign, so it covers none of the picture.
+  parts.box(0.12, 1.6, 0.12, '#8e938d', { x, y: y + 0.8, z, ry: yaw });
   parts.box(size, size, 0.06, '#d9d6cc', { x, y: y + 2.2, z, ry: yaw });
   const destination = { x: AIRFIELD.x, z: (AIRFIELD.z0 + AIRFIELD.z1) / 2 };
   for (const back of [false, true]) {
