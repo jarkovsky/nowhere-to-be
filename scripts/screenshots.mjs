@@ -129,6 +129,54 @@ try {
   );
   await capture(page, 'combine', 2000);
 
+  // Wading through the deep ford in the hollow, with the bow wave and the wake.
+  await inGame(
+    page,
+    `
+    g.followCar();
+    const { x, z, dx, dz } = L.OXBOW.ford;
+    g.teleport(x - dx * 10, z - dz * 10, Math.atan2(-dx, -dz));
+  `,
+  );
+  await page.keyboard.down('ArrowUp');
+  await capture(page, 'ford', 2600);
+  await page.keyboard.up('ArrowUp');
+
+  // The depot by the trail, with an arrow over each car that would come along.
+  await inGame(page, `g.toDepot(0, 17);`);
+  await capture(page, 'depot', 2000);
+
+  // Stuck in the mud hole below the farm, with the tractor pulling the car out.
+  await inGame(
+    page,
+    `
+    const lane = L.TRACKS.find(t => t.id === 'lane').path;
+    const p = lane.at(lane.length - 14);
+    g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz));
+  `,
+  );
+  await page.keyboard.down('ArrowUp');
+  await page.waitForFunction(() => window.__game.getState().mudHole.phase === 'stuck', null, { timeout: 20000 });
+  await page.keyboard.up('ArrowUp');
+  await page.waitForFunction(() => window.__game.getState().mudHole.phase === 'towed', null, { timeout: 60000 });
+  await capture(page, 'tow', 1200);
+  // Once let go, the car is free to be moved on.
+  await page.waitForFunction(() => window.__game.getState().mudHole.phase === 'free', null, { timeout: 60000 });
+
+  // At the end of the blue trail, where the camera swings out over the lake.
+  await inGame(
+    page,
+    `
+    const { path } = L.TRAILS.find(t => t.id === 'blue');
+    const p = path.at(path.length - 18);
+    g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz));
+  `,
+  );
+  await page.keyboard.down('ArrowUp');
+  await page.waitForFunction(() => window.__game.getState().lookout.view >= 0, null, { timeout: 15000 });
+  await page.keyboard.up('ArrowUp');
+  await capture(page, 'viewpoint', 2800);
+
   // The wolf pack on the slopes below the summit.
   await inGame(
     page,
@@ -238,7 +286,7 @@ try {
     page,
     `
     const track = L.TRACKS.find(t => t.id === 'farm').path;
-    const p = track.at(track.length - 30);
+    const p = track.at(track.length - 22);
     g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz));
   `,
   );
