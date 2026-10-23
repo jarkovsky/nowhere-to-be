@@ -57,6 +57,7 @@ import {
   VILLAGE,
   PONDS,
   inFjord,
+  inCrop,
   onAirfield,
   onPaved,
   onGravel,
@@ -427,6 +428,9 @@ const CLEARINGS = [
 
 /** True in or just around a patch of mud. */
 const inMud = (x, z) => SURFACES.some(p => p.id === 'mud' && Math.hypot((x - p.x) / p.rx, (z - p.z) / p.rz) < 1.15);
+
+/** Nothing grows in the crop fields, nor within a couple of metres of them. */
+const outsideCrops = (x, z) => !inCrop(x, z, 2);
 
 function nearWalkway({ start, end }, x, z, clearance) {
   const dx = end.x - start.x;
@@ -1268,7 +1272,17 @@ export function buildScenery(parent) {
     }
   }
   const water = buildWater(scene);
-  const scatter = createScatter(scene);
+  // What would grow in the crop fields is left out as it is added rather than where it is
+  // placed, so that leaving it out doesn't move everything placed after it.
+  const everything = createScatter(scene);
+  const scatter = {
+    ...everything,
+    add: kind =>
+      everything.add({
+        ...kind,
+        items: kind.items.filter(({ matrix: m }) => outsideCrops(m.elements[12], m.elements[14])),
+      }),
+  };
   buildTrees(scatter, obstacles);
   buildRocks(scatter, obstacles);
   buildBrookStones(scene);
@@ -1281,7 +1295,7 @@ export function buildScenery(parent) {
   freeze(scene);
   parent.add(scene);
   return {
-    obstacles,
+    obstacles: obstacles.filter(o => o.x === undefined || outsideCrops(o.x, o.z)),
     /** `eye` is where the camera is, `sun` the light whose shadows are drawn (if any), and `car` where the car is. */
     update(dt, eye, sun, car) {
       SWAY.time.value += dt;

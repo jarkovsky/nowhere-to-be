@@ -3,7 +3,8 @@
 import * as THREE from 'three';
 import { FARM } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
-import { PartsBuilder, localFrame, gableRoof, gableEnds, createSmoke, vertexColorMaterial } from '../build.js';
+import { PartsBuilder, localFrame, gableRoof, gableEnds, createSmoke } from '../build.js';
+import { wheatField } from './fields.js';
 
 const WHITE = '#eee7d3';
 
@@ -113,45 +114,9 @@ export function buildFarm(scene, obstacles) {
   parts.box(2.2, 0.7, 0.8, '#7d8a86', { ...trough, y: troughY + 0.2 });
   parts.box(2, 0.1, 0.6, '#8fbcbf', { ...trough, y: troughY + 0.52 });
 
-  // A wheat field beyond the barn: strips of soil with rows of wheat clumps on them.
-  const clumps = [];
-  for (let row = 0; row < 16; row++) {
-    const lx = 6 + row * 1.3;
-    for (let lz = 9; lz < 27; lz += 3) {
-      const a = local(lx, lz);
-      const b = local(lx, lz + 3);
-      parts.beam(
-        { ...a, y: terrainHeight(a.x, a.z) + 0.04 },
-        { ...b, y: terrainHeight(b.x, b.z) + 0.04 },
-        1.2,
-        '#a48b63',
-        0.06,
-      );
-    }
-    for (let lz = 9.4; lz < 27; lz += 0.75) clumps.push(local(lx + Math.sin(lz * 7.3 + row) * 0.12, lz));
-  }
-  const stalks = new PartsBuilder();
-  for (let k = 0; k < 3; k++) {
-    stalks.add(new THREE.ConeGeometry(0.09, 0.95, 3, 1, true), '#dcc27a', {
-      x: Math.cos(k * 2.1) * 0.12,
-      y: 0.45,
-      z: Math.sin(k * 2.1) * 0.12,
-      rz: (k - 1) * 0.15,
-    });
-  }
-  const wheat = new THREE.InstancedMesh(stalks.geometry(), vertexColorMaterial, clumps.length);
-  const dummy = new THREE.Object3D();
-  const tint = new THREE.Color();
-  clumps.forEach((p, i) => {
-    dummy.position.set(p.x, terrainHeight(p.x, p.z), p.z);
-    dummy.rotation.set(0, i * 1.7, 0);
-    dummy.scale.setScalar(0.9 + ((i * 37) % 10) / 30);
-    dummy.updateMatrix();
-    wheat.setMatrixAt(i, dummy.matrix);
-    wheat.setColorAt(i, tint.setScalar(0.92 + ((i * 53) % 10) / 60));
-  });
-  wheat.receiveShadow = true;
-  scene.add(wheat);
+  // A field of wheat beyond the barn.
+  const wheat = wheatField(FARM.wheat, local);
+  scene.add(wheat.mesh);
 
   scene.add(parts.mesh());
   for (const [spot, radius] of [
@@ -166,5 +131,11 @@ export function buildFarm(scene, obstacles) {
   }
 
   // Wood smoke from the farmhouse chimney.
-  return createSmoke(scene, at(house.x + 2, 6.6, house.z - 1.2), { rise: 8, size: 0.5 });
+  const smoke = createSmoke(scene, at(house.x + 2, 6.6, house.z - 1.2), { rise: 8, size: 0.5 });
+  return {
+    update(time) {
+      smoke.update(time);
+      wheat.show();
+    },
+  };
 }

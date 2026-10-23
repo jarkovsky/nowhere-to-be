@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { FIELDS } from '../src/world/layout.js';
+import { FARM, FARMS, FIELDS, HERDS, VILLAGE, fieldPoint, inCrop } from '../src/world/layout.js';
 import { buildFields } from '../src/world/landmarks/fields.js';
+import { buildScenery } from '../src/world/scenery.js';
+import { localFrame } from '../src/world/build.js';
 
 const run = (fields, seconds, player) => {
   for (let t = 0; t < seconds; t += 1 / 30) fields.update(1 / 30, player);
@@ -56,4 +58,27 @@ test('a finished field grows back only while nobody is near', () => {
     fields.getState().every(w => !w.done && w.worked < 3),
     'then start again',
   );
+});
+
+test('nothing grows in the crop fields, and they keep clear of the farms, the village and the herds', () => {
+  const scene = new THREE.Scene();
+  const scenery = buildScenery(scene);
+  const position = new THREE.Vector3();
+  const matrix = new THREE.Matrix4();
+  // From each spot, the scenery close by is drawn one way and the rest another: between them, all of it.
+  const wheat = localFrame(FARM.x, FARM.z, FARM.rotation)(16, 18);
+  for (const eye of [wheat, fieldPoint(42, -35), fieldPoint(60, 86)]) {
+    scenery.update(0, new THREE.Vector3(eye.x, 0, eye.z));
+    scene.traverse(mesh => {
+      if (!mesh.isInstancedMesh) return;
+      for (let i = 0; i < mesh.count; i++) {
+        mesh.getMatrixAt(i, matrix);
+        position.setFromMatrixPosition(matrix);
+        assert.ok(!inCrop(position.x, position.z, 1), `grows at ${position.x.toFixed(1)}, ${position.z.toFixed(1)}`);
+      }
+    });
+  }
+  assert.ok(scenery.obstacles.every(o => o.x === undefined || !inCrop(o.x, o.z)));
+  for (const { x, z } of [...FARMS, ...VILLAGE.houses, VILLAGE.fireStation]) assert.ok(!inCrop(x, z, 30));
+  for (const { x, z, radius } of HERDS) assert.ok(!inCrop(x, z, radius));
 });

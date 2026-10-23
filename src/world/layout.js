@@ -546,8 +546,25 @@ export const CAMP_TRAIL = createPath([
 
 export const CAMP = { x: 36, z: -17, heading: headingOf(0.55, -0.83) };
 
-/** The farm, and its paddock in the farm's own frame (X along the barn row, Z towards the field). */
-export const FARM = { x: -76, z: 14, rotation: 0.45, paddock: { x0: -20, x1: -4, z0: 7, z1: 21 } };
+/** The farm, and its paddock and its wheat in the farm's own frame (X along the barn row, Z towards the field). */
+export const FARM = {
+  x: -76,
+  z: 14,
+  rotation: 0.45,
+  paddock: { x0: -20, x1: -4, z0: 7, z1: 21 },
+  wheat: { x0: 6, x1: 26.4, z0: 9, z1: 27 },
+};
+
+/** True in one of the crop fields, the farm's or the upland farm's, or within `margin` metres of one. */
+export function inCrop(x, z, margin = 0) {
+  const within = (plot, { x: ox, z: oz, rotation }) => {
+    const [dx, dz] = [x - ox, z - oz];
+    const lx = dx * Math.cos(rotation) - dz * Math.sin(rotation);
+    const lz = dx * Math.sin(rotation) + dz * Math.cos(rotation);
+    return lx > plot.x0 - margin && lx < plot.x1 + margin && lz > plot.z0 - margin && lz < plot.z1 + margin;
+  };
+  return within(FARM.wheat, FARM) || Object.values(FIELD_PLOTS).some(plot => within(plot, FIELDS));
+}
 
 /** A point given in the farm's own frame. */
 const farmPoint = localFrame(FARM.x, FARM.z, FARM.rotation);

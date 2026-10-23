@@ -5,12 +5,14 @@
 // wheat, leaving stubble and rows of straw. When a field is done and nobody is
 // watching, it quietly grows back and the work starts again.
 import * as THREE from 'three';
+import { createRandom, fractalNoise, valueNoise } from '../../core/math.js';
 import { chassisPose } from '../../core/suspension.js';
 import { vehicleParts } from '../../vehicles/car.js';
 import { FARMSTEAD, FIELDS, FIELD_PLOTS, fieldPoint } from '../layout.js';
 import { headingOf } from '../path.js';
 import { terrainHeight } from '../terrain.js';
-import { PartsBuilder, flatMaterial, gableRoof, gableEnds, localFrame, createSmoke } from '../build.js';
+import { SWAY, detailMap, foliageMaterial, groundMaterial } from '../detail.js';
+import { PartsBuilder, flatMaterial, gableRoof, gableEnds, localFrame, createSmoke, tintable } from '../build.js';
 
 /** Width of one pass of the plough or the mower. */
 const LANE = 3.6;
@@ -25,7 +27,28 @@ const COMBINE = '#7ea33b';
 const WHITE = '#f1efe6';
 const GLASS = '#4f6f73';
 /** Puffs of chaff behind the combine. */
-const CHAFF = 8;
+const CHAFF = 10;
+/** Spacing of the drill rows the wheat is sown in. */
+const ROW = 0.6;
+/** Height of the standing wheat to the tops of its rows, and how much lower it is between them. */
+const WHEAT = 0.95;
+const FURROW = 0.12;
+/** Length of the cells the standing wheat is built in along the lanes. */
+const WHEAT_CELL = 4;
+/** Radius of the wheat's rounded corners, and how much lower it is right at its edge. */
+const CORNER = 1.4;
+const SHOULDER = 0.14;
+/**
+ * The stalks hang down from the top along the edges of the wheat in teeth about this wide, in
+ * front of the shade this far in.
+ */
+const TOOTH = 0.28;
+const INSET = 0.3;
+/** Within this of the camera, stalks stand along the edges of the wheat and ears nod out of its top. */
+const STALK_RANGE = 32;
+/** Stalks along the edges, and ears along the top of each row, about this far apart. */
+const STALK_GAP = 0.055;
+const EAR_GAP = 0.32;
 
 /** Ground colours: [base, stripe] for each crop, and for the ground once it is worked. */
 const CROPS = {
@@ -35,11 +58,18 @@ const CROPS = {
   young: ['#a3bc70', '#8ea85f'],
   ploughed: ['#8b6f4e', '#775c3f'],
   mown: ['#b9c47f', '#cbbd72'],
-  wheat: ['#e3c35c', '#d6b44e'],
-  harvested: ['#cdbb7e', '#e8d690'], // stubble, with a row of straw down the middle of each pass
+  cut: ['#dccb90', '#cfbc7e'], // the stubble the combine leaves, in rows
 };
-/** The stalks, seen from the side where the wheat is cut. */
-const STALKS = '#b89a45';
+/** The wheat: riper in patches, darker down between the rows and among the stalks. */
+const WHEAT_COLORS = {
+  ripe: new THREE.Color('#e2bf56'),
+  pale: new THREE.Color('#ecd47e'),
+  late: new THREE.Color('#cdb75c'),
+  furrow: new THREE.Color('#a98b3d'),
+  foot: new THREE.Color('#2f2e17'),
+};
+/** The straw the combine leaves in a row down the middle of each pass: [top, sides]. */
+const STRAW = [new THREE.Color('#ead99a'), new THREE.Color('#d3bd78')];
 
 /** Geometry for quads draped over the ground. Each quad is four [lx, lz] corners in the farmland's frame. */
 function drape(quads, lift) {
@@ -65,13 +95,9 @@ function drape(quads, lift) {
   return geometry;
 }
 
+/** The fields are drawn like the ground, with its grain, a little in front of it. */
 function fieldMesh(geometry, offset) {
-  const material = flatMaterial('#ffffff', {
-    vertexColors: true,
-    polygonOffset: true,
-    polygonOffsetFactor: offset,
-    polygonOffsetUnits: offset,
-  });
+  const material = groundMaterial({ polygonOffset: true, polygonOffsetFactor: offset, polygonOffsetUnits: offset });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.receiveShadow = true;
   return mesh;
@@ -143,15 +169,15 @@ function laneRoute(plot, width = LANE) {
   };
 }
 
-/** Cells of `route.length` metres of lane, in working order, as [x0, x1, za, zb] in the farmland's frame. */
-function cellsInOrder(plot, route) {
+/** Cells `cell` metres long down each lane, in working order, as [x0, x1, za, zb] in the farmland's frame. */
+function cellsInOrder(plot, route, cell = CELL) {
   const cells = [];
-  const perLane = Math.ceil(route.length / CELL);
+  const perLane = Math.ceil(route.length / cell);
   for (let i = 0; i < route.lanes; i++) {
     const x0 = plot.x0 + i * route.width;
     for (let k = 0; k < perLane; k++) {
-      const a = Math.min(route.length, k * CELL);
-      const b = Math.min(route.length, (k + 1) * CELL);
+      const a = Math.min(route.length, k * cell);
+      const b = Math.min(route.length, (k + 1) * cell);
       const [za, zb] = i % 2 ? [plot.z1 - b, plot.z1 - a] : [plot.z0 + a, plot.z0 + b];
       cells.push([x0, x0 + route.width, za, zb]);
     }
@@ -160,10 +186,10 @@ function cellsInOrder(plot, route) {
 }
 
 /** How many cells are done once `worked` metres of lane are. */
-function cellsDone(route, worked) {
-  const perLane = Math.ceil(route.length / CELL);
+function cellsDone(route, worked, cell = CELL) {
+  const perLane = Math.ceil(route.length / cell);
   const lane = Math.floor(worked / route.length);
-  return Math.max(0, lane * perLane + Math.floor((worked - lane * route.length) / CELL));
+  return Math.max(0, lane * perLane + Math.floor((worked - lane * route.length) / cell));
 }
 
 /**
@@ -198,62 +224,564 @@ function workedGround(plot, route, [base, stripe]) {
 }
 
 /**
- * The wheat still standing: a block of crop a metre tall, built in the order the
- * combine cuts it, so starting the draw range further along hides what is cut.
+ * The material for the standing wheat and for the straw the combine leaves. Ears and stalks
+ * are drawn in grain from the detail texture, speckled on top and streaked down the sides;
+ * waves of wind run over the tops, and the wheat is pressed down where the car drives through.
+ * Each vertex knows how far along the combine's route its spot is (`along`) and is held
+ * between `from` and `to` metres along it, so the edges follow the combine exactly rather than
+ * a cell at a time: wheat behind the cutter bar slides up to it, and the straw grows out of the
+ * back. `sway` is how far a vertex moves in the wind.
  */
-function standingCrop(plot, route, [base, stripe]) {
+function cropMaterial(point) {
+  const origin = point(0, 0);
+  const ahead = point(0, 1);
+  const uniforms = {
+    cropFrom: { value: -1e6 },
+    cropTo: { value: 1e6 },
+    // The way the rows run, in the world.
+    cropAxis: { value: new THREE.Vector2(ahead.x - origin.x, ahead.z - origin.z) },
+  };
+  const material = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  material.onBeforeCompile = shader => {
+    Object.assign(shader.uniforms, uniforms, {
+      groundDetail: detailMap(),
+      swayTime: SWAY.time,
+      swayPusher: SWAY.pusher,
+    });
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>\n${CROP_PARS}\n${CROP_ATTRIBUTES}`)
+      .replace('#include <begin_vertex>', CROP_VERTEX);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>\n${CROP_PARS}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>\n${CROP_DETAIL}`);
+  };
+  return { material, uniforms };
+}
+
+const CROP_PARS = /* glsl */ `
+  uniform float cropFrom;
+  uniform float cropTo;
+  uniform vec2 cropAxis;
+  uniform float swayTime;
+  uniform vec3 swayPusher;
+  uniform sampler2D groundDetail;
+  varying vec3 vCrop;
+  varying float vSway;
+`;
+
+const CROP_ATTRIBUTES = /* glsl */ `
+  attribute float along;
+  attribute float way;
+  attribute float sway;
+`;
+
+const CROP_VERTEX = /* glsl */ `
+  #include <begin_vertex>
+  transformed.xz += cropAxis * way * ( clamp( along, cropFrom, cropTo ) - along );
+  // Waves of wind rolling over the field.
+  float wind = sin( swayTime * 1.3 - dot( transformed.xz, vec2( 0.16, 0.1 ) ) )
+    + 0.4 * sin( swayTime * 2.1 + dot( transformed.xz, vec2( 0.07, -0.23 ) ) );
+  transformed.xz += vec2( 0.05, 0.032 ) * wind * sway;
+  // Pressed down and aside where the car drives through.
+  vec2 away = transformed.xz - swayPusher.xz;
+  float gap = max( length( away ), 0.001 );
+  float press = ( 1.0 - smoothstep( 1.0, 2.6, gap ) ) * sway * step( abs( transformed.y - swayPusher.y ), 3.0 );
+  transformed.xz += away / gap * press * 0.25;
+  transformed.y -= press * 0.55;
+  vCrop = transformed;
+  vSway = sway;
+`;
+
+const CROP_DETAIL = /* glsl */ `
+  {
+    float near = 1.0 - smoothstep( 30.0, 150.0, distance( vCrop, cameraPosition ) );
+    // Ears and stalks, finer than the shapes: speckled on top, streaked down the sides, and
+    // finer still close by.
+    float ears = texture2D( groundDetail, vCrop.xz / 1.4 ).a;
+    float close = 1.0 - smoothstep( 4.0, 20.0, distance( vCrop, cameraPosition ) );
+    ears += ( texture2D( groundDetail, vCrop.xz / 0.37 + 0.5 ).a - 0.5 ) * 0.8 * close;
+    // Patches the wind ruffles, drifting over the field, and riper patches that stay put.
+    float gusts = texture2D( groundDetail, vCrop.xz / 29.0 - swayTime * vec2( 0.016, 0.01 ) ).r;
+    float patches = texture2D( groundDetail, vCrop.xz / 70.0 + 0.4 ).g;
+    float wind = ( gusts - 0.5 ) * 0.3 * min( vSway, 1.0 );
+    diffuseColor.rgb *= 1.0 + ( ears - 0.5 ) * 0.6 * near + wind + ( patches - 0.5 ) * 0.16;
+  }
+`;
+
+/** Geometry for the crop material from its corners, three to a triangle (see `cropMaterial`). */
+function cropGeometry({ positions, normals, colors, along, way, sway }) {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setAttribute('along', new THREE.Float32BufferAttribute(along, 1));
+  geometry.setAttribute('way', new THREE.Float32BufferAttribute(way, 1));
+  geometry.setAttribute('sway', new THREE.Float32BufferAttribute(sway, 1));
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+/**
+ * Collects the corners of crop triangles. A corner is { lx, lz, lift, color, along, way, sway }
+ * (see `cropMaterial`), `lift` above the ground there or above `ground` if it has one. A triangle is lit as it faces, or as if it faced `light`, and then its
+ * corners are turned so that its front faces that way too: the sides of the wheat are lit as if
+ * they faced a little upwards, as the stalks and ears along them do.
+ */
+function cropCorners(point) {
+  const buffers = { positions: [], normals: [], colors: [], along: [], way: [], sway: [] };
+  const corner = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  const normal = new THREE.Vector3();
+  const edge = new THREE.Vector3();
+  const origin = point(0, 0);
+  const triangle = (a, b, c, light = null) => {
+    const corners = [a, b, c];
+    corners.forEach(({ lx, lz, lift, ground }, n) => {
+      const p = point(lx, lz);
+      corner[n].set(p.x, (ground ?? terrainHeight(p.x, p.z)) + lift, p.z);
+    });
+    normal.subVectors(corner[2], corner[1]).cross(edge.subVectors(corner[0], corner[1])).normalize();
+    const order = light && normal.dot(light) < 0 ? [0, 2, 1] : [0, 1, 2];
+    if (light) normal.copy(light);
+    for (const n of order) {
+      const { color, along, way, sway } = corners[n];
+      buffers.positions.push(corner[n].x, corner[n].y, corner[n].z);
+      buffers.normals.push(normal.x, normal.y, normal.z);
+      buffers.colors.push(color.r, color.g, color.b);
+      buffers.along.push(along);
+      buffers.way.push(way);
+      buffers.sway.push(sway);
+    }
+  };
+  return {
+    buffers,
+    triangle,
+    quad(a, b, c, d, light) {
+      triangle(a, b, c, light);
+      triangle(a, c, d, light);
+    },
+    /** The direction (dx, dz) in the frame, in the world, tipped up by `up`. */
+    direction(dx, dz, up) {
+      const p = point(dx, dz);
+      return new THREE.Vector3(p.x - origin.x, up, p.z - origin.z).normalize();
+    },
+    get count() {
+      return buffers.along.length;
+    },
+  };
+}
+
+const UP = new THREE.Vector3(0, 1, 0);
+let stalk = null;
+
+/**
+ * A stalk of wheat with its ear, to draw many of: thin, a little under a metre tall, darker and
+ * greener low down, with a long ear nodding over towards +X at the top. Each side is lit as if
+ * it faced a little upwards, so the stalks don't flicker light and dark as they turn.
+ */
+function stalkGeometry() {
+  if (stalk) return stalk;
   const positions = [];
+  const normals = [];
   const colors = [];
-  const tint = new THREE.Color();
-  const quad = (corners, color) => {
-    tint.set(color);
-    for (const corner of [0, 2, 1, 0, 3, 2]) {
-      positions.push(...corners[corner]);
-      colors.push(tint.r, tint.g, tint.b);
+  const normal = new THREE.Vector3();
+  const middle = new THREE.Vector3();
+  const add = (corners, tints, inside, upwards) => {
+    normal.subVectors(corners[2], corners[1]).cross(new THREE.Vector3().subVectors(corners[0], corners[1]));
+    // The stalk and the ear are closed, so each side faces away from the middle of it.
+    if (normal.dot(middle.addVectors(corners[0], corners[1]).add(corners[2]).divideScalar(3).sub(inside)) < 0) {
+      [corners, tints] = [
+        [corners[0], corners[2], corners[1]],
+        [tints[0], tints[2], tints[1]],
+      ];
+      normal.negate();
     }
+    normal.normalize().lerp(UP, upwards).normalize();
+    corners.forEach((p, n) => {
+      positions.push(p.x, p.y, p.z);
+      normals.push(normal.x, normal.y, normal.z);
+      colors.push(tints[n].r, tints[n].g, tints[n].b);
+    });
   };
-  const point = (lx, lz, lift) => {
-    const p = fieldPoint(lx, lz);
-    return [p.x, terrainHeight(p.x, p.z) + lift, p.z];
-  };
-  for (const [x0, x1, za, zb] of cellsInOrder(plot, route)) {
-    const outline = [
-      [x0, za],
-      [x1, za],
-      [x1, zb],
-      [x0, zb],
-    ];
-    const top = outline.map(([lx, lz]) => point(lx, lz, 0.95));
-    const foot = outline.map(([lx, lz]) => point(lx, lz, 0.05));
-    // The top in three rows, the middle one a shade darker.
-    for (let row = 0; row < 3; row++) {
-      const xa = x0 + ((x1 - x0) * row) / 3;
-      const xb = x0 + ((x1 - x0) * (row + 1)) / 3;
-      quad(
-        [point(xa, za, 0.95), point(xb, za, 0.95), point(xb, zb, 0.95), point(xa, zb, 0.95)],
-        row === 1 ? stripe : base,
-      );
-    }
-    for (let side = 0; side < 4; side++) {
-      const next = (side + 1) % 4;
-      quad([foot[side], foot[next], top[next], top[side]], STALKS);
-    }
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const C = hex => new THREE.Color(hex);
+  // The stalk: three thin sides, so it shows whichever way it is turned.
+  const neck = V(0.035, 0.9, 0);
+  const foot = [0, 1, 2].map(k => V(Math.cos(k * 2.1) * 0.017, 0, Math.sin(k * 2.1) * 0.017));
+  const [low, high] = [C('#5d6034'), C('#c2a656')];
+  for (let k = 0; k < 3; k++) add([foot[k], foot[(k + 1) % 3], neck], [low, low, high], V(0, 0.45, 0), 0.45);
+  // The ear: a spindle from the top of the stalk, leaning over.
+  const along = V(0.5, 0.87, 0).normalize();
+  const across = V(0, 0, 1);
+  const up = new THREE.Vector3().crossVectors(across, along);
+  const tip = neck.clone().addScaledVector(along, 0.18);
+  const waist = neck.clone().addScaledVector(along, 0.08);
+  const ring = [0, 1, 2].map(k =>
+    waist
+      .clone()
+      .addScaledVector(across, Math.cos((k * Math.PI * 2) / 3) * 0.027)
+      .addScaledVector(up, Math.sin((k * Math.PI * 2) / 3) * 0.027),
+  );
+  const [base, body, point] = [C('#cfa94c'), C('#ecc860'), C('#dcb34e')];
+  for (let k = 0; k < 3; k++) {
+    const [a, b] = [ring[k], ring[(k + 1) % 3]];
+    add([neck, a, b], [base, body, body], waist, 0.65);
+    add([a, tip, b], [body, point, body], waist, 0.65);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
-  const mesh = new THREE.Mesh(geometry, flatMaterial('#ffffff', { vertexColors: true, side: THREE.DoubleSide }));
-  mesh.receiveShadow = true;
-  const perCell = 7 * 6;
-  const total = positions.length / 3;
+  geometry.computeBoundingBox();
+  stalk = tintable(geometry);
+  return stalk;
+}
+
+/**
+ * Stalks of wheat drawn one by one near the camera: one instanced mesh, refilled when the
+ * camera has moved or the combine has cut further. Each of `items` ({ matrix, color, x, z,
+ * from, until, slide, start }) is drawn once the combine has cut `from` metres along its route
+ * and until it cuts `until`; those along the edge it cuts from (`slide` is the way it goes, along
+ * `axis`) are carried along in front of its cutter bar once it has passed `start`.
+ */
+function nearStalks(items, axis) {
+  const size = Math.max(1, items.length);
+  const mesh = new THREE.InstancedMesh(stalkGeometry(), foliageMaterial('grass', STALK_RANGE), size);
+  mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(size * 3), 3);
+  mesh.count = 0;
+  mesh.frustumCulled = false;
+  // The camera is only known while drawing, so the stalks are filled for where it was last time.
+  const eye = new THREE.Vector3(Infinity, 0, Infinity);
+  mesh.onBeforeRender = (renderer, scene, camera) => eye.setFromMatrixPosition(camera.matrixWorld);
+  const filled = { x: Infinity, z: Infinity, cut: NaN };
+  const box = new THREE.Box2();
+  for (const { x, z } of items) box.expandByPoint(new THREE.Vector2(x, z));
+  const corner = new THREE.Vector2();
+  const reach = STALK_RANGE * STALK_RANGE;
+  const matrices = mesh.instanceMatrix.array;
+  const colors = mesh.instanceColor.array;
   return {
     mesh,
-    /** Hides the wheat cut so far, `cut` metres along the lanes. */
-    show(cut) {
-      const start = Math.min(total, cellsDone(route, cut) * perCell);
-      mesh.geometry.setDrawRange(start, total - start);
+    update(cut) {
+      if (!Number.isFinite(eye.x)) return;
+      if (Math.hypot(eye.x - filled.x, eye.z - filled.z) < 1.5 && Math.abs(cut - filled.cut) < 0.1) return;
+      Object.assign(filled, { x: eye.x, z: eye.z, cut });
+      let n = 0;
+      if (box.distanceToPoint(corner.set(eye.x, eye.z)) < STALK_RANGE) {
+        for (const item of items) {
+          if ((item.x - eye.x) ** 2 + (item.z - eye.z) ** 2 > reach || cut < item.from || cut >= item.until) continue;
+          item.matrix.toArray(matrices, n * 16);
+          if (item.slide && cut > item.start) {
+            const shift = item.slide * (cut - item.start);
+            const [x, z] = [item.x + axis.x * shift, item.z + axis.y * shift];
+            matrices.set([x, terrainHeight(x, z), z], n * 16 + 12);
+          }
+          item.color.toArray(colors, n * 3);
+          n++;
+        }
+      }
+      if (n === 0 && mesh.count === 0) return;
+      mesh.count = n;
+      for (const attribute of [mesh.instanceMatrix, mesh.instanceColor]) {
+        attribute.clearUpdateRanges();
+        attribute.addUpdateRange(0, n * attribute.itemSize);
+        attribute.needsUpdate = true;
+      }
+    },
+  };
+}
+
+/**
+ * Standing wheat on `plot`, in the frame `point` maps from: drill rows down the plot's Z, a
+ * little uneven and with rounded corners. Close to the camera, stalks stand along its edges and
+ * ears nod out of its top along the rows. It is built in cells down the lanes of `route`, in the
+ * order the combine cuts them, so starting the draw range at a later cell hides those cut so
+ * far. Without a route it is one lane, never cut.
+ */
+export function wheatField(plot, point, route = null) {
+  const lanes = route ?? { lanes: 1, width: plot.x1 - plot.x0, length: plot.z1 - plot.z0 };
+  const random = createRandom(Math.round(plot.x0 * 31 + plot.z1 * 17));
+  const crop = cropCorners(point);
+  const rows = Math.round(lanes.width / ROW);
+  const row = lanes.width / rows;
+  const perLane = Math.ceil(lanes.length / WHEAT_CELL);
+  let lane = 0;
+  let way = 1;
+  const alongAt = lz => lane * lanes.length + (way > 0 ? lz - plot.z0 : plot.z1 - lz);
+  /** How far (lx, lz) is from the middle of its row, from 0 there to 1 between two rows. */
+  const across = lx => Math.abs((((lx - plot.x0) / row) % 1) - 0.5) * 2;
+  const height = (lx, lz) => WHEAT + (valueNoise(lx / 6, lz / 6, 5) - 0.5) * 0.16 - across(lx) * FURROW;
+  /**
+   * The edge of the plot nearest (lx, lz), with its corners rounded: the point on it and which
+   * way it faces, as [lx, lz, ox, oz]. A point inside the rounded corners is left where it is.
+   */
+  const rim = (lx, lz, inside = false) => {
+    const cx = Math.min(Math.max(lx, plot.x0 + CORNER), plot.x1 - CORNER);
+    const cz = Math.min(Math.max(lz, plot.z0 + CORNER), plot.z1 - CORNER);
+    const d = Math.hypot(lx - cx, lz - cz);
+    if (d === 0 || (inside && d <= CORNER)) return [lx, lz, 0, 0];
+    const [ox, oz] = [(lx - cx) / d, (lz - cz) / d];
+    return [cx + ox * CORNER, cz + oz * CORNER, ox, oz];
+  };
+  /** The top of the wheat at (lx, lz): riper in patches, darker down between the rows. */
+  const top = (lx, lz) => {
+    const ripeness = fractalNoise(lx / 18, lz / 18, 2, 7);
+    const color = WHEAT_COLORS.ripe
+      .clone()
+      .lerp(ripeness > 0.5 ? WHEAT_COLORS.pale : WHEAT_COLORS.late, Math.abs(ripeness - 0.5) * 1.6)
+      .lerp(WHEAT_COLORS.furrow, across(lx) * 0.55);
+    const [x, z, ox, oz] = rim(lx, lz, true);
+    // Lower along the edge of the field, where the stalks stand up above it.
+    const atEdge = ox || oz || Math.min(lx - plot.x0, plot.x1 - lx, lz - plot.z0, plot.z1 - lz) < 1e-6;
+    return { lx: x, lz: z, lift: height(lx, lz) - (atEdge ? SHOULDER : 0), color, along: alongAt(lz), way, sway: 1 };
+  };
+  const foot = ({ lx, lz, along }) => ({ lx, lz, lift: -0.05, color: WHEAT_COLORS.foot, along, way, sway: 0 });
+  /**
+   * An edge of the wheat through `tops`, facing `outward`: the stalks hang down from its top in
+   * ragged teeth, golden at the top and darker lower down, in front of the shade further in,
+   * darker still and greener low down. Corners further in keep the `along` of those at the edge,
+   * so the edge the combine cuts from slides along in one piece.
+   */
+  const edge = (tops, [ox, oz]) => {
+    const light = crop.direction(ox, oz, 0.6);
+    const shade = (corner, lift, darker, inset = 0) => ({
+      ...corner,
+      lx: corner.lx - ox * inset,
+      lz: corner.lz - oz * inset,
+      lift: corner.lift * lift,
+      color: corner.color.clone().multiplyScalar(darker),
+      sway: corner.sway * lift,
+    });
+    // Between two of `tops`, at the height of the top of the wheat between them.
+    const ground = ({ lx, lz }) => {
+      const p = point(lx, lz);
+      return terrainHeight(p.x, p.z);
+    };
+    const between = (a, b, t) => ({
+      ...a,
+      lx: a.lx + (b.lx - a.lx) * t,
+      lz: a.lz + (b.lz - a.lz) * t,
+      lift: a.lift + (b.lift - a.lift) * t,
+      along: a.along + (b.along - a.along) * t,
+      color: a.color.clone().lerp(b.color, t),
+      ground: a.ground + (b.ground - a.ground) * t,
+    });
+    for (let n = 0; n + 1 < tops.length; n++) {
+      const [a, b] = [tops[n], tops[n + 1]].map(top => ({ ...top, ground: ground(top) }));
+      crop.quad(
+        foot(shade(a, 1, 1, INSET)),
+        foot(shade(b, 1, 1, INSET)),
+        shade(b, 0.75, 0.3, INSET),
+        shade(a, 0.75, 0.3, INSET),
+        light,
+      );
+      const teeth = Math.max(1, Math.round(Math.hypot(b.lx - a.lx, b.lz - a.lz) / TOOTH));
+      for (let k = 0; k < teeth; k++) {
+        const [p, q] = [between(a, b, k / teeth), between(a, b, (k + 1) / teeth)];
+        const tip = shade(between(a, b, (k + 0.3 + random() * 0.4) / teeth), 0.3 + random() * 0.3, 0.4);
+        crop.quad(shade(p, 0.75, 0.55), shade(q, 0.75, 0.55), shade(q, 1, 0.72), shade(p, 1, 0.72), light);
+        crop.triangle(shade(p, 0.75, 0.55), tip, shade(q, 0.75, 0.55), light);
+      }
+    }
+  };
+  /** Where to break the cell from `za` to `zb` along the rows: finely in the rounded corners. */
+  const breaks = (za, zb) => {
+    const fine = [0.2, 0.45, 0.75, 1].flatMap(t => [plot.z0 + t * CORNER, plot.z1 - t * CORNER]);
+    return [za, ...fine.filter(z => z > za && z < zb), zb].sort((a, b) => a - b);
+  };
+
+  const starts = [];
+  cellsInOrder(plot, lanes, WHEAT_CELL).forEach(([x0, x1, za, zb], index) => {
+    lane = Math.floor(index / perLane);
+    way = lane % 2 ? -1 : 1;
+    const k = index % perLane;
+    starts.push(crop.count);
+    const outer = lane === 0 || lane === lanes.lanes - 1;
+    const zs = outer ? breaks(za, zb) : [za, zb];
+    // The tops of the rows, each a ridge.
+    for (let r = 0; r < rows; r++) {
+      const [xa, xm, xb] = [x0 + r * row, x0 + (r + 0.5) * row, x0 + (r + 1) * row];
+      for (let n = 0; n + 1 < zs.length; n++) {
+        const [a, b] = [zs[n], zs[n + 1]];
+        crop.quad(top(xa, a), top(xm, a), top(xm, b), top(xa, b));
+        crop.quad(top(xm, a), top(xb, a), top(xb, b), top(xm, b));
+      }
+    }
+    // The edges: the near side stands at the edge of the field or of the lane cut before it,
+    // and the end the combine comes in from slides along in front of its cutter bar.
+    const halfRows = Array.from({ length: rows * 2 + 1 }, (_, n) => x0 + (n * row) / 2);
+    edge(
+      zs.map(z => top(x0, z)),
+      [-1, 0],
+    );
+    if (lane === lanes.lanes - 1)
+      edge(
+        zs.map(z => top(x1, z)),
+        [1, 0],
+      );
+    const [near, far] = way > 0 ? [za, zb] : [zb, za];
+    if (route || k === 0)
+      edge(
+        halfRows.map(x => top(x, near)),
+        [0, -way],
+      );
+    if (k === perLane - 1)
+      edge(
+        halfRows.map(x => top(x, far)),
+        [0, way],
+      );
+  });
+  starts.push(crop.count);
+  const { material, uniforms } = cropMaterial(point);
+  const mesh = new THREE.Mesh(cropGeometry(crop.buffers), material);
+  mesh.receiveShadow = true;
+
+  // The stalks close to the camera: along the edges, then the ears along the tops of the rows.
+  const items = [];
+  const dummy = new THREE.Object3D();
+  const origin = point(0, 0);
+  const ahead = point(0, 1);
+  const axis = new THREE.Vector2(ahead.x - origin.x, ahead.z - origin.z);
+  /** A stalk at (lx, lz) whose ear is `height` above the ground, leaning `lean` towards (ox, oz). */
+  const stalkHeight = stalkGeometry().boundingBox.max.y;
+  const stalkAt = (lx, lz, height, [ox, oz], extra, lean) => {
+    const p = point(lx, lz);
+    const q = point(lx + ox, lz + oz);
+    dummy.position.set(p.x, terrainHeight(p.x, p.z), p.z);
+    dummy.rotation.set(
+      (random() - 0.5) * 0.15,
+      Math.atan2(-(q.z - p.z), q.x - p.x) + (random() - 0.5) * 1.2,
+      -lean,
+      'YXZ',
+    );
+    dummy.scale.set(1, height / stalkHeight, 1);
+    dummy.updateMatrix();
+    const warm = random();
+    const color = new THREE.Color(1, 0.96 - warm * 0.06, 0.88 - warm * 0.14).multiplyScalar(0.86 + random() * 0.2);
+    items.push({ matrix: dummy.matrix.clone(), color, x: p.x, z: p.z, from: -Infinity, ...extra });
+  };
+  const L = lanes.length;
+  /**
+   * Stalks along an edge from (ax, az) to (bx, bz), a few missing and some taller, leaning out
+   * `outward`, or out of the plot's rounded edge without it. `at(lz)` says when each is drawn.
+   */
+  const fringe = (ax, az, bx, bz, at, outward = null) => {
+    const steps = Math.round(Math.hypot(bx - ax, bz - az) / STALK_GAP);
+    for (let n = 0; n < steps; n++) {
+      const t = (n + random()) / steps;
+      if (random() < 0.12) continue;
+      const [px, pz] = [ax + (bx - ax) * t, az + (bz - az) * t];
+      const [lx, lz, ox, oz] = outward ? [px, pz, ...outward] : rim(px, pz);
+      // Some in front of the edge, some just inside it, their ears above the top of the wheat.
+      const out = random() * 0.5 - 0.28;
+      const tall = random() < 0.08 ? 0.15 + random() * 0.15 : 0;
+      const [x, z] = [lx + ox * out, lz + oz * out];
+      const ear = height(x, z) + (out > 0 ? -0.04 : 0.02) + random() * 0.16 + tall;
+      stalkAt(x, z, ear, [ox, oz], at(lz), 0.05 + random() * 0.3);
+    }
+  };
+  for (lane = 0; lane < lanes.lanes; lane++) {
+    way = lane % 2 ? -1 : 1;
+    const x0 = plot.x0 + lane * lanes.width;
+    const x1 = x0 + lanes.width;
+    const i = lane;
+    // Down the near side, bared once the combine has cut the lane before it alongside.
+    if (i === 0) fringe(x0, plot.z0, x0, plot.z1, lz => ({ until: alongAt(lz) }));
+    else fringe(x0, plot.z0, x0, plot.z1, lz => ({ from: 2 * i * L - alongAt(lz), until: alongAt(lz) }), [-1, 0]);
+    if (lane === lanes.lanes - 1) fringe(x1, plot.z0, x1, plot.z1, lz => ({ until: alongAt(lz) }));
+    // Across the end it is cut from, carried along in front of the cutter bar, and the far end.
+    const [near, far] = way > 0 ? [plot.z0, plot.z1] : [plot.z1, plot.z0];
+    fringe(x0, near, x1, near, () => ({ until: (i + 1) * L, slide: route ? way : 0, start: i * L }));
+    fringe(x0, far, x1, far, () => ({ until: (i + 1) * L }));
+    // The ears out of the top of each row.
+    for (let r = 0; r < rows; r++) {
+      const xm = x0 + (r + 0.5) * row;
+      for (let lz = plot.z0 + random() * EAR_GAP; lz < plot.z1; lz += EAR_GAP * (0.7 + random() * 0.6)) {
+        const lx = xm + (random() - 0.5) * row * 0.35;
+        if (rim(lx, lz, true)[2] !== 0) continue;
+        const nod = random() * Math.PI * 2;
+        stalkAt(
+          lx,
+          lz,
+          height(lx, lz) + 0.05 + random() * 0.07,
+          [Math.cos(nod), Math.sin(nod)],
+          { until: alongAt(lz) },
+          random() * 0.25,
+        );
+      }
+    }
+  }
+  const stalks = nearStalks(items, axis);
+  const group = new THREE.Group();
+  group.add(mesh, stalks.mesh);
+  let cut = -1e6;
+  return {
+    mesh: group,
+    /** Hides the wheat cut so far, `metres` along the lanes, and fills in the stalks near the camera. */
+    show(metres = -1e6) {
+      if (metres !== cut) {
+        cut = metres;
+        uniforms.cropFrom.value = cut;
+        const start = starts[Math.min(starts.length - 1, cellsDone(lanes, cut, WHEAT_CELL))];
+        mesh.geometry.setDrawRange(start, starts.at(-1) - start);
+      }
+      stalks.update(cut);
+    },
+  };
+}
+
+/**
+ * The straw the combine leaves behind it: a low ridge down the middle of each pass, built in
+ * the order the combine works, so ending the draw range at a cell shows the straw so far.
+ */
+function strawSwaths(plot, route, point) {
+  const straw = cropCorners(point);
+  const across = [-0.62, -0.32, 0, 0.32, 0.62];
+  const rise = [0.02, 0.17, 0.26, 0.17, 0.02];
+  const perLane = Math.ceil(route.length / CELL);
+  const starts = [];
+  /** The ridge of straw across the pass at `lz`, as corners from one side to the other. */
+  const section = (lx, lz, lane, way) => {
+    const width = 0.8 + valueNoise(lz / 2.3, lane * 3.1, 11) * 0.4;
+    const height = 0.75 + valueNoise(lz / 1.7, lane * 2.3, 13) * 0.5;
+    const along = lane * route.length + (way > 0 ? lz - plot.z0 : plot.z1 - lz);
+    return across.map((u, n) => ({
+      lx: lx + u * width,
+      lz,
+      lift: rise[n] * height,
+      color: STRAW[n === 2 ? 0 : 1],
+      along,
+      way,
+      sway: 0,
+    }));
+  };
+  /** The end of a row of straw, sloping down to the ground `beyond` the section. */
+  const end = (corners, beyond) => {
+    const tip = { ...corners[2], lz: corners[2].lz + beyond, lift: 0.02 };
+    for (let n = 0; n < 4; n++) straw.triangle(corners[n], corners[n + 1], tip);
+  };
+  cellsInOrder(plot, route).forEach(([x0, x1, za, zb], index) => {
+    const lane = Math.floor(index / perLane);
+    const way = lane % 2 ? -1 : 1;
+    const [near, far] = way > 0 ? [za, zb] : [zb, za];
+    const a = section((x0 + x1) / 2, near, lane, way);
+    const b = section((x0 + x1) / 2, far, lane, way);
+    starts.push(straw.count);
+    for (let n = 0; n < 4; n++) straw.quad(a[n], a[n + 1], b[n + 1], b[n]);
+    if (index % perLane === 0) end(a, -way * 0.6);
+    end(b, way * 0.6);
+  });
+  starts.push(straw.count);
+  const { material, uniforms } = cropMaterial(point);
+  const mesh = new THREE.Mesh(cropGeometry(straw.buffers), material);
+  mesh.receiveShadow = true;
+  return {
+    mesh,
+    /** Shows the straw left so far, `worked` metres along the lanes. */
+    show(worked) {
+      uniforms.cropTo.value = worked;
+      const cells = worked > 0 ? cellsDone(route, worked) + 1 : 0;
+      mesh.geometry.setDrawRange(0, starts[Math.min(starts.length - 1, cells)]);
     },
   };
 }
@@ -381,6 +909,23 @@ function combineHarvester() {
   reel.add(bats.mesh());
   root.add(reel);
 
+  // Wheat just cut, lying back across the table on its way to the auger, while it cuts.
+  const cutting = new PartsBuilder();
+  for (let k = 0; k < 40; k++) {
+    const x = -HEADER / 2 + 0.25 + ((k * 0.618) % 1) * (HEADER - 0.5);
+    const lean = ((k * 0.377) % 1) - 0.5;
+    const color = ['#e2c462', '#d5b552', '#ecd585'][k % 3];
+    cutting.box(0.07, 0.05, 1.05, color, { x, y: 0.76 + (k % 4) * 0.025, z: -3.75, rx: -0.1, ry: lean * 0.5 });
+    cutting.add(new THREE.ConeGeometry(0.05, 0.22, 3), '#f2dd96', {
+      x: x + lean * 0.25,
+      y: 0.8 + (k % 4) * 0.025,
+      z: -3.15,
+      rx: Math.PI / 2 - 0.1,
+    });
+  }
+  const intake = cutting.mesh({ castShadow: false });
+  root.add(intake);
+
   // Big drive wheels under the cab, small steering wheels at the back.
   const wheels = [
     ...[-1.55, 1.55].map(x => ({ x, z: -0.9, radius: 0.85, width: 0.62 })),
@@ -399,6 +944,7 @@ function combineHarvester() {
     root,
     wheels,
     reel,
+    intake,
     hits: [
       [0, -3.9, 1.3],
       [-2.2, -3.7, 1.1],
@@ -413,10 +959,10 @@ function combineHarvester() {
 /** Chaff blowing out of the back of the combine. One instanced mesh. */
 function chaffCloud(scene) {
   const material = new THREE.MeshLambertMaterial({
-    color: '#f1e8c6',
+    color: '#ece0b4',
+    emissive: '#4a4434',
     transparent: true,
-    opacity: 0.35,
-    flatShading: true,
+    opacity: 0.22,
     depthWrite: false,
   });
   const mesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.5, 0), material, CHAFF);
@@ -512,7 +1058,7 @@ export function buildFields(scene, obstacles) {
     ...rows(mow, CROPS.meadow),
     ...rows(rapeseed, CROPS.rapeseed),
     ...rows(young, CROPS.young),
-    ...rows(wheat, CROPS.stubble, HEADER),
+    ...rows(wheat, CROPS.cut, ROW * 3),
   ];
   scene.add(fieldMesh(drape(crops, 0.05), -2));
 
@@ -524,15 +1070,18 @@ export function buildFields(scene, obstacles) {
   const workers = [
     { plot: plough, machine: farmTractor('#b5402f', 'plough'), speed: 1.7, start: 0.38, crop: CROPS.ploughed },
     { plot: mow, machine: farmTractor('#4f8a4b', 'mower'), speed: 2.1, start: 0.62, crop: CROPS.mown },
-    { plot: wheat, machine: combineHarvester(), width: HEADER, speed: 1.4, start: 0.3, crop: CROPS.harvested },
+    { plot: wheat, machine: combineHarvester(), width: HEADER, speed: 1.4, start: 0.3 },
   ].map(worker => {
     const route = laneRoute(worker.plot, worker.width);
-    const ground = workedGround(worker.plot, route, worker.crop);
+    // Behind the combine, the straw it leaves.
+    const ground = worker.crop
+      ? workedGround(worker.plot, route, worker.crop)
+      : strawSwaths(worker.plot, route, fieldPoint);
     scene.add(worker.machine.root, ground.mesh);
     return { ...worker, route, ground, d: route.total * worker.start };
   });
   const [plougher, , harvester] = workers;
-  const standing = standingCrop(wheat, harvester.route, CROPS.wheat);
+  const standing = wheatField(wheat, fieldPoint, harvester.route);
   scene.add(standing.mesh);
   const gulls = gullFlock(scene, 4);
   const chaff = chaffCloud(scene);
@@ -607,16 +1156,17 @@ export function buildFields(scene, obstacles) {
       const { lane, worked } = harvester.here;
       standing.show(Math.min((lane + 1) * harvester.route.length, worked + 4.4));
       if (harvester.moving) harvester.machine.reel.rotation.x -= dt * 2.2;
+      harvester.machine.intake.visible = harvester.moving && harvester.here.dx === 0;
       // Chaff blows out of the back of the combine while it works.
       for (let i = 0; i < CHAFF; i++) {
         const t = (time * 0.7 + i / CHAFF) % 1;
-        const behind = 4.6 + t * 5;
-        const drift = Math.sin(i * 2.3) * t * 1.8;
+        const behind = 4.2 + t * 4.5;
+        const drift = Math.sin(i * 2.3) * t * 2.6;
         const x = harvester.position.x - harvester.facing.x * behind - harvester.facing.z * drift;
         const z = harvester.position.z - harvester.facing.z * behind + harvester.facing.x * drift;
-        dummy.position.set(x, terrainHeight(x, z) + 1.1 + t * 1.4, z);
+        dummy.position.set(x, terrainHeight(x, z) + 1.2 + t * 1.1, z);
         dummy.rotation.set(t * 3, i, 0);
-        dummy.scale.setScalar(harvester.moving ? (0.25 + t * 0.9) * Math.min(1, (1 - t) * 3) : 0);
+        dummy.scale.setScalar(harvester.moving ? (0.15 + t * 0.7) * Math.min(1, (1 - t) * 3) : 0);
         dummy.updateMatrix();
         chaff.setMatrixAt(i, dummy.matrix);
       }
