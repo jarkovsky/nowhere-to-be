@@ -38,13 +38,14 @@ import {
   RING_ROAD,
   LINKS,
   AIRFIELD,
+  PAVED,
   onAirfield,
   onPaved,
   lakeDistance,
 } from './layout.js';
 import { terrainHeight, naturalHeight, creekLevel, snowCover, POOL } from './terrain.js';
-import { PartsBuilder, flatMaterial, freeze, vertexColorMaterial, triangleGeometry } from './build.js';
-import { groundMaterial } from './detail.js';
+import { PartsBuilder, flatMaterial, freeze, prism, tintable } from './build.js';
+import { SWAY, foliageMaterial, groundMaterial } from './detail.js';
 import { createGround } from './ground.js';
 import { boulderGeometry } from './rocks.js';
 import { createScatter } from './scatter.js';
@@ -153,6 +154,10 @@ export function ribbon(path, halfWidth, color, { lift = 0.06, offset = 0, skip =
   const mesh = new THREE.Mesh(geometry, material);
   mesh.receiveShadow = true;
   return mesh;
+}
+
+function inTunnel(s) {
+  return Math.abs(ROAD.wrap(s - TUNNEL.s + ROAD.length / 2) - ROAD.length / 2) < TUNNEL.length / 2 + 4;
 }
 
 function onBridge(s) {
@@ -321,49 +326,85 @@ function steepness(x, z) {
   return Math.hypot(terrainHeight(x + 1, z) - h, terrainHeight(x, z + 1) - h);
 }
 
-function pineGeometry() {
-  const parts = new PartsBuilder();
-  parts.add(new THREE.CylinderGeometry(0.19, 0.28, 3, 5), '#7a6d52', { y: 1.5 });
-  [
-    [2.2, 5.5, 4],
-    [1.75, 4.7, 5.8],
-    [1.25, 3.6, 7.6],
-  ].forEach(([radius, height, y]) => {
-    parts.add(new THREE.ConeGeometry(radius, height, 6), '#6f8a5e', { y, ry: y });
+const TRUNK = '#7a6d52';
+const BIRCH_BARK = '#ece8dc';
+const BIRCH_MARKS = '#3f4440';
+/** Leaves are painted pale, and each tree's own tint gives them their colour. */
+const LEAVES = '#e8eae0';
+
+/** A tier of a pine's branches: a cone with a ragged rim, drooping at the tips of the branches. */
+function tierGeometry(radius, height, branches) {
+  const rim = Array.from({ length: branches * 2 }, (_, i) => {
+    const a = (i / (branches * 2)) * Math.PI * 2;
+    const tip = i % 2 === 0;
+    const r = tip ? radius : radius * 0.62;
+    return [Math.cos(a) * r, tip ? -0.3 : 0.14, Math.sin(a) * r];
   });
-  return parts.geometry();
+  const apex = [0, height, 0];
+  const under = [0, 0.4, 0];
+  const points = [];
+  rim.forEach((a, i) => {
+    const b = rim[(i + 1) % rim.length];
+    points.push(apex, b, a, under, a, b);
+  });
+  return prism(points);
+}
+
+/** Near the camera, a pine has five ragged tiers of branches; further off, three plain cones. */
+function pineGeometry(detailed) {
+  const parts = new PartsBuilder();
+  parts.add(new THREE.CylinderGeometry(0.17, 0.27, 3.2, 5), TRUNK, { y: 1.6 });
+  if (detailed) {
+    [
+      [2.35, 2.9, 1.9],
+      [1.95, 2.7, 3.4],
+      [1.55, 2.5, 4.9],
+      [1.1, 2.3, 6.3],
+      [0.62, 2.0, 7.6],
+    ].forEach(([radius, height, y], k) => parts.add(tierGeometry(radius, height, 6), LEAVES, { y, ry: k * 0.9 }));
+  } else {
+    [
+      [2.2, 5.5, 4],
+      [1.75, 4.7, 5.8],
+      [1.25, 3.6, 7.6],
+    ].forEach(([radius, height, y]) =>
+      parts.add(new THREE.ConeGeometry(radius, height, 6, 1, true), LEAVES, { y, ry: y }),
+    );
+  }
+  return tintable(parts.geometry(), [TRUNK]);
 }
 
 function roundTreeGeometry() {
   const parts = new PartsBuilder();
-  parts.add(new THREE.CylinderGeometry(0.2, 0.3, 3.4, 5), '#7a6d52', { y: 1.7 });
-  parts.add(new THREE.IcosahedronGeometry(2.4, 0), '#8c9c62', { y: 4.6, sy: 1.15 });
-  parts.add(new THREE.IcosahedronGeometry(1.6, 0), '#8c9c62', { x: 0.9, y: 5.8, z: 0.4 });
-  return parts.geometry();
+  parts.add(new THREE.CylinderGeometry(0.2, 0.3, 3.4, 5), TRUNK, { y: 1.7 });
+  parts.add(new THREE.IcosahedronGeometry(2.4, 0), LEAVES, { y: 4.6, sy: 1.15 });
+  parts.add(new THREE.IcosahedronGeometry(1.6, 0), LEAVES, { x: 0.9, y: 5.8, z: 0.4 });
+  parts.add(new THREE.IcosahedronGeometry(1.3, 0), LEAVES, { x: -1.1, y: 4.2, z: -0.6, ry: 1 });
+  return tintable(parts.geometry(), [TRUNK]);
 }
 
 function birchGeometry() {
   const parts = new PartsBuilder();
-  parts.add(new THREE.CylinderGeometry(0.13, 0.18, 5.2, 5), '#ece8dc', { y: 2.6 });
+  parts.add(new THREE.CylinderGeometry(0.13, 0.18, 5.2, 5), BIRCH_BARK, { y: 2.6 });
   for (const [y, ry] of [
     [1.2, 0],
     [2.3, 2],
     [3.4, 4],
   ]) {
-    parts.box(0.2, 0.09, 0.2, '#3f4440', { y, ry });
+    parts.box(0.2, 0.09, 0.2, BIRCH_MARKS, { y, ry });
   }
-  parts.add(new THREE.IcosahedronGeometry(1.5, 0), '#b4c271', { y: 5.4, sy: 1.5 });
-  parts.add(new THREE.IcosahedronGeometry(1.05, 0), '#a9bb66', { x: 0.7, y: 4.4, z: -0.3, sy: 1.3 });
-  parts.add(new THREE.IcosahedronGeometry(0.9, 0), '#b4c271', { x: -0.6, y: 6.6, z: 0.3 });
-  return parts.geometry();
+  parts.add(new THREE.IcosahedronGeometry(1.5, 0), LEAVES, { y: 5.4, sy: 1.5 });
+  parts.add(new THREE.IcosahedronGeometry(1.05, 0), LEAVES, { x: 0.7, y: 4.4, z: -0.3, sy: 1.3 });
+  parts.add(new THREE.IcosahedronGeometry(0.9, 0), LEAVES, { x: -0.6, y: 6.6, z: 0.3 });
+  return tintable(parts.geometry(), [BIRCH_BARK, BIRCH_MARKS]);
 }
 
 function bushGeometry() {
   const parts = new PartsBuilder();
-  parts.add(new THREE.IcosahedronGeometry(0.9, 0), '#7f965d', { y: 0.55, sy: 0.75 });
-  parts.add(new THREE.IcosahedronGeometry(0.65, 0), '#89a064', { x: 0.75, y: 0.45, z: 0.2, sy: 0.8 });
-  parts.add(new THREE.IcosahedronGeometry(0.55, 0), '#768d55', { x: -0.6, y: 0.4, z: -0.3, sy: 0.8 });
-  return parts.geometry();
+  parts.add(new THREE.IcosahedronGeometry(0.9, 0), LEAVES, { y: 0.55, sy: 0.75 });
+  parts.add(new THREE.IcosahedronGeometry(0.65, 0), LEAVES, { x: 0.75, y: 0.45, z: 0.2, sy: 0.8 });
+  parts.add(new THREE.IcosahedronGeometry(0.55, 0), LEAVES, { x: -0.6, y: 0.4, z: -0.3, sy: 0.8 });
+  return tintable(parts.geometry());
 }
 
 function stumpGeometry() {
@@ -393,6 +434,40 @@ function placed(item, sink = 0.2) {
   return placement.matrix.clone();
 }
 
+/** Pines are drawn in full this close to the camera, and as plain cones beyond. */
+const PINE_DETAIL = 150;
+
+/**
+ * Tints for the leaves, as [hue, saturation, lightness] and how far each may vary. The woods
+ * are just starting to turn: a few larches among the pines have gone gold, and some of the
+ * broadleaved trees yellow, orange or red.
+ */
+const TINTS = {
+  spruce: [0.29, 0.34, 0.27, 0.035, 0.08, 0.05],
+  larch: [0.11, 0.78, 0.45, 0.012, 0.08, 0.05],
+  green: [0.22, 0.4, 0.38, 0.04, 0.1, 0.06],
+  yellow: [0.125, 0.76, 0.47, 0.012, 0.08, 0.05],
+  orange: [0.07, 0.76, 0.45, 0.015, 0.08, 0.05],
+  red: [0.015, 0.66, 0.38, 0.012, 0.08, 0.04],
+  birch: [0.19, 0.45, 0.47, 0.03, 0.1, 0.06],
+  bush: [0.23, 0.38, 0.34, 0.05, 0.1, 0.06],
+};
+
+function tint(name) {
+  const [h, s, l, dh, ds, dl] = TINTS[name];
+  return new THREE.Color().setHSL(
+    h + (random() - 0.5) * 2 * dh,
+    s + (random() - 0.5) * 2 * ds,
+    l + (random() - 0.5) * 2 * dl,
+  );
+}
+
+/** What colour a broadleaved tree has turned. */
+function turned() {
+  const roll = random();
+  return roll < 0.55 ? 'green' : roll < 0.75 ? 'yellow' : roll < 0.9 ? 'orange' : 'red';
+}
+
 function buildTrees(scatter, obstacles) {
   const pines = [];
   const rounds = [];
@@ -404,7 +479,7 @@ function buildTrees(scatter, obstacles) {
     const r = Math.hypot(x, z);
     // Beyond the fence the woods are thinner: only seen from afar, through the haze.
     if (r > 840 || (r > VALLEY_RADIUS + 10 && random() < 0.6) || !isClearGround(x, z)) continue;
-    // Dense woods in some places, open meadows in others.
+    // Woods in some places, open meadows in others. They are kept open enough to drive through.
     const woods = smoothstep(fractalNoise(x / 150 + 3.3, z / 150 + 8.1, 2, 5), 0.36, 0.6);
     if (random() > 0.1 + woods * 0.9) continue;
     const height = terrainHeight(x, z);
@@ -426,24 +501,41 @@ function buildTrees(scatter, obstacles) {
   // Lone trees on top of the open knolls.
   for (const knoll of KNOLLS.slice(1)) rounds.push({ x: knoll.x, z: knoll.z, scale: 1.7, rotation: knoll.x });
 
-  const leafy =
-    (hue, spread, sink = 0.2) =>
+  const tinted =
+    (name, sink = 0.2) =>
     tree => ({
       matrix: placed(tree, sink),
-      color: new THREE.Color().setHSL(hue + random() * spread, 0.25 + random() * 0.25, 0.75 + random() * 0.3),
+      color: tint(typeof name === 'function' ? name(tree) : name),
     });
-  const pine = pineGeometry();
+  // Larches grow among the spruces on the lower slopes.
+  const conifer = tree =>
+    random() < 0.2 * (1 - smoothstep(terrainHeight(tree.x, tree.z), 60, 90)) ? 'larch' : 'spruce';
+  const trees = foliageMaterial('trees');
   const round = roundTreeGeometry();
   const birch = birchGeometry();
   // Pines are everywhere, so they are grouped into smaller cells than the rest.
-  scatter.add({ geometry: pine, far: pine, cell: 240, items: pines.map(leafy(0.22, 0.06)) });
-  scatter.add({ geometry: round, far: round, cell: 240, items: rounds.map(leafy(0.16, 0.06)) });
-  scatter.add({ geometry: birch, far: birch, cell: 240, items: birches.map(leafy(0.15, 0.05)) });
+  scatter.add({
+    geometry: pineGeometry(true),
+    far: pineGeometry(false),
+    near: PINE_DETAIL,
+    cell: 240,
+    material: trees,
+    items: pines.map(tinted(conifer)),
+  });
+  scatter.add({ geometry: round, far: round, cell: 240, material: trees, items: rounds.map(tinted(turned)) });
+  scatter.add({
+    geometry: birch,
+    far: birch,
+    cell: 240,
+    material: trees,
+    items: birches.map(tinted(() => (random() < 0.4 ? 'yellow' : 'birch'))),
+  });
   scatter.add({
     geometry: bushGeometry(),
     near: UNDERGROWTH_RANGE,
     shadows: false,
-    items: bushes.map(leafy(0.2, 0.08, 0.1)),
+    material: trees,
+    items: bushes.map(tinted('bush', 0.1)),
   });
   for (const tree of [...pines, ...rounds, ...birches]) {
     if (Math.hypot(tree.x, tree.z) < VALLEY_RADIUS + 5)
@@ -556,8 +648,9 @@ function buildGroundCover(scatter) {
     dummy.updateMatrix();
     return { matrix: dummy.matrix.clone(), color: new THREE.Color(flower.color) };
   });
-  const flowerGeometry = new PartsBuilder().add(new THREE.ConeGeometry(0.16, 0.5, 4), '#ffffff').geometry();
-  scatter.add({ geometry: flowerGeometry, near: DETAIL_RANGE, shadows: false, items: flowerItems });
+  const flowerGeometry = tintable(new PartsBuilder().add(new THREE.ConeGeometry(0.16, 0.5, 4), '#ffffff').geometry());
+  const grass = foliageMaterial('grass');
+  scatter.add({ geometry: flowerGeometry, near: DETAIL_RANGE, shadows: false, material: grass, items: flowerItems });
 
   const blades = new PartsBuilder();
   for (let k = 0; k < 3; k++) {
@@ -578,7 +671,88 @@ function buildGroundCover(scatter) {
       color: new THREE.Color().setHSL(0.2 + random() * 0.05, 0.3, 0.42 + random() * 0.12),
     };
   });
-  scatter.add({ geometry: blades.geometry(), near: DETAIL_RANGE, shadows: false, items: tuftItems });
+  scatter.add({
+    geometry: tintable(blades.geometry()),
+    near: DETAIL_RANGE,
+    shadows: false,
+    material: grass,
+    items: tuftItems,
+  });
+}
+
+/** Long grass grows this close to the camera. */
+const VERGE_RANGE = 110;
+
+/** True where long grass can grow beside a trail: off every trail, road and track, and out of the water and snow. */
+function isVerge(x, z) {
+  if (Math.hypot(x, z) > VALLEY_RADIUS - 3) return false;
+  if (ROAD.isNear(x, z, ROAD_HALF_WIDTH + 0.4) || CAMP_TRAIL.isNear(x, z, 2.5) || RAILWAY.isNear(x, z, 4.5))
+    return false;
+  if (onPaved(x, z, ROAD_HALF_WIDTH + 0.4) || onAirfield(x, z, 2)) return false;
+  if (TRACKS.some(track => track.path.isNear(x, z, track.ruts ? 1.4 : 1.1))) return false;
+  if (CLEARINGS.some(c => Math.hypot(x - c.x, z - c.z) < c.r * 0.7)) return false;
+  if (lakeDistance(x, z) < 2.4 || (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 6))) return false;
+  const h = terrainHeight(x, z);
+  return h < 92 && snowCover(x, z, h) < 0.2 && steepness(x, z) < 0.5;
+}
+
+/** Long grass along the edges of the trails and tracks, which sways and bends away from the car. */
+function buildVerges(scatter) {
+  const edges = [
+    { path: ROAD, edge: ROAD_HALF_WIDTH, skip: s => onBridge(s) || inTunnel(s) },
+    { path: CAMP_TRAIL, edge: 2.1 },
+    ...PAVED.map(path => ({ path, edge: ROAD_HALF_WIDTH })),
+    ...TRACKS.filter(track => track.id !== 'roadworks').map(track => ({
+      path: track.path,
+      edge: track.ruts ? 1.2 : 0.8,
+    })),
+  ];
+  const dummy = new THREE.Object3D();
+  const items = [];
+  for (const { path, edge, skip = () => false } of edges) {
+    for (let s = 0; s < path.length; s += 0.55) {
+      if (skip(s)) continue;
+      // Thicker in some stretches than others.
+      const lush = fractalNoise(s / 23 + edge, path.length / 97, 2, 61);
+      for (const side of [-1, 1]) {
+        if (random() > 0.25 + lush * 0.75) continue;
+        const p = path.offset(s, side * (edge + 0.5 + random() ** 1.6 * 3.5));
+        if (!isVerge(p.x, p.z)) continue;
+        dummy.position.set(p.x, terrainHeight(p.x, p.z) - 0.05, p.z);
+        dummy.rotation.set(0, random() * 6.3, 0);
+        dummy.scale.setScalar(0.75 + random() * 0.55);
+        dummy.updateMatrix();
+        const golden = random() < 0.22;
+        items.push({
+          matrix: dummy.matrix.clone(),
+          color: new THREE.Color().setHSL(
+            golden ? 0.11 + random() * 0.03 : 0.2 + random() * 0.05,
+            golden ? 0.6 : 0.5 + random() * 0.15,
+            golden ? 0.48 + random() * 0.08 : 0.34 + random() * 0.08,
+          ),
+        });
+      }
+    }
+  }
+  const blades = new PartsBuilder();
+  for (let k = 0; k < 9; k++) {
+    const a = k * 2.4;
+    const height = 0.8 + ((k * 0.37) % 1) * 0.55;
+    blades.add(new THREE.ConeGeometry(0.09, height, 3, 1, true), '#ffffff', {
+      x: Math.cos(a) * (0.1 + (k % 3) * 0.12),
+      y: height / 2,
+      z: Math.sin(a) * 0.22,
+      rx: Math.sin(a) * 0.3,
+      rz: -Math.cos(a) * 0.3,
+    });
+  }
+  scatter.add({
+    geometry: tintable(blades.geometry()),
+    near: VERGE_RANGE,
+    shadows: false,
+    material: foliageMaterial('grass'),
+    items,
+  });
 }
 
 /**
@@ -782,14 +956,17 @@ export function buildScenery(parent) {
   buildTrees(scatter, obstacles);
   buildRocks(scatter, obstacles);
   buildGroundCover(scatter);
+  buildVerges(scatter);
   buildPeaks(scene);
   buildFences(scene, scatter);
   freeze(scene);
   parent.add(scene);
   return {
     obstacles,
-    /** `eye` is where the camera is, and `sun` the light whose shadows are drawn (if any). */
-    update(dt, eye, sun) {
+    /** `eye` is where the camera is, `sun` the light whose shadows are drawn (if any), and `car` where the car is. */
+    update(dt, eye, sun, car) {
+      SWAY.time.value += dt;
+      if (car) SWAY.pusher.value.set(car.x, terrainHeight(car.x, car.z), car.z);
       water.update(dt);
       ground.update(eye);
       scatter.update(eye, sun);

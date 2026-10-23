@@ -61,6 +61,9 @@ function detailTexture() {
 const materials = new Map();
 let detail = null;
 
+/** Shared by everything that sways: the time, and where the car is, for the grass to bend away from it. */
+export const SWAY = { time: { value: 0 }, pusher: { value: new THREE.Vector3(0, -1000, 0) } };
+
 /**
  * The ground's material: smooth-shaded, coloured by its vertices, with the detail drawn on
  * top. The trails and roads laid over the ground use it too, with `options` to keep them in
@@ -118,4 +121,84 @@ const GROUND_DETAIL = /* glsl */ `
     float snowy = smoothstep( 0.72, 0.88, min( diffuseColor.r, diffuseColor.b ) );
     diffuseColor.rgb *= 1.0 + shade * ( 1.0 - 0.7 * snowy );
   }
+`;
+
+/**
+ * The material for scattered trees (`kind` 'trees') or grass ('grass'): coloured by its
+ * vertices, and by each one's own tint where the geometry's `tinted` attribute is 1 (the
+ * leaves, but not the trunks), swaying in the wind, and with some grain in the leaves.
+ * Grass also bends away from the car. Only for the scenery's instanced meshes, which are
+ * never moved, so the position after the instance's matrix is in the world.
+ */
+export function foliageMaterial(kind) {
+  const key = `foliage|${kind}`;
+  if (materials.has(key)) return materials.get(key);
+  detail ??= { value: detailTexture() };
+  const grass = kind === 'grass';
+  const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: !grass, name: kind });
+  material.defines = { [grass ? 'SWAY_GRASS' : 'SWAY_TREES']: '' };
+  materials.set(key, material);
+  material.onBeforeCompile = shader => {
+    shader.uniforms.groundDetail = detail;
+    shader.uniforms.swayTime = SWAY.time;
+    shader.uniforms.swayPusher = SWAY.pusher;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>\n${SWAY_PARS}`)
+      .replace('vColor.xyz *= instanceColor.xyz;', 'vColor.xyz *= mix( vec3( 1.0 ), instanceColor.xyz, tinted );')
+      .replace('#include <project_vertex>', SWAY_VERTEX);
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nuniform sampler2D groundDetail;\nvarying vec3 vFoliage;\nvarying float vFoliageHeight;',
+      )
+      .replace('#include <color_fragment>', `#include <color_fragment>\n${FOLIAGE_DETAIL}`);
+  };
+  return material;
+}
+
+const SWAY_PARS = /* glsl */ `
+  uniform float swayTime;
+  uniform vec3 swayPusher;
+  attribute float tinted;
+  varying vec3 vFoliage;
+  varying float vFoliageHeight;
+`;
+
+const SWAY_VERTEX = /* glsl */ `
+  vec4 mvPosition = vec4( transformed, 1.0 );
+  #ifdef USE_INSTANCING
+    mvPosition = instanceMatrix * mvPosition;
+    vec3 root = instanceMatrix[ 3 ].xyz;
+  #else
+    vec3 root = vec3( 0.0 );
+  #endif
+  // Each one sways a little out of step with its neighbours.
+  float phase = swayTime * 1.1 + root.x * 0.21 + root.z * 0.17;
+  #ifdef SWAY_TREES
+    mvPosition.xz += vec2( sin( phase ), cos( phase * 0.8 ) ) * position.y * position.y * 0.0012;
+  #else
+    mvPosition.xz += vec2( sin( phase * 1.7 ), cos( phase * 1.3 ) ) * position.y * 0.06;
+    // Pushed aside, and down a little, where the car drives through.
+    vec2 away = mvPosition.xz - swayPusher.xz;
+    float gap = max( length( away ), 0.001 );
+    float push = ( 1.0 - smoothstep( 1.4, 3.4, gap ) ) * step( abs( mvPosition.y - swayPusher.y ), 3.0 ) * position.y;
+    mvPosition.xz += away / gap * push * 0.7;
+    mvPosition.y -= push * 0.45;
+  #endif
+  vFoliage = mvPosition.xyz;
+  vFoliageHeight = position.y;
+  mvPosition = modelViewMatrix * mvPosition;
+  gl_Position = projectionMatrix * mvPosition;
+`;
+
+const FOLIAGE_DETAIL = /* glsl */ `
+  #ifdef SWAY_TREES
+    // Clumps of needles and leaves, and darker low in the crown, where less light gets in.
+    float clumps = texture2D( groundDetail, vFoliage.xz / 2.3 + vFoliage.y * 0.37 ).a;
+    float tufts = texture2D( groundDetail, vec2( vFoliage.x + vFoliage.z, vFoliage.y ) / 1.7 ).r;
+    diffuseColor.rgb *= ( 0.84 + 0.32 * mix( clumps, tufts, 0.5 ) ) * ( 0.8 + 0.2 * smoothstep( 1.0, 7.0, vFoliageHeight ) );
+  #else
+    // Darker at the roots than at the tips.
+    diffuseColor.rgb *= 0.62 + 0.45 * smoothstep( 0.0, 1.0, vFoliageHeight );
+  #endif
 `;

@@ -190,8 +190,10 @@ export function createScatter(parent) {
      * Adds a kind of scenery. `items` are { matrix, color?, shape? }; `geometry` is one
      * shape, or a list of them that `shape` picks from. `far` is the shape drawn beyond
      * `near` metres from the camera (none: nothing is), and nothing is drawn beyond `range`.
+     * `material` is for the near and far meshes.
      */
-    add({ geometry, items, near = 0, far = null, range = Infinity, cell = 175, shadows = true }) {
+    add({ geometry, items, near = 0, far = null, range = Infinity, cell = 175, shadows = true, material }) {
+      material ??= vertexColorMaterial;
       if (!items.length) return;
       const shapes = [geometry].flat();
       const count = items.length;
@@ -250,7 +252,7 @@ export function createScatter(parent) {
       const colors = Boolean(kind.colors);
       if (near > 0) {
         kind.nearMeshes = shapes.map((shape, index) => {
-          const mesh = emptyMesh(shape, vertexColorMaterial, nearCapacity(kind, index), colors);
+          const mesh = emptyMesh(shape, material, nearCapacity(kind, index), colors);
           mesh.receiveShadow = true;
           parent.add(mesh);
           return mesh;
@@ -265,7 +267,7 @@ export function createScatter(parent) {
         }
         for (const [key, list] of cells) {
           const [cx, cz] = key.split(',').map(Number);
-          const mesh = emptyMesh(far, vertexColorMaterial, list.length, colors);
+          const mesh = emptyMesh(far, material, list.length, colors);
           mesh.receiveShadow = true;
           parent.add(mesh);
           const bounds = { x0: cx * cell, x1: (cx + 1) * cell, z0: cz * cell, z1: (cz + 1) * cell };

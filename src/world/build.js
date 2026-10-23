@@ -46,7 +46,12 @@ export function separateMeshKinds(root) {
     mesh.customDepthMaterial = depthMaterials[kind];
     if (kinds.get(mesh.material).size < 2) return;
     const key = `${mesh.material.uuid}|${kind}`;
-    if (!copies.has(key)) copies.set(key, mesh.material.clone());
+    if (!copies.has(key)) {
+      const copy = mesh.material.clone();
+      // Not copied by clone(), and the defines tell the copies' shaders apart.
+      copy.onBeforeCompile = mesh.material.onBeforeCompile;
+      copies.set(key, copy);
+    }
     mesh.material = copies.get(key);
   });
 }
@@ -146,6 +151,23 @@ export class PartsBuilder {
     mesh.receiveShadow = receiveShadow;
     return mesh;
   }
+}
+
+/**
+ * Marks which vertices of `geometry` take the tint of each instance (see foliageMaterial):
+ * all of them, except those painted one of the `untinted` colours, such as the trunks.
+ */
+export function tintable(geometry, untinted = []) {
+  const colors = geometry.attributes.color;
+  const kept = untinted.map(color => new THREE.Color(color));
+  const tinted = new Float32Array(colors.count);
+  for (let i = 0; i < colors.count; i++) {
+    const [r, g, b] = [colors.getX(i), colors.getY(i), colors.getZ(i)];
+    const plain = kept.some(c => Math.abs(c.r - r) + Math.abs(c.g - g) + Math.abs(c.b - b) < 1e-4);
+    tinted[i] = plain ? 0 : 1;
+  }
+  geometry.setAttribute('tinted', new THREE.BufferAttribute(tinted, 1));
+  return geometry;
 }
 
 /** Builds a non-indexed, vertex-coloured mesh from raw triangles. */
