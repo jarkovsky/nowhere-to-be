@@ -130,7 +130,6 @@ export const MODELS = [
     id: 'garage.miata.lamps',
     name: 'Roadster with its lamps up, the tent packed on the boot, flag, teddy and gnome',
     group: 'Garage',
-    size: 5,
     create: () => garageVehicle('miata', 'orange', ['tent', 'flag', 'teddy', 'gnome'], 1),
   },
   ...[
