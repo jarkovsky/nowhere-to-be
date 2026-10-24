@@ -1,12 +1,13 @@
 import * as THREE from 'three';
-import { angleDelta, clamp, damp } from './core/math.js';
+import { createFixedStep } from './core/clock.js';
+import { angleDelta, clamp, damp, lerp } from './core/math.js';
 import { createAudio } from './core/audio.js';
 import { createChaseCamera } from './core/camera.js';
 import { createObstacleIndex } from './core/collision.js';
 import { stepDirt } from './core/dirt.js';
-import { createCarState, placeCar, steerAngle, stepDriving } from './core/driving.js';
+import { bodyOf, createCarState, placeCar, steerAngle, stepDriving } from './core/driving.js';
 import { createJournal } from './core/journal.js';
-import { chassisPose, settleWheels } from './core/suspension.js';
+import { chassisPose, layoutOf, settleWheels } from './core/suspension.js';
 import { createTrailerState, hangTrailer, swingOf } from './core/trailer.js';
 import { createControls } from './input/controls.js';
 import { createLook } from './input/look.js';
@@ -69,6 +70,8 @@ import { createWildlife } from './world/wildlife.js';
 const MAX_PIXEL_RATIO = 1.5;
 // Development builds can measure raw rendering cost with ?uncapped (no frame cap, fixed resolution).
 const UNCAPPED = import.meta.env.DEV && new URLSearchParams(location.search).has('uncapped');
+/** How long each step of the driving is: one frame at the 60 a second the game is drawn at. */
+const STEP = 1 / 60;
 
 function readStorage() {
   try {
@@ -445,6 +448,8 @@ export function createGame(canvas) {
   function applyChoices() {
     const { color, decorations, vehicle } = journal.get();
     car.customize(color, decorations, vehicle);
+    state.body = bodyOf(car.size);
+    wheelLayout = layoutOf(car.spec.wheels);
     hasTent = decorations.includes('tent');
     sound.setEngine(car.spec.voice?.engine);
     friends.choose(vehicle, color);
@@ -491,25 +496,49 @@ export function createGame(canvas) {
   // --- Car model -------------------------------------------------------------------------
 
   const body = { pitch: 0, roll: 0, lastSpeed: 0, lastHeading: state.heading };
+  /** Where the current vehicle's wheels are, for fitting it to the ground. */
+  let wheelLayout;
+
+  // The driving is worked out in steps of a fixed length (see core/clock.js). The car is drawn,
+  // and the camera follows it, between where it was before the last step and where it is now,
+  // as far on as the time left over: smooth whether or not the frames line up with the steps.
+  const steps = createFixedStep(STEP);
+  const before = { x: state.x, z: state.z, heading: state.heading, speed: 0 };
+  const after = { ...before };
+  const drawn = { x: 0, z: 0, heading: 0, speed: 0 };
+  /**
+   * Where the car is drawn. Moved since the last step (a jump home, to camp or to the depot, or
+   * pulled on the tractor's rope), it is drawn just where it is.
+   */
+  function shown() {
+    const moved = state.x !== after.x || state.z !== after.z || state.heading !== after.heading;
+    const t = moved ? 1 : steps.alpha;
+    drawn.x = lerp(before.x, state.x, t);
+    drawn.z = lerp(before.z, state.z, t);
+    drawn.heading = before.heading + angleDelta(before.heading, state.heading) * t;
+    drawn.speed = lerp(before.speed, state.speed, t);
+    return drawn;
+  }
 
   function updateCarModel(dt) {
     state.y = drivingHeight(state.x, state.z, state.y);
-    const pose = chassisPose(state.x, state.z, state.heading, surfaceHeight);
-    car.root.position.set(state.x, pose.height, state.z);
+    const { x, z, heading, speed } = shown();
+    const pose = chassisPose(x, z, heading, surfaceHeight, wheelLayout);
+    car.root.position.set(x, pose.height, z);
     car.root.rotation.order = 'YXZ';
-    car.root.rotation.y = state.heading;
+    car.root.rotation.y = heading;
     car.root.rotation.x = dt ? damp(car.root.rotation.x, pose.pitch, 14, dt) : pose.pitch;
     car.root.rotation.z = dt ? damp(car.root.rotation.z, pose.roll, 14, dt) : pose.roll;
 
     // Weight transfer: the body squats when accelerating, dives when braking and leans in turns.
     if (dt > 0) {
-      const accel = (state.speed - body.lastSpeed) / dt;
-      const yawRate = angleDelta(body.lastHeading, state.heading) / dt;
+      const accel = (speed - body.lastSpeed) / dt;
+      const yawRate = angleDelta(body.lastHeading, heading) / dt;
       body.pitch = damp(body.pitch, clamp(accel * 0.006, -0.05, 0.04), 6, dt);
-      body.roll = damp(body.roll, clamp(-yawRate * state.speed * 0.0045, -0.06, 0.06), 6, dt);
+      body.roll = damp(body.roll, clamp(-yawRate * speed * 0.0045, -0.06, 0.06), 6, dt);
     }
-    body.lastSpeed = state.speed;
-    body.lastHeading = state.heading;
+    body.lastSpeed = speed;
+    body.lastHeading = heading;
     // In deep water the body also rides up a little on its springs and rocks.
     car.body.position.y = wading.float.lift;
     car.body.rotation.set(body.pitch + wading.float.pitch, 0, body.roll + wading.float.roll);
@@ -535,7 +564,12 @@ export function createGame(canvas) {
 
   /** Hangs the trailer from the lorry's hitch, lets it follow on behind and rests its wheels on the ground. */
   function placeTrailer() {
-    hangTrailer({ car, trailer, hitch, point }, state.heading, state.speed, surfaceHeight);
+    hangTrailer(
+      { car, trailer, hitch, point, obstacles: world.obstacles, level: state.y },
+      state.heading,
+      state.speed,
+      surfaceHeight,
+    );
   }
 
   /** Points along the trailer, for the other traffic and the train to stop short of. */
@@ -555,10 +589,10 @@ export function createGame(canvas) {
   }
 
   const carView = () => ({
-    x: state.x,
+    x: shown().x,
     y: car.root.position.y,
-    z: state.z,
-    heading: state.heading,
+    z: shown().z,
+    heading: shown().heading,
     speed: state.speed,
     grade: gradeAhead(),
     scale: car.spec.camera ?? 1,
@@ -707,8 +741,18 @@ export function createGame(canvas) {
         ...mudHole.colliders,
         ...friends.colliders,
       );
-      // On the tractor's rope, the car goes where it is pulled.
-      if (!mudHole.holding()) stepDriving(state, input, dt, world);
+      // The driving goes on in steps of a fixed length, the car drawn between the last two.
+      let impact = 0;
+      steps.advance(dt, step => {
+        Object.assign(before, { x: state.x, z: state.z, heading: state.heading, speed: state.speed });
+        // A paddock fence driven into fast enough goes over.
+        if (landmarks.knockFences(state, step)) sound.knock();
+        // On the tractor's rope, the car goes where it is pulled.
+        if (!mudHole.holding()) stepDriving(state, input, step, world);
+        Object.assign(after, { x: state.x, z: state.z, heading: state.heading, speed: state.speed });
+        impact = Math.max(impact, state.impact);
+      });
+      state.impact = impact;
       mudHole.update(dt, state, input, car, trailer);
       if (state.impact > 2.5) sound.bump(state.impact);
       updateCarModel(dt);

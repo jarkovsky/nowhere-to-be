@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { CAMP, CABIN } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
-import { PartsBuilder, localFrame as frame, prism, createSmoke } from '../build.js';
+import { PartsBuilder, localFrame as frame, prism, createSmoke, gableRoof, gableEnds } from '../build.js';
 import { framer } from './frame.js';
 
 function addTent(parts, x, z, rotation) {
@@ -204,33 +204,12 @@ function buildCabin(scene, obstacles) {
   const eave = 4.4;
   const ridge = 7.2;
   const roofTop = h => 0.35 + (1 - Math.abs(h) / eave) * (ridge - 0.35);
-  parts.box(7.6, 0.7, 8.6, '#9a978a', at(0, 0.05, 0));
-  const roof = prism([
-    [-eave, 0.35, 4.6],
-    [0, ridge, 4.6],
-    [-eave, 0.35, -4.6],
-    [-eave, 0.35, -4.6],
-    [0, ridge, 4.6],
-    [0, ridge, -4.6],
-    [eave, 0.35, 4.6],
-    [eave, 0.35, -4.6],
-    [0, ridge, 4.6],
-    [0, ridge, 4.6],
-    [eave, 0.35, -4.6],
-    [0, ridge, -4.6],
-  ]);
-  parts.add(roof, '#6e7b6e', at(0, 0, 0));
-  // Front and back walls sit just inside the roofline.
-  const wall = 4.0;
-  const gable = prism([
-    [-wall, 0.4, 4],
-    [wall, 0.4, 4],
-    [0, roofTop(0) - 0.4, 4],
-    [wall, 0.4, -4],
-    [-wall, 0.4, -4],
-    [0, roofTop(0) - 0.4, -4],
-  ]);
-  parts.add(gable, '#b4855b', at(0, 0, 0));
+  parts.box(9.2, 0.7, 8.6, '#9a978a', at(0, 0.05, 0));
+  parts.add(gableRoof(eave * 2, 9.2, 0.35, ridge, 0), '#6e7b6e', at(0, 0, 0));
+  // Front and back walls sit just inside the roofline, and up to it: the gables and the loft
+  // between them, under the roof from where it meets the footing.
+  const foot = eave * (1 - 0.05 / (ridge - 0.35));
+  parts.add(gableEnds(foot * 2, 8, 0.4, ridge), '#b4855b', at(0, 0, 0));
   // Fascia boards along the roof edges.
   for (const end of [-4.62, 4.62]) {
     for (const side of [-1, 1]) {
@@ -252,7 +231,10 @@ function buildCabin(scene, obstacles) {
   parts.box(2, 0.2, 0.7, '#bca57d', at(-1.1, 0.12, 7.1)); // step
   parts.box(0.8, 3.4, 0.8, '#8e8b7f', at(1.7, roofTop(1.7) + 0.8, -1.6)); // chimney
   scene.add(parts.mesh());
-  obstacles.push({ x, z, radius: 5 }, { ...local(0, 5.8), radius: 1.6 });
+  obstacles.push(
+    { ...local(0, 0), halfX: 4.8, halfZ: 4.8, rotation: CABIN.rotation, radius: 0 },
+    { ...local(0, 5.8), halfX: 3.6, halfZ: 1.2, rotation: CABIN.rotation, radius: 0 },
+  );
 
   // Wood smoke drifting from the chimney.
   return createSmoke(scene, at(1.7, 7.4, -1.6), { count: 7, rate: 0.12, rise: 9, size: 0.6 });

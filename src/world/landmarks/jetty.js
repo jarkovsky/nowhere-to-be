@@ -3,7 +3,8 @@
 import * as THREE from 'three';
 import { JETTY, LAKE } from '../layout.js';
 import { JETTY_DECK, terrainHeight } from '../terrain.js';
-import { PartsBuilder, localFrame, gableRoof, gableEnds } from '../build.js';
+import { PartsBuilder, localFrame } from '../build.js';
+import { gabledHouse } from './house.js';
 
 const PLANK = '#a8875f';
 const POST = '#6f5843';
@@ -71,11 +72,13 @@ export function buildJetty(scene, obstacles) {
   // The boathouse, half over the water on stilts.
   const house = local(-10, -1);
   const floor = Math.max(deck, terrainHeight(house.x, house.z) + 0.2);
-  const at = (lx, ly, lz) => ({ ...local(-10 + lx, -1 + lz), y: floor + ly, ry: JETTY.heading });
+  const at = (lx, ly, lz, extra = {}) => ({ ...local(-10 + lx, -1 + lz), y: floor + ly, ry: JETTY.heading, ...extra });
   parts.box(5, 0.25, 6.5, PLANK, at(0, 0, 0));
-  parts.box(4.6, 2.6, 6, '#93714f', at(0, 1.4, 0));
-  parts.add(gableEnds(4.6, 6, 2.7, 4.4), '#93714f', at(0, 0, 0));
-  parts.add(gableRoof(4.6, 6, 2.65, 4.5, 0.4), '#5d6b62', at(0, 0, 0));
+  const walls = gabledHouse(
+    parts,
+    { at, local: (lx, lz) => local(-10 + lx, -1 + lz), rotation: JETTY.heading },
+    { width: 4.6, depth: 6, base: 0.1, eave: 2.7, ridge: 4.5, walls: '#93714f', roof: '#5d6b62' },
+  );
   parts.box(3, 2.1, 0.1, '#6a5340', at(0, 1.2, -3.02)); // doors to the water
   parts.box(1, 2, 0.1, '#5b6f62', at(0, 1.1, 3.02)); // door to the shore
   parts.box(0.9, 0.8, 0.1, '#e8cf8a', at(-1.5, 1.8, 3.02));
@@ -92,7 +95,7 @@ export function buildJetty(scene, obstacles) {
   // Oars and a life ring on the wall.
   parts.add(new THREE.TorusGeometry(0.42, 0.11, 6, 12), '#e9e3d3', { ...at(1.4, 1.6, 3.08) });
   scene.add(parts.mesh());
-  obstacles.push({ ...house, radius: 3.6 });
+  obstacles.push(walls);
 
   // A boat tied up at the end of the jetty, and one out on the lake.
   const moored = rowingBoat(false);

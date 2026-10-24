@@ -201,11 +201,12 @@ export function eagle() {
     .box(0.18, 0.12, 0.12, '#e0b649', { x: 0.88, y: 0.02 })
     .box(0.5, 0.06, 0.62, brown, { x: -0.72, y: 0.04 });
   for (const side of [-1, 1]) {
-    // Broad inner wing, narrower outer wing tipped up a little, and splayed tip feathers.
-    parts.box(0.66, 0.06, 1.2, brown, { x: 0.02, y: 0.08, z: side * 0.78, rx: side * 0.1 });
-    parts.box(0.5, 0.05, 0.9, '#4d3a2a', { x: 0.04, y: 0.2, z: side * 1.8, rx: side * 0.22 });
+    // Broad inner wing, narrower outer wing tipped up a little more, and splayed tip feathers,
+    // each going on from the end of the one inside it.
+    parts.box(0.66, 0.06, 1.2, brown, { x: 0.02, y: 0.08, z: side * 0.78, rx: -side * 0.1 });
+    parts.box(0.5, 0.05, 0.9, '#4d3a2a', { x: 0.04, y: 0.24, z: side * 1.8, rx: -side * 0.22 });
     for (let k = 0; k < 3; k++) {
-      parts.box(0.12, 0.03, 0.42, '#3f3024', { x: 0.2 - k * 0.17, y: 0.3, z: side * 2.42, rx: side * 0.3 });
+      parts.box(0.12, 0.03, 0.42, '#3f3024', { x: 0.2 - k * 0.17, y: 0.4, z: side * 2.42, rx: -side * 0.3 });
     }
   }
   const root = new THREE.Group();

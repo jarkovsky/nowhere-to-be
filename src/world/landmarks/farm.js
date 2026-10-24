@@ -3,8 +3,10 @@
 import * as THREE from 'three';
 import { FARM } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
-import { PartsBuilder, gableRoof, gableEnds, createSmoke } from '../build.js';
+import { PartsBuilder, createSmoke } from '../build.js';
+import { gabledHouse } from './house.js';
 import { wheatField } from './fields.js';
+import { createFences } from '../fences.js';
 import { framer } from './frame.js';
 
 const WHITE = '#eee7d3';
@@ -16,11 +18,23 @@ export function buildFarm(scene, obstacles) {
 
   // Farmhouse.
   const house = { x: -8, z: -6 };
-  parts.box(7, 3.4, 6, '#e8dcbc', at(house.x, 1.6, house.z));
+  const frame = { at, local, rotation };
+  const walls = [];
+  walls.push(
+    gabledHouse(parts, frame, {
+      ...house,
+      width: 7,
+      depth: 6,
+      base: -0.1,
+      eave: 3.3,
+      ridge: 5.7,
+      overhang: 0.45,
+      ridgeAlong: 'x',
+      walls: '#e8dcbc',
+      roof: '#a5503c',
+    }),
+  );
   parts.box(7.4, 0.5, 6.4, '#9a978a', at(house.x, 0.05, house.z));
-  // The ridge runs along the house, so the roof is built across its depth and turned.
-  parts.add(gableEnds(6, 7, 3.3, 5.6), '#e8dcbc', at(house.x, 0, house.z, { ry: rotation + Math.PI / 2 }));
-  parts.add(gableRoof(6, 7, 3.25, 5.7, 0.45), '#a5503c', at(house.x, 0, house.z, { ry: rotation + Math.PI / 2 }));
   parts.box(1.1, 2, 0.12, '#5b6f62', at(house.x - 1.6, 1.15, house.z + 3.03)); // door
   for (const lx of [0.4, 2.3]) {
     parts.box(1, 1, 0.12, '#e8cf8a', at(house.x + lx, 1.9, house.z + 3.03)); // windows
@@ -31,9 +45,17 @@ export function buildFarm(scene, obstacles) {
 
   // Barn: red boards, white trim and a steep roof.
   const barn = { x: 8, z: -3 };
-  parts.box(9, 4.6, 12, '#b0503a', at(barn.x, 2.3, barn.z));
-  parts.add(gableEnds(9, 12, 4.6, 8.2), '#b0503a', at(barn.x, 0, barn.z));
-  parts.add(gableRoof(9, 12, 4.55, 8.3, 0.4), '#6f6b63', at(barn.x, 0, barn.z));
+  walls.push(
+    gabledHouse(parts, frame, {
+      ...barn,
+      width: 9,
+      depth: 12,
+      eave: 4.6,
+      ridge: 8.3,
+      walls: '#b0503a',
+      roof: '#6f6b63',
+    }),
+  );
   for (const end of [-1, 1]) {
     const lz = barn.z + end * 6.03;
     parts.box(4, 3.6, 0.12, '#9b4533', at(barn.x, 1.8, lz)); // doors
@@ -66,7 +88,7 @@ export function buildFarm(scene, obstacles) {
     });
   }
 
-  // Paddock fence, with a gap for the gate on the house side.
+  // Paddock fence, with a gate on the house side, shut. The car can knock it down.
   const { x0, x1, z0, z1 } = FARM.paddock;
   const corners = [
     [x0, z0],
@@ -74,35 +96,21 @@ export function buildFarm(scene, obstacles) {
     [x1, z1],
     [x0, z1],
   ];
+  const points = [];
   for (let side = 0; side < 4; side++) {
     const [ax, az] = corners[side];
     const [bx, bz] = corners[(side + 1) % 4];
-    const length = Math.hypot(bx - ax, bz - az);
-    const posts = Math.round(length / 2.6);
-    for (let i = 0; i <= posts; i++) {
-      const t = i / posts;
-      const lx = ax + (bx - ax) * t;
-      const lz = az + (bz - az) * t;
-      parts.box(0.16, 1.4, 0.16, '#8d7a5c', { ...local(lx, lz), y: ground(lx, lz) + 0.55, ry: rotation });
-      if (i === posts) continue;
-      const gate = side === 0 && i === 2;
-      if (gate) continue;
-      const nx = ax + (bx - ax) * ((i + 1) / posts);
-      const nz = az + (bz - az) * ((i + 1) / posts);
-      for (const h of [0.55, 1.05]) {
-        parts.beam(
-          { ...local(lx, lz), y: ground(lx, lz) + h },
-          { ...local(nx, nz), y: ground(nx, nz) + h },
-          0.09,
-          '#9c8a6a',
-          0.12,
-        );
-      }
+    const posts = Math.round(Math.hypot(bx - ax, bz - az) / 2.6);
+    for (let i = 0; i < posts; i++) {
+      const lx = ax + ((bx - ax) * i) / posts;
+      const lz = az + ((bz - az) * i) / posts;
+      points.push({ ...local(lx, lz), y: ground(lx, lz) });
     }
-    const a = local(ax, az);
-    const b = local(bx, bz);
-    obstacles.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, radius: 0.25 });
   }
+  const fences = createFences();
+  fences.add(points, { closed: true, gates: [2] });
+  scene.add(fences.mesh());
+  obstacles.push(...fences.obstacles);
   // A water trough for the cows, set into the ground where it stands (the paddock is off the level yard).
   const trough = { ...local(x0 + 3, z1 - 2), ry: rotation };
   const troughY = ground(x0 + 3, z1 - 2);
@@ -114,10 +122,10 @@ export function buildFarm(scene, obstacles) {
   scene.add(wheat.mesh);
 
   scene.add(parts.mesh());
+  // The walls, and the porch in front of the door, which a car would sink into.
+  const porch = { ...local(house.x - 1.6, house.z + 3.9), halfX: 1.4, halfZ: 0.9, rotation, radius: 0 };
+  obstacles.push(...walls, porch);
   for (const [spot, radius] of [
-    [house, 4.4],
-    [{ x: barn.x, z: barn.z - 3 }, 4.8],
-    [{ x: barn.x, z: barn.z + 3 }, 4.8],
     [silo, 2.2],
     [{ x: 16, z: 4.6 }, 2],
     [{ x: x0 + 3, z: z1 - 2 }, 1.2],
@@ -128,6 +136,7 @@ export function buildFarm(scene, obstacles) {
   // Wood smoke from the farmhouse chimney.
   const smoke = createSmoke(scene, at(house.x + 2, 6.6, house.z - 1.2), { rise: 8, size: 0.5 });
   return {
+    fences,
     update(time) {
       smoke.update(time);
       wheat.show();

@@ -398,7 +398,10 @@ export function createMudHole(scene, { obstacles, onToot }) {
       const near = Math.hypot(state.x - MUD_HOLE.x, state.z - MUD_HOLE.z) < 300;
       tractor.root.visible = bubbles.visible = near;
       if (!near) puffs.visible = false;
-      stepTow(tow, state, input, dt, bodyOf(car, trailer));
+      const body = bodyOf(car, trailer);
+      stepTow(tow, state, input, dt, body);
+      // Pulled out backwards, the trailer goes where the rope takes it.
+      if (body.trailer) Object.assign(trailer, { x: body.trailer.x, z: body.trailer.z, heading: body.trailer.heading });
       for (const event of tow.events) {
         if (event !== 'toot') continue;
         onToot?.();
@@ -434,6 +437,7 @@ function bodyOf(car, trailer) {
     front,
     rear,
     back: towed.hitch[2] + length,
+    hitch: towed.hitch[2],
     trailer: { x: trailer.x, z: trailer.z, heading: trailer.heading, length },
   };
 }

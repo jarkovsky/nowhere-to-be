@@ -1,6 +1,6 @@
 // The geometry checks run over everything: every landmark built where it stands in the world,
-// and every model on its own. Used by the tests (against a recorded baseline) and by
-// `npm run geometry` to record a new one.
+// and every model on its own. Used by the tests (against a recorded baseline), by
+// `npm run geometry` to record a new one and by `npm run check` to look at a few things.
 import * as THREE from 'three';
 import { createObstacleIndex } from '../core/collision.js';
 import { drivingHeight } from '../world/terrain.js';
@@ -8,27 +8,27 @@ import { inspect } from './inspect.js';
 import { LANDMARKS, standing } from './landmarks.js';
 import { MODELS } from './models.js';
 
-/** How many faults of each kind, as { kind: count }. */
-function tally(issues) {
-  const counts = {};
-  for (const issue of issues) counts[issue.kind] = (counts[issue.kind] ?? 0) + 1;
-  return counts;
+export { findingKey } from './inspect.js';
+
+/** The faults in a landmark, built where it stands in the world. */
+export function checkLandmark(name) {
+  const group = new THREE.Group();
+  const obstacles = [];
+  LANDMARKS[name](group, obstacles);
+  return inspect(group, {
+    ground: standing,
+    drivable: drivingHeight,
+    obstacles: createObstacleIndex(obstacles),
+  });
 }
 
-/** The faults found in each landmark and model, by id: { id: { kind: count } }. */
+/** The faults in a model, standing on its own. */
+export const checkModel = model => inspect(model.create());
+
+/** The faults found in each landmark and model, by id: { id: [issue, ...] }. */
 export function checkEverything() {
   const results = {};
-  for (const [name, build] of Object.entries(LANDMARKS)) {
-    const group = new THREE.Group();
-    const obstacles = [];
-    build(group, obstacles);
-    const issues = inspect(group, {
-      ground: standing,
-      drivable: drivingHeight,
-      obstacles: createObstacleIndex(obstacles),
-    });
-    results[`landmark.${name}`] = tally(issues);
-  }
-  for (const model of MODELS) results[`model.${model.id}`] = tally(inspect(model.create()));
+  for (const name of Object.keys(LANDMARKS)) results[`landmark.${name}`] = checkLandmark(name);
+  for (const model of MODELS) results[`model.${model.id}`] = checkModel(model);
   return results;
 }

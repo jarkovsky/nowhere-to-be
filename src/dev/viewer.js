@@ -2,7 +2,11 @@
 // landmark where it stands in the world, to look round in 3D. It marks what the geometry
 // checks find (see inspect.js), can draw the obstacles the car bumps into, show faces from
 // behind, cut buildings open and put a car beside anything for scale. Each object has its own
-// address (viewer.html#airfield.hangar), so it can be pointed at.
+// address (viewer.html#airfield.hangar), and the address keeps up with the camera as it is moved
+// (#airfield.hangar@x,y,z,tx,ty,tz: where the camera is and what it looks at), so a view can
+// be pointed at. Each problem says whether the baseline knows it, and why it is allowed. A note
+// on what is in view goes into artifacts/viewer-notes.md while developing, and is copied,
+// with a link to the view, on the published viewer.
 import './viewer.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -10,7 +14,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { createObstacleIndex } from '../core/collision.js';
 import { chassisPose, settleWheels } from '../core/suspension.js';
 import { createCar } from '../vehicles/car.js';
-import { inspect } from './inspect.js';
+import baseline from '../../tests/geometry-baseline.json';
+import { findingKey, inspect } from './inspect.js';
 import { MODELS } from './models.js';
 import { PLACES } from './places.js';
 
@@ -149,7 +154,7 @@ $('search').addEventListener('input', renderList);
 $('list').addEventListener('click', event => {
   const button = event.target.closest('button[data-id]');
   if (!button) return;
-  location.hash = button.dataset.id;
+  location.hash = encodeURIComponent(button.dataset.id);
   document.body.classList.remove('panel-open');
 });
 $('toggle-panel').addEventListener('click', () => document.body.classList.toggle('panel-open'));
@@ -173,14 +178,23 @@ let overlays = new THREE.Group();
 let found = [];
 const target = new THREE.Vector3();
 
-async function select(id) {
+/** Lets the graphics card forget the geometry under `root`, once it is no longer shown. */
+function dispose(root) {
+  root.traverse(object => object.geometry?.dispose());
+}
+
+async function select(id, view) {
   const entry = ENTRIES.find(e => e.id === id) ?? ENTRIES.find(e => e.kind === 'model');
   current = entry;
   renderList();
   overlays.removeFromParent();
+  clearOverlays();
   overlays = new THREE.Group();
   if (entry.kind === 'model') {
-    for (const model of stage.children.filter(child => child.userData.model)) model.removeFromParent();
+    for (const model of stage.children.filter(child => child.userData.model)) {
+      model.removeFromParent();
+      dispose(model);
+    }
     subject = entry.create();
     subject.userData.model = true;
     subject.traverse(child => {
@@ -200,11 +214,40 @@ async function select(id) {
     frame(entry.radius * 2.4);
     built.scene.add(overlays);
   }
+  if (view) look(view);
   $('title').textContent = entry.name;
   picked = -1;
   check();
   applyOptions();
 }
+
+// --- Addresses --------------------------------------------------------------------------------
+
+/** What an address points at: { id, view }, the view as [x, y, z, tx, ty, tz] if it has one. */
+function parseAddress(hash) {
+  const [id, view] = decodeURIComponent(hash.replace(/^#/, '')).split('@');
+  const numbers = view?.split(',').map(Number);
+  return { id, view: numbers?.length === 6 && numbers.every(Number.isFinite) ? numbers : null };
+}
+
+/** The address of what is in view, from where the camera is now. */
+function address() {
+  const at = [...camera.position.toArray(), ...controls.target.toArray()].map(v => v.toFixed(1));
+  return `#${encodeURIComponent(current.id)}@${at.join(',')}`;
+}
+
+/** Puts the camera where a view says, looking where it says. */
+function look([x, y, z, tx, ty, tz]) {
+  target.set(tx, ty, tz);
+  controls.target.copy(target);
+  camera.position.set(x, y, z);
+  camera.near = Math.max(0.05, camera.position.distanceTo(target) / 400);
+  camera.updateProjectionMatrix();
+  controls.update();
+}
+
+// Once the camera has been moved, the address says where it is, without making a step back in history.
+controls.addEventListener('end', () => current && history.replaceState(null, '', address()));
 
 /** Points the camera at the target from `distance` away, from the front left and a little above. */
 function frame(distance, yaw = 2.4, pitch = 0.42) {
@@ -241,8 +284,13 @@ function check() {
   const triangles = countTriangles(subject);
   $('stats').textContent =
     `${triangles.toLocaleString()} triangles · ${found.length ? `${found.length} problem(s)` : 'no problems found'}`;
+  const known = baseline[current.kind === 'model' ? `model.${current.id}` : `landmark.${current.landmark}`] ?? {};
   $('issues').innerHTML = found
-    .map((issue, i) => `<li data-issue="${i}"><strong>${issue.kind}</strong> ${issue.message}</li>`)
+    .map((issue, i) => {
+      const key = findingKey(issue);
+      const reason = key in known ? known[key] || 'known, no reason given yet' : 'new: not in the baseline';
+      return `<li data-issue="${i}"><strong>${issue.kind}</strong> ${issue.message}<em>${reason}</em></li>`;
+    })
     .join('');
 }
 
@@ -284,8 +332,14 @@ const problemMaterial = new THREE.MeshBasicMaterial({
 const backMaterial = new THREE.MeshBasicMaterial({ color: '#ff00c8', side: THREE.BackSide });
 const wireMaterials = new Set();
 
-function applyOptions() {
+/** Takes the overlays off, letting their geometry go: all but the back faces, which share the subject's. */
+function clearOverlays() {
+  for (const child of overlays.children) if (!child.userData.back) dispose(child);
   overlays.clear();
+}
+
+function applyOptions() {
+  clearOverlays();
   if (options.issues) {
     for (const [i, issue] of found.entries()) {
       overlays.add(new THREE.Box3Helper(issue.box, PROBLEM));
@@ -373,6 +427,28 @@ function obstacleLines(obstacles) {
           colors.push(tint.r, tint.g, tint.b);
         }
       }
+    } else if ('halfX' in o) {
+      // The box's outline, its corners rounded by its radius, worked out in its own frame.
+      const [cos, sin] = [Math.cos(o.rotation), Math.sin(o.rotation)];
+      const outline = [];
+      for (const [sx, sz, start] of [
+        [1, 1, 0],
+        [-1, 1, Math.PI / 2],
+        [-1, -1, Math.PI],
+        [1, -1, Math.PI * 1.5],
+      ]) {
+        for (let k = 0; k <= 6; k++) {
+          const a = start + (k / 6) * (Math.PI / 2);
+          outline.push([sx * o.halfX + Math.cos(a) * o.radius, sz * o.halfZ + Math.sin(a) * o.radius]);
+        }
+      }
+      outline.forEach((p, i) => {
+        for (const [lx, lz] of [p, outline[(i + 1) % outline.length]]) {
+          const [x, z] = [o.x + lx * cos + lz * sin, o.z - lx * sin + lz * cos];
+          points.push(x, y ?? terrainHeight(x, z) + 0.15, z);
+          colors.push(tint.r, tint.g, tint.b);
+        }
+      });
     } else {
       ring(o.x, o.z, o.radius, 0, Math.PI * 2, y);
     }
@@ -418,6 +494,46 @@ canvas.addEventListener('pointerup', event => {
   scene.add(scaleCar.root);
 });
 
+// --- Notes ------------------------------------------------------------------------------------
+
+// While developing, a note goes into artifacts/viewer-notes.md (see vite.config.js), with what
+// was in view and the problems found there; on the published viewer it is copied, with a link to
+// the view, to paste wherever it is wanted.
+$('add-note').addEventListener('click', () => {
+  $('note').hidden = !$('note').hidden;
+  if (!$('note').hidden) $('note-text').focus();
+});
+$('note').addEventListener('submit', async event => {
+  event.preventDefault();
+  const text = $('note-text').value.trim();
+  if (!text) return;
+  history.replaceState(null, '', address());
+  const note = {
+    id: current.id,
+    name: current.name,
+    link: location.href,
+    text,
+    problems: found.map(issue => `${issue.kind}: ${issue.message}`),
+  };
+  try {
+    if (import.meta.env.DEV) {
+      const response = await fetch('/__viewer-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(note),
+      });
+      if (!response.ok) throw new Error(response.statusText);
+      $('note-status').textContent = 'Saved to artifacts/viewer-notes.md';
+    } else {
+      await navigator.clipboard.writeText(`${note.name}: ${note.text}\n${note.link}`);
+      $('note-status').textContent = 'Copied, with a link to this view';
+    }
+    $('note-text').value = '';
+  } catch (error) {
+    $('note-status').textContent = `Not saved: ${error.message}`;
+  }
+});
+
 // --- Drawing ----------------------------------------------------------------------------------
 
 function resize() {
@@ -447,12 +563,14 @@ function draw() {
 }
 
 addEventListener('hashchange', () => {
-  const id = decodeURIComponent(location.hash.slice(1));
-  if (id !== current?.id) select(id);
+  const { id, view } = parseAddress(location.hash);
+  if (id !== current?.id) select(id, view);
+  else if (view) look(view);
 });
 resize();
 renderList();
-select(decodeURIComponent(location.hash.slice(1)) || MODELS[0].id).then(() => (window.__viewer.ready = true));
+const start = parseAddress(location.hash);
+select(start.id || MODELS[0].id, start.view).then(() => (window.__viewer.ready = true));
 draw();
 
 // For scripts that take pictures of everything (scripts/catalogue.mjs).
@@ -461,7 +579,7 @@ window.__viewer = {
   entries: () => ENTRIES.map(({ id, name, group, kind }) => ({ id, name, group, kind })),
   async select(id) {
     await select(id);
-    location.hash = id;
+    location.hash = encodeURIComponent(id);
     // Let the scenery near the camera fill in and the shadows settle.
     await new Promise(resolve => setTimeout(resolve, 300));
   },

@@ -81,6 +81,21 @@ test('obstacles cannot be driven through, and glancing contact slides past', () 
   assert.ok(sliding.z < -25, 'keeps moving along it');
 });
 
+test('a car caught on two walls in the same place is pushed out of them once, not twice', () => {
+  const wall = { ax: -20, az: -1, bx: 20, bz: -1, radius: 0.3 };
+  const once = drive(createCarState(START), {}, 0.1, flatWorld({ obstacles: [wall] }));
+  const twice = drive(createCarState(START), {}, 0.1, flatWorld({ obstacles: [wall, { ...wall }] }));
+  assert.ok(Math.abs(once.z - twice.z) < 1e-6, `${once.z} and ${twice.z}`);
+});
+
+test('a step with no time in it leaves the car as it was', async () => {
+  const { stepDriving } = await import('../src/core/driving.js');
+  for (const dt of [0, -0.01, NaN]) {
+    const car = stepDriving(createCarState(START), { brake: true }, dt, flatWorld());
+    assert.deepEqual([car.x, car.z, car.heading, car.speed], [0, 0, 0, 0]);
+  }
+});
+
 test('water and the valley edge stop the car without trapping it', () => {
   const isDriveable = (x, z) => z > -10;
   const car = drive(createCarState(START), { forward: true }, 4, flatWorld({ isDriveable }));
@@ -105,4 +120,33 @@ test('tilt steers proportionally and the arrow keys override it', () => {
   assert.ok(overridden.heading < 0);
   const ignored = drive(createCarState(START), { steer: NaN }, 0.1);
   assert.equal(ignored.steering, 0);
+});
+
+test("each vehicle bumps into a wall where its own nose meets it, and a narrow one fits where a wide one doesn't", async () => {
+  const { bodyOf } = await import('../src/core/driving.js');
+  const wall = { x: 0, z: -10.5, halfX: 20, halfZ: 0.5, rotation: 0, radius: 0 };
+  for (const size of [
+    { front: 2.13, back: 2.23, half: 1.3 },
+    { front: 2.73, back: 3.39, half: 1.59 },
+    { front: 2.02, back: 2.05, half: 1 },
+  ]) {
+    const car = createCarState({ x: 0, z: 0, heading: 0 });
+    car.body = bodyOf(size);
+    drive(car, { forward: true }, 5, flatWorld({ obstacles: [wall] }));
+    const nose = car.z - size.front;
+    assert.ok(nose > -10.1 && nose < -9.9 + 0.15, `nose ${size.front} m ahead stopped at ${nose.toFixed(2)}`);
+  }
+  // Two posts 2.1 m apart: the roadster gets through, the offroader doesn't.
+  const posts = [
+    { x: -1.55, z: -8, radius: 0.5 },
+    { x: 1.55, z: -8, radius: 0.5 },
+  ];
+  const through = size => {
+    const car = createCarState({ x: 0, z: 0, heading: 0 });
+    car.body = bodyOf(size);
+    drive(car, { forward: true }, 4, flatWorld({ obstacles: posts }));
+    return car.z < -12;
+  };
+  assert.equal(through({ front: 2.02, back: 2.05, half: 1 }), true);
+  assert.equal(through({ front: 2.13, back: 2.23, half: 1.3 }), false);
 });

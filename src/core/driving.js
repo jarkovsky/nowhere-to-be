@@ -40,8 +40,40 @@ const SURFACE_HANDLING = {
  */
 export const WADING = { from: 0.25, to: 0.55, slowest: 0.4 };
 
-/** The front (-1) and back (1) ends of the body, where its two circles are. */
-const ENDS = [-1, 1];
+/**
+ * The car's footprint for bumping into things: circles of `radius` at `offsets`, how far each is
+ * ahead of the car's middle, the farthest of them `reach` from it. The default is that of the
+ * offroader the game starts with.
+ */
+export const DEFAULT_BODY = {
+  radius: CAR.bodyRadius,
+  offsets: [CAR.bodyOffset, -CAR.bodyOffset],
+  reach: CAR.bodyOffset,
+};
+
+/**
+ * No car is narrower than this to bump into, or wider than the car the gaps and gateways in the
+ * valley were made for, whatever sticks out of its sides.
+ */
+const HALF_WIDTH = { least: 0.9, most: CAR.bodyRadius };
+
+/**
+ * The footprint of a vehicle reaching `front` metres ahead of its middle and `back` behind it,
+ * `half` its width: a row of circles as wide as it is, from its nose to its tail, close enough
+ * together that its sides are nearly straight between them.
+ */
+export function bodyOf({ front, back, half }) {
+  const radius = clamp(half, HALF_WIDTH.least, HALF_WIDTH.most);
+  const first = Math.max(front - radius, 0);
+  const last = -Math.max(back - radius, 0);
+  const count = Math.max(2, Math.ceil((first - last) / radius) + 1);
+  const offsets = Array.from({ length: count }, (_, i) => first + ((last - first) * i) / (count - 1));
+  return { radius, offsets, reach: Math.max(first, -last) };
+}
+
+/** How many times at most the car is pushed out of what it touches in a step. */
+const PASSES = 4;
+
 /** How far a push can move the car in one step before every moving collider is tried, in metres. */
 const SHOVE = 2;
 // The moving colliders near enough to the car to be bumped into this step.
@@ -88,7 +120,9 @@ export function placeCar(state, place) {
  *          waterDepth(x, z) (optional) }
  */
 export function stepDriving(state, input, dt, world) {
-  dt = clamp(dt, 0, 0.05);
+  // No time, no movement: and it would divide by zero below.
+  if (!(dt > 0)) return state;
+  dt = Math.min(dt, 0.05);
   const handling = SURFACE_HANDLING[world.surface(state.x, state.z)] ?? SURFACE_HANDLING.grass;
   const sin = Math.sin(state.heading);
   const cos = Math.cos(state.heading);
@@ -150,19 +184,29 @@ export function stepDriving(state, input, dt, world) {
   // unless pushes move the car further than SHOVE, when they are all tried.
   const fromX = x;
   const fromZ = z;
+  const { radius, offsets, reach: farthest } = state.body ?? DEFAULT_BODY;
   const dynamic = world.dynamic ?? [];
   nearbyDynamic.length = 0;
   for (const obstacle of dynamic) {
-    if (mayTouch(obstacle, x, z, CAR.bodyOffset + CAR.bodyRadius + SHOVE)) nearbyDynamic.push(obstacle);
+    if (mayTouch(obstacle, x, z, farthest + radius + SHOVE)) nearbyDynamic.push(obstacle);
   }
   let cx = 0;
   let cz = 0;
-  /** Pushes the circle at (cx, cz) out of the obstacle, taking away the speed it hit it with. */
+  let turning = true;
+  let pushed = false;
+  /**
+   * Pushes the circle at (cx, cz) out of the obstacle, taking away the speed it hit it with, and
+   * while `turning`, turns the car along it if it only glanced off.
+   */
   const resolve = obstacle => {
-    const hit = penetration(cx, cz, CAR.bodyRadius, obstacle);
+    const hit = penetration(cx, cz, radius, obstacle);
     if (!hit) return;
+    pushed = true;
+    // The circle goes with the car, so the next obstacle is tried where it is now.
     x += hit.nx * hit.depth;
     z += hit.nz * hit.depth;
+    cx += hit.nx * hit.depth;
+    cz += hit.nz * hit.depth;
     const into = state.vx * hit.nx + state.vz * hit.nz;
     if (into < 0) {
       state.impact = Math.max(state.impact, -into);
@@ -176,25 +220,32 @@ export function stepDriving(state, input, dt, world) {
       const keep = tangent > 1e-6 ? Math.max(0, tangent + (glancing ? 0.05 : 0.6) * into) / tangent : 0;
       state.vx *= keep;
       state.vz *= keep;
-      if (glancing) {
+      if (glancing && turning) {
         const along = Math.atan2(-state.vx * Math.sign(forward || 1), -state.vz * Math.sign(forward || 1));
         state.heading += angleDelta(state.heading, along) * 0.2;
       }
     }
   };
-  for (let pass = 0; pass < 2; pass++) {
-    for (const end of ENDS) {
-      cx = x - nsin * CAR.bodyOffset * end;
-      cz = z - ncos * CAR.bodyOffset * end;
+  // The first pass may turn the car along what it glanced off; the next ones only push it out, from
+  // where its circles are once turned, so it never ends a step turned into a wall. Caught between
+  // two things, pushing one end out can push the other back in, so it goes on until nothing
+  // pushes, a few passes at most.
+  for (let pass = 0; pass < PASSES && (pass === 0 || pushed); pass++) {
+    turning = pass === 0;
+    pushed = false;
+    for (const offset of offsets) {
+      cx = x - Math.sin(state.heading) * offset;
+      cz = z - Math.cos(state.heading) * offset;
       const moving = Math.hypot(x - fromX, z - fromZ) > SHOVE ? dynamic : nearbyDynamic;
-      for (const obstacle of world.obstacles.near(cx, cz, CAR.bodyRadius + 2, state.y)) resolve(obstacle);
+      for (const obstacle of world.obstacles.near(cx, cz, radius + 2, state.y)) resolve(obstacle);
       for (const obstacle of moving) resolve(obstacle);
     }
   }
 
   // Deep water and the valley fence stop the car's leading end; it slides
   // along them instead of sticking.
-  const reach = Math.sign(forward || 1) * 1.7;
+  const lead = (forward >= 0 ? offsets[0] : -offsets[offsets.length - 1]) + radius - 0.4;
+  const reach = Math.sign(forward || 1) * lead;
   const clear = (px, pz) => world.isDriveable(px - nsin * reach, pz - ncos * reach);
   if (!clear(x, z)) {
     if (clear(x, oldZ)) {

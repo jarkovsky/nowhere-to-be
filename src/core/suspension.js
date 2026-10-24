@@ -13,18 +13,37 @@ const CONTACT_CLEARANCE = 0.012;
  */
 export const TRAVEL = { rest: 0.65, up: 0.13, down: 0.24 };
 
-/** Height, pitch and roll of a chassis at (x, z) facing `heading` on the surface `sample`. */
-export function chassisPose(x, z, heading, sample) {
+/** The offroader's wheels: how far apart across, and how far ahead of its middle and behind. */
+const LAYOUT = { track: TRACK, front: FRONT_Z, rear: REAR_Z };
+
+const layouts = new WeakMap();
+
+/** A vehicle's wheel layout from its wheels ({ x, z } each): its front and back axles and its widest track. */
+export function layoutOf(wheels) {
+  if (!layouts.has(wheels)) {
+    const zs = wheels.map(wheel => wheel.z);
+    const track = 2 * Math.max(...wheels.map(wheel => Math.abs(wheel.x)));
+    layouts.set(wheels, { track, front: Math.min(...zs), rear: Math.max(...zs) });
+  }
+  return layouts.get(wheels);
+}
+
+/**
+ * Height, pitch and roll of a chassis at (x, z) facing `heading` on the surface `sample`, resting
+ * on wheels laid out as `layout` says (the offroader's, unless it says otherwise).
+ */
+export function chassisPose(x, z, heading, sample, layout = LAYOUT) {
+  const { track, front, rear } = layout;
   const sin = Math.sin(heading);
   const cos = Math.cos(heading);
   const at = (lx, lz) => sample(x + cos * lx + sin * lz, z - sin * lx + cos * lz);
-  const fl = at(-TRACK / 2, FRONT_Z);
-  const fr = at(TRACK / 2, FRONT_Z);
-  const bl = at(-TRACK / 2, REAR_Z);
-  const br = at(TRACK / 2, REAR_Z);
+  const fl = at(-track / 2, front);
+  const fr = at(track / 2, front);
+  const bl = at(-track / 2, rear);
+  const br = at(track / 2, rear);
   // A positive X rotation raises the front of a car facing -Z.
-  const pitch = Math.atan2((fl + fr - bl - br) / 2, REAR_Z - FRONT_Z);
-  const sideSlope = (fr + br - fl - bl) / (2 * TRACK);
+  const pitch = Math.atan2((fl + fr - bl - br) / 2, rear - front);
+  const sideSlope = (fr + br - fl - bl) / (2 * track);
   return { height: (fl + fr + bl + br) / 4 - 0.06, pitch, roll: Math.atan(sideSlope * Math.cos(pitch)) };
 }
 

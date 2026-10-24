@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { angleDelta, clamp, damp } from '../core/math.js';
 import { createSteering, steer } from '../core/steering.js';
-import { chassisPose, settleWheels } from '../core/suspension.js';
+import { chassisPose, layoutOf, settleWheels } from '../core/suspension.js';
 import { createTrailerState, hangTrailer } from '../core/trailer.js';
 import { drivingHeight } from '../world/terrain.js';
 import { createCar } from './car.js';
@@ -47,7 +47,7 @@ export function poseCopy(copy, { x, z, heading, speed }, dt, settle) {
   // Up on the top of the rock fin and the arch once it has driven onto it, like the car.
   copy.level = drivingHeight(x, z, copy.level ?? -Infinity);
   const surface = (px, pz) => drivingHeight(px, pz, copy.level);
-  const ground = chassisPose(x, z, heading, surface);
+  const ground = chassisPose(x, z, heading, surface, layoutOf(car.spec.wheels));
   car.root.position.set(x, ground.height, z);
   car.root.rotation.y = heading;
   car.root.rotation.x = dt ? damp(car.root.rotation.x, ground.pitch, 14, dt) : ground.pitch;

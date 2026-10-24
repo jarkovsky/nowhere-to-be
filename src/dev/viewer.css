@@ -195,6 +195,52 @@ body {
   color: var(--problem);
 }
 
+/* Whether the baseline knows the problem, and why it is allowed. */
+.issues li em {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.info.folded .note {
+  display: none;
+}
+
+.note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.note[hidden] {
+  display: none;
+}
+
+.note textarea {
+  flex: 1 1 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  resize: vertical;
+}
+
+.note button {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.note [role='status'] {
+  color: var(--ink-soft);
+}
+
 .loading {
   position: absolute;
   inset: 0;

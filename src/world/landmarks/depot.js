@@ -135,16 +135,22 @@ export function buildDepot(scene, obstacles) {
     parts.box(0.14, 0.02, 5.6, TRIM, at(x, 0.04, 3.1));
   }
 
-  // A stack of tyres by one end, and an oil drum by the other.
+  // A stack of tyres by one end, and an oil drum by the other, each on the ground where it stands.
+  const floor = (lx, lz) => frame.ground(lx, lz) - frame.at(0, 0, 0).y;
+  const tyres = floor(WIDTH / 2 + 1.1, -1);
   for (let k = 0; k < 4; k++) {
-    parts.add(new THREE.CylinderGeometry(0.55, 0.55, 0.3, 12), '#303a35', at(WIDTH / 2 + 1.1, 0.25 + k * 0.31, -1));
+    parts.add(
+      new THREE.CylinderGeometry(0.55, 0.55, 0.3, 12),
+      '#303a35',
+      at(WIDTH / 2 + 1.1, tyres + 0.15 + k * 0.31, -1),
+    );
   }
-  parts.add(new THREE.CylinderGeometry(0.42, 0.42, 1.1, 10), '#b5402f', at(-WIDTH / 2 - 0.9, 0.6, -1.2));
+  const drum = floor(-WIDTH / 2 - 0.9, -1.2);
+  parts.add(new THREE.CylinderGeometry(0.42, 0.42, 1.1, 10), '#b5402f', at(-WIDTH / 2 - 0.9, drum + 0.55, -1.2));
   for (const lx of [WIDTH / 2 + 1.1, -WIDTH / 2 - 0.9]) obstacles.push({ ...local(lx, -1.1), radius: 0.7 });
 
-  // The building itself, as one capsule along its length.
-  const ends = [local(-WIDTH / 2 + DEPTH / 2, -DEPTH / 2), local(WIDTH / 2 - DEPTH / 2, -DEPTH / 2)];
-  obstacles.push({ ax: ends[0].x, az: ends[0].z, bx: ends[1].x, bz: ends[1].z, radius: DEPTH / 2 + 0.2 });
+  // The building itself, round its walls.
+  obstacles.push({ ...local(0, -DEPTH / 2), halfX: WIDTH / 2 + 0.2, halfZ: DEPTH / 2 + 0.2, rotation, radius: 0 });
 
   // The board stands on the roof above the doors, and a lamp hangs over each door.
   for (const x of [-2.6, 2.6]) parts.box(0.14, 1.2, 0.14, '#5b4636', at(x, 6.2, -0.78));

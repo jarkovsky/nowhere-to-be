@@ -15,7 +15,8 @@ import { headingOf } from '../path.js';
 import { terrainHeight } from '../terrain.js';
 import { SWAY, detailMap, foliageMaterial, groundMaterial } from '../detail.js';
 import { TRAMPLE_PARS, cutTrample, growsTall, pressTrample, trampleUniforms } from '../trample.js';
-import { PartsBuilder, flatMaterial, gableRoof, gableEnds, createSmoke, tintable } from '../build.js';
+import { PartsBuilder, flatMaterial, gableRoof, createSmoke, tintable } from '../build.js';
+import { gabledHouse } from './house.js';
 import { framer } from './frame.js';
 
 /** Width of one pass of the plough or the mower. */
@@ -1277,8 +1278,9 @@ export function combineHarvester() {
     const a = (k * Math.PI) / 3;
     bats.box(HEADER - 0.6, 0.08, 0.08, '#c9452f', { y: Math.sin(a) * 0.62, z: Math.cos(a) * 0.62 });
   }
+  // Spokes out to the bats, carrying them.
   for (const x of [-HEADER / 2 + 0.35, 0, HEADER / 2 - 0.35]) {
-    for (let k = 0; k < 3; k++) bats.box(0.05, 1.24, 0.05, STEEL, { x, rx: (k * Math.PI) / 3 });
+    for (let k = 0; k < 3; k++) bats.box(0.05, 1.24, 0.05, STEEL, { x, rx: Math.PI / 6 + (k * Math.PI) / 3 });
   }
   reel.add(bats.mesh());
   root.add(reel);
@@ -1360,16 +1362,27 @@ function gullFlock(scene, count) {
 
 /** The cottage, the shed and the bales where the track ends. */
 function buildFarmstead(scene, parts, obstacles) {
-  const { at, local, rotation } = framer(FARMSTEAD);
+  const frame = framer(FARMSTEAD);
+  const { at, local, rotation } = frame;
   const turned = rotation + Math.PI / 2;
 
   // A log cottage: dark timber with white chinking between the logs, on a stone footing.
   const cottage = { x: -4, z: -2 };
   parts.box(7.6, 0.5, 5.6, '#9a978a', at(cottage.x, 0.05, cottage.z));
-  parts.box(7, 2.8, 5, '#6e4d34', at(cottage.x, 1.6, cottage.z));
+  const walls = gabledHouse(parts, frame, {
+    ...cottage,
+    width: 7,
+    depth: 5,
+    base: 0.2,
+    eave: 3,
+    ridge: 5.5,
+    overhang: 0.5,
+    ridgeAlong: 'x',
+    walls: '#6e4d34',
+    gables: '#7d5a3d',
+    roof: '#58514b',
+  });
   for (let k = 0; k < 6; k++) parts.box(7.04, 0.07, 5.04, '#efe8d8', at(cottage.x, 0.6 + k * 0.42, cottage.z));
-  parts.add(gableEnds(5, 7, 3, 5.4), '#7d5a3d', at(cottage.x, 0, cottage.z, { ry: turned }));
-  parts.add(gableRoof(5, 7, 2.95, 5.5, 0.5), '#58514b', at(cottage.x, 0, cottage.z, { ry: turned }));
   parts.box(0.7, 1.9, 0.7, '#8e8b7f', at(cottage.x + 2, 5.1, cottage.z - 0.8)); // chimney
   parts.box(1, 1.9, 0.12, '#4f5e52', at(cottage.x - 1.6, 1.15, cottage.z + 2.53)); // door
   for (const lx of [0.4, 2.2]) {
@@ -1377,10 +1390,9 @@ function buildFarmstead(scene, parts, obstacles) {
     parts.box(0.8, 0.7, 0.14, '#e8cf8a', at(cottage.x + lx, 1.75, cottage.z + 2.54));
   }
   parts.box(1.6, 0.12, 0.25, '#7a5436', at(cottage.x - 1.6, 0.55, cottage.z + 2.9)); // bench
-  obstacles.push(
-    { ...local(cottage.x - 1.8, cottage.z), radius: 3 },
-    { ...local(cottage.x + 1.8, cottage.z), radius: 3 },
-  );
+  for (const side of [-0.65, 0.65])
+    parts.box(0.1, 0.5, 0.22, '#5f4532', at(cottage.x - 1.6 + side, 0.24, cottage.z + 2.9));
+  obstacles.push(walls);
 
   // An open shed for the tractors, with bales stacked at the back.
   const shed = { x: 7, z: -3 };
@@ -1391,12 +1403,13 @@ function buildFarmstead(scene, parts, obstacles) {
     }
   }
   parts.add(gableRoof(5.4, 4.6, 3.1, 4.3, 0.35), '#6f6b63', at(shed.x, 0, shed.z, { ry: turned }));
+  // Two bales resting in the hollows between three, as low as they go between them.
   for (const [lx, ly] of [
     [-1.4, 0.6],
     [0, 0.6],
     [1.4, 0.6],
-    [-0.7, 1.75],
-    [0.7, 1.75],
+    [-0.7, 1.55],
+    [0.7, 1.55],
   ]) {
     parts.add(
       new THREE.CylinderGeometry(0.6, 0.6, 1.1, 10),

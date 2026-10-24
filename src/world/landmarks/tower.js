@@ -40,12 +40,12 @@ export function buildTower(scene, obstacles) {
       parts.beam(leg(ax, az, h1), leg(bx, bz, h1), 0.2, TIMBER);
     }
   }
-  // A zig-zag stair up the middle.
+  // A zig-zag stair up the middle, each flight going up from the landing the one below ends on.
   for (let flight = 0; flight < 4; flight++) {
     const h0 = flight * 3;
     const side = flight % 2 ? 1 : -1;
     parts.beam(
-      { x: x - 0.9 * side, y: y + h0 + 0.2, z: z - 0.6 },
+      { x: x - 0.9 * side, y: y + h0 + (flight ? 0.12 : 0.06), z: z - 0.6 },
       { x: x + 0.9 * side, y: y + h0 + 3, z: z - 0.6 },
       0.7,
       '#a7835c',

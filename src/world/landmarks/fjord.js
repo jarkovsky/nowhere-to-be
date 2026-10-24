@@ -7,7 +7,8 @@ import * as THREE from 'three';
 import { smoothstep } from '../../core/math.js';
 import { FJORD, FJORD_VILLAGE, TRACKS } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
-import { PartsBuilder, gableRoof, gableEnds, hipRoof, createSmoke, flatMaterial, prism } from '../build.js';
+import { PartsBuilder, hipRoof, createSmoke, flatMaterial, prism } from '../build.js';
+import { gabledHouse } from './house.js';
 import { canvasTexture } from './signs.js';
 import { framer } from './frame.js';
 
@@ -47,16 +48,26 @@ function tuft() {
 
 /** A wooden house with its long side to the water, white trim and a grass roof. */
 function house(parts, obstacles, spot) {
-  const { at, local, ground } = framer(spot);
-  const turned = { ry: spot.rotation + Math.PI / 2 };
+  const frame = framer(spot);
+  const { at, ground } = frame;
   const [width, depth, eave, ridge] = [7.5, 5.6, 3.3, 5.6];
   // The stone footing goes down to the ground at the lowest corner, where the slope falls away.
   const corners = [-1, 1].flatMap(sx => [-1, 1].map(sz => ground((sx * (width + 0.4)) / 2, (sz * (depth + 0.4)) / 2)));
   const drop = ground(0, 0) - Math.min(...corners);
   parts.box(width + 0.4, 0.6 + drop, depth + 0.4, STONE, at(0, -drop / 2, 0));
-  parts.box(width, eave, depth, spot.paint, at(0, eave / 2 + 0.2, 0));
-  parts.add(gableEnds(depth, width, eave + 0.2, ridge), spot.paint, at(0, 0, 0, turned));
-  parts.add(gableRoof(depth, width, eave + 0.15, ridge + 0.05, 0.45), TURF, at(0, 0, 0, turned));
+  obstacles.push(
+    gabledHouse(parts, frame, {
+      width,
+      depth,
+      base: 0.2,
+      eave: eave + 0.2,
+      ridge: ridge + 0.05,
+      overhang: 0.45,
+      ridgeAlong: 'x',
+      walls: spot.paint,
+      roof: TURF,
+    }),
+  );
   // Tufts along the ridge, where the grass grows longest.
   for (let k = -3; k <= 3; k++) parts.add(tuft(), '#7f9a52', at(k * 1.05, ridge - 0.02, 0, { ry: k }));
   for (const side of [-1, 1]) {
@@ -67,36 +78,47 @@ function house(parts, obstacles, spot) {
   parts.box(1.4, 0.16, 0.16, WHITE, at(-1.6, 2.4, depth / 2 + 0.05));
   for (const lx of [0.6, 2.4]) framedWindow(parts, at, lx, 2, depth / 2 + 0.03);
   parts.box(0.7, 1.6, 0.7, STONE, at(2, ridge + 0.2, -0.8)); // chimney
-  obstacles.push({ ...local(0, 0), radius: width / 2 });
   return at(2, ridge + 1.2, -0.8);
 }
 
 /** A boathouse at the water's edge: red boards, a dark roof and big doors facing the water. */
 function boathouse(parts, obstacles, spot) {
-  const { at, local } = framer(spot);
+  const frame = framer(spot);
+  const { at } = frame;
   const [width, depth, eave, ridge] = [4.6, 7, 2.6, 4.6];
-  parts.box(width, eave, depth, spot.paint, at(0, eave / 2, 0));
-  parts.add(gableEnds(width, depth, eave, ridge), spot.paint, at(0, 0, 0));
-  parts.add(gableRoof(width, depth, eave - 0.05, ridge + 0.05, 0.35), '#4d4f4c', at(0, 0, 0));
+  obstacles.push(
+    gabledHouse(parts, frame, {
+      width,
+      depth,
+      eave,
+      ridge: ridge + 0.05,
+      overhang: 0.35,
+      walls: spot.paint,
+      roof: '#4d4f4c',
+    }),
+  );
   parts.box(2.8, 2.2, 0.1, '#7d2a20', at(0, 1.1, depth / 2 + 0.02)); // doors
   parts.box(0.12, 2.3, 0.14, WHITE, at(0, 1.15, depth / 2 + 0.06));
   parts.box(3.1, 0.14, 0.14, WHITE, at(0, 2.3, depth / 2 + 0.06));
   for (const side of [-1, 1]) parts.box(0.18, eave, 0.18, WHITE, at(side * (width / 2), eave / 2, depth / 2));
-  obstacles.push({ ...local(0, 0), radius: width / 2 + 0.6 });
 }
 
 /** A stave church: tarred timber, roofs stacked one above another, a spire and dragons on the gables. */
 function staveChurch(parts, obstacles, spot) {
-  const { at, local } = framer(spot);
-  // A low covered gallery all round, then the tall nave above it.
-  parts.box(7.4, 2.2, 9.4, TAR, at(0, 1.1, 0));
-  parts.add(hipRoof(8.8, 10.8, 2.2, 6.4, 8.4, 3.4), SHINGLE, at(0, 0, 0));
-  parts.box(5.6, 4.8, 7.6, TAR, at(0, 3.4, 0));
-  parts.add(gableEnds(5.6, 7.6, 5.8, 9.2), TAR, at(0, 0, 0));
-  parts.add(gableRoof(5.6, 7.6, 5.75, 9.25, 0.4), SHINGLE, at(0, 0, 0));
-  // A second, smaller roof stacked on the first, and a tower with a spire on top.
-  parts.box(2.6, 2, 2.6, TAR, at(0, 9.6, 0));
-  parts.add(hipRoof(3.6, 3.6, 10.6, 2.4, 2.4, 11.6), SHINGLE, at(0, 0, 0));
+  const frame = framer(spot);
+  const { at, local } = frame;
+  // A low covered gallery all round, under a skirt roof that rises as steeply as it runs in: from
+  // its eaves 0.7 m out from the gallery's walls, it meets them 0.7 m up and goes on up to the
+  // walls of the tall nave inside.
+  parts.box(7.4, 2.9, 9.4, TAR, at(0, 1.45, 0));
+  parts.add(hipRoof(8.8, 10.8, 2.2, 5.6, 7.6, 3.8), SHINGLE, at(0, 0, 0));
+  gabledHouse(parts, frame, { width: 5.6, depth: 7.6, base: 1, eave: 5.8, ridge: 9.25, walls: TAR, roof: SHINGLE });
+  // A tower over the middle with a second, smaller skirt roof, rising a metre for every 0.6 m in:
+  // from its eaves 0.5 m out from the tower, it meets the tower's walls and goes on up to the
+  // belfry above, under the spire.
+  const [eaves, out, steep] = [10.6, 0.5, 1 / 0.6];
+  parts.box(2.6, eaves + out * steep - 8.6, 2.6, TAR, at(0, (8.6 + eaves + out * steep) / 2, 0));
+  parts.add(hipRoof(3.6, 3.6, eaves, 1.6, 1.6, eaves + (out + 0.5) * steep), SHINGLE, at(0, 0, 0));
   parts.box(1.6, 1.6, 1.6, TAR, at(0, 12.3, 0));
   parts.add(new THREE.ConeGeometry(1.25, 4.2, 4), SHINGLE, at(0, 15.2, 0, { ry: spot.rotation + Math.PI / 4 }));
   // Dragon heads curling up from the ends of the ridge.
@@ -105,7 +127,7 @@ function staveChurch(parts, obstacles, spot) {
     parts.box(0.26, 0.4, 0.4, TAR, at(0, 10.3, end * 5, { rx: end * -0.2 }));
   }
   parts.box(1.4, 2.2, 0.12, '#6b3a24', at(0, 1.1, 4.72)); // door, under the gallery roof
-  obstacles.push({ ...local(0, 0), radius: 5 });
+  obstacles.push({ ...local(0, 0), halfX: 4, halfZ: 5, rotation: spot.rotation, radius: 0 });
 }
 
 /** A plank pier on posts from the shore out over the water. */
