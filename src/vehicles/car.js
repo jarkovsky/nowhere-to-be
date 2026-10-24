@@ -12,6 +12,9 @@ export const CAR_COLORS = {
   blue: '#5f97ab',
   berry: '#ac6075',
   yellow: '#dfbb57',
+  // Not in the garage: the two lorries waiting at the depot have paints of their own.
+  navy: '#2f6cb3',
+  red: '#c43b2e',
 };
 
 const CREAM = '#eee4c8';

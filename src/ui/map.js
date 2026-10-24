@@ -1,6 +1,7 @@
 // The full-screen map in the menu: the valley from above, north up, with a picture for each
 // place and an arrow for the car pointing the way it faces. It opens on the car and can be
-// dragged about and zoomed with a finger, a mouse or the keys.
+// dragged about and zoomed with a finger, a mouse or the keys. Tapping a place's picture picks
+// it as the place to go to, which the minimap then points the way to; tapping it again lets go.
 import { clamp } from '../core/math.js';
 import { VALLEY_RADIUS } from '../world/layout.js';
 import { MAP_EXTENT, MAP_PLACES, PAPER, arrowMarkup, badgeMarkup, drawMapLines } from './mapart.js';
@@ -13,9 +14,17 @@ const CLOSEST = 2.6;
 const ZOOM_STEP = 1.6;
 /** How far an arrow key moves the map, in CSS pixels. */
 const PAN_STEP = 80;
+/** A touch that moves less than this, in CSS pixels, and lifts within `TAP_TIME` ms is a tap. */
+const TAP_SLOP = 10;
+const TAP_TIME = 500;
+/** How close to a picture, in CSS pixels, a tap picks it. */
+const TAP_REACH = 30;
 
-/** `page` is the map's page in the menu and `car` the car's live state, read each time the map opens. */
-export function createMapView(page, picture, car) {
+/**
+ * `page` is the map's page in the menu and `car` the car's live state, read each time the map
+ * opens. `target.place` is the place picked to go to, or null; `onPick` is told when it changes.
+ */
+export function createMapView(page, picture, car, target = { place: null }, onPick = () => {}) {
   const view = page.querySelector('.map-view');
   const canvas = view.querySelector('canvas');
   const ctx = canvas.getContext('2d');
@@ -29,6 +38,9 @@ export function createMapView(page, picture, car) {
   let ratio = 1;
   let queued = false;
   let tidiedAt = 0;
+  /** While a finger or the wheel is moving the map, only the picture is drawn, which is quick. */
+  let moving = false;
+  let wheeling = 0;
 
   /** The badges for the places and the car's arrow, made the first time the map opens. */
   function build() {
@@ -40,6 +52,7 @@ export function createMapView(page, picture, car) {
       marker.title = place.name;
       marker.style.setProperty('--badge', place.color);
       marker.innerHTML = badgeMarkup(place);
+      marker.classList.toggle('chosen', target.place?.id === place.id);
       layer.append(marker);
       return { place, marker };
     });
@@ -50,8 +63,13 @@ export function createMapView(page, picture, car) {
     const rect = view.getBoundingClientRect();
     box = { left: rect.left, top: rect.top, width: Math.max(1, rect.width), height: Math.max(1, rect.height) };
     ratio = Math.min(devicePixelRatio || 1, 2);
-    canvas.width = Math.round(box.width * ratio);
-    canvas.height = Math.round(box.height * ratio);
+    // Setting a canvas's size wipes it, so only when it has changed.
+    const [width, height] = [Math.round(box.width * ratio), Math.round(box.height * ratio)];
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+      redraw();
+    }
   }
 
   /** The whole valley fits on the screen at the farthest zoom. */
@@ -106,7 +124,8 @@ export function createMapView(page, picture, car) {
     for (const { place, marker } of markers) {
       const x = place.x * camera.scale;
       const y = place.z * camera.scale;
-      const clear = kept.every(other => Math.hypot(other.x - x, other.y - y) > size);
+      // The place picked to go to always shows.
+      const clear = target.place?.id === place.id || kept.every(other => Math.hypot(other.x - x, other.y - y) > size);
       marker.classList.toggle('tucked', !clear);
       if (clear) kept.push({ x, y });
     }
@@ -128,9 +147,12 @@ export function createMapView(page, picture, car) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(picture.canvas, ox - MAP_EXTENT * s, oy - MAP_EXTENT * s, 2 * MAP_EXTENT * s, 2 * MAP_EXTENT * s);
-      // The lines again on top, sharp at any zoom and never thinner than they show from afar.
-      ctx.setTransform(ratio * s, 0, 0, ratio * s, ratio * ox, ratio * oy);
-      drawMapLines(ctx, s);
+      // The lines again on top, sharp at any zoom and never thinner than they show from afar;
+      // once the map stops moving, as there are a lot of them.
+      if (!moving && !wheeling) {
+        ctx.setTransform(ratio * s, 0, 0, ratio * s, ratio * ox, ratio * oy);
+        drawMapLines(ctx, s);
+      }
     }
     if (Math.abs(s / tidiedAt - 1) > 0.01) tidy();
     for (const { place, marker } of markers) {
@@ -150,19 +172,43 @@ export function createMapView(page, picture, car) {
 
   const pointers = new Map();
   const local = event => ({ x: event.clientX - box.left, y: event.clientY - box.top });
+  /** The finger or button that went down on its own, while it might still be a tap. */
+  let tap = null;
+
+  /** Picks the place whose picture is nearest (sx, sy), or lets go of it if it was already picked. */
+  function pickAt(sx, sy) {
+    const s = camera.scale;
+    let best = null;
+    let nearest = TAP_REACH;
+    for (const { place, marker } of markers) {
+      if (marker.classList.contains('tucked')) continue;
+      const px = box.width / 2 + (place.x - camera.x) * s;
+      const py = box.height / 2 + (place.z - camera.z) * s;
+      const distance = Math.hypot(px - sx, py - sy);
+      if (distance < nearest) [best, nearest] = [place, distance];
+    }
+    if (!best) return;
+    target.place = target.place?.id === best.id ? null : best;
+    for (const { place, marker } of markers) marker.classList.toggle('chosen', target.place?.id === place.id);
+    onPick(target.place);
+  }
 
   view.addEventListener('pointerdown', event => {
     if (!open) return;
     event.preventDefault();
     if (!pointers.size) measure();
     view.setPointerCapture(event.pointerId);
-    pointers.set(event.pointerId, local(event));
+    const point = local(event);
+    tap = pointers.size ? null : { id: event.pointerId, ...point, at: event.timeStamp };
+    pointers.set(event.pointerId, point);
+    moving = true;
     view.classList.add('dragging');
   });
   view.addEventListener('pointermove', event => {
     const last = pointers.get(event.pointerId);
     if (!last) return;
     const point = local(event);
+    if (tap && Math.hypot(point.x - tap.x, point.y - tap.y) > TAP_SLOP) tap = null;
     const other = [...pointers].find(([id]) => id !== event.pointerId)?.[1];
     if (!other) panBy(point.x - last.x, point.y - last.y);
     else {
@@ -176,8 +222,15 @@ export function createMapView(page, picture, car) {
     pointers.set(event.pointerId, point);
   });
   const release = event => {
-    pointers.delete(event.pointerId);
-    if (!pointers.size) view.classList.remove('dragging');
+    if (!pointers.delete(event.pointerId)) return;
+    if (tap?.id === event.pointerId && event.type === 'pointerup' && event.timeStamp - tap.at < TAP_TIME) {
+      pickAt(tap.x, tap.y);
+    }
+    tap = null;
+    if (pointers.size) return;
+    view.classList.remove('dragging');
+    moving = false;
+    redraw();
   };
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) view.addEventListener(type, release);
   view.addEventListener(
@@ -188,6 +241,11 @@ export function createMapView(page, picture, car) {
       // A trackpad pinch comes as a wheel with Ctrl held, in smaller steps.
       const amount = event.deltaY * (event.deltaMode === 1 ? 16 : 1) * (event.ctrlKey ? 0.01 : 0.0015);
       const { x, y } = local(event);
+      clearTimeout(wheeling);
+      wheeling = setTimeout(() => {
+        wheeling = 0;
+        redraw();
+      }, 150);
       zoomAt(Math.exp(-clamp(amount, -1, 1)), x, y);
     },
     { passive: false },
@@ -243,6 +301,8 @@ export function createMapView(page, picture, car) {
     close() {
       open = false;
       pointers.clear();
+      tap = null;
+      moving = false;
       view.classList.remove('dragging');
     },
     getState: () => ({
@@ -251,6 +311,7 @@ export function createMapView(page, picture, car) {
       camera: { ...camera },
       arrow: you.style.transform,
       shown: markers ? markers.filter(({ marker }) => !marker.classList.contains('tucked')).length : 0,
+      picked: target.place?.id ?? null,
     }),
   };
 }

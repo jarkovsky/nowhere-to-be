@@ -3,7 +3,7 @@
 // for drying the hoses, a siren on the roof and the fire engine parked out front. Sound the
 // horn by it and the engine answers with its blue lights and siren.
 import * as THREE from 'three';
-import { VILLAGE } from '../layout.js';
+import { FORECOURTS, VILLAGE } from '../layout.js';
 import { terrainHeight, pondLevel } from '../terrain.js';
 import { PartsBuilder, gableRoof, gableEnds, hipRoof } from '../build.js';
 import { headingOf } from '../path.js';
@@ -33,7 +33,8 @@ function fireStation(parts, obstacles, frame) {
     parts.box(3.4, 3.4, 0.12, RED, at(lx, 1.8, 1.02));
     for (let k = 1; k < 4; k++) parts.box(3.36, 0.05, 0.14, '#9e2620', at(lx, 0.1 + k * 0.85, 1.04));
   }
-  parts.box(width, 0.12, 7, '#b9b6ab', at(0, 0.02, 4.5)); // concrete apron
+  const apron = FORECOURTS.find(court => court.id === 'fire station');
+  parts.box(apron.x1 - apron.x0, 0.12, apron.z1 - apron.z0, '#b9b6ab', at(0, 0.02, (apron.z0 + apron.z1) / 2)); // concrete apron
   // The hose tower, with slatted openings near the top, a pyramid roof and the siren above.
   const tower = { x: 7.2, z: -5 };
   parts.box(3, 13, 3, CREAM, at(tower.x, 6.5, tower.z));

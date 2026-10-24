@@ -1,9 +1,9 @@
-// Friends who tag along. Four of the garage's vehicles wait at the depot by the trail,
-// the lorry among them. Drive up close and an arrow bobs over each one, with a ripple
+// Friends who tag along. Four of the garage's vehicles wait at the depot by the trail: a
+// blue lorry and a red one, and the two race cars. Drive up close and an arrow bobs over each one, with a ripple
 // on the ground round it like the one round the play button. Tap one (or press F) and it
 // honks, flashes its lamps, pulls out and follows: along the way the player drove, a little
-// way behind, stopping when the player stops and honking back when the player honks. Two
-// can come along, the second behind the first; asking a third sends the first one home.
+// way behind, stopping when the player stops and honking back when the player honks. All
+// four can come along, each behind the one before.
 // Tapping one that follows while stopped, or parking at the depot with them, lets them
 // stay, and they go back to their bays once nobody is looking. One left far behind, or one
 // that has lost the player (after going back to the start), catches up out of sight.
@@ -27,6 +27,7 @@ import {
   poseAt,
   routeEnd,
   routeStart,
+  SPACING,
   startRoute,
   stepFollower,
 } from '../core/follow.js';
@@ -35,15 +36,33 @@ import { DEPOT } from '../world/layout.js';
 import { drivingHeight, isDriveable } from '../world/terrain.js';
 import { createCopies, poseCopy } from './copies.js';
 
-/** Who waits at the depot, first come first served, in this order along the bays. */
-const LINEUP = ['lorry', 'hyundai', 'mercedes', 'offroader', 'pickup', 'van', 'saloon', 'tractor'];
-/** The friends' paints, each a different one in the order they wait, leaving out the player's. */
+/**
+ * Who waits at the depot, first come first served, in this order along the bays. The lorries
+ * always wear their own paints; the others take one of `PAINTS`.
+ */
+const LINEUP = [
+  { vehicle: 'lorry', color: 'navy' },
+  { vehicle: 'lorry', color: 'red' },
+  { vehicle: 'hyundai' },
+  { vehicle: 'mercedes' },
+  { vehicle: 'offroader' },
+  { vehicle: 'pickup' },
+  { vehicle: 'van' },
+  { vehicle: 'saloon' },
+  { vehicle: 'tractor' },
+];
+/** The other friends' paints, each a different one in the order they wait, leaving out the player's. */
 const PAINTS = ['blue', 'orange', 'yellow', 'sage', 'berry'];
+
+/** Whether a place in the line-up is this vehicle in this paint (any paint, for one without its own). */
+const fits = (entry, vehicle, color) => entry.vehicle === vehicle && (!entry.color || entry.color === color);
+/** Where a friend comes in the line-up. */
+const rank = ({ vehicle, color }) => LINEUP.findIndex(entry => fits(entry, vehicle, color));
 /** How close the player has to be for a friend to show it can come along, and to tap one. */
 const NEAR = 20;
 const TAP_RANGE = 24;
 /** How many can come along at once. */
-const MOST = 2;
+const MOST = 4;
 /** The clear gap a friend keeps behind whoever it follows, more when a lorry is involved; and the least. */
 const GAP = 6;
 const LORRY_GAP = 8;
@@ -114,11 +133,16 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
 
   // --- The friends ------------------------------------------------------------------------
 
-  /** The paint for `vehicle` among the friends' `vehicles`: its place among them picks it. */
-  const paintFor = (vehicle, vehicles) => {
+  /**
+   * Paints for the friends `{ vehicle, color }`: the lorries keep their own, and each of the
+   * others gets the next paint along by its place among them.
+   */
+  const paintAll = waiting => {
     const paints = PAINTS.filter(c => c !== playerColor);
-    const place = vehicles.filter(v => LINEUP.indexOf(v) < LINEUP.indexOf(vehicle)).length;
-    return paints[place % paints.length];
+    const painted = waiting.filter(w => LINEUP[rank(w)]?.color === undefined).sort((a, b) => rank(a) - rank(b));
+    return waiting.map(w =>
+      LINEUP[rank(w)]?.color !== undefined ? w.color : paints[painted.indexOf(w) % paints.length],
+    );
   };
 
   const arrowGeometry = mergeGeometries([
@@ -134,9 +158,13 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
     depthWrite: false,
   });
 
-  const waiting = LINEUP.filter(v => v !== playerVehicle).slice(0, DEPOT.bays.length);
-  const friends = waiting.map((vehicle, bay) => {
-    const color = paintFor(vehicle, waiting);
+  // Everyone but the player: their vehicle, or the lorry in their own paint.
+  const waiting = LINEUP.filter(entry => !fits(entry, playerVehicle, playerColor))
+    .slice(0, DEPOT.bays.length)
+    .map(entry => ({ ...entry }));
+  const colors = paintAll(waiting);
+  const friends = waiting.map(({ vehicle }, bay) => {
+    const color = colors[bay];
     const statue = new THREE.Mesh(statueOf(vehicle, color), vertexColorMaterial);
     statue.castShadow = true;
     statue.receiveShadow = true;
@@ -283,7 +311,11 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
     return leader === player && chasing ? Math.max(gap, cameraBack + 2 - leader.size.back) : gap;
   }
 
-  /** Sets off after `leader`: straight out of where it stands, then on to where the leader is. */
+  /**
+   * Sets off after `leader`: straight out of where it stands, then on to where the leader is.
+   * Behind another friend it takes up the way that one went out of its bay, rather than
+   * heading straight for it across a lorry's trailer.
+   */
   function setOff(friend, leader) {
     const fx = -Math.sin(friend.heading);
     const fz = -Math.cos(friend.heading);
@@ -291,6 +323,12 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
       [friend.x, friend.z],
       [friend.x + fx * 4, friend.z + fz * 4],
     ]);
+    if (leader !== player && !leader.lost) {
+      for (let s = Math.min(4, leader.follower.s); s < leader.follower.s; s += SPACING) {
+        poseAt(leader.route, s, 0, pose);
+        addCrumb(friend.route, pose.x, pose.z);
+      }
+    }
     addCrumb(friend.route, leader.x, leader.z);
     friend.follower.s = 0;
     friend.follower.speed = 0;
@@ -365,10 +403,11 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
   function follow(friend, dt) {
     const leader = leaderOf(friend);
     const { route, follower, size } = friend;
-    // One asked along behind another that has only just pulled out waits in its bay until that
-    // one is clear of the bays, rather than cutting across in front of the others.
+    // One asked along behind another that has only just pulled out waits in its bay until all
+    // of that one, a lorry's trailer too, is clear of the bays, rather than cutting across in
+    // front of the others.
     if (friend.starting) {
-      if (leader !== player && !leader.lost && leader.follower.s < 6) return;
+      if (leader !== player && !leader.lost && leader.follower.s < Math.max(6, leader.size.back + LEAST)) return;
       friend.starting = false;
       setOff(friend, leader);
     }
@@ -407,12 +446,20 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
       );
     }
 
-    // Anything else in the way along the route: traffic, the train, the barriers, parked friends.
+    // Anything else in the way along the route: traffic, the train, the barriers, parked friends,
+    // and friends further up the line where the ways cross (only those ahead, so no two ever
+    // wait for each other).
+    const ahead = party.slice(0, Math.max(0, party.indexOf(friend) - 1));
     let blocked = friend.wait > 0 ? 0 : Infinity;
     for (let k = 0; k < 4 && blocked === Infinity; k++) {
       poseAt(route, follower.s + size.front + k * 2, 0, pose);
       // Only what is right in the way: oncoming traffic in its own lane can squeeze by.
-      if (touches(moving, pose.x, pose.z, size.half - 0.4) || touches(colliders, pose.x, pose.z, size.half - 0.4))
+      const reach = size.half - 0.4;
+      if (
+        touches(moving, pose.x, pose.z, reach) ||
+        touches(colliders, pose.x, pose.z, reach) ||
+        ahead.some(other => touches(other.circles.slice(0, other.used), pose.x, pose.z, reach))
+      )
         blocked = k * 2;
     }
 
@@ -689,7 +736,7 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
 
   /** Puts the friends at home in their bays in order. */
   function arrange() {
-    const sorted = [...friends].sort((a, b) => LINEUP.indexOf(a.vehicle) - LINEUP.indexOf(b.vehicle));
+    const sorted = [...friends].sort((a, b) => rank(a) - rank(b));
     sorted.forEach((friend, bay) => {
       friend.bay = bay;
       if (friend.mode === 'home') placeStatue(friend);
@@ -762,12 +809,18 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
      * vehicle becomes the player's old one, as if they had swapped.
      */
     choose(vehicle, color) {
-      const previous = playerVehicle;
+      const previous = { vehicle: playerVehicle, color: playerColor };
       playerVehicle = vehicle;
       playerColor = color;
       player.size = sizeOf(vehicle);
-      const vehicles = friends.map(friend => (friend.vehicle === vehicle ? previous : friend.vehicle));
-      friends.forEach((friend, i) => become(friend, vehicles[i], paintFor(vehicles[i], vehicles)));
+      const chosen = LINEUP.find(entry => fits(entry, vehicle, color));
+      const next = friends.map(friend =>
+        chosen && fits(chosen, friend.vehicle, friend.color)
+          ? { ...previous }
+          : { vehicle: friend.vehicle, color: friend.color },
+      );
+      const colors = paintAll(next);
+      friends.forEach((friend, i) => become(friend, next[i].vehicle, colors[i]));
       arrange();
     },
     /** The friends coming along, with their wheels, for the long grass and the crops they drive through. */
@@ -787,6 +840,8 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
         vehicle: friend.vehicle,
         mode: friend.mode,
         bay: friend.bay,
+        /** The circles round it that things bump into, a lorry's trailer too. */
+        outline: friend.circles.slice(0, friend.used).map(({ x, z, radius }) => ({ x, z, radius })),
         x: friend.x,
         z: friend.z,
         heading: friend.heading,

@@ -18,6 +18,7 @@ import {
   TRACK_ROCKS,
   CAMP_TRAIL,
   TRACKS,
+  DRIVEWAYS,
   RAILWAY,
   RAIL_GRADE,
   LEVEL_CROSSING,
@@ -489,6 +490,8 @@ const ringLevels = levelAlong(RING_ROAD, PAVED_WIDTH, 10, { window: 30, banks: 1
 const GRAVEL_GRADE = { window: 24, banks: 1.2, grade: 0.12 };
 const outerLevels = levelAlong(OUTER_ROAD, GRAVEL_WIDTH, 10, GRAVEL_GRADE);
 const railProfile = levelRailway();
+// The driveways run from their forecourts down to the road; the pads after them level the forecourts.
+for (const { path, halfWidth } of DRIVEWAYS) levelAlong(path, () => halfWidth + 0.6, 6, { grade: 0.12 });
 // Pads come after the side tracks so the tracks run up onto level ground.
 flattenPads();
 

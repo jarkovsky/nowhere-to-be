@@ -41,6 +41,8 @@ import {
   GRAVEL_HALF_WIDTH,
   onAirfield,
   onPaved,
+  onDriveway,
+  onForecourt,
   onGravel,
   rockiness,
   surfaceAt,
@@ -85,6 +87,7 @@ function surfaceUnder(x, z) {
   if (snowCover(x, z) > 0.5) return 'snow';
   if (ROAD.isNear(x, z, ROAD_HALF_WIDTH + 0.6) || CAMP_TRAIL.isNear(x, z, 2.6)) return 'road';
   if (onPaved(x, z, ROAD_HALF_WIDTH + 0.6) || onAirfield(x, z)) return 'road';
+  if (onDriveway(x, z, 0.4) || onForecourt(x, z)) return 'road';
   if (onGravel(x, z, GRAVEL_HALF_WIDTH + 0.4)) return 'track';
   if (rockiness(x, z) > 0.5) return 'rock';
   if (TRACKS.some(track => track.path.isNear(x, z, 2))) return 'track';
@@ -164,8 +167,12 @@ export function createGame(canvas) {
   const pictures = createVehiclePictures(renderer, { onReady: () => ui.showPictures() });
   // The map's picture is only painted once the map or the minimap is first wanted.
   const mapPicture = createMapPicture();
-  const mapView = createMapView(document.querySelector('[data-page="map"]'), mapPicture, state);
-  const minimap = createMinimap(document.getElementById('corner-map'), mapPicture, state);
+  // The place picked on the map to go to, which the minimap points the way to.
+  const target = { place: null };
+  const mapView = createMapView(document.querySelector('[data-page="map"]'), mapPicture, state, target, () =>
+    minimap.refresh(),
+  );
+  const minimap = createMinimap(document.getElementById('corner-map'), mapPicture, state, target);
   const ui = createUI({
     journal,
     gnomeCount: GNOMES.length,

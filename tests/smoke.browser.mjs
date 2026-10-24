@@ -215,7 +215,7 @@ try {
   await page.keyboard.down('ArrowDown');
   await page.waitForTimeout(2500);
   await page.keyboard.up('ArrowDown');
-  const along = (await state(page)).friends.find(friend => friend.vehicle === asked[0].vehicle);
+  const along = (await state(page)).friends.find(friend => friend.bay === asked[0].bay);
   assert.ok(Math.hypot(along.x - asked[0].x, along.z - asked[0].z) > 1, 'it pulls out after the car');
   step('F by the depot asks the nearest friend along, and it follows');
 
@@ -247,11 +247,12 @@ try {
     const friend = friends.find(f => f.bay === 1);
     const camera = window.__game.debug.camera;
     const p = new camera.position.constructor(friend.x, carHeight + 1.2, friend.z).project(camera);
-    return { vehicle: friend.vehicle, x: ((p.x + 1) / 2) * innerWidth, y: ((1 - p.y) / 2) * innerHeight };
+    return { bay: friend.bay, x: ((p.x + 1) / 2) * innerWidth, y: ((1 - p.y) / 2) * innerHeight };
   });
   await phone.touchscreen.tap(target.x, target.y);
   await phone.waitForTimeout(300);
-  const tapped = (await state(phone)).friends.find(friend => friend.vehicle === target.vehicle);
+  // Two lorries wait there, so the bay tells them apart.
+  const tapped = (await state(phone)).friends.find(friend => friend.bay === target.bay);
   assert.equal(tapped.mode, 'following');
   step('a tap on a friend at the depot asks it along');
 
