@@ -164,8 +164,12 @@ export function createGame(canvas) {
   const pictures = createVehiclePictures(renderer, { onReady: () => ui.showPictures() });
   // The map's picture is only painted once the map or the minimap is first wanted.
   const mapPicture = createMapPicture();
-  const mapView = createMapView(document.querySelector('[data-page="map"]'), mapPicture, state);
-  const minimap = createMinimap(document.getElementById('corner-map'), mapPicture, state);
+  // The place picked on the map to go to, which the minimap points the way to.
+  const target = { place: null };
+  const mapView = createMapView(document.querySelector('[data-page="map"]'), mapPicture, state, target, () =>
+    minimap.refresh(),
+  );
+  const minimap = createMinimap(document.getElementById('corner-map'), mapPicture, state, target);
   const ui = createUI({
     journal,
     gnomeCount: GNOMES.length,

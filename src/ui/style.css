@@ -1001,6 +1001,14 @@ body.touch .keys {
   stroke: none;
 }
 
+/* The place picked to go to: a wide orange ring, and on top of the others. */
+.map-place.chosen {
+  box-shadow:
+    0 0 0 4px #e8813a,
+    0 2px 8px rgba(30, 50, 40, 0.4);
+  z-index: 1;
+}
+
 .map-place.tucked {
   opacity: 0;
   pointer-events: none;
