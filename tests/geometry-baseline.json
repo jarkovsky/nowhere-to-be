@@ -52,8 +52,8 @@
   },
   "landmark.fields": {
     "one-sided": 1,
-    "flicker": 22,
-    "sinks": 3
+    "flicker": 20,
+    "sinks": 11
   },
   "landmark.rockgate": {
     "gap-under": 1,

@@ -24,6 +24,27 @@ function framedWindow(parts, at, lx, ly, lz, extra) {
   parts.box(0.8, 0.9, 0.1, GLASS, at(lx, ly, lz + 0.03, extra));
 }
 
+let tufted = null;
+
+/** A tuft of long grass: blades leaning out from one root, each with a face on both sides. */
+function tuft() {
+  if (tufted) return tufted;
+  const corners = [];
+  for (let k = 0; k < 6; k++) {
+    const a = k * 2.4;
+    const [dx, dz] = [Math.cos(a), Math.sin(a)];
+    const height = 0.38 + (k % 3) * 0.08;
+    const [left, right] = [
+      [-dz * 0.05, 0, dx * 0.05],
+      [dz * 0.05, 0, -dx * 0.05],
+    ];
+    const top = [dx * 0.32 * height, height, dz * 0.32 * height];
+    corners.push(left, right, top, right, left, top);
+  }
+  tufted = prism(corners);
+  return tufted;
+}
+
 /** A wooden house with its long side to the water, white trim and a grass roof. */
 function house(parts, obstacles, spot) {
   const { at, local, ground } = framer(spot);
@@ -37,9 +58,7 @@ function house(parts, obstacles, spot) {
   parts.add(gableEnds(depth, width, eave + 0.2, ridge), spot.paint, at(0, 0, 0, turned));
   parts.add(gableRoof(depth, width, eave + 0.15, ridge + 0.05, 0.45), TURF, at(0, 0, 0, turned));
   // Tufts along the ridge, where the grass grows longest.
-  for (let k = -3; k <= 3; k++) {
-    parts.add(new THREE.ConeGeometry(0.28, 0.5, 4), '#7f9a52', at(k * 1.05, ridge + 0.2, 0, { ry: k }));
-  }
+  for (let k = -3; k <= 3; k++) parts.add(tuft(), '#7f9a52', at(k * 1.05, ridge - 0.02, 0, { ry: k }));
   for (const side of [-1, 1]) {
     for (const end of [-1, 1])
       parts.box(0.18, eave, 0.18, WHITE, at(side * (width / 2), eave / 2 + 0.2, end * (depth / 2)));
