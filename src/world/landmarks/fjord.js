@@ -26,10 +26,13 @@ function framedWindow(parts, at, lx, ly, lz, extra) {
 
 /** A wooden house with its long side to the water, white trim and a grass roof. */
 function house(parts, obstacles, spot) {
-  const { at, local } = framer(spot);
+  const { at, local, ground } = framer(spot);
   const turned = { ry: spot.rotation + Math.PI / 2 };
   const [width, depth, eave, ridge] = [7.5, 5.6, 3.3, 5.6];
-  parts.box(width + 0.4, 0.6, depth + 0.4, STONE, at(0, 0, 0));
+  // The stone footing goes down to the ground at the lowest corner, where the slope falls away.
+  const corners = [-1, 1].flatMap(sx => [-1, 1].map(sz => ground((sx * (width + 0.4)) / 2, (sz * (depth + 0.4)) / 2)));
+  const drop = ground(0, 0) - Math.min(...corners);
+  parts.box(width + 0.4, 0.6 + drop, depth + 0.4, STONE, at(0, -drop / 2, 0));
   parts.box(width, eave, depth, spot.paint, at(0, eave / 2 + 0.2, 0));
   parts.add(gableEnds(depth, width, eave + 0.2, ridge), spot.paint, at(0, 0, 0, turned));
   parts.add(gableRoof(depth, width, eave + 0.15, ridge + 0.05, 0.45), TURF, at(0, 0, 0, turned));
