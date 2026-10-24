@@ -31,7 +31,7 @@ function fireStation(parts, obstacles, frame) {
   // Two big red doors onto the apron.
   for (const lx of [-2.6, 2.2]) {
     parts.box(3.4, 3.4, 0.12, RED, at(lx, 1.8, 1.02));
-    for (let k = 1; k < 4; k++) parts.box(3.4, 0.05, 0.14, '#9e2620', at(lx, 0.1 + k * 0.85, 1.04));
+    for (let k = 1; k < 4; k++) parts.box(3.36, 0.05, 0.14, '#9e2620', at(lx, 0.1 + k * 0.85, 1.04));
   }
   parts.box(width, 0.12, 7, '#b9b6ab', at(0, 0.02, 4.5)); // concrete apron
   // The hose tower, with slatted openings near the top, a pyramid roof and the siren above.
@@ -73,7 +73,9 @@ function pond(scene, parts, obstacles) {
     const a = (k / stones) * Math.PI * 2;
     const sx = x + Math.cos(a) * (radius + 0.9);
     const sz = z + Math.sin(a) * (radius + 0.9);
-    parts.box(1.9, 0.3, 0.9, k % 3 ? '#a7a497' : '#8f8c80', { x: sx, y: level + 0.2, z: sz, ry: -a + Math.PI / 2 });
+    // Flat stones set into the ground, which the car rolls over.
+    const top = Math.max(level + 0.08, terrainHeight(sx, sz) + 0.08);
+    parts.box(1.9, 0.3, 0.9, k % 3 ? '#a7a497' : '#8f8c80', { x: sx, y: top - 0.15, z: sz, ry: -a + Math.PI / 2 });
   }
   // Facing the water.
   const bench = framer({ x: x + radius + 4, z, rotation: -Math.PI / 2 });

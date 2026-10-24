@@ -21,7 +21,7 @@ const DRAW_DISTANCE = 260;
  * eat. Speeds are in metres a second, `shy` how close a car may come before they run, and
  * `frisky` how often one runs for the fun of it. `call` is the sound a honk gets back.
  */
-const KINDS = {
+export const KINDS = {
   horse: {
     body: p => p.box(2, 0.85, 0.72, '#8a5532', { y: 1.6 }).box(0.16, 0.9, 0.18, DARK, { x: -1.08, y: 1.35, rz: -0.25 }),
     head: p =>

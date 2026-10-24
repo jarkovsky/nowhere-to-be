@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { buildBridge } from './bridge.js';
 import { buildTunnel } from './tunnel.js';
 import { buildWaterfall } from './waterfall.js';
@@ -27,33 +28,49 @@ import { HELIPAD, KRYSTOF } from '../layout.js';
 
 export { insideTunnel } from './tunnel.js';
 
-/** Builds every landmark. Returns meshes the camera must not pass through. */
+/**
+ * Builds every landmark, each in a group of its own named after it, which keeps the obstacles
+ * it adds in `userData.obstacles` (for the object viewer). Returns meshes the camera must not
+ * pass through.
+ */
 export function buildLandmarks(scene, obstacles) {
-  buildBridge(scene, obstacles);
-  const tunnel = buildTunnel(scene, obstacles);
-  const waterfall = buildWaterfall(scene, obstacles);
-  const camps = buildCampsites(scene, obstacles);
-  const farm = buildFarm(scene, obstacles);
-  const tower = buildTower(scene, obstacles);
-  const windmill = buildWindmill(scene, obstacles);
-  const jetty = buildJetty(scene, obstacles);
-  buildOxbow(scene, obstacles);
-  const hut = buildHut(scene, obstacles);
-  buildBunkers(scene, obstacles);
-  const crossing = buildRailway(scene, obstacles);
-  const roadworks = buildRoadworks(scene, obstacles);
-  const helipads = [HELIPAD, KRYSTOF.pad].map(pad => buildHelipad(scene, obstacles, pad));
-  buildChapel(scene, obstacles);
-  buildSummit(scene, obstacles);
-  const fields = buildFields(scene, obstacles);
-  const airfield = buildAirfield(scene, obstacles);
-  const gate = buildRockGate(scene, obstacles);
-  const fjord = buildFjord(scene, obstacles);
-  const farms = buildFarms(scene, obstacles);
-  const village = buildVillage(scene, obstacles);
-  const depot = buildDepot(scene, obstacles);
-  buildHeaps(scene);
-  buildSigns(scene, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard });
+  const own = (name, build) => {
+    const group = new THREE.Group();
+    group.name = name;
+    scene.add(group);
+    const before = obstacles.length;
+    const result = build(group, obstacles);
+    group.userData.obstacles = obstacles.slice(before);
+    return result;
+  };
+  own('bridge', buildBridge);
+  const tunnel = own('tunnel', buildTunnel);
+  const waterfall = own('waterfall', buildWaterfall);
+  const camps = own('camp', buildCampsites);
+  const farm = own('farm', buildFarm);
+  const tower = own('tower', buildTower);
+  const windmill = own('windmill', buildWindmill);
+  const jetty = own('jetty', buildJetty);
+  own('oxbow', buildOxbow);
+  const hut = own('hut', buildHut);
+  own('bunkers', buildBunkers);
+  const crossing = own('railway', buildRailway);
+  const roadworks = own('roadworks', buildRoadworks);
+  const helipads = [
+    own('helipad', (group, list) => buildHelipad(group, list, HELIPAD)),
+    own('krystofPad', (group, list) => buildHelipad(group, list, KRYSTOF.pad)),
+  ];
+  own('chapel', buildChapel);
+  own('summit', buildSummit);
+  const fields = own('fields', buildFields);
+  const airfield = own('airfield', buildAirfield);
+  const gate = own('rockgate', buildRockGate);
+  const fjord = own('fjord', buildFjord);
+  const farms = own('farms', buildFarms);
+  const village = own('village', buildVillage);
+  const depot = own('depot', buildDepot);
+  own('heaps', group => buildHeaps(group));
+  own('signs', group => buildSigns(group, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard }));
 
   let time = 0;
   const machines = [];

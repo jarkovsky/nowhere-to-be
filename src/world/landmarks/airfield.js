@@ -44,61 +44,79 @@ export function buildAirfield(scene, obstacles) {
   patch(548, rx - 2, taxiZ - 0.15, taxiZ + 0.15, YELLOW, 0.07);
   patch(560, 560.3, 168, taxiZ, YELLOW, 0.07);
   patch(540, 540.3, 152, 172, YELLOW, 0.07);
-  scene.add(flat.mesh({ castShadow: false }));
 
   const parts = new PartsBuilder();
 
   const shed = new PartsBuilder();
-  // The hangar: a curved metal roof over a concrete base, open at the end facing the apron.
+  // The hangar: a curved metal roof on low concrete kerbs, with a floor level with the apron
+  // and a wide door in the arched end facing it. The roof, its ribs and the end walls are
+  // solid shapes swept along the hangar, so they have both faces and no edges to see through.
   const length = 18;
   const radius = 9;
   const hx = hangar.x;
   const hz = hangar.z;
-  shed.box(length + 0.6, 0.4, radius * 2 + 0.6, '#a7a397', { x: hx, y: y + 0.2, z: hz });
-  // The roof, and its underside seen from inside (mirrored so it faces in).
-  for (const [r, color, flip] of [
-    [radius, '#b9c0bc', 1],
-    [radius - 0.15, '#8d948f', -1],
-  ]) {
-    shed.add(new THREE.CylinderGeometry(r, r, length, 12, 1, true, 0, Math.PI), color, {
-      x: hx,
-      y: y + 0.4,
-      z: hz,
-      rz: Math.PI / 2,
-      sy: flip,
-    });
-  }
+  const base = y + 0.3; // where the arch springs from, on top of the kerbs
+  const door = { half: 6.5, height: 5.6 };
+  /** An arch between two radii (or a half disc, with no inner one) in the hangar's cross-section, `depth` thick along it. */
+  const arch = (outer, inner, depth, opening) => {
+    const shape = new THREE.Shape();
+    shape.absarc(0, 0, outer, Math.PI, 0, true);
+    if (opening) {
+      shape.lineTo(opening.half, 0);
+      shape.lineTo(opening.half, opening.height);
+      shape.lineTo(-opening.half, opening.height);
+      shape.lineTo(-opening.half, 0);
+    } else if (inner) {
+      shape.lineTo(inner, 0);
+      shape.absarc(0, 0, inner, 0, Math.PI, false);
+    }
+    shape.closePath();
+    // Twelve straight pieces round the half circle, like the roof's metal sheets.
+    return new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 6 });
+  };
+  // Swept along +X from `x`: the shape's own X runs across the hangar (along Z) and Y up.
+  const along = (x, extra = {}) => ({ x, y: base, z: hz, ry: Math.PI / 2, ...extra });
+  const shade = (outside, inside) => (_x, py, pz) =>
+    Math.hypot(py - base, pz - hz) > radius - 0.08 ? outside : inside;
+  shed.add(arch(radius, radius - 0.15, length), shade('#b9c0bc', '#8d948f'), along(hx - length / 2));
   for (let k = -2; k <= 2; k++) {
-    // Ribs over the roof.
-    shed.add(new THREE.CylinderGeometry(radius + 0.06, radius + 0.06, 0.25, 12, 1, true, 0, Math.PI), '#9aa29d', {
-      x: hx + (k * length) / 5,
-      y: y + 0.4,
-      z: hz,
-      rz: Math.PI / 2,
+    shed.add(arch(radius + 0.08, radius - 0.02, 0.25), '#9aa29d', along(hx + (k * length) / 5 - 0.125));
+  }
+  // The closed back wall, and the front with its door, framed round the arch.
+  shed.add(arch(radius - 0.1, 0, 0.15), '#d8d3c3', along(hx - length / 2 + 0.05));
+  shed.add(arch(radius - 0.1, 0, 0.2, door), '#d8d3c3', along(hx + length / 2 - 0.3));
+  shed.add(arch(radius + 0.12, radius - 0.3, 0.4), '#c9c3b2', along(hx + length / 2 - 0.2));
+  shed.box(0.3, 0.35, door.half * 2 + 0.2, '#c9c3b2', {
+    x: hx + length / 2 - 0.2,
+    y: y + door.height + 0.3 + 0.15,
+    z: hz,
+  });
+  for (const side of [-1, 1]) {
+    shed.box(0.3, door.height + 0.3, 0.3, '#c9c3b2', {
+      x: hx + length / 2 - 0.2,
+      y: y + (door.height + 0.3) / 2,
+      z: hz + side * (door.half + 0.13),
+    });
+    // Kerbs under the long sides, and under the front wall either side of the door.
+    shed.box(length + 0.4, 0.4, 0.6, '#a7a397', { x: hx, y: y + 0.1, z: hz + side * radius });
+    shed.box(0.6, 0.4, radius - door.half - 0.3, '#a7a397', {
+      x: hx + length / 2 - 0.2,
+      y: y + 0.1,
+      z: hz + (side * (radius + door.half + 0.3)) / 2,
     });
   }
-  // The closed back wall, and a frame round the open front.
-  for (const [offset, turn] of [
-    [0.05, -Math.PI / 2],
-    [0.2, Math.PI / 2],
-  ]) {
-    shed.add(new THREE.CircleGeometry(radius, 12, 0, Math.PI), '#d8d3c3', {
-      x: hx - length / 2 + offset,
-      y: y + 0.4,
-      z: hz,
-      ry: turn,
-    });
-  }
-  for (const side of [-1, 1]) shed.box(0.5, 6, 0.5, '#d8d3c3', { x: hx + length / 2, y: y + 3.2, z: hz + side * 8.6 });
-  shed.box(0.5, 0.6, 17.6, '#d8d3c3', { x: hx + length / 2, y: y + 6.3, z: hz });
+  shed.box(0.6, 0.4, radius * 2 + 0.6, '#a7a397', { x: hx - length / 2, y: y + 0.1, z: hz });
+  // The floor, level with the apron and joined to it by a strip of concrete.
+  shed.box(length, 0.1, radius * 2 - 0.6, '#a7a397', { x: hx, y: y + 0.01, z: hz });
+  patch(hx + length / 2, apron.x0 + 0.5, hz - door.half - 1.5, hz + door.half + 1.5, CONCRETE, 0.05);
   // Inside: a workbench and an oil drum.
-  shed.box(1, 1, 4, '#8a6c4c', { x: hx - length / 2 + 1.2, y: y + 0.9, z: hz + 4 });
+  shed.box(1, 1, 4, '#8a6c4c', { x: hx - length / 2 + 1.2, y: y + 0.56, z: hz + 4 });
   shed.add(new THREE.CylinderGeometry(0.35, 0.35, 0.9, 10), '#3f6aa1', {
     x: hx - length / 2 + 1.4,
-    y: y + 0.85,
+    y: y + 0.51,
     z: hz - 5,
   });
-  // Walls to bump into: the back and both sides, but the front is open to drive in.
+  // Walls to bump into: the back, both sides and the front either side of the door.
   for (const side of [-1, 1]) {
     obstacles.push({
       ax: hx - length / 2,
@@ -107,8 +125,17 @@ export function buildAirfield(scene, obstacles) {
       bz: hz + side * (radius - 0.4),
       radius: 0.5,
     });
+    obstacles.push({
+      ax: hx + length / 2 - 0.2,
+      az: hz + side * (door.half + 0.5),
+      bx: hx + length / 2 - 0.2,
+      bz: hz + side * (radius - 0.4),
+      radius: 0.45,
+    });
   }
   obstacles.push({ ax: hx - length / 2, az: hz - radius, bx: hx - length / 2, bz: hz + radius, radius: 0.5 });
+
+  scene.add(flat.mesh({ castShadow: false }));
 
   // The control tower: an office at the bottom, a slim stem and a glass cab on top.
   const { x: tx, z: tz } = tower;

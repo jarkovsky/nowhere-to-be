@@ -32,7 +32,7 @@ const GLASS = '#3d5560';
 const DARK = '#353a37';
 
 /** One railbus, built along local Z with a driving cab at each end. */
-function railbus() {
+export function railbus() {
   const parts = new PartsBuilder();
   const half = CAR_LENGTH / 2;
   parts.box(2.3, 0.55, CAR_LENGTH - 2, DARK, { y: 0.8 }); // underframe
