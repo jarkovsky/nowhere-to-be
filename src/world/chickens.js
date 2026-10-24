@@ -70,7 +70,6 @@ export function createChickens(scene) {
   let time = 0;
 
   return {
-    /** How close the nearest chicken is. */
     /** A honk sends the nearby ones running. Returns true if any heard it. */
     hearHorn(x, z) {
       let heard = false;
