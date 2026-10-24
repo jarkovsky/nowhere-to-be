@@ -300,6 +300,8 @@ export function createMapView(page, picture, car, target = { place: null }, onPi
     },
     close() {
       open = false;
+      // Whatever is left of the picture goes back to being painted a little at a time.
+      if (!picture.canvas) picture.prepare(4);
       pointers.clear();
       tap = null;
       moving = false;

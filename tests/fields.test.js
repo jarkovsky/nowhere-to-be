@@ -74,10 +74,9 @@ test('the machines take turns where their headlands meet, and never run into eac
         if (a.kind === b.kind) continue;
         // They keep a little room between them, not just out of each other.
         const gap = Math.hypot(a.x - b.x, a.z - b.z) - a.radius - b.radius;
-        assert.ok(
-          gap >= 0.2,
-          `the ${a.kind} and the ${b.kind} come within ${gap.toFixed(2)} m at ${time.toFixed(1)} s`,
-        );
+        // The messages are only made on failure: this runs millions of times.
+        if (!(gap >= 0.2))
+          assert.fail(`the ${a.kind} and the ${b.kind} come within ${gap.toFixed(2)} m at ${time.toFixed(1)} s`);
       }
       // In the farmland's frame, clear of every field but its own.
       const lx = (a.x - FIELDS.x) * cos - (a.z - FIELDS.z) * sin;
@@ -85,7 +84,7 @@ test('the machines take turns where their headlands meet, and never run into eac
       for (const plot of Object.values(FIELD_PLOTS)) {
         if (plot === plots[a.kind]) continue;
         const out = Math.max(plot.x0 - lx, lx - plot.x1, plot.z0 - lz, lz - plot.z1);
-        assert.ok(out >= a.radius, `the ${a.kind} is in another field at ${time.toFixed(1)} s`);
+        if (!(out >= a.radius)) assert.fail(`the ${a.kind} is in another field at ${time.toFixed(1)} s`);
       }
     }
     const state = fields.getState();

@@ -44,7 +44,7 @@ export function createMinimap(button, picture, car, target = { place: null }) {
   }
 
   function draw() {
-    if (!size) measure();
+    // Hidden (at camp, say), it has no size, and is measured again when it shows.
     if (!size) return;
     const r = size / 2;
     const s = r / REACH;
@@ -119,11 +119,11 @@ export function createMinimap(button, picture, car, target = { place: null }) {
     draws++;
   }
 
-  window.addEventListener('resize', () => {
+  new ResizeObserver(() => {
     if (!shown) return;
     measure();
     draw();
-  });
+  }).observe(button);
 
   return {
     /** Shows or hides it. The map's picture is painted, a little each frame, the first time it shows. */
@@ -137,7 +137,7 @@ export function createMinimap(button, picture, car, target = { place: null }) {
     },
     /** Called every frame; it draws when it's due and the car has moved or turned. */
     update(now) {
-      if (!shown || now - lastDraw < EVERY) return;
+      if (!shown || !size || now - lastDraw < EVERY) return;
       if (last && last.x === car.x && last.z === car.z && last.heading === car.heading) return;
       lastDraw = now;
       draw();

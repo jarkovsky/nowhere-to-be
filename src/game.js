@@ -694,7 +694,10 @@ export function createGame(canvas) {
         renderer.render(scene, camera);
       }
       needsRender = false;
+      // Paused, the world stands still: no rotors or sirens carrying on at their last level.
       sound.update({ speed: 0, engineOn: false, active: !document.hidden, rain: 0 });
+      sound.rotor(0, 0);
+      sound.siren(0);
       return;
     }
     clock += dt;

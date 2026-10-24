@@ -567,7 +567,7 @@ function* paintPicture() {
 /**
  * The map's picture, `SIZE` pixels square, covering MAP_EXTENT metres each way from the middle.
  * `canvas` is null until it is painted. `prepare(ms)` paints it over the next frames, about `ms`
- * of each, and resolves with the canvas; `finish()` paints whatever is left at once.
+ * of each (the latest asked for), and resolves with the canvas.
  */
 export function createMapPicture() {
   let canvas = null;
@@ -595,13 +595,12 @@ export function createMapPicture() {
       return canvas;
     },
     prepare(ms = 6) {
-      budget = Math.max(budget, ms);
+      budget = ms;
       waiting ??= new Promise(resolve => {
         const next = () => (step(budget) ? resolve(canvas) : requestAnimationFrame(next));
         requestAnimationFrame(next);
       });
       return waiting;
     },
-    finish: () => step(Infinity),
   };
 }

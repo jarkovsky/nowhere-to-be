@@ -1,7 +1,7 @@
 // Small surprises: a shy yeti in the snowfield, a hot-air balloon drifting
 // over the valley, and an owl that sits on the fire tower at night.
 import * as THREE from 'three';
-import { damp } from '../core/math.js';
+import { angleDelta, damp } from '../core/math.js';
 import { YETI, TOWER } from './layout.js';
 import { terrainHeight } from './terrain.js';
 import { PartsBuilder } from './build.js';
@@ -162,7 +162,9 @@ export function createSecrets(scene, { onCall = () => {} } = {}) {
       if (dark) {
         const look = Math.atan2(perch.x - player.x, perch.z - player.z);
         const glance = Math.sin(time * 0.4) > 0.85 ? 1.2 : 0;
-        owl.head.rotation.y = damp(owl.head.rotation.y, look + glance, 3, dt);
+        // The short way round, even where the angle to the player jumps from one side to the other.
+        const turn = angleDelta(owl.head.rotation.y, look + glance);
+        owl.head.rotation.y = damp(owl.head.rotation.y, owl.head.rotation.y + turn, 3, dt);
       }
     },
   };

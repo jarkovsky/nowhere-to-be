@@ -42,6 +42,7 @@ const KONAMI = [
  * isDriving() says whether driving input should be accepted right now.
  */
 export function createControls({ touchRoot, tilt, onAction, isDriving }) {
+  /** The driving keys held down, by code: W and the up arrow can both be held for forward. */
   const held = new Set();
   const touches = new Map();
   let konami = 0;
@@ -64,10 +65,10 @@ export function createControls({ touchRoot, tilt, onAction, isDriving }) {
     }
     if (DRIVE_KEYS[event.code] && isDriving()) {
       event.preventDefault();
-      held.add(DRIVE_KEYS[event.code]);
+      held.add(event.code);
     }
   });
-  window.addEventListener('keyup', event => held.delete(DRIVE_KEYS[event.code]));
+  window.addEventListener('keyup', event => held.delete(event.code));
 
   for (const button of touchRoot.querySelectorAll('[data-control]')) {
     const control = button.dataset.control;
@@ -109,7 +110,7 @@ export function createControls({ touchRoot, tilt, onAction, isDriving }) {
     },
     /** The current driving input for stepDriving(). */
     read() {
-      const pressed = name => held.has(name) || [...touches.values()].includes(name);
+      const pressed = name => [...held].some(code => DRIVE_KEYS[code] === name) || [...touches.values()].includes(name);
       const motion = tilt.getState();
       return {
         forward: pressed('forward'),
