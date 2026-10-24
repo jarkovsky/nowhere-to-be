@@ -81,6 +81,21 @@ test('obstacles cannot be driven through, and glancing contact slides past', () 
   assert.ok(sliding.z < -25, 'keeps moving along it');
 });
 
+test('a car caught on two walls in the same place is pushed out of them once, not twice', () => {
+  const wall = { ax: -20, az: -1, bx: 20, bz: -1, radius: 0.3 };
+  const once = drive(createCarState(START), {}, 0.1, flatWorld({ obstacles: [wall] }));
+  const twice = drive(createCarState(START), {}, 0.1, flatWorld({ obstacles: [wall, { ...wall }] }));
+  assert.ok(Math.abs(once.z - twice.z) < 1e-6, `${once.z} and ${twice.z}`);
+});
+
+test('a step with no time in it leaves the car as it was', async () => {
+  const { stepDriving } = await import('../src/core/driving.js');
+  for (const dt of [0, -0.01, NaN]) {
+    const car = stepDriving(createCarState(START), { brake: true }, dt, flatWorld());
+    assert.deepEqual([car.x, car.z, car.heading, car.speed], [0, 0, 0, 0]);
+  }
+});
+
 test('water and the valley edge stop the car without trapping it', () => {
   const isDriveable = (x, z) => z > -10;
   const car = drive(createCarState(START), { forward: true }, 4, flatWorld({ isDriveable }));

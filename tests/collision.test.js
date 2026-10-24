@@ -22,10 +22,47 @@ test('penetration pushes a circle out of circles and capsules', () => {
   assert.ok(side.nz === 1 && Math.abs(side.depth - 0.4) < 1e-9);
 });
 
+test("penetration pushes a circle on a capsule's middle line out to one side, not along it", () => {
+  const hit = penetration(0, 0, 1.15, { ax: -10, az: 0, bx: 10, bz: 0, radius: 0.25 });
+  assert.ok(Math.abs(hit.nx) < 1e-12);
+  assert.equal(Math.abs(hit.nz), 1);
+  assert.ok(Math.abs(hit.depth - 1.4) < 1e-9);
+});
+
+test('a box pushes a circle out of the side it is nearest, turned however the box is', () => {
+  const box = { x: 10, z: 5, halfX: 4, halfZ: 2, rotation: 0, radius: 0 };
+  // Beside the long side, the end and a corner.
+  const side = penetration(10, 7.5, 1, box);
+  assert.ok(Math.abs(side.nz - 1) < 1e-9 && Math.abs(side.depth - 0.5) < 1e-9);
+  const end = penetration(14.5, 5, 1, box);
+  assert.ok(Math.abs(end.nx - 1) < 1e-9 && Math.abs(end.depth - 0.5) < 1e-9);
+  const corner = penetration(14.5, 7.5, 1, box);
+  assert.ok(Math.abs(corner.nx - Math.SQRT1_2) < 1e-9 && Math.abs(corner.depth - (1 - Math.SQRT1_2)) < 1e-9);
+  assert.equal(penetration(16, 5, 1, box), null);
+  // Inside it, out through the nearest side.
+  const inside = penetration(10, 6.5, 1, box);
+  assert.ok(Math.abs(inside.nz - 1) < 1e-9 && Math.abs(inside.depth - 1.5) < 1e-9);
+  // Turned a quarter, its long side runs along Z, like a localFrame turned the same way.
+  const turned = { ...box, rotation: Math.PI / 2 };
+  const along = penetration(10, 9.5, 1, turned);
+  assert.ok(along && Math.abs(along.nz - 1) < 1e-9 && Math.abs(along.depth - 0.5) < 1e-9);
+  assert.equal(penetration(13.5, 5, 1, turned), null);
+  // Rounded edges reach further.
+  assert.ok(penetration(16, 5, 1, { ...box, radius: 1.2 }));
+});
+
+test('the obstacle index finds boxes along their whole length', () => {
+  const box = { x: 0, z: 0, halfX: 30, halfZ: 1, rotation: Math.PI / 4, radius: 0 };
+  const index = createObstacleIndex([box]);
+  assert.ok([...index.near(20, -20, 1)].includes(box));
+  assert.ok(![...index.near(60, 60, 1)].includes(box));
+});
+
 test('a circle that touches an obstacle is always within reach of its bounds', () => {
   const obstacles = [
     { x: 2, z: -1, radius: 1.15 },
     { ax: -3, az: 4, bx: 6, bz: -2, radius: 0.6 },
+    { x: 1, z: 0, halfX: 3, halfZ: 1.5, rotation: 0.6, radius: 0.3 },
   ];
   for (const obstacle of obstacles) {
     let touching = 0;

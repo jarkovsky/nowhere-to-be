@@ -88,7 +88,9 @@ export function placeCar(state, place) {
  *          waterDepth(x, z) (optional) }
  */
 export function stepDriving(state, input, dt, world) {
-  dt = clamp(dt, 0, 0.05);
+  // No time, no movement: and it would divide by zero below.
+  if (!(dt > 0)) return state;
+  dt = Math.min(dt, 0.05);
   const handling = SURFACE_HANDLING[world.surface(state.x, state.z)] ?? SURFACE_HANDLING.grass;
   const sin = Math.sin(state.heading);
   const cos = Math.cos(state.heading);
@@ -161,8 +163,11 @@ export function stepDriving(state, input, dt, world) {
   const resolve = obstacle => {
     const hit = penetration(cx, cz, CAR.bodyRadius, obstacle);
     if (!hit) return;
+    // The circle goes with the car, so the next obstacle is tried where it is now.
     x += hit.nx * hit.depth;
     z += hit.nz * hit.depth;
+    cx += hit.nx * hit.depth;
+    cz += hit.nz * hit.depth;
     const into = state.vx * hit.nx + state.vz * hit.nz;
     if (into < 0) {
       state.impact = Math.max(state.impact, -into);

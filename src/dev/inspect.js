@@ -8,6 +8,7 @@
 // Everything works on the meshes as built: the parts merged into one mesh are found again
 // as the separate pieces of geometry they were made from (pieces that share no corners).
 import * as THREE from 'three';
+import { penetration } from '../core/collision.js';
 
 /** How close two parts must come to count as touching, in metres. */
 const TOUCH = 0.03;
@@ -437,14 +438,7 @@ function sinks(parts, ground, drivable, obstacles) {
 }
 
 function inside(obstacle, x, z) {
-  let [cx, cz] = [obstacle.x, obstacle.z];
-  if ('ax' in obstacle) {
-    const dx = obstacle.bx - obstacle.ax;
-    const dz = obstacle.bz - obstacle.az;
-    const t = Math.max(0, Math.min(1, ((x - obstacle.ax) * dx + (z - obstacle.az) * dz) / (dx * dx + dz * dz || 1)));
-    [cx, cz] = [obstacle.ax + dx * t, obstacle.az + dz * t];
-  }
-  return Math.hypot(x - cx, z - cz) < obstacle.radius + 0.6;
+  return penetration(x, z, 0.6, obstacle) !== null;
 }
 
 /**

@@ -373,6 +373,28 @@ function obstacleLines(obstacles) {
           colors.push(tint.r, tint.g, tint.b);
         }
       }
+    } else if ('halfX' in o) {
+      // The box's outline, its corners rounded by its radius, worked out in its own frame.
+      const [cos, sin] = [Math.cos(o.rotation), Math.sin(o.rotation)];
+      const outline = [];
+      for (const [sx, sz, start] of [
+        [1, 1, 0],
+        [-1, 1, Math.PI / 2],
+        [-1, -1, Math.PI],
+        [1, -1, Math.PI * 1.5],
+      ]) {
+        for (let k = 0; k <= 6; k++) {
+          const a = start + (k / 6) * (Math.PI / 2);
+          outline.push([sx * o.halfX + Math.cos(a) * o.radius, sz * o.halfZ + Math.sin(a) * o.radius]);
+        }
+      }
+      outline.forEach((p, i) => {
+        for (const [lx, lz] of [p, outline[(i + 1) % outline.length]]) {
+          const [x, z] = [o.x + lx * cos + lz * sin, o.z - lx * sin + lz * cos];
+          points.push(x, y ?? terrainHeight(x, z) + 0.15, z);
+          colors.push(tint.r, tint.g, tint.b);
+        }
+      });
     } else {
       ring(o.x, o.z, o.radius, 0, Math.PI * 2, y);
     }
