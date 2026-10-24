@@ -3,7 +3,6 @@
 // needed. Merged copies, one mesh each, stand still in the bays and cost little.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { VEHICLES } from '../core/journal.js';
 import { angleDelta, clamp, damp } from '../core/math.js';
 import { createSteering, steer } from '../core/steering.js';
 import { chassisPose, settleWheels } from '../core/suspension.js';
@@ -15,21 +14,13 @@ const flat = () => 0;
 const box = new THREE.Box3();
 const part = new THREE.Box3();
 
-/** A copy of the player's car, without what would make it cost more than it needs to. */
+/**
+ * A copy of the player's car, without what would make it cost more than it needs to: its lamps
+ * glow but cast no beam, and it stays clean, as the mud on the player's car is placed from where
+ * the player's car is and would land in the wrong places on a copy.
+ */
 function createCopy() {
-  const car = createCar();
-  // Another spotlight would change the shaders of everything lit: the copies' lamps glow, but cast no beams.
-  car.body.remove(car.headlight, car.headlight.target);
-  // The mud on the player's car is placed from where the player's car is, so on a copy it would
-  // land in the wrong places. The copies stay clean.
-  const clean = mesh => {
-    if (mesh.isMesh && Object.hasOwn(mesh.material, 'onBeforeCompile')) delete mesh.material.onBeforeCompile;
-  };
-  for (const vehicle of VEHICLES) {
-    car.customize('orange', [], vehicle);
-    car.root.traverse(clean);
-    car.towed.traverse(clean);
-  }
+  const car = createCar({ mud: false, headlight: false });
   car.root.rotation.order = 'YXZ';
   return {
     car,

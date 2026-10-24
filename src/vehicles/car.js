@@ -3,6 +3,7 @@
 // They all drive the same way. Paint is a separate material so the colour can
 // change; everything else on each vehicle is one merged mesh.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PartsBuilder, flatMaterial, prism } from '../world/build.js';
 import { detailMap } from '../world/detail.js';
 
@@ -24,29 +25,31 @@ const GLASS = '#4f6f73';
 const CHROME = '#c9cdc6';
 const DARK = '#2a2e33';
 
-export const WHEEL_RADIUS = 0.59;
+const WHEEL_RADIUS = 0.59;
 
-/** A wheel with a plain hub, or with `holes` an alloy one: a wider rim with a ring of holes round it. */
+/**
+ * A wheel with a plain hub, or with `holes` an alloy one: a wider rim with a ring of holes round
+ * it. The tyre and the hub are one mesh, built along its own Y axis and turned on its side.
+ */
 export function createWheel(radius = WHEEL_RADIUS, width = 0.4, hub = CREAM, holes = 0) {
   const pivot = new THREE.Group();
   const spin = new THREE.Group();
   pivot.add(spin);
-  const tire = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, width, 12), flatMaterial(RUBBER));
-  tire.rotation.z = Math.PI / 2;
-  tire.castShadow = true;
   const rim = holes ? 0.62 : 0.5;
-  const hubParts = new PartsBuilder()
-    .add(new THREE.CylinderGeometry(radius * rim, radius * rim, width + 0.02, 10), hub, { rz: Math.PI / 2 })
-    .add(new THREE.CylinderGeometry(radius * 0.19, radius * 0.19, width + 0.04, 8), METAL, { rz: Math.PI / 2 });
+  const parts = new PartsBuilder()
+    .add(new THREE.CylinderGeometry(radius, radius, width, 12), RUBBER)
+    .add(new THREE.CylinderGeometry(radius * rim, radius * rim, width + 0.02, 10), hub)
+    .add(new THREE.CylinderGeometry(radius * 0.19, radius * 0.19, width + 0.04, 8), METAL);
   for (let i = 0; i < holes; i++) {
     const a = (i / holes) * Math.PI * 2;
-    hubParts.add(new THREE.CylinderGeometry(radius * 0.09, radius * 0.09, width + 0.044, 6), DARK, {
-      y: Math.cos(a) * radius * 0.4,
+    parts.add(new THREE.CylinderGeometry(radius * 0.09, radius * 0.09, width + 0.044, 6), DARK, {
+      x: Math.cos(a) * radius * 0.4,
       z: Math.sin(a) * radius * 0.4,
-      rz: Math.PI / 2,
     });
   }
-  spin.add(tire, hubParts.mesh({ castShadow: false }));
+  const tire = parts.mesh();
+  tire.rotation.z = Math.PI / 2;
+  spin.add(tire);
   return { pivot, spin, tire, radius };
 }
 
@@ -1154,7 +1157,12 @@ function createPopups({ painted, parts, lenses, hinge: [x, y, z] }, paint, glow)
   });
 }
 
-export function createCar() {
+/**
+ * The player's car, able to be any of the garage's vehicles. Without `mud` it stays clean and
+ * shares its materials with the rest of the world; without `headlight` its lamps glow but cast
+ * no beam, as another spotlight would change the shaders of everything lit.
+ */
+export function createCar({ mud = true, headlight: beam = true } = {}) {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -1171,12 +1179,23 @@ export function createCar() {
 
   // The lorry's trailer isn't fixed to the lorry, so it lives beside it in the scene.
   const towed = new THREE.Group();
+
+  // The mud goes on the body, the wheels and the trailers, but not on the lamps or what rides
+  // on the roof. Materials shared with the rest of the world get copies of their own.
+  const muddied = new Map([[paint, mud ? addMud(paint) : paint]]);
+  const muddy = mesh => {
+    if (!mud) return;
+    if (!muddied.has(mesh.material)) muddied.set(mesh.material, addMud(mesh.material.clone()));
+    mesh.material = muddied.get(mesh.material);
+  };
+
+  /** Each vehicle is built the first time it is chosen. */
   const vehicles = {};
-  for (const [name, build] of Object.entries(VEHICLE_BUILDERS)) {
+  function build(name) {
     const painted = new PartsBuilder();
     const trim = new PartsBuilder();
     const cargoParts = new PartsBuilder();
-    const spec = build(painted, trim, cargoParts);
+    const spec = VEHICLE_BUILDERS[name](painted, trim, cargoParts);
     const shell = new THREE.Group();
     if (!painted.isEmpty) shell.add(painted.mesh({ material: paint }));
     shell.add(trim.mesh());
@@ -1191,20 +1210,19 @@ export function createCar() {
     // Pop-up lamps have the lamps in them.
     const popups = spec.popups ? createPopups(spec.popups, paint, headlampMaterial) : [];
     for (const pod of popups) shell.add(pod);
-    for (const side of [-1, 1]) {
-      const { x, y, z, square, radius = 0.19, size = [0.34, 0.18] } = spec.headlamps;
-      const lamp = square
-        ? new THREE.Mesh(new THREE.BoxGeometry(...size, 0.06), headlampMaterial)
-        : new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 0.08, 12).rotateX(Math.PI / 2), headlampMaterial);
-      lamp.position.set(side * x, y, z);
-      const brake = new THREE.Mesh(
-        new THREE.BoxGeometry(...(spec.brakeLights.size ?? [0.23, 0.28]), 0.06),
-        brakeMaterial,
-      );
-      brake.position.set(side * spec.brakeLights.x, spec.brakeLights.y, spec.brakeLights.z);
-      shell.add(brake);
-      if (!spec.popups) shell.add(lamp);
-    }
+    // Each pair of lamps is one mesh.
+    const pair = (geometry, { x, y, z }) =>
+      new THREE.Mesh(mergeGeometries([-1, 1].map(side => geometry.clone().translate(side * x, y, z))));
+    const { square, radius = 0.19, size = [0.34, 0.18] } = spec.headlamps;
+    const lamp = square
+      ? new THREE.BoxGeometry(...size, 0.06)
+      : new THREE.CylinderGeometry(radius, radius, 0.08, 12).rotateX(Math.PI / 2);
+    const lamps = pair(lamp, spec.headlamps);
+    lamps.material = headlampMaterial;
+    const brakes = pair(new THREE.BoxGeometry(...(spec.brakeLights.size ?? [0.23, 0.28]), 0.06), spec.brakeLights);
+    brakes.material = brakeMaterial;
+    shell.add(brakes);
+    if (!spec.popups) shell.add(lamps);
     body.add(shell);
     const trailer = spec.trailer ? createTrailer(spec.trailer, paint, brakeMaterial) : null;
     if (trailer) towed.add(trailer.root);
@@ -1218,27 +1236,18 @@ export function createCar() {
       root.add(wheel.pivot);
       return { ...wheel, front: z < 0 };
     });
-    vehicles[name] = { shell, wheels, spec, cargo, tent, trailer, popups };
-  }
 
-  // The mud goes on the body, the wheels and the trailers, but not on the lamps or what rides
-  // on the roof. Materials shared with the rest of the world get copies of their own.
-  const muddied = new Map([[paint, addMud(paint)]]);
-  const muddy = mesh => {
-    if (!muddied.has(mesh.material)) muddied.set(mesh.material, addMud(mesh.material.clone()));
-    mesh.material = muddied.get(mesh.material);
-  };
-  for (const v of Object.values(vehicles)) {
-    for (const part of [...v.shell.children, ...v.popups.flatMap(pod => pod.children)]) {
+    for (const part of [...shell.children, ...popups.flatMap(pod => pod.children)]) {
       if (part.isMesh && part.material !== headlampMaterial && part.material !== brakeMaterial) muddy(part);
     }
-    for (const wheel of v.wheels) wheel.spin.children.forEach(muddy);
-    v.trailer?.root.traverse(part => part.isMesh && part.material !== brakeMaterial && muddy(part));
+    for (const wheel of wheels) wheel.spin.children.forEach(muddy);
+    trailer?.root.traverse(part => part.isMesh && part.material !== brakeMaterial && muddy(part));
+    return (vehicles[name] = { shell, wheels, spec, cargo, tent, trailer, popups });
   }
 
   // One spotlight between the headlamps keeps the light count (and cost) down.
-  const headlight = new THREE.SpotLight('#fff0bd', 0, 70, Math.PI * 0.24, 0.6, 1.2);
-  body.add(headlight, headlight.target);
+  const headlight = beam ? new THREE.SpotLight('#fff0bd', 0, 70, Math.PI * 0.24, 0.6, 1.2) : null;
+  if (headlight) body.add(headlight, headlight.target);
 
   const decorations = {
     flag: createFlag(),
@@ -1250,7 +1259,7 @@ export function createCar() {
     body.add(decoration);
   }
 
-  let current = vehicles.offroader;
+  let current = build('offroader');
   let rainbow = false;
   let tentOpen = 0;
 
@@ -1269,7 +1278,7 @@ export function createCar() {
   function poseLamps() {
     const ease = lift => (1 - Math.cos(lift * Math.PI)) / 2;
     current.popups.forEach((pod, i) => (pod.rotation.x = current.spec.popups.down * (1 - ease(lifts[i]))));
-    headlight.intensity = lamps * 55 * (current.popups.length ? ease(Math.min(...lifts)) : 1);
+    if (headlight) headlight.intensity = lamps * 55 * (current.popups.length ? ease(Math.min(...lifts)) : 1);
   }
 
   /** Moves the pop-up lamps on by `dt` seconds, towards standing up or lying down. */
@@ -1299,7 +1308,8 @@ export function createCar() {
     headlight,
     /** `chosen` lists the roof items to show; they all fit at once. With the tent, the roof ones ride on it. */
     customize(color, chosen = [], vehicle = 'offroader') {
-      current = vehicles[vehicle] ?? vehicles.offroader;
+      const name = VEHICLE_BUILDERS[vehicle] ? vehicle : 'offroader';
+      current = vehicles[name] ?? build(name);
       car.wheels = current.wheels;
       car.spec = current.spec;
       car.trailer = current.trailer;
@@ -1311,8 +1321,8 @@ export function createCar() {
         if (v.trailer) attach(towed, v.trailer.root);
       }
       const { headlamps, mounts } = current.spec;
-      headlight.position.set(0, headlamps.y + 0.07, headlamps.z + 0.07);
-      headlight.target.position.set(0, -1, headlamps.z - 20);
+      headlight?.position.set(0, headlamps.y + 0.07, headlamps.z + 0.07);
+      headlight?.target.position.set(0, -1, headlamps.z - 20);
       rainbow = color === 'rainbow';
       if (!rainbow) paint.color.set(CAR_COLORS[color] ?? CAR_COLORS.orange);
       const withTent = chosen.includes('tent');
@@ -1364,7 +1374,7 @@ export function createCar() {
     /** How dirty the car is, from 0 (clean) to 1. Call it once the car has been moved for the frame. */
     setMud(amount) {
       MUD.amount.value = amount;
-      root.updateMatrixWorld();
+      root.updateWorldMatrix(false, false);
       MUD.space.value.copy(root.matrixWorld).invert();
     },
   };
