@@ -53,7 +53,12 @@ export const LANDMARKS = {
   krystofPad: (scene, obstacles) => buildHelipad(scene, obstacles, KRYSTOF.pad),
   chapel: buildChapel,
   summit: buildSummit,
-  fields: buildFields,
+  fields: (scene, obstacles) => {
+    // The tractors and the combine take their places in the fields on the first update.
+    const fields = buildFields(scene, obstacles);
+    fields.update(0.016, { x: 0, z: 0, speed: 0, heading: 0 });
+    return fields;
+  },
   airfield: buildAirfield,
   rockgate: buildRockGate,
   fjord: buildFjord,

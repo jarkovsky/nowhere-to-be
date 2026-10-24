@@ -310,17 +310,33 @@ export function hipRoof(w0, d0, y0, w1, d1, y1) {
   return prism(both);
 }
 
-/** The triangular wall under a gable, at the front (+Z) and back (-Z) of a box. */
+/**
+ * The gables at the front (+Z) and back (-Z) of a box `width` x `depth` whose walls reach
+ * `eave`, rising to `ridge`, and the closed attic between them: a triangular prism whose
+ * sloping sides lie under a gableRoof built with the same numbers, so the two meet exactly.
+ */
 export function gableEnds(width, depth, eave, ridge) {
   const w = width / 2;
   const d = depth / 2;
+  const [left, right, top] = [
+    [-w, eave],
+    [w, eave],
+    [0, ridge],
+  ];
+  const at = ([x, y], z) => [x, y, z];
+  const quad = (a, b, c, e) => [a, b, c, a, c, e];
   return prism([
-    [-w, eave, d],
-    [w, eave, d],
-    [0, ridge, d],
-    [w, eave, -d],
-    [-w, eave, -d],
-    [0, ridge, -d],
+    // The gables, facing out.
+    at(left, d),
+    at(right, d),
+    at(top, d),
+    at(right, -d),
+    at(left, -d),
+    at(top, -d),
+    // The two slopes and the floor, closing it.
+    ...quad(at(right, d), at(right, -d), at(top, -d), at(top, d)),
+    ...quad(at(left, -d), at(left, d), at(top, d), at(top, -d)),
+    ...quad(at(left, d), at(left, -d), at(right, -d), at(right, d)),
   ]);
 }
 

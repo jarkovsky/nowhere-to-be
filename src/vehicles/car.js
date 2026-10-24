@@ -439,6 +439,7 @@ const VEHICLE_BUILDERS = {
     trim.add(new THREE.CylinderGeometry(0.08, 0.06, 0.12, 6), '#2f3430', { x: 0.28, y: 2.82, z: -1.35 });
     // Cab: corner posts, glass on every side and a painted roof.
     trim.box(1.5, 0.12, 1.5, '#3a3f3a', { y: 1.35, z: 0.85 }); // floor
+    trim.box(0.7, 0.32, 1.3, '#3a3f3a', { y: 1.14, z: 0.75 }); // the gearbox under it, on the chassis
     for (const x of [-0.74, 0.74]) {
       for (const z of [0.12, 1.58]) trim.box(0.08, 1.45, 0.08, '#3a3f3a', { x, y: 2.08, z });
       trim.box(0.04, 1.3, 1.4, GLASS, { x, y: 2.1, z: 0.85 });
@@ -455,6 +456,7 @@ const VEHICLE_BUILDERS = {
     }
     trim.box(1.3, 0.18, 0.2, METAL, { y: 0.8, z: -2.15 }); // front weight
     trim.box(0.6, 0.1, 0.5, METAL, { y: 0.7, z: 2 }); // hitch
+    trim.box(0.2, 0.12, 0.5, METAL, { y: 0.7, z: 1.6 }); // and the drawbar out to it from the chassis
 
     const wheels = [
       ...[-0.98, 0.98].map(x => ({ x, z: 0.85, radius: 0.86, width: 0.52 })),
@@ -555,6 +557,7 @@ const VEHICLE_BUILDERS = {
       painted.box(0.13, 0.62, 0.26, '#ffffff', { x: side * 1.52, y: 2.7, z: -2.36 });
       trim.box(0.09, 0.52, 0.02, '#b9cfd0', { x: side * 1.52, y: 2.7, z: -2.22 });
       for (const y of [0.45, 0.78]) trim.box(0.34, 0.06, 0.34, DARK, { x: side * 1.08, y, z: -0.62 });
+      trim.box(0.04, 0.6, 0.34, DARK, { x: side * 1.235, y: 0.7, z: -0.62 }); // the steps hang from it
       // The chassis behind the cab: fuel tanks, mudguards over the back wheels and the frame.
       trim.add(new THREE.CylinderGeometry(0.3, 0.3, 1.0, 10), CHROME, {
         x: side * 0.98,
@@ -582,6 +585,7 @@ const VEHICLE_BUILDERS = {
       trailer.box(0.12, 0.85, 0.12, DARK, { x: side * 0.9, y: -0.42, z: 2.4 });
       trailer.box(0.24, 0.05, 0.3, DARK, { x: side * 0.9, y: -0.86, z: 2.4 });
       for (const y of [-0.22, -0.45]) trailer.box(0.04, 0.08, 2.6, METAL, { x: side * 1.2, y, z: 3.9 });
+      for (const z of [2.7, 3.9, 5.1]) trailer.box(0.05, 0.52, 0.06, METAL, { x: side * 1.2, y: -0.23, z }); // brackets
     }
     // The back: two doors with their lock bars, and a bumper with the lamps.
     trailerPaint.box(0.03, 2.56, 0.02, line, { y: 1.5, z: 8.76 });

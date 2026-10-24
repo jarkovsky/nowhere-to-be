@@ -115,12 +115,17 @@ function buildPortal(parts, obstacles) {
   const mouth = trackside(end);
   // Local Z runs into the hill.
   const { at, local } = framer({ x: mouth.x, z: mouth.z, rotation: mouth.ry }, mouth.y);
+  const walls = [];
   const span = 3.4; // half the width of the bore
   const depth = 12; // the headwall reaches back under the hillside, over the end of the cutting
   // A stone headwall either side of the bore and over it, with wing walls holding back the cutting.
   for (const side of [-1, 1]) {
     parts.box(5, 11.5, depth, STONE, at(side * (span + 2.5), 4.75, depth / 2));
     parts.box(3, 7, 1.6, STONE, at(side * (span + 6.4), 2.5, 0.4, { ry: mouth.ry - side * 0.55 }));
+    walls.push(
+      { ...local(side * (span + 2.5), depth / 2), halfX: 2.7, halfZ: depth / 2 + 0.2, rotation: mouth.ry, radius: 0 },
+      { ...local(side * (span + 6.4), 0.4), halfX: 1.7, halfZ: 1, rotation: mouth.ry - side * 0.55, radius: 0 },
+    );
   }
   parts.box(span * 2, 4.6, depth, STONE, at(0, 8.2, depth / 2));
   // A round arch of darker voussoirs round the opening, and a coping along the top.
@@ -138,8 +143,7 @@ function buildPortal(parts, obstacles) {
   parts.box(span * 2, 7, 0.3, '#0c0d0c', at(0, 3.3, dark));
   const a = local(-span - 2, 1);
   const b = local(span + 2, 1);
-  obstacles.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, radius: 0.8 });
-  for (const side of [-1, 1]) obstacles.push({ ...local(side * (span + 3), 2), radius: 2.8 });
+  obstacles.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, radius: 0.8 }, ...walls);
 }
 
 /**

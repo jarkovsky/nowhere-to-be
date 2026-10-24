@@ -231,6 +231,17 @@ function trianglesIn(part, region) {
   return found;
 }
 
+const plane = new THREE.Vector3();
+/**
+ * Where `ray` passes through `triangle`, or null. A ray running along the triangle's plane never
+ * passes through it: Ray.intersectTriangle divides by how steeply it meets the plane, and for one
+ * lying in it, that gives a point anywhere.
+ */
+function crossing(ray, triangle, target) {
+  if (Math.abs(ray.direction.dot(triangle.getNormal(plane))) < 1e-6) return null;
+  return ray.intersectTriangle(triangle.a, triangle.b, triangle.c, false, target);
+}
+
 const triA = new THREE.Triangle();
 const triB = new THREE.Triangle();
 /** Sets `triangle` to the one whose nine numbers start at `offset` in `positions`. */
@@ -296,7 +307,7 @@ function trianglesMeet(p, q, within = TOUCH) {
       const length = ray.direction.length();
       if (length < 1e-9) continue;
       ray.direction.divideScalar(length);
-      if (ray.intersectTriangle(other.a, other.b, other.c, false, hit) && hit.distanceTo(u) <= length) return true;
+      if (crossing(ray, other, hit) && hit.distanceTo(u) <= length) return true;
       if (s !== p) continue;
       for (const [x, y] of [
         [other.a, other.b],
@@ -352,7 +363,7 @@ function enclosed(point, part) {
   let crossings = 0;
   for (let t = 0; t < positions.length / 9; t++) {
     triangleAt(triA, positions, t * 9);
-    if (ray.intersectTriangle(triA.a, triA.b, triA.c, false, hit)) crossings++;
+    if (crossing(ray, triA, hit)) crossings++;
   }
   return crossings % 2 === 1;
 }
@@ -492,7 +503,7 @@ function blocked(parts, from, direction, length) {
     if (!part.box.intersectsBox(reach)) continue;
     for (const t of trianglesIn(part, reach)) {
       triangleAt(triA, part.positions, t * 9);
-      if (ray.intersectTriangle(triA.a, triA.b, triA.c, false, hit) && hit.distanceTo(from) <= length) return true;
+      if (crossing(ray, triA, hit) && hit.distanceTo(from) <= length) return true;
     }
   }
   return false;
@@ -515,11 +526,13 @@ function roofGaps(parts) {
     const { positions } = wall;
     const edges = new Map();
     const tops = new Map();
+    const areas = new Map();
     for (let t = 0; t < positions.length / 9; t++) {
       triangleAt(triA, positions, t * 9);
       if (triA.getNormal(normal).y < 0.9) continue;
       const level = Math.round(triA.a.y * 100);
       if (!tops.has(level)) tops.set(level, []);
+      areas.set(level, (areas.get(level) ?? 0) + triA.getArea());
       for (const [p, q] of [
         [triA.a, triA.b],
         [triA.b, triA.c],
@@ -536,8 +549,15 @@ function roofGaps(parts) {
     for (const [level, points] of tops) {
       middles.set(level, points.reduce((sum, p) => sum.add(p), new THREE.Vector3()).divideScalar(points.length));
     }
+    // A wall is under a roof, or under the storey above it: something over the middle of its top.
+    // (Not a vehicle parked half under the eaves.)
+    const covered = new Map();
+    for (const [level, middle] of middles) {
+      covered.set(level, Boolean(above(parts, middle.x, middle.y + 0.001, middle.z, 30).part));
+    }
     for (const { p, q, uses, level } of edges.values()) {
-      if (uses !== 1) continue;
+      // The top of a wall, not of a board (a door, a shutter) standing on its face.
+      if (uses !== 1 || areas.get(level) < 0.8 || !covered.get(level)) continue;
       const length = p.distanceTo(q);
       const steps = Math.max(2, Math.ceil(length / 0.5));
       // Out from the wall, square to this edge.
@@ -548,15 +568,19 @@ function roofGaps(parts) {
         const roof = above(parts, point.x, point.y, point.z, 1.5);
         // Nothing over it, sealed against it, or inside a solid roof's slab (its first surface faces up).
         if (!roof.part || roof.distance <= 0.08 || roof.facing === 1) continue;
+        // Or filled by something solid in between, a collar, say.
+        const gap = closest.copy(point).setY(point.y + roof.distance / 2);
+        if (parts.some(part => !part.open && part.box.containsPoint(gap) && enclosed(gap, part))) continue;
         // Only a roof that hangs out past the wall: eaves, not something standing on top further in.
         const eave = above([roof.part], point.x + out.x * 0.3, point.y, point.z + out.z * 0.3, 2);
         if (!eave.part) continue;
-        // And only a gap left open, not one filled by a gable standing in the wall's plane.
+        // And only a gap left open: not one filled by a gable standing in the wall's plane, or by
+        // the wall going on up behind something standing on its face.
         const middle = b3
           .copy(point)
           .addScaledVector(out, 0.045)
           .setY(point.y + roof.distance / 2);
-        if (blocked(parts, middle, c3.copy(out).negate(), 0.1)) continue;
+        if (blocked(parts, middle, c3.copy(out).negate(), 0.6)) continue;
         const key = `${parts.indexOf(wall)}|${parts.indexOf(roof.part)}`;
         const worst = issues.get(key);
         if (!worst || roof.distance > worst.gap) {
@@ -618,6 +642,12 @@ function driveIns(parts, ground, obstacles) {
       if (positions[i + 1] < box.min.y + 0.05) foot.push([positions[i], positions[i + 2]]);
     }
     const outline = outlineOf(foot);
+    // Standing on a real footprint, not on the end of a beam leaning up into the air.
+    const area = outline.reduce((sum, p, i) => {
+      const q = outline[(i + 1) % outline.length];
+      return sum + (p[0] * q[1] - q[0] * p[1]) / 2;
+    }, 0);
+    if (Math.abs(area) < 2) continue;
     let worst = null;
     outline.forEach((p, i) => {
       const q = outline[(i + 1) % outline.length];

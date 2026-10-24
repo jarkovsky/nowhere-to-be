@@ -27,6 +27,15 @@ test('every geometry fault in the world is one recorded in the baseline, and eve
   assert.deepEqual(gone, [], 'faults in the baseline that are no longer there: record the list again');
 });
 
+test('every model has an id of its own', async () => {
+  const { MODELS } = await import('../src/dev/models.js');
+  const ids = MODELS.map(model => model.id);
+  assert.deepEqual(
+    ids.filter((id, i) => ids.indexOf(id) !== i),
+    [],
+  );
+});
+
 test('the checks find a floating part, an open plane, two faces that flicker and a floor the car sinks into', async () => {
   const THREE = await import('three');
   const { inspect } = await import('../src/dev/inspect.js');
@@ -72,6 +81,11 @@ test('a part only counts as held up where its surface meets another, not where t
   assert.deepEqual(
     kinds(p => beams(p, 0.25)),
     [],
+  );
+  // Faces lying in the same plane don't make parts touch from afar.
+  assert.deepEqual(
+    kinds(p => p.box(1, 1, 1, '#fff', { y: 0.5 }).box(1, 1, 1, '#fff', { x: 1.5, y: 1.2 })),
+    ['floating'],
   );
 });
 

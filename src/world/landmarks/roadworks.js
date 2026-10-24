@@ -127,13 +127,15 @@ export function dumpTruck() {
   parts.box(2.45, 1.5, 1.8, ORANGE, { y: 2, z: -2.9 }); // cab
   parts.box(2.3, 0.7, 0.06, GLASS, { y: 2.35, z: -3.82 });
   for (const x of [-1.23, 1.23]) parts.box(0.06, 0.6, 1.1, GLASS, { x, y: 2.35, z: -2.95 });
-  parts.box(2.5, 0.3, 0.3, DARK, { y: 0.9, z: -3.85 }); // bumper
+  parts.box(2.5, 0.3, 0.3, DARK, { y: 0.9, z: -3.75 }); // bumper, on the end of the chassis
   for (const x of [-0.85, 0.85]) parts.box(0.32, 0.2, 0.06, '#fff3ce', { x, y: 1.4, z: -3.82 });
-  parts.box(2.5, 1.3, 4.6, '#8e918c', { y: 2.05, z: 1 }); // tipper
-  parts.box(2.3, 0.35, 4.3, '#8c7457', { y: 2.85, z: 1 }); // a load of earth
-  parts.add(new THREE.ConeGeometry(1.3, 0.7, 7), '#8c7457', { y: 3.3, z: 1.3, sx: 0.9, sz: 1.6 });
+  // The tipper rests on the chassis, with its load heaped up in it.
+  parts.box(2.5, 1.3, 4.6, '#8e918c', { y: 1.9, z: 1 }); // tipper
+  parts.box(2.3, 0.35, 4.3, '#8c7457', { y: 2.7, z: 1 }); // a load of earth
+  parts.add(new THREE.ConeGeometry(1.3, 0.7, 7), '#8c7457', { y: 3.15, z: 1.3, sx: 0.9, sz: 1.6 });
   for (const z of [-2.6, 1, 2.4]) {
     for (const x of [-1.05, 1.05]) wheel(parts, x, 0.62, z, 0.62, 0.45);
+    parts.box(2.1, 0.16, 0.16, DARK, { y: 0.62, z }); // the axle
   }
   return parts.mesh();
 }
@@ -171,7 +173,10 @@ export function grader() {
   parts.beam({ x: 0, y: 1.75, z: -3.9 }, { x: 0, y: 1, z: -4.2 }, 0.5, YELLOW, 0.5);
   parts.box(2, 0.3, 0.4, DARK, { y: 0.8, z: -4.1 }); // front axle
   parts.box(1.5, 0.15, 1.5, DARK, { y: 1.1, z: -1.2 }); // blade circle
+  parts.box(0.3, 0.34, 0.3, DARK, { y: 1.31, z: -1.2 }); // hung from the frame
   parts.box(3.6, 0.65, 0.14, '#55585a', { y: 0.45, z: -1, ry: 0.45 }); // blade
+  // Two arms down from the circle to the blade, where it crosses under them.
+  for (const x of [-0.5, 0.5]) parts.box(0.12, 0.32, 0.12, DARK, { x, y: 0.92, z: -1 - x * Math.tan(0.45) });
   parts.box(1.7, 1.7, 1.6, YELLOW, { y: 2.45, z: 1 }); // cab
   parts.box(1.72, 1, 1.4, GLASS, { y: 2.65, z: 1 });
   parts.box(1.5, 1, 0.06, GLASS, { y: 2.65, z: 0.19 });

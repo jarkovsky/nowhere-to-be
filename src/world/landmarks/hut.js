@@ -85,28 +85,23 @@ export function buildHut(scene, obstacles) {
   const [ground, first, top] = TIERS;
 
   parts.box(ground.length + 0.6, 0.8, ground.depth + 0.6, STONE, at(0, 0, 0)); // plinth
-  for (const tier of TIERS) {
-    parts.box(tier.length, tier.height, tier.depth, tier.color, at(0, tier.base + tier.height / 2, 0));
-  }
-  // A green skirt roof round the top of each of the lower two storeys.
-  for (const [below, above] of [
-    [ground, first],
-    [first, top],
-  ]) {
-    const eave = below.base + below.height - 0.1;
-    parts.add(
-      hipRoof(below.length + 2, below.depth + 2, eave, above.length, above.depth, above.wall),
-      ROOF,
-      at(0, 0, 0),
-    );
-  }
-  // The main roof flares out at the eaves and rises steeply to a short ridge.
+  // A green skirt roof round the top of each of the lower two storeys, from eaves a metre out
+  // past its walls up to the walls of the storey above; and the main roof, which flares out at
+  // the eaves before rising steeply to a short ridge.
   const eave = top.base + top.height - 0.1;
-  parts.add(
-    hipRoof(top.length + 2.2, top.depth + 2.2, eave, top.length - 0.6, top.depth - 0.6, eave + 1),
-    ROOF,
-    at(0, 0, 0),
-  );
+  const roofs = [
+    { below: ground, out: 1, rim: [first.length, first.depth], rise: first.wall },
+    { below: first, out: 1, rim: [top.length, top.depth], rise: top.wall },
+    { below: top, out: 1.1, rim: [top.length - 0.6, top.depth - 0.6], rise: eave + 1 },
+  ];
+  for (const { below, out, rim, rise } of roofs) {
+    const low = below.base + below.height - 0.1;
+    // Each storey's walls go up to where its roof crosses them, `out` in from the eaves: a wall
+    // stopping at the eaves would leave a gap under the roof all round.
+    const wall = low + ((rise - low) * out) / ((below.length + out * 2 - rim[0]) / 2);
+    parts.box(below.length, wall - below.base, below.depth, below.color, at(0, (below.base + wall) / 2, 0));
+    parts.add(hipRoof(below.length + out * 2, below.depth + out * 2, low, ...rim, rise), ROOF, at(0, 0, 0));
+  }
   parts.add(hipRoof(top.length - 0.6, top.depth - 0.6, eave + 1, 6.4, 0.4, eave + 6.2), ROOF, at(0, 0, 0));
   parts.box(6.6, 0.22, 0.5, '#44735a', at(0, eave + 6.25, 0)); // ridge
 
@@ -140,7 +135,9 @@ export function buildHut(scene, obstacles) {
   // A lower wing at the west end.
   const wing = { x: -ground.length / 2 - 3, length: 6, depth: 8 };
   parts.box(wing.length + 0.4, 0.8, wing.depth + 0.4, STONE, at(wing.x, 0, -0.5));
-  parts.box(wing.length, 3.1, wing.depth, MINT, at(wing.x, 1.85, -0.5));
+  // Its roof rises 2 m over the 3.8 m from its eaves to the ridge, and its walls go up to meet it, 0.8 m in.
+  const wingWall = 3.3 + (2 * 0.8) / 3.8;
+  parts.box(wing.length, wingWall - 0.3, wing.depth, MINT, at(wing.x, (wingWall + 0.3) / 2, -0.5));
   parts.add(
     hipRoof(wing.length + 1.6, wing.depth + 1.6, 3.3, 0, wing.depth - wing.length, 5.3),
     ROOF,
@@ -174,7 +171,11 @@ export function buildHut(scene, obstacles) {
     parts.box(2.4, 0.12, 0.5, '#8a6446', at(lx, rise + 0.62, door + 4.2));
     parts.box(2.4, 0.1, 1, '#8a6446', at(lx, rise + 1.02, door + 5.1));
     parts.box(2.4, 0.12, 0.5, '#8a6446', at(lx, rise + 0.62, door + 6));
-    for (const side of [-1, 1]) parts.box(0.12, 1.2, 0.8, '#5f4532', at(lx + side, rise + 0.4, door + 5.1));
+    for (const side of [-1, 1]) {
+      parts.box(0.12, 1.2, 0.8, '#5f4532', at(lx + side, rise + 0.4, door + 5.1));
+      // A runner along each end under both benches, carrying them.
+      parts.box(0.12, 0.1, 2.3, '#5f4532', at(lx + side, rise + 0.51, door + 5.1));
+    }
   }
 
   // Flagpole beside the hut.
@@ -186,14 +187,11 @@ export function buildHut(scene, obstacles) {
   addWaymarks(parts, TRACKS.find(track => track.id === 'chata').path);
   scene.add(parts.mesh());
 
-  for (const lz of [-3, 3]) {
-    const a = local(-ground.length / 2 + 3.3, lz);
-    const b = local(ground.length / 2 - 3.3, lz);
-    obstacles.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, radius: 3.4 });
-  }
-  const wa = local(wing.x, -3.4);
-  const wb = local(wing.x, 2.4);
-  obstacles.push({ ax: wa.x, az: wa.z, bx: wb.x, bz: wb.z, radius: wing.length / 2 + 0.3 });
+  // The walls of the hut and of its wing, round their plinths.
+  obstacles.push(
+    { ...local(0, 0), halfX: ground.length / 2 + 0.3, halfZ: ground.depth / 2 + 0.3, rotation, radius: 0 },
+    { ...local(wing.x, -0.5), halfX: wing.length / 2 + 0.2, halfZ: wing.depth / 2 + 0.2, rotation, radius: 0 },
+  );
   obstacles.push({ ...local(bust.lx, bust.lz), radius: 0.8 }, { ...pole, radius: 0.3 });
   for (const lx of [-1, 4.6]) obstacles.push({ ...local(lx, door + 5.1), radius: 1.3 });
 

@@ -4,7 +4,8 @@
 import * as THREE from 'three';
 import { CHAPEL } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
-import { PartsBuilder, localFrame, gableRoof, gableEnds } from '../build.js';
+import { PartsBuilder, localFrame } from '../build.js';
+import { gabledHouse } from './house.js';
 
 const WHITE = '#f1ede2';
 const ROOF = '#5d4a3e';
@@ -22,9 +23,11 @@ export function buildChapel(scene, obstacles) {
   const ridge = 5.6;
 
   parts.box(width + 0.4, 0.5, length + 0.8, '#a39f92', at(0, 0, 0)); // plinth
-  parts.box(width, eave - 0.2, length, WHITE, at(0, 0.1 + (eave - 0.2) / 2, 0));
-  parts.add(gableEnds(width, length, eave, ridge), WHITE, at(0, 0, 0));
-  parts.add(gableRoof(width, length, eave - 0.05, ridge + 0.05, 0.3), ROOF, at(0, 0, 0));
+  const walls = gabledHouse(
+    parts,
+    { at, local, rotation },
+    { width, depth: length, base: 0.1, eave: eave - 0.1, ridge: ridge + 0.05, overhang: 0.3, walls: WHITE, roof: ROOF },
+  );
   // The rounded apse at the back, under a half cone.
   parts.add(
     new THREE.CylinderGeometry(1.5, 1.5, eave - 0.2, 10, 1, false, Math.PI / 2, Math.PI),
@@ -62,8 +65,7 @@ export function buildChapel(scene, obstacles) {
   for (const side of [-0.7, 0.7]) parts.box(0.1, 0.45, 0.4, '#5f4532', at(side, 0.25, length / 2 + 2.2));
   scene.add(parts.mesh());
 
-  const a = local(0, -length / 2 - 0.8);
-  const b = local(0, length / 2 - 1.4);
-  obstacles.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, radius: width / 2 + 0.3 });
+  // The walls, the rounded apse at the back and the bench.
+  obstacles.push(walls, { ...local(0, -length / 2), radius: 1.8 });
   obstacles.push({ ...local(0, length / 2 + 2.2), radius: 0.9 });
 }

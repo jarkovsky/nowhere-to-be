@@ -426,7 +426,7 @@ const VIGA = '#6b4e37';
  * roof. `glow` is the material for its window, which lights up at night.
  */
 function adobeHouse(parts, glow, obstacles, house, { width, depth, height }) {
-  const { at, local } = framer(house);
+  const { at, local, rotation } = framer(house);
   parts.box(width, height + 0.4, depth, ADOBE, at(0, height / 2 - 0.2, 0));
   parts.box(width + 0.12, 0.4, depth + 0.12, PARAPET, at(0, height + 0.1, 0));
   for (let k = 0; k < 5; k++) {
@@ -444,8 +444,7 @@ function adobeHouse(parts, glow, obstacles, house, { width, depth, height }) {
     const y = k * ((height + 0.6) / 7);
     parts.box(0.05, 0.05, 0.56, VIGA, at(railAt(y), y, 0));
   }
-  const [a, b] = [local(-width / 2 + depth / 2, 0), local(width / 2 - depth / 2, 0)];
-  obstacles.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, radius: depth / 2 + 0.4 });
+  obstacles.push({ ...local(0, 0), halfX: width / 2 + 0.3, halfZ: depth / 2 + 0.3, rotation, radius: 0 });
   obstacles.push({ ...local(width / 2 + 0.4, 0), radius: 0.6 });
 }
 
@@ -511,8 +510,7 @@ function petrolStation(scene, parts, glow, obstacles) {
       at(5.4 + (k % 2) * 0.66, 0.42, shop + 1.2 + k * 0.5),
     );
   });
-  const [a, b] = [local(-2, shop), local(2, shop)];
-  obstacles.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, radius: 2.8 });
+  obstacles.push({ ...local(0, shop), halfX: 4.7, halfZ: 2.7, rotation, radius: 0 });
   obstacles.push({ ...local(5.8, shop + 1.7), radius: 1 });
 
   // The sign by the road, square on to it so it is seen coming both ways: a pump in white on red.

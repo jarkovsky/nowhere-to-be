@@ -6,7 +6,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FORECOURTS, VILLAGE } from '../layout.js';
 import { terrainHeight, pondLevel } from '../terrain.js';
-import { PartsBuilder, gableRoof, gableEnds, hipRoof } from '../build.js';
+import { PartsBuilder, hipRoof } from '../build.js';
+import { gabledHouse } from './house.js';
 import { headingOf } from '../path.js';
 import { parkedFireEngine } from '../../vehicles/traffic.js';
 import { cottage } from './farms.js';
@@ -21,12 +22,19 @@ function fireStation(parts, obstacles, frame) {
   const { at, local, rotation } = frame;
   const [width, depth, eave, ridge] = [11, 8, 4.4, 7.4];
   parts.box(width + 0.4, 0.4, depth + 0.4, '#9a978a', at(0, 0, -3));
-  parts.box(width, eave, depth, CREAM, at(0, eave / 2 + 0.1, -3));
-  parts.add(gableEnds(depth, width, eave + 0.1, ridge), CREAM, at(0, 0, -3, { ry: rotation + Math.PI / 2 }));
-  parts.add(
-    gableRoof(depth, width, eave + 0.05, ridge + 0.05, 0.5),
-    TILES,
-    at(0, 0, -3, { ry: rotation + Math.PI / 2 }),
+  obstacles.push(
+    gabledHouse(parts, frame, {
+      z: -3,
+      width,
+      depth,
+      base: 0.1,
+      eave: eave + 0.1,
+      ridge: ridge + 0.05,
+      overhang: 0.5,
+      ridgeAlong: 'x',
+      walls: CREAM,
+      roof: TILES,
+    }),
   );
   parts.box(width + 0.02, 0.35, depth + 0.02, RED, at(0, eave - 0.3, -3)); // red band under the eaves
   // Two big red doors onto the apron.
@@ -38,7 +46,10 @@ function fireStation(parts, obstacles, frame) {
   parts.box(apron.x1 - apron.x0, 0.12, apron.z1 - apron.z0, '#b9b6ab', at(0, 0.02, (apron.z0 + apron.z1) / 2)); // concrete apron
   // The hose tower, with slatted openings near the top, a pyramid roof and the siren above.
   const tower = { x: 7.2, z: -5 };
-  parts.box(3, 13, 3, CREAM, at(tower.x, 6.5, tower.z));
+  // The walls go up to where the roof, hanging out past them from its eaves at 13 m, crosses them.
+  const [eaves, peak, reach] = [13, 15.2, 1.9];
+  const top = eaves + ((peak - eaves) * (reach - 1.5)) / reach;
+  parts.box(3, top, 3, CREAM, at(tower.x, top / 2, tower.z));
   parts.box(3.04, 0.35, 3.04, RED, at(tower.x, 10.6, tower.z));
   for (const [lx, lz, ry] of [
     [0, 1.53, 0],
@@ -49,14 +60,11 @@ function fireStation(parts, obstacles, frame) {
     for (let k = 0; k < 4; k++)
       parts.box(1.6, 0.1, 0.08, '#5b4636', at(tower.x + lx, 11.4 + k * 0.32, tower.z + lz, { ry: rotation + ry }));
   }
-  parts.add(hipRoof(3.8, 3.8, 13, 0, 0, 15.2), TILES, at(tower.x, 0, tower.z));
+  parts.add(hipRoof(reach * 2, reach * 2, eaves, 0, 0, peak), TILES, at(tower.x, 0, tower.z));
   parts.add(new THREE.CylinderGeometry(0.06, 0.06, 1.6, 6), '#6b6a5f', at(tower.x, 15.6, tower.z));
   parts.add(new THREE.CylinderGeometry(0.45, 0.3, 0.45, 10), '#6b6a5f', at(tower.x, 16.5, tower.z)); // siren
   parts.add(new THREE.ConeGeometry(0.55, 0.3, 10), '#6b6a5f', at(tower.x, 16.9, tower.z));
-  const a = local(-width / 2 + depth / 2, -3);
-  const b = local(width / 2 - depth / 2, -3);
-  obstacles.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, radius: depth / 2 + 0.3 });
-  obstacles.push({ ...local(tower.x, tower.z), radius: 2.2 });
+  obstacles.push({ ...local(tower.x, tower.z), halfX: 1.8, halfZ: 1.8, rotation, radius: 0 });
 }
 
 /**

@@ -151,9 +151,9 @@ export const KINDS = {
       p.box(0.4, 0.8, 0.38, '#8a5a3a', { x: 0.12, y: 0.25, rz: -0.35 })
         .box(0.6, 0.3, 0.3, '#8a5a3a', { x: 0.42, y: 0.62, rz: 0.3 })
         .box(0.12, 0.12, 0.32, DARK, { x: 0.72, y: 0.52 });
-      // Antlers: a beam up and back on each side, with tines off it.
+      // Antlers: a beam up, back and out on each side, with tines off it.
       for (const side of [-1, 1]) {
-        p.box(0.07, 0.95, 0.07, '#d9c9a6', { x: 0.2, y: 1.2, z: side * 0.2, rz: 0.3, rx: side * -0.35 });
+        p.box(0.07, 0.95, 0.07, '#d9c9a6', { x: 0.2, y: 1.2, z: side * 0.2, rz: 0.3, rx: side * 0.35 });
         p.box(0.06, 0.4, 0.06, '#d9c9a6', { x: 0.3, y: 1.05, z: side * 0.3, rz: -0.6 });
         p.box(0.06, 0.35, 0.06, '#d9c9a6', { x: 0.12, y: 1.5, z: side * 0.36, rz: -0.4 });
       }

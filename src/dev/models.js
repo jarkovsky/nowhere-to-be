@@ -231,7 +231,12 @@ export const MODELS = [
     ['wolf', 'Wolf', () => turned(wolf(1).root)],
     ['hen', 'Hen', () => turned(new THREE.Mesh(chickenGeometry('#f1ece0', false), vertexColorMaterial))],
     ['rooster', 'Rooster', () => turned(new THREE.Mesh(chickenGeometry('#b5653a', true), vertexColorMaterial))],
-    ...Object.keys(KINDS).map(kind => [kind, kind[0].toUpperCase() + kind.slice(1), () => herdAnimal(kind)]),
+    // The herds have a deer and a sheep of their own, besides the ones that roam on their own.
+    ...Object.keys(KINDS).map(kind => [
+      `herd.${kind}`,
+      `${kind[0].toUpperCase() + kind.slice(1)} (in a herd)`,
+      () => herdAnimal(kind),
+    ]),
   ].map(([id, name, create]) => ({ id: `animal.${id}`, name, group: 'Animals', create })),
   ...[
     ['pine', 'Spruce', () => plant(pineGeometry(true), '#4d6b42')],
