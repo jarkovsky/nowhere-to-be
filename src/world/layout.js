@@ -250,7 +250,8 @@ export function rockiness(x, z) {
 /** A natural arch of rock over the outer road, below the rocky hill. `span` and `height` are of the opening. */
 export const ROCK_GATE = (() => {
   const p = OUTER_ROAD.at(OUTER_ROAD.nearest(...outerPoint(342)).s);
-  return { ...p, span: 25, height: 18 };
+  // `thickness` is the rock's, round the opening; `crown` how high above the ground its flat top is.
+  return { ...p, span: 25, height: 18, thickness: 4.5, crown: 26.5 };
 })();
 
 /**
@@ -867,6 +868,31 @@ export const TRACKS = [
   // Footpaths up the marked trails.
   ...TRAILS.map(({ id, path }) => ({ id, ruts: false, grade: 0.2, path })),
 ];
+
+/**
+ * A fin of rock running out from the side of the rocky hill to the arch, as if the arch were the
+ * last of it. Its top is a rough causeway the car can drive along, from where it leaves the
+ * track up the hill out onto the arch's flat top over the road. `path` runs along the middle of
+ * the top, `width` across, ending at the far edge of the arch; `arch` is how far along it the
+ * arch begins (the middle of its near foot).
+ */
+export const ROCK_FIN = (() => {
+  const { x, z, dx, dz, span, thickness } = ROCK_GATE;
+  // `u` metres along the arch's own axis, across the road, towards the hill.
+  const across = (u, v = 0) => [x + dz * u + dx * v, z - dx * u + dz * v];
+  const track = TRACKS.find(t => t.id === 'rockhill').path;
+  const leaves = track.nearest(...across(118));
+  const path = createPath([
+    [leaves.sample.x, leaves.sample.z],
+    across(96, 3),
+    across(62, 4),
+    across(34, 1),
+    across(16),
+    across(-6.5),
+  ]);
+  const foot = span / 2 + thickness;
+  return { path, width: 7.5, arch: path.length - 6.5 - foot };
+})();
 
 /** A point on the upland road at an angle in degrees (0 is due east, 90 due south). */
 function ringPoint(degrees) {

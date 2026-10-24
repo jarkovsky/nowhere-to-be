@@ -21,3 +21,14 @@ test('penetration pushes a circle out of circles and capsules', () => {
   const side = penetration(0, 0.8, 1, { ax: -10, az: 0, bx: 10, bz: 0, radius: 0.2 });
   assert.ok(side.nz === 1 && Math.abs(side.depth - 0.4) < 1e-9);
 });
+
+test('obstacles with a top or a base only stop things at the right level', async () => {
+  const { atLevel } = await import('../src/core/collision.js');
+  const wall = { x: 0, z: 0, radius: 1, top: 20 };
+  const rim = { x: 0, z: 0, radius: 1, base: 18 };
+  assert.ok(atLevel(wall, -Infinity) && atLevel(wall, 5) && !atLevel(wall, 20));
+  assert.ok(!atLevel(rim, -Infinity) && !atLevel(rim, 5) && atLevel(rim, 20));
+  const index = createObstacleIndex([wall, rim]);
+  assert.deepEqual([...index.near(0, 0, 1)], [wall]);
+  assert.deepEqual([...index.near(0, 0, 1, 20)], [rim]);
+});

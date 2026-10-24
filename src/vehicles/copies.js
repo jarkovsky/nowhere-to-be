@@ -84,7 +84,10 @@ function hangTrailer(copy, heading, speed, sample) {
  */
 export function poseCopy(copy, { x, z, heading, speed }, dt, settle) {
   const { car, lean } = copy;
-  const ground = chassisPose(x, z, heading, drivingHeight);
+  // Up on the top of the rock fin and the arch once it has driven onto it, like the car.
+  copy.level = drivingHeight(x, z, copy.level ?? -Infinity);
+  const surface = (px, pz) => drivingHeight(px, pz, copy.level);
+  const ground = chassisPose(x, z, heading, surface);
   car.root.position.set(x, ground.height, z);
   car.root.rotation.y = heading;
   car.root.rotation.x = dt ? damp(car.root.rotation.x, ground.pitch, 14, dt) : ground.pitch;
@@ -104,9 +107,9 @@ export function poseCopy(copy, { x, z, heading, speed }, dt, settle) {
     wheel.pivot.rotation.y = wheel.front ? angle : 0;
     wheel.spin.rotation.x -= (speed * dt) / wheel.radius;
   }
-  if (settle) settleWheels(car, drivingHeight);
+  if (settle) settleWheels(car, surface);
   else car.root.updateMatrixWorld();
-  if (car.trailer) hangTrailer(copy, heading, speed, drivingHeight);
+  if (car.trailer) hangTrailer(copy, heading, speed, surface);
 }
 
 export function createCopies(scene) {

@@ -54,11 +54,22 @@ export function createCarState(spawn) {
     steering: 0,
     distance: 0,
     impact: 0,
+    // How high the ground under it is, where that matters (on and under the rock arch).
+    y: -Infinity,
   };
 }
 
 export function placeCar(state, place) {
-  Object.assign(state, { x: place.x, z: place.z, heading: place.heading, vx: 0, vz: 0, speed: 0, steering: 0 });
+  Object.assign(state, {
+    x: place.x,
+    z: place.z,
+    heading: place.heading,
+    vx: 0,
+    vz: 0,
+    speed: 0,
+    steering: 0,
+    y: -Infinity,
+  });
 }
 
 /**
@@ -131,7 +142,7 @@ export function stepDriving(state, input, dt, world) {
     for (const circle of circles) {
       const cx = x - nsin * CAR.bodyOffset * circle.end;
       const cz = z - ncos * CAR.bodyOffset * circle.end;
-      const nearby = [...world.obstacles.near(cx, cz, CAR.bodyRadius + 2), ...(world.dynamic ?? [])];
+      const nearby = [...world.obstacles.near(cx, cz, CAR.bodyRadius + 2, state.y), ...(world.dynamic ?? [])];
       for (const obstacle of nearby) {
         const hit = penetration(cx, cz, CAR.bodyRadius, obstacle);
         if (!hit) continue;

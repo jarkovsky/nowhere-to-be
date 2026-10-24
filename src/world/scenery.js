@@ -52,6 +52,7 @@ import {
   RIVERS,
   ROCK_FIELDS,
   ROCK_GATE,
+  ROCK_FIN,
   FJORD,
   FJORD_VILLAGE,
   FARMS,
@@ -412,6 +413,8 @@ const CLEARINGS = [
   { ...AIRFIELD.hangar, r: 22 },
   { ...AIRFIELD.tower, r: 12 },
   { x: ROCK_GATE.x, z: ROCK_GATE.z, r: ROCK_GATE.span },
+  // Along the fin of rock out to the arch: its sides lean out a long way where it stands tall.
+  ...ROCK_FIN.path.samples.filter((_, i) => i % 6 === 0).map(({ x, z }) => ({ x, z, r: 13 })),
   ...[...FJORD_VILLAGE.houses, ...FJORD_VILLAGE.boathouses].map(({ x, z }) => ({ x, z, r: 9 })),
   { x: FJORD_VILLAGE.church.x, z: FJORD_VILLAGE.church.z, r: 12 },
   ...FARMS.flatMap(farm => [
