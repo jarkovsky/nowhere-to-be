@@ -3,7 +3,7 @@
 // come along wait in the bays (see vehicles/friends.js); the lorry's trailer stands back
 // inside the doors. A lamp over each door comes on at dusk.
 import * as THREE from 'three';
-import { DEPOT } from '../layout.js';
+import { DEPOT, FORECOURTS } from '../layout.js';
 import { PartsBuilder, gableEnds, gableRoof } from '../build.js';
 import { canvasTexture } from './signs.js';
 import { framer } from './frame.js';
@@ -117,7 +117,14 @@ export function buildDepot(scene, obstacles) {
   }
 
   // The yard: concrete in front of the doors, with white lines between the bays.
-  parts.box(WIDTH + 3, 0.12, 9, CONCRETE, at(0, -0.03, 4.5));
+  const yard = FORECOURTS.find(court => court.id === 'depot');
+  parts.box(
+    yard.x1 - yard.x0,
+    0.12,
+    yard.z1 - yard.z0,
+    CONCRETE,
+    at((yard.x0 + yard.x1) / 2, -0.03, (yard.z0 + yard.z1) / 2),
+  );
   for (let i = 0; i <= DEPOT.bays.length; i++) {
     const x =
       i === 0

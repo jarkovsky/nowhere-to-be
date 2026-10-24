@@ -1089,6 +1089,59 @@ export const DEPOT = (() => {
   return { x: p.x, z: p.z, rotation: Math.atan2(-p.dz, p.dx), s, bays: [-8.25, -2.75, 2.75, 8.25], noses: 4.6 };
 })();
 
+/** A point `lx` across and `lz` out from a place's front, in the world. */
+function inFrame({ x, z, rotation }, lx, lz) {
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  return { x: x + lx * cos + lz * sin, z: z - lx * sin + lz * cos };
+}
+
+/**
+ * Concrete standing in front of buildings that vehicles drive out of, each a rectangle in its
+ * place's own frame (`lx` across, `lz` out of the front): drawn by the place, and part of the
+ * paved ground the access check walks over.
+ */
+export const FORECOURTS = [
+  { id: 'depot', frame: DEPOT, x0: -13, x1: 13, z0: 0, z1: 9 },
+  { id: 'fire station', frame: VILLAGE.fireStation, x0: -5.5, x1: 5.5, z0: 1, z1: 8 },
+];
+
+/**
+ * Short concrete driveways from those forecourts out to the road, so nothing parked there is
+ * stranded on the grass. Each runs from the forecourt's front edge to just inside the road.
+ */
+export const DRIVEWAYS = [
+  { id: 'depot', frame: DEPOT, halfWidth: 3.2, from: 8.6, to: 25 - ROAD_HALF_WIDTH + 1 },
+  { id: 'fire station', frame: VILLAGE.fireStation, halfWidth: 2.8, from: 7.6, to: 17 - GRAVEL_HALF_WIDTH + 0.8 },
+].map(({ frame, from, to, ...rest }) => {
+  const [a, b] = [inFrame(frame, 0, from), inFrame(frame, 0, to)];
+  return {
+    ...rest,
+    path: createPath([
+      [a.x, a.z],
+      [(a.x + b.x) / 2, (a.z + b.z) / 2],
+      [b.x, b.z],
+    ]),
+  };
+});
+
+/** True on a driveway, or within `margin` of one. */
+export function onDriveway(x, z, margin = 0) {
+  return DRIVEWAYS.some(drive => drive.path.isNear(x, z, drive.halfWidth + margin));
+}
+
+/** True on one of the forecourts. */
+export function onForecourt(x, z) {
+  return FORECOURTS.some(({ frame, x0, x1, z0, z1 }) => {
+    const cos = Math.cos(frame.rotation);
+    const sin = Math.sin(frame.rotation);
+    const [dx, dz] = [x - frame.x, z - frame.z];
+    const lx = dx * cos - dz * sin;
+    const lz = dx * sin + dz * cos;
+    return lx > x0 && lx < x1 && lz > z0 && lz < z1;
+  });
+}
+
 const { x: haltX, z: haltZ } = RAILWAY.offset((HALT.from + HALT.to) / 2, HALT.side * 4);
 const haltCentre = { x: haltX, z: haltZ };
 

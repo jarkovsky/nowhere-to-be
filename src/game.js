@@ -41,6 +41,8 @@ import {
   GRAVEL_HALF_WIDTH,
   onAirfield,
   onPaved,
+  onDriveway,
+  onForecourt,
   onGravel,
   rockiness,
   surfaceAt,
@@ -85,6 +87,7 @@ function surfaceUnder(x, z) {
   if (snowCover(x, z) > 0.5) return 'snow';
   if (ROAD.isNear(x, z, ROAD_HALF_WIDTH + 0.6) || CAMP_TRAIL.isNear(x, z, 2.6)) return 'road';
   if (onPaved(x, z, ROAD_HALF_WIDTH + 0.6) || onAirfield(x, z)) return 'road';
+  if (onDriveway(x, z, 0.4) || onForecourt(x, z)) return 'road';
   if (onGravel(x, z, GRAVEL_HALF_WIDTH + 0.4)) return 'track';
   if (rockiness(x, z) > 0.5) return 'rock';
   if (TRACKS.some(track => track.path.isNear(x, z, 2))) return 'track';

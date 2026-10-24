@@ -15,6 +15,8 @@ import {
   FORD,
   CAMP_TRAIL,
   TRACKS,
+  DRIVEWAYS,
+  onDriveway,
   RAILWAY,
   HALT,
   BRIDGE,
@@ -449,7 +451,7 @@ function isClearGround(x, z, { road = 9 } = {}) {
   if (nearWalkway(HABITATS.deer, x, z, 5) || nearWalkway(HABITATS.ducks, x, z, 5)) return false;
   if (ROAD.isNear(x, z, road) || CAMP_TRAIL.isNear(x, z, 6) || RAILWAY.isNear(x, z, 9)) return false;
   if (TRACKS.some(track => track.path.isNear(x, z, 5))) return false;
-  if (onPaved(x, z, road) || onGravel(x, z, road - 1)) return false;
+  if (onPaved(x, z, road) || onGravel(x, z, road - 1) || onDriveway(x, z, 4)) return false;
   // The airfield's levelled ground is kept as open, mown grass.
   const { ground } = AIRFIELD;
   if (x > ground.x0 - 6 && x < ground.x1 + 6 && z > ground.z0 - 6 && z < ground.z1 + 6) return false;
@@ -963,6 +965,7 @@ function isLongGrassGround(x, z) {
   if (onPaved(x, z, ROAD_HALF_WIDTH + 0.8) || onAirfield(x, z, 2)) return false;
   if (onGravel(x, z, GRAVEL_HALF_WIDTH + 0.8)) return false;
   if (TRACKS.some(track => track.path.isNear(x, z, track.ruts ? 1.6 : 1.3))) return false;
+  if (onDriveway(x, z, 0.8)) return false;
   if (CLEARINGS.some(c => Math.hypot(x - c.x, z - c.z) < c.r * 0.7) || inMud(x, z)) return false;
   if (Math.hypot(x - FIELDS.x, z - FIELDS.z) < FIELDS.radius + 4) return false;
   if (lakeDistance(x, z) < 2.4 || (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 6))) return false;
@@ -1309,6 +1312,8 @@ export function buildScenery(parent) {
       scene.add(ribbon(track.path, 0.8, '#cdbf96', { lift: 0.05, skip: paved }));
     }
   }
+  // Concrete driveways out to the road, a little under the road where they meet it.
+  for (const { path, halfWidth } of DRIVEWAYS) scene.add(ribbon(path, halfWidth, '#b9b6ab', { lift: 0.045 }));
   const water = buildWater(scene);
   // What would grow in the crop fields is left out as it is added rather than where it is
   // placed, so that leaving it out doesn't move everything placed after it.
