@@ -50,6 +50,7 @@ const LINEUP = [
   { vehicle: 'van' },
   { vehicle: 'saloon' },
   { vehicle: 'tractor' },
+  { vehicle: 'miata' },
 ];
 /** The other friends' paints, each a different one in the order they wait, leaving out the player's. */
 const PAINTS = ['blue', 'orange', 'yellow', 'sage', 'berry'];

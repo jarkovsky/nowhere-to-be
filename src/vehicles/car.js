@@ -26,18 +26,27 @@ const DARK = '#2a2e33';
 
 export const WHEEL_RADIUS = 0.59;
 
-export function createWheel(radius = WHEEL_RADIUS, width = 0.4, hub = CREAM) {
+/** A wheel with a plain hub, or with `holes` an alloy one: a wider rim with a ring of holes round it. */
+export function createWheel(radius = WHEEL_RADIUS, width = 0.4, hub = CREAM, holes = 0) {
   const pivot = new THREE.Group();
   const spin = new THREE.Group();
   pivot.add(spin);
   const tire = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, width, 12), flatMaterial(RUBBER));
   tire.rotation.z = Math.PI / 2;
   tire.castShadow = true;
-  const wheelHub = new PartsBuilder()
-    .add(new THREE.CylinderGeometry(radius * 0.5, radius * 0.5, width + 0.02, 10), hub, { rz: Math.PI / 2 })
-    .add(new THREE.CylinderGeometry(radius * 0.19, radius * 0.19, width + 0.04, 8), METAL, { rz: Math.PI / 2 })
-    .mesh({ castShadow: false });
-  spin.add(tire, wheelHub);
+  const rim = holes ? 0.62 : 0.5;
+  const hubParts = new PartsBuilder()
+    .add(new THREE.CylinderGeometry(radius * rim, radius * rim, width + 0.02, 10), hub, { rz: Math.PI / 2 })
+    .add(new THREE.CylinderGeometry(radius * 0.19, radius * 0.19, width + 0.04, 8), METAL, { rz: Math.PI / 2 });
+  for (let i = 0; i < holes; i++) {
+    const a = (i / holes) * Math.PI * 2;
+    hubParts.add(new THREE.CylinderGeometry(radius * 0.09, radius * 0.09, width + 0.044, 6), DARK, {
+      y: Math.cos(a) * radius * 0.4,
+      z: Math.sin(a) * radius * 0.4,
+      rz: Math.PI / 2,
+    });
+  }
+  spin.add(tire, hubParts.mesh({ castShadow: false }));
   return { pivot, spin, tire, radius };
 }
 
@@ -99,6 +108,59 @@ function archBand(wheel, inner, outer, bottom) {
   return [...archCut(wheel, outer, bottom), ...archCut(wheel, inner, bottom).reverse()];
 }
 
+/**
+ * A solid lofted through slices along it, front to back: each is [z, corners], the corners
+ * [x, y] in order anticlockwise round it, as many in every slice. Corners that meet (where a
+ * slice has no room for a rounded edge, say) leave out the faces that would have no size.
+ */
+function loft(slices) {
+  const points = [];
+  const add = (a, b, c) => {
+    const apart = (p, q) => Math.abs(p[0] - q[0]) + Math.abs(p[1] - q[1]) + Math.abs(p[2] - q[2]) > 1e-6;
+    if (apart(a, b) && apart(b, c) && apart(c, a)) points.push(a, b, c);
+  };
+  for (let s = 1; s < slices.length; s++) {
+    const [z0, front] = slices[s - 1];
+    const [z1, back] = slices[s];
+    front.forEach(([x, y], i) => {
+      const j = (i + 1) % front.length;
+      const a = [x, y, z0];
+      const b = [front[j][0], front[j][1], z0];
+      const c = [back[j][0], back[j][1], z1];
+      add(a, b, c);
+      add(a, c, [back[i][0], back[i][1], z1]);
+    });
+  }
+  // The two ends, facing forward and back.
+  for (const [z, corners, facing] of [
+    [...slices[0], -1],
+    [...slices.at(-1), 1],
+  ]) {
+    const outline = corners.filter(([x, y], i) => {
+      const [px, py] = corners.at(i - 1);
+      return Math.abs(x - px) + Math.abs(y - py) > 1e-6;
+    });
+    const faces = THREE.ShapeUtils.triangulateShape(
+      outline.map(([x, y]) => new THREE.Vector2(x, y)),
+      [],
+    );
+    for (const face of faces) {
+      const [a, b, c] = face.map(i => [outline[i][0], outline[i][1], z]);
+      if (facing > 0) add(a, b, c);
+      else add(a, c, b);
+    }
+  }
+  return prism(points);
+}
+
+/** Where a line through [z, value] points, in order along z, is at `z`. */
+function along(points, z) {
+  const i = points.findIndex(([pz]) => pz >= z);
+  if (i <= 0) return points[i < 0 ? points.length - 1 : 0][1];
+  const [[z0, v0], [z1, v1]] = [points[i - 1], points[i]];
+  return v0 + ((v1 - v0) * (z - z0)) / (z1 - z0);
+}
+
 /** Dark walls `x` out from the middle inside each arch, so the far side doesn't show through. */
 function wheelWells(parts, wheels, radius, sill, x) {
   for (const wheel of wheels) {
@@ -130,6 +192,9 @@ function raceNumber(parts, side, { x, y, z }) {
  * and `tent` as [x, y, z, length, ladder] for the roof tent, where `ladder` is how far out to
  * the side its ladder hangs, clear of the body and wheels. Some also have a `voice` for the
  * engine and horn, a `camera` that stands further back for the big one, and the lorry a `trailer`.
+ * The roadster's lamps are `popups`: a lid, a box and a lamp, built standing up from their
+ * `hinge` like the trailer from its hitch, which turn `down` to fold away. As an `openTop` it
+ * carries the tent packed on a rack at `tent`, given as [x, y, z, length].
  */
 const VEHICLE_BUILDERS = {
   offroader(painted, trim, cargo) {
@@ -790,7 +855,226 @@ const VEHICLE_BUILDERS = {
       voice: { engine: 1.3 },
     };
   },
+
+  miata(painted, trim) {
+    // A little roadster from 1989: low and rounded, with an oval mouth, lamps that pop up out of
+    // the bonnet, the hood folded away behind the seats and small alloy wheels.
+    const wheels = [-0.72, 0.72].flatMap(x =>
+      [-1.16, 1.1].map(z => ({ x, z, radius: 0.31, width: 0.24, hub: CHROME, holes: 8 })),
+    );
+    const [front, back] = wheels;
+    const sill = 0.24;
+    const arch = 0.4;
+    // The body is lofted through slices along it, rounded along the top and the bottom and over
+    // the nose and the tail, with the arches cut up into it and the cockpit down into it between
+    // the doors. The lines along it: the top (the doors' tops beside the cockpit), the bottom,
+    // and how far out the sides are.
+    const top = [
+      [-2.0, 0.53],
+      [-1.985, 0.6],
+      [-1.955, 0.67],
+      [-1.9, 0.73],
+      [-1.82, 0.77],
+      [-1.74, 0.79],
+      [-1.42, 0.835],
+      [-1.16, 0.86],
+      [-0.56, 0.905],
+      [0.75, 0.935],
+      [1.3, 0.945],
+      [1.7, 0.94],
+      [1.86, 0.932],
+      [1.93, 0.912],
+      [1.97, 0.88],
+      [1.993, 0.84],
+      [2.0, 0.82],
+    ];
+    const bottom = [
+      [-2.0, 0.34],
+      [-1.985, 0.3],
+      [-1.955, 0.27],
+      [-1.9, 0.25],
+      [-1.82, sill],
+    ];
+    for (const { z, radius } of [front, back]) {
+      // Each arch: straight up from the sill to the height of the axle, then round over the wheel.
+      const y = radius + 0.06;
+      bottom.push([z - arch - 0.004, sill]);
+      for (let i = 0; i <= 8; i++) {
+        const a = Math.PI - (i / 8) * Math.PI;
+        bottom.push([z + Math.cos(a) * arch, y + Math.sin(a) * arch]);
+      }
+      bottom.push([z + arch + 0.004, sill]);
+    }
+    bottom.push([1.82, sill], [1.9, 0.25], [1.955, 0.27], [1.985, 0.3], [2.0, 0.34]);
+    const sides = [
+      [-2.0, 0.6],
+      [-1.985, 0.7],
+      [-1.955, 0.78],
+      [-1.9, 0.825],
+      [-1.82, 0.84],
+      [1.84, 0.84],
+      [1.91, 0.825],
+      [1.96, 0.8],
+      [1.99, 0.775],
+      [2.0, 0.76],
+    ];
+    const cockpit = [-0.378, 0.684];
+    const floor = 0.44;
+    const door = 0.72; // the inside of the doors
+    const slice = z => {
+      const [low, high, half] = [along(bottom, z), along(top, z), along(sides, z)];
+      const dip = z >= cockpit[0] && z <= cockpit[1] ? floor : high;
+      // Rolled along the sill but not round the arches, and along the top, in two facets.
+      const under = low < sill + 0.11 ? 0.035 : 0;
+      const round = Math.min(0.07, high - low - under);
+      const k = 1 - Math.SQRT1_2;
+      const right = [
+        [half - under, low],
+        [half, low + under],
+        [half, high - round],
+        [half - k * round, high - k * round],
+        [half - round, high],
+        [Math.min(door, half - round), high],
+        [Math.min(door, half - round), dip],
+      ];
+      const left = right.map(([x, y]) => [-x, y]).reverse();
+      return [z, [...right, ...left]];
+    };
+    const stations = [...top, ...bottom, ...sides].map(([z]) => z);
+    stations.push(cockpit[0] - 0.003, cockpit[0], cockpit[1], cockpit[1] + 0.003);
+    const slices = [...new Set(stations.map(z => Math.round(z * 1e4) / 1e4))].sort((a, b) => a - b).map(slice);
+    painted.add(loft(slices), '#ffffff');
+    wheelWells(trim, wheels, arch, sill, 0.58);
+
+    // The cockpit: carpet, a dashboard with the dials' hood and the steering wheel, a console
+    // between the seats, the doors lined inside, and the hood folded away behind the seats.
+    const seat = '#3d4247';
+    trim.box(door * 2 - 0.01, 0.02, 1.04, DARK, { y: floor + 0.01, z: 0.152 });
+    trim.box(door * 2 - 0.01, 0.47, 0.03, DARK, { y: 0.68, z: -0.37 });
+    trim.box(0.34, 0.08, 0.14, DARK, { x: -0.34, y: 0.94, z: -0.31 });
+    trim.beam({ x: -0.34, y: 0.72, z: -0.36 }, { x: -0.34, y: 0.79, z: -0.2 }, 0.05, DARK);
+    trim.add(new THREE.TorusGeometry(0.15, 0.02, 4, 12), DARK, { x: -0.34, y: 0.8, z: -0.18, rx: -0.42 });
+    trim.box(0.16, 0.14, 0.7, DARK, { y: floor + 0.09, z: 0.0 });
+    trim.box(door * 2 - 0.01, 0.46, 0.015, DARK, { y: 0.69, z: 0.666 });
+    for (const side of [-1, 1]) {
+      trim.box(0.012, 0.42, 1.03, DARK, { x: side * (door - 0.012), y: 0.67, z: 0.152 });
+      // A seat: the cushion, the back leaning a little and the headrest.
+      const x = side * 0.34;
+      trim.box(0.44, 0.1, 0.46, seat, { x, y: 0.51, z: 0.3 });
+      trim.box(0.44, 0.5, 0.1, seat, { x, y: 0.805, z: 0.56, rx: 0.22 });
+      trim.box(0.3, 0.14, 0.1, seat, { x, y: 1.12, z: 0.63, rx: 0.22 });
+    }
+    trim.add(
+      profile(
+        [
+          [0.69, 0.93],
+          [0.7, 0.99],
+          [0.75, 1.03],
+          [0.92, 1.03],
+          [0.99, 0.99],
+          [1.01, 0.94],
+        ],
+        1.32,
+      ),
+      '#2b2f33',
+    );
+
+    // The windscreen in its black frame, with the wipers lying along the bottom of the glass.
+    const rake = Math.atan2(0.36, 0.44);
+    const glass = (s, out) => ({
+      y: 0.905 + Math.sin(rake) * s + Math.cos(rake) * out,
+      z: -0.56 + Math.cos(rake) * s - Math.sin(rake) * out,
+    });
+    trim.box(1.34, 0.012, 0.57, GLASS, { ...glass(0.285, 0.008), rx: -rake });
+    trim.box(1.38, 0.05, 0.06, DARK, { ...glass(0.57, 0.012), rx: -rake });
+    for (const side of [-1, 1]) {
+      trim.beam({ x: side * 0.69, ...glass(0, 0.012) }, { x: side * 0.68, ...glass(0.57, 0.012) }, 0.05, DARK, 0.06);
+      trim.box(0.46, 0.015, 0.02, DARK, { x: side * 0.27 - 0.06, ...glass(0.07, 0.032), rx: -rake });
+    }
+
+    for (const side of [-1, 1]) {
+      // Black mirrors on short arms at the front of the doors, the door's seams and its handle.
+      trim.beam({ x: side * 0.8, y: 0.9, z: -0.47 }, { x: side * 0.9, y: 0.97, z: -0.46 }, 0.03, DARK);
+      trim.box(0.12, 0.09, 0.14, DARK, { x: side * 0.94, y: 0.98, z: -0.46 });
+      trim.box(0.09, 0.065, 0.02, '#b9cfd0', { x: side * 0.94, y: 0.98, z: -0.385 });
+      for (const z of [-0.72, 0.44]) trim.box(0.012, 0.52, 0.012, RUBBER, { x: side * 0.846, y: 0.56, z });
+      trim.box(0.02, 0.035, 0.12, DARK, { x: side * 0.846, y: 0.8, z: 0.34 });
+      // Little marker lamps on the wings, the indicators in the bumper beside the mouth, and
+      // the tail lamps in rounded black surrounds, with the indicator outside and the reversing
+      // lamp inside the red one.
+      trim.box(0.02, 0.05, 0.11, '#e39a3b', { x: side * 0.846, y: 0.6, z: -1.72 });
+      trim.box(0.02, 0.05, 0.11, '#b8452f', { x: side * 0.846, y: 0.62, z: 1.72 });
+      trim.box(0.13, 0.06, 0.03, '#e39a3b', { x: side * 0.46, y: 0.43, z: -2.0 });
+      trim.add(roundedPanel(0.46, 0.16, 0.04, 0.025), DARK, { x: side * 0.51, y: 0.665, z: 1.995 });
+      trim.box(0.1, 0.12, 0.06, '#e39a3b', { x: side * 0.675, y: 0.665, z: 2.0 });
+      trim.box(0.07, 0.12, 0.06, '#e8e4d8', { x: side * 0.355, y: 0.665, z: 2.0 });
+    }
+    // The oval mouth in the nose, and the exhaust.
+    trim.add(new THREE.CylinderGeometry(1, 1, 0.03, 16), DARK, {
+      y: 0.42,
+      z: -2.0,
+      rx: Math.PI / 2,
+      sx: 0.24,
+      sz: 0.055,
+    });
+    trim.add(new THREE.CylinderGeometry(0.04, 0.04, 0.16, 8), CHROME, { x: 0.42, y: 0.3, z: 1.97, rx: Math.PI / 2 });
+
+    // The pop-up lamps, each built standing up, turning on a hinge at the back of its lid: a
+    // black box with the lamp in its front and a painted lid on top, which lies in the bonnet
+    // when it is folded down, in a black recess that shows once it stands up. `lift` is how far
+    // the lid tips up when it stands, and `reach` where its front edge gets to then.
+    const lift = 0.62;
+    const bonnet = along(top, -1.42);
+    const slope = Math.atan2(bonnet - along(top, -1.74), 0.32);
+    const hinge = [0.52, bonnet - 0.008, -1.42];
+    const lid = new PartsBuilder();
+    const housing = new PartsBuilder();
+    const lens = new PartsBuilder();
+    const reach = [-Math.cos(lift) * 0.32, Math.sin(lift) * 0.32];
+    housing.add(profile([[0, 0], reach, [reach[0], -0.03], [0, -0.06]], 0.36), DARK);
+    lid.box(0.38, 0.03, 0.33, '#ffffff', {
+      y: Math.sin(lift) * 0.165 + Math.cos(lift) * 0.015,
+      z: -Math.cos(lift) * 0.165 + Math.sin(lift) * 0.015,
+      rx: lift,
+    });
+    lens.add(new THREE.CylinderGeometry(0.08, 0.08, 0.03, 12), '#ffffff', {
+      y: reach[1] - 0.1,
+      z: reach[0] - 0.005,
+      rx: Math.PI / 2,
+    });
+    for (const side of [-1, 1]) {
+      trim.box(0.4, 0.03, 0.35, DARK, {
+        x: side * hinge[0],
+        y: bonnet - Math.sin(slope) * 0.165 - Math.cos(slope) * 0.004,
+        z: hinge[2] - Math.cos(slope) * 0.165 + Math.sin(slope) * 0.004,
+        rx: -slope,
+      });
+    }
+
+    return {
+      wheels,
+      // The lamps are in the pop-ups: the beam shines from just in front of the nose, clear of the bonnet.
+      headlamps: { x: hinge[0], y: 0.9, z: -2.08 },
+      popups: { painted: lid, parts: housing, lenses: lens, hinge, down: -(lift + slope) },
+      brakeLights: { x: 0.51, y: 0.665, z: 2.0, size: [0.2, 0.12] },
+      mounts: { flag: [0.6, 0.935, 1.72], teddy: [0.34, 0.56, 0.28], gnome: [0, 0.845, -1.3] },
+      tent: [0, 1.0, 1.38, 0.62],
+      openTop: true,
+      voice: { engine: 1.2 },
+    };
+  },
 };
+
+/** A flat panel `width` by `height` with rounded corners, `depth` thick, facing along Z. */
+function roundedPanel(width, height, depth, radius) {
+  const [w, h] = [width / 2 - radius, height / 2 - radius];
+  const shape = new THREE.Shape();
+  shape.absarc(w, h, radius, 0, Math.PI / 2);
+  shape.absarc(-w, h, radius, Math.PI / 2, Math.PI);
+  shape.absarc(-w, -h, radius, Math.PI, Math.PI * 1.5);
+  shape.absarc(w, -h, radius, Math.PI * 1.5, Math.PI * 2);
+  return new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 2 }).translate(0, 0, -depth / 2);
+}
 
 /** The parts of one of the garage's vehicles, for building a copy of it elsewhere (the farm's tractors). */
 export function vehicleParts(name) {
@@ -849,6 +1133,27 @@ function addMud(material) {
   return material;
 }
 
+/**
+ * Pop-up lamps come up once it is this dark, and turn at this rate (all the way in 1 / POP_SPEED
+ * seconds). A wink flips them for WINK seconds, lamps flashed on hold them up for LATCH seconds,
+ * and a car parked for WINK_AFTER seconds winks.
+ */
+const POP_ON = 0.25;
+const POP_SPEED = 2.2;
+const WINK = 1.1;
+const LATCH = 0.6;
+const WINK_AFTER = 4;
+
+/** A pair of pop-up lamps from their spec, each turning on its own hinge, both built alike. */
+function createPopups({ painted, parts, lenses, hinge: [x, y, z] }, paint, glow) {
+  return [-1, 1].map(side => {
+    const pod = new THREE.Group();
+    pod.position.set(side * x, y, z);
+    pod.add(painted.mesh({ material: paint }), parts.mesh(), lenses.mesh({ material: glow, castShadow: false }));
+    return pod;
+  });
+}
+
 export function createCar() {
   const root = new THREE.Group();
   const body = new THREE.Group();
@@ -878,10 +1183,14 @@ export function createCar() {
     const cargo = cargoParts.isEmpty ? null : cargoParts.mesh();
     if (cargo) shell.add(cargo);
     const [tx, ty, tz, length, ladder] = spec.tent;
-    const tent = createRoofTent(length, ty, ladder);
+    // An open car has no roof to put the tent up on, so it carries it packed.
+    const tent = spec.openTop ? createPackedTent(length) : createRoofTent(length, ty, ladder);
     tent.root.position.set(tx, ty, tz);
     tent.root.visible = false;
     shell.add(tent.root);
+    // Pop-up lamps have the lamps in them.
+    const popups = spec.popups ? createPopups(spec.popups, paint, headlampMaterial) : [];
+    for (const pod of popups) shell.add(pod);
     for (const side of [-1, 1]) {
       const { x, y, z, square, radius = 0.19, size = [0.34, 0.18] } = spec.headlamps;
       const lamp = square
@@ -893,22 +1202,23 @@ export function createCar() {
         brakeMaterial,
       );
       brake.position.set(side * spec.brakeLights.x, spec.brakeLights.y, spec.brakeLights.z);
-      shell.add(lamp, brake);
+      shell.add(brake);
+      if (!spec.popups) shell.add(lamp);
     }
     body.add(shell);
     const trailer = spec.trailer ? createTrailer(spec.trailer, paint, brakeMaterial) : null;
     if (trailer) towed.add(trailer.root);
 
     // Wheels hang from the root rather than the body, so they don't lean with it.
-    const wheels = spec.wheels.map(({ x, z, radius, width, hub }) => {
-      const wheel = createWheel(radius, width, hub);
+    const wheels = spec.wheels.map(({ x, z, radius, width, hub, holes }) => {
+      const wheel = createWheel(radius, width, hub, holes);
       // At rest each wheel sits a little above its own radius, leaving room to droop.
       wheel.rest = radius + 0.06;
       wheel.pivot.position.set(x, wheel.rest, z);
       root.add(wheel.pivot);
       return { ...wheel, front: z < 0 };
     });
-    vehicles[name] = { shell, wheels, spec, cargo, tent, trailer };
+    vehicles[name] = { shell, wheels, spec, cargo, tent, trailer, popups };
   }
 
   // The mud goes on the body, the wheels and the trailers, but not on the lamps or what rides
@@ -919,7 +1229,7 @@ export function createCar() {
     mesh.material = muddied.get(mesh.material);
   };
   for (const v of Object.values(vehicles)) {
-    for (const part of v.shell.children) {
+    for (const part of [...v.shell.children, ...v.popups.flatMap(pod => pod.children)]) {
       if (part.isMesh && part.material !== headlampMaterial && part.material !== brakeMaterial) muddy(part);
     }
     for (const wheel of v.wheels) wheel.spin.children.forEach(muddy);
@@ -943,6 +1253,41 @@ export function createCar() {
   let current = vehicles.offroader;
   let rainbow = false;
   let tentOpen = 0;
+
+  // Pop-up lamps stand up while the lamps are on (`lamps`, how dark it is), and flip the other
+  // way for a moment as a wink. `lifts` is how far up each one is, from 0 down to 1 up.
+  let lamps = 0;
+  let latch = 0;
+  const lifts = [0, 0];
+  const flips = [0, 0];
+  let lastTime = 0;
+  const parkedAt = new THREE.Vector3();
+  let parkedFor = 0;
+  let winks = 0;
+
+  /** Turns the pop-up lamps as far up as they have got, easing in and out like a motor, and the beam with them. */
+  function poseLamps() {
+    const ease = lift => (1 - Math.cos(lift * Math.PI)) / 2;
+    current.popups.forEach((pod, i) => (pod.rotation.x = current.spec.popups.down * (1 - ease(lifts[i]))));
+    headlight.intensity = lamps * 55 * (current.popups.length ? ease(Math.min(...lifts)) : 1);
+  }
+
+  /** Moves the pop-up lamps on by `dt` seconds, towards standing up or lying down. */
+  function popUp(dt) {
+    // Parked for a while, the car winks: with one lamp, and with the other the next time.
+    if (root.position.distanceToSquared(parkedAt) > 0.01) {
+      parkedAt.copy(root.position);
+      parkedFor = 0;
+    } else if (parkedFor < WINK_AFTER && (parkedFor += dt) >= WINK_AFTER) car.wink(winks++ % 2);
+    latch = Math.max(0, latch - dt);
+    for (let i = 0; i < 2; i++) {
+      flips[i] = Math.max(0, flips[i] - dt);
+      const up = (lamps >= POP_ON || latch > 0) !== flips[i] > 0;
+      lifts[i] = THREE.MathUtils.clamp(lifts[i] + (up ? dt : -dt) * POP_SPEED, 0, 1);
+    }
+    poseLamps();
+  }
+
   const car = {
     root,
     body,
@@ -985,6 +1330,12 @@ export function createCar() {
         }
       }
       car.setTent(tentOpen, 0);
+      // Pop-up lamps stand as the lamps are straight away, and wink again once parked.
+      lifts.fill(lamps >= POP_ON ? 1 : 0);
+      flips.fill(0);
+      latch = 0;
+      parkedFor = 0;
+      poseLamps();
     },
     /** Opens the roof tent by `amount` (0 folded, 1 open); `night` lights the lantern inside. */
     setTent(amount, night) {
@@ -992,13 +1343,23 @@ export function createCar() {
       current.tent.open(amount, night);
     },
     setLights(night, braking) {
-      headlight.intensity = night * 55;
+      // Lamps flashed on hold pop-up lamps up long enough for them to stand right up.
+      if (night >= POP_ON && lamps < POP_ON) latch = LATCH;
+      lamps = night;
       headlampMaterial.emissiveIntensity = 0.3 + night * 1.6;
       brakeMaterial.emissiveIntensity = braking ? 1.4 : night * 0.35;
+      poseLamps();
+    },
+    /** Flips pop-up lamps the other way for a moment: both for the horn, or one (0 or 1) as a wink. */
+    wink(side) {
+      for (let i = 0; i < 2; i++) if (side === undefined || side === i) flips[i] = WINK;
     },
     animate(time) {
       decorations.flag.userData.pennant.rotation.y = Math.sin(time * 5) * 0.12;
       if (rainbow) paint.color.setHSL((time * 0.08) % 1, 0.55, 0.55);
+      const dt = THREE.MathUtils.clamp(time - lastTime, 0, 0.1);
+      lastTime = time;
+      if (current.popups.length) popUp(dt);
     },
     /** How dirty the car is, from 0 (clean) to 1. Call it once the car has been moved for the frame. */
     setMud(amount) {
@@ -1190,6 +1551,35 @@ function createRoofTent(length, roof, ladderOut) {
       poles.scale.y = Math.max(0.001, slide * (roof + 0.02));
       valance.scale.y = Math.max(0.001, slide * 0.24);
     },
+  };
+}
+
+/**
+ * The roof tent rolled up and strapped on a rack, for an open car with no roof to put it up on,
+ * so it stays packed. The origin is the middle of the rack's rails, `length` long.
+ */
+function createPackedTent(length) {
+  const half = length / 2;
+  const parts = new PartsBuilder();
+  for (const x of [-0.42, 0.42]) {
+    parts.box(0.03, 0.03, length, CHROME, { x });
+    for (const z of [-half + 0.04, half - 0.04]) parts.box(0.03, 0.07, 0.03, CHROME, { x, y: -0.035, z });
+  }
+  for (const z of [-half + 0.06, 0, half - 0.06]) parts.box(0.84, 0.025, 0.025, CHROME, { z });
+  parts.add(new THREE.CylinderGeometry(0.13, 0.13, 0.92, 10), CANVAS, { y: 0.145, rz: Math.PI / 2 });
+  for (const x of [-0.26, 0.26]) {
+    parts.add(new THREE.CylinderGeometry(0.142, 0.142, 0.05, 10), TENT_SHELL, { x, y: 0.145, rz: Math.PI / 2 });
+  }
+  const root = new THREE.Group();
+  root.add(parts.mesh());
+  const spots = { flag: [0.42, 0.015, half - 0.03], teddy: [-0.2, 0.27, 0], gnome: [0.22, 0.27, 0] };
+  return {
+    root,
+    carry(name, object) {
+      root.add(object);
+      object.position.set(...spots[name]);
+    },
+    open() {},
   };
 }
 

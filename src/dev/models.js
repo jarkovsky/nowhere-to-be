@@ -49,11 +49,13 @@ const NAMES = {
   lorry: 'Lorry',
   hyundai: 'Rally car',
   mercedes: 'Racing car',
+  miata: 'Roadster',
 };
 
-/** The garage's vehicles as the player drives them, in a paint, with roof items. */
-function garageVehicle(vehicle, color, decorations = []) {
+/** The garage's vehicles as the player drives them, in a paint, with roof items, and the lamps on at `night`. */
+function garageVehicle(vehicle, color, decorations = [], night = 0) {
   const car = createCar();
+  car.setLights(night, false);
   car.customize(color, decorations, vehicle);
   const root = new THREE.Group();
   root.add(car.root);
@@ -125,6 +127,13 @@ export const MODELS = [
     group: 'Garage',
     size: 5,
     create: () => garageVehicle('offroader', 'orange', ['tent', 'flag', 'teddy', 'gnome']),
+  },
+  {
+    id: 'garage.miata.lamps',
+    name: 'Roadster with its lamps up, the tent packed on the boot, flag, teddy and gnome',
+    group: 'Garage',
+    size: 5,
+    create: () => garageVehicle('miata', 'orange', ['tent', 'flag', 'teddy', 'gnome'], 1),
   },
   ...[
     ['camper', 'Camper van', camperVan],
