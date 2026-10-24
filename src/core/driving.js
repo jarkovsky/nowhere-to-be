@@ -2,7 +2,7 @@
 // The car has a velocity vector rather than just a speed, so it can slide a
 // little on loose surfaces, and its tyres pull it back into line.
 import { angleDelta, clamp, damp, lerp, smoothstep } from './math.js';
-import { penetration } from './collision.js';
+import { mayTouch, penetration } from './collision.js';
 
 export const CAR = {
   wheelbase: 2.44,
@@ -37,6 +37,13 @@ const SURFACE_HANDLING = {
  * It always keeps going, though, so a car never sticks in the middle of a ford.
  */
 export const WADING = { from: 0.25, to: 0.55, slowest: 0.4 };
+
+/** The front (-1) and back (1) ends of the body, where its two circles are. */
+const ENDS = [-1, 1];
+/** How far a push can move the car in one step before every moving collider is tried, in metres. */
+const SHOVE = 2;
+// The moving colliders near enough to the car to be bumped into this step.
+const nearbyDynamic = [];
 
 /** Front-wheel angle: plenty of lock when slow, gentle at speed. */
 export function steerAngle(steering, speed) {
@@ -137,36 +144,49 @@ export function stepDriving(state, input, dt, world) {
   let z = state.z + state.vz * dt;
   state.impact = 0;
 
-  const circles = [-1, 1].map(end => ({ end }));
-  for (let pass = 0; pass < 2; pass++) {
-    for (const circle of circles) {
-      const cx = x - nsin * CAR.bodyOffset * circle.end;
-      const cz = z - ncos * CAR.bodyOffset * circle.end;
-      const nearby = [...world.obstacles.near(cx, cz, CAR.bodyRadius + 2, state.y), ...(world.dynamic ?? [])];
-      for (const obstacle of nearby) {
-        const hit = penetration(cx, cz, CAR.bodyRadius, obstacle);
-        if (!hit) continue;
-        x += hit.nx * hit.depth;
-        z += hit.nz * hit.depth;
-        const into = state.vx * hit.nx + state.vz * hit.nz;
-        if (into < 0) {
-          state.impact = Math.max(state.impact, -into);
-          const speed = Math.hypot(state.vx, state.vz);
-          const glancing = speed > 0.5 && -into / speed < 0.7;
-          // Cancel the velocity into the obstacle. Glancing contact slides
-          // along it and turns the car parallel; head-on contact stops it.
-          state.vx -= hit.nx * into * 1.1;
-          state.vz -= hit.nz * into * 1.1;
-          const tangent = Math.hypot(state.vx, state.vz);
-          const keep = tangent > 1e-6 ? Math.max(0, tangent + (glancing ? 0.05 : 0.6) * into) / tangent : 0;
-          state.vx *= keep;
-          state.vz *= keep;
-          if (glancing) {
-            const along = Math.atan2(-state.vx * Math.sign(forward || 1), -state.vz * Math.sign(forward || 1));
-            state.heading += angleDelta(state.heading, along) * 0.2;
-          }
-        }
+  // Of the moving colliders, only those within reach of the car's circles can be bumped into,
+  // unless pushes move the car further than SHOVE, when they are all tried.
+  const fromX = x;
+  const fromZ = z;
+  const dynamic = world.dynamic ?? [];
+  nearbyDynamic.length = 0;
+  for (const obstacle of dynamic) {
+    if (mayTouch(obstacle, x, z, CAR.bodyOffset + CAR.bodyRadius + SHOVE)) nearbyDynamic.push(obstacle);
+  }
+  let cx = 0;
+  let cz = 0;
+  /** Pushes the circle at (cx, cz) out of the obstacle, taking away the speed it hit it with. */
+  const resolve = obstacle => {
+    const hit = penetration(cx, cz, CAR.bodyRadius, obstacle);
+    if (!hit) return;
+    x += hit.nx * hit.depth;
+    z += hit.nz * hit.depth;
+    const into = state.vx * hit.nx + state.vz * hit.nz;
+    if (into < 0) {
+      state.impact = Math.max(state.impact, -into);
+      const speed = Math.hypot(state.vx, state.vz);
+      const glancing = speed > 0.5 && -into / speed < 0.7;
+      // Cancel the velocity into the obstacle. Glancing contact slides
+      // along it and turns the car parallel; head-on contact stops it.
+      state.vx -= hit.nx * into * 1.1;
+      state.vz -= hit.nz * into * 1.1;
+      const tangent = Math.hypot(state.vx, state.vz);
+      const keep = tangent > 1e-6 ? Math.max(0, tangent + (glancing ? 0.05 : 0.6) * into) / tangent : 0;
+      state.vx *= keep;
+      state.vz *= keep;
+      if (glancing) {
+        const along = Math.atan2(-state.vx * Math.sign(forward || 1), -state.vz * Math.sign(forward || 1));
+        state.heading += angleDelta(state.heading, along) * 0.2;
       }
+    }
+  };
+  for (let pass = 0; pass < 2; pass++) {
+    for (const end of ENDS) {
+      cx = x - nsin * CAR.bodyOffset * end;
+      cz = z - ncos * CAR.bodyOffset * end;
+      const moving = Math.hypot(x - fromX, z - fromZ) > SHOVE ? dynamic : nearbyDynamic;
+      for (const obstacle of world.obstacles.near(cx, cz, CAR.bodyRadius + 2, state.y)) resolve(obstacle);
+      for (const obstacle of moving) resolve(obstacle);
     }
   }
 
