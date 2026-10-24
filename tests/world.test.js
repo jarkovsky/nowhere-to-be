@@ -262,7 +262,7 @@ test('the farmland is gentle enough for fields', () => {
   }
 });
 
-test('the road runs under the arch while the fin carries the car over it', async () => {
+test('the road runs under the arch while the fin carries the car over it and down the far side', async () => {
   const { ROCK_FIN, ROCK_GATE } = await import('../src/world/layout.js');
   const { GATE_TOP, drivingHeight, finHeight, terrainHeight } = await import('../src/world/terrain.js');
   const { x, z } = ROCK_GATE;
@@ -280,4 +280,10 @@ test('the road runs under the arch while the fin carries the car over it', async
     assert.ok(Math.abs(h - previous) < 0.25, `steep at ${s}`);
     previous = h;
   }
+  // Over the arch it comes down the far side to the ground, at the edge of the gravel road.
+  const { CONNECTORS, GRAVEL_HALF_WIDTH } = await import('../src/world/layout.js');
+  const end = path.samples.at(-1);
+  assert.ok(Math.abs(finHeight(end.x, end.z) - terrainHeight(end.x, end.z)) < 0.3);
+  const road = CONNECTORS.find(connector => connector.id === 'north').path;
+  assert.ok(road.nearest(end.x, end.z).distance < GRAVEL_HALF_WIDTH + 1);
 });

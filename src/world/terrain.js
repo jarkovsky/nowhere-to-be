@@ -885,13 +885,18 @@ export const GATE_GROUND = (() => {
 export const GATE_TOP = GATE_GROUND + ROCK_GATE.crown;
 
 /**
- * The fin's top along its path: level with the ground where it leaves the track, climbing evenly
- * to the top of the arch by the time it reaches the arch's near foot, and level from there on.
+ * The fin's top along its path: level with the ground where it leaves the track, going evenly
+ * to the top of the arch by the time it reaches the arch's near foot, level over the arch, and
+ * evenly down again from its far foot to the ground where it meets the road.
  */
 const finLevels = (() => {
-  const { path, arch } = ROCK_FIN;
-  const start = terrainHeight(path.samples[0].x, path.samples[0].z);
-  const level = path.samples.map(({ s }) => lerp(start, GATE_TOP, Math.min(1, s / (arch - 6))));
+  const { path, arch, archEnd } = ROCK_FIN;
+  const [first, last] = [path.samples[0], path.samples.at(-1)];
+  const [start, end] = [terrainHeight(first.x, first.z), terrainHeight(last.x, last.z)];
+  const [up, down] = [arch - 6, archEnd + 6];
+  const level = path.samples.map(({ s }) =>
+    s < up ? lerp(start, GATE_TOP, s / up) : lerp(GATE_TOP, end, Math.max(0, s - down) / (path.length - down)),
+  );
   return smoothProfile(level, 6, false);
 })();
 const finBox = (() => {

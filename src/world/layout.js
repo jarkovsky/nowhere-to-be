@@ -807,28 +807,40 @@ export const TRACKS = [
 ];
 
 /**
- * A fin of rock running out from the side of the rocky hill to the arch, as if the arch were the
- * last of it. Its top is a rough causeway the car can drive along, from where it leaves the
- * track up the hill out onto the arch's flat top over the road. `path` runs along the middle of
- * the top, `width` across, ending at the far edge of the arch; `arch` is how far along it the
- * arch begins (the middle of its near foot).
+ * A fin of rock running out from the side of the rocky hill to the arch, as if the arch were a
+ * part of it, and on down the other side. Its top is a rough causeway the car can drive along,
+ * from where it leaves the track up the hill, over the arch's flat top high above the road,
+ * and down across the meadow beyond to the gravel road there. `path` runs along the middle of
+ * the top and `width` across it.
  */
 export const ROCK_FIN = (() => {
   const { x, z, dx, dz, span, thickness } = ROCK_GATE;
-  // `u` metres along the arch's own axis, across the road, towards the hill.
+  // `u` metres along the arch's own axis, across the road, towards the hill, and `v` along the road.
   const across = (u, v = 0) => [x + dz * u + dx * v, z - dx * u + dz * v];
   const track = TRACKS.find(t => t.id === 'rockhill').path;
   const leaves = track.nearest(...across(118));
+  // Over the arch it goes on down the other side, curving across the meadow to the edge of
+  // the gravel road out to the upland road.
+  const road = CONNECTORS.find(connector => connector.id === 'north').path;
+  const lands = road.nearest(...across(-152, -58));
+  const edge = road.offset(lands.sample.s, Math.sign(lands.side) * (GRAVEL_HALF_WIDTH + 0.5));
   const path = createPath([
     [leaves.sample.x, leaves.sample.z],
     across(96, 3),
     across(62, 4),
     across(34, 1),
     across(16),
-    across(-6.5),
+    across(-17),
+    across(-30, -2.5),
+    across(-62, -14),
+    across(-100, -33),
+    across(-132, -48),
+    [edge.x, edge.z],
   ]);
   const foot = span / 2 + thickness;
-  return { path, width: 7.5, arch: path.length - 6.5 - foot };
+  const at = u => path.nearest(...across(u)).sample.s;
+  // `arch` and `archEnd` are how far along it the arch's near and far feet are.
+  return { path, width: 7.5, arch: at(foot), archEnd: at(-foot) };
 })();
 
 /** A point on the upland road at an angle in degrees (0 is due east, 90 due south). */
