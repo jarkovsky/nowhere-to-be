@@ -105,6 +105,9 @@ try {
   await page.getByRole('button', { name: 'Lorry' }).click();
   assert.equal((await state(page)).journal.vehicle, 'lorry');
   assert.ok((await state(page)).trailer, 'the lorry has its trailer');
+  // The roadster has no roof for the tent, which it carries packed instead.
+  await page.getByRole('button', { name: 'Miata', exact: true }).click();
+  assert.equal((await state(page)).journal.vehicle, 'miata');
   assert.ok(await page.locator('#color-options').isVisible());
   await page.getByRole('button', { name: 'Off-roader' }).click();
   await page.keyboard.press('Escape');

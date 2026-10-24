@@ -6,7 +6,7 @@ export const SAVE_KEY = 'little-wilds-adventures-v1';
 
 export const COLORS = ['orange', 'sage', 'blue', 'berry', 'yellow', 'rainbow'];
 export const DECORATIONS = ['flag', 'teddy', 'tent', 'gnome'];
-export const VEHICLES = ['offroader', 'pickup', 'van', 'saloon', 'tractor', 'lorry', 'hyundai', 'mercedes'];
+export const VEHICLES = ['offroader', 'pickup', 'van', 'saloon', 'tractor', 'lorry', 'hyundai', 'mercedes', 'miata'];
 
 /**
  * There used to be two lorries in colours of their own, Oliver in blue and Ruda in red. A save

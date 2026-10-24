@@ -407,6 +407,8 @@ export function createGame(canvas) {
     if (clock - lastHonk < 0.5) return;
     lastHonk = clock;
     sound.horn(insideTunnel(state.x, state.z), car.spec.voice?.horn);
+    // Pop-up lamps flip up and back down with it.
+    car.wink();
     wildlife.hearHorn(state.x, state.z);
     secrets.hearHorn(state.x, state.z);
     for (const road of [traffic, ...openRoads]) road.answerHonk(state.x, state.z, () => sound.otherHorn());

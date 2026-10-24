@@ -60,6 +60,7 @@ test('saves with one of the old lorries get the lorry, in the paint nearest its 
 test('saves with another vehicle keep their paint', () => {
   assert.deepEqual(pick(sanitise({ vehicle: 'hyundai', color: 'sage' })), { vehicle: 'hyundai', color: 'sage' });
   assert.deepEqual(pick(sanitise({ vehicle: 'lorry', color: 'berry' })), { vehicle: 'lorry', color: 'berry' });
+  assert.deepEqual(pick(sanitise({ vehicle: 'miata', color: 'yellow' })), { vehicle: 'miata', color: 'yellow' });
   assert.deepEqual(pick(sanitise({ vehicle: 'mercedes', color: 'rainbow', rainbow: true })), {
     vehicle: 'mercedes',
     color: 'rainbow',
