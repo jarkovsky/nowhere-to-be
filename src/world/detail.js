@@ -157,7 +157,8 @@ export function foliageMaterial(kind, range = 0, crop = null) {
     Object.assign(shader.uniforms, crop, trampleUniforms(), { groundDetail, swayTime: SWAY.time });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\n${SWAY_PARS}\n${TRAMPLE_PARS}`)
-      .replace('vColor.xyz *= instanceColor.xyz;', 'vColor.xyz *= mix( vec3( 1.0 ), instanceColor.xyz, tinted );')
+      // The colour chunk is spelt out here, as the line to change is inside its include.
+      .replace('#include <color_vertex>', TINTED_COLOR)
       .replace('#include <project_vertex>', SWAY_VERTEX);
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -168,6 +169,12 @@ export function foliageMaterial(kind, range = 0, crop = null) {
   };
   return material;
 }
+
+/** three's colour chunk, with each one's own tint only on the parts whose `tinted` is 1. */
+export const TINTED_COLOR = THREE.ShaderChunk.color_vertex.replace(
+  'vColor.xyz *= instanceColor.xyz;',
+  'vColor.xyz *= mix( vec3( 1.0 ), instanceColor.xyz, tinted );',
+);
 
 const SWAY_PARS = /* glsl */ `
   uniform float swayTime;
