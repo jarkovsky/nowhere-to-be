@@ -1,5 +1,5 @@
 // Friends who tag along. Four of the garage's vehicles wait at the depot by the trail,
-// Oliver and Ruda among them. Drive up close and an arrow bobs over each one, with a ripple
+// the lorry among them. Drive up close and an arrow bobs over each one, with a ripple
 // on the ground round it like the one round the play button. Tap one (or press F) and it
 // honks, flashes its lamps, pulls out and follows: along the way the player drove, a little
 // way behind, stopping when the player stops and honking back when the player honks. Two
@@ -33,14 +33,12 @@ import {
 import { vertexColorMaterial } from '../world/build.js';
 import { DEPOT } from '../world/layout.js';
 import { drivingHeight, isDriveable } from '../world/terrain.js';
-import { CHARACTERS } from './car.js';
 import { createCopies, poseCopy } from './copies.js';
 
-/** Who waits at the depot, first come first served; a lorry's partner always gets the first bay. */
-const LINEUP = ['oliver', 'ruda', 'hyundai', 'mercedes', 'offroader', 'pickup', 'van', 'saloon', 'tractor'];
-const PARTNERS = { oliver: 'ruda', ruda: 'oliver' };
-/** Paints for the friends without colours of their own, avoiding the player's. */
-const PAINTS = ['blue', 'sage', 'yellow', 'berry', 'orange'];
+/** Who waits at the depot, first come first served, in this order along the bays. */
+const LINEUP = ['lorry', 'hyundai', 'mercedes', 'offroader', 'pickup', 'van', 'saloon', 'tractor'];
+/** The friends' paints, each a different one in the order they wait, leaving out the player's. */
+const PAINTS = ['blue', 'orange', 'yellow', 'sage', 'berry'];
 /** How close the player has to be for a friend to show it can come along, and to tap one. */
 const NEAR = 20;
 const TAP_RANGE = 24;
@@ -116,11 +114,12 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
 
   // --- The friends ------------------------------------------------------------------------
 
-  const paintFor = vehicle => (CHARACTERS.includes(vehicle) ? 'orange' : PAINTS.find(c => c !== playerColor));
-  const lineup = () =>
-    [...new Set([PARTNERS[playerVehicle], ...LINEUP])]
-      .filter(v => v && v !== playerVehicle)
-      .slice(0, DEPOT.bays.length);
+  /** The paint for `vehicle` among the friends' `vehicles`: its place among them picks it. */
+  const paintFor = (vehicle, vehicles) => {
+    const paints = PAINTS.filter(c => c !== playerColor);
+    const place = vehicles.filter(v => LINEUP.indexOf(v) < LINEUP.indexOf(vehicle)).length;
+    return paints[place % paints.length];
+  };
 
   const arrowGeometry = mergeGeometries([
     new THREE.ConeGeometry(0.62, 0.85, 4).rotateX(Math.PI).translate(0, 0.42, 0).toNonIndexed(),
@@ -135,8 +134,10 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
     depthWrite: false,
   });
 
-  const friends = lineup().map((vehicle, bay) => {
-    const statue = new THREE.Mesh(statueOf(vehicle, paintFor(vehicle)), vertexColorMaterial);
+  const waiting = LINEUP.filter(v => v !== playerVehicle).slice(0, DEPOT.bays.length);
+  const friends = waiting.map((vehicle, bay) => {
+    const color = paintFor(vehicle, waiting);
+    const statue = new THREE.Mesh(statueOf(vehicle, color), vertexColorMaterial);
     statue.castShadow = true;
     statue.receiveShadow = true;
     const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
@@ -144,7 +145,7 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
     scene.add(statue, arrow, ripple);
     return {
       vehicle,
-      color: paintFor(vehicle),
+      color,
       size: sizeOf(vehicle),
       bay,
       mode: 'home', // 'home' | 'following' | 'staying'
@@ -686,24 +687,24 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
     return best;
   }
 
-  /** Puts the friends at home in their bays in order, the player's partner first. */
+  /** Puts the friends at home in their bays in order. */
   function arrange() {
-    const order = [...new Set([PARTNERS[playerVehicle], ...LINEUP])];
-    const sorted = [...friends].sort((a, b) => order.indexOf(a.vehicle) - order.indexOf(b.vehicle));
+    const sorted = [...friends].sort((a, b) => LINEUP.indexOf(a.vehicle) - LINEUP.indexOf(b.vehicle));
     sorted.forEach((friend, bay) => {
       friend.bay = bay;
       if (friend.mode === 'home') placeStatue(friend);
     });
   }
 
-  /** Changes what a friend is, keeping where it is and what it is doing. */
-  function become(friend, vehicle) {
+  /** Changes what a friend is, or its paint, keeping where it is and what it is doing. */
+  function become(friend, vehicle, color) {
+    if (friend.vehicle === vehicle && friend.color === color) return;
     friend.vehicle = vehicle;
-    friend.color = paintFor(vehicle);
+    friend.color = color;
     friend.size = sizeOf(vehicle);
-    friend.statue.geometry = statueOf(vehicle, friend.color);
+    friend.statue.geometry = statueOf(vehicle, color);
     if (friend.copy) {
-      copies.dress(friend.copy, vehicle, friend.color);
+      copies.dress(friend.copy, vehicle, color);
       poseCopy(friend.copy, friend, 0, true);
     }
   }
@@ -765,10 +766,8 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
       playerVehicle = vehicle;
       playerColor = color;
       player.size = sizeOf(vehicle);
-      for (const friend of friends) {
-        if (friend.vehicle === vehicle) become(friend, previous);
-        else if (friend.color !== paintFor(friend.vehicle)) become(friend, friend.vehicle);
-      }
+      const vehicles = friends.map(friend => (friend.vehicle === vehicle ? previous : friend.vehicle));
+      friends.forEach((friend, i) => become(friend, vehicles[i], paintFor(vehicles[i], vehicles)));
       arrange();
     },
     getState: () =>

@@ -5,6 +5,7 @@
 // others pull over to let it pass, or an army off-roader that just drives through.
 import * as THREE from 'three';
 import { damp } from '../core/math.js';
+import { createSteering, steer } from '../core/steering.js';
 import { chassisPose } from '../core/suspension.js';
 import { BRIDGE, OUTER_ROAD, RING_ROAD, ROAD } from '../world/layout.js';
 import { headingOf } from '../world/path.js';
@@ -294,13 +295,17 @@ function createVehicle(model) {
   const root = new THREE.Group();
   const body = model.parts.mesh();
   root.add(body);
+  // Only the front axle steers. Behind it the wheelbase reaches to the back axle, or to the
+  // middle of the two at the back of a lorry.
+  const [front, ...back] = [...model.wheelZ].sort((a, b) => a - b);
+  const wheelbase = back.reduce((sum, z) => sum + z, 0) / back.length - front;
   const wheels = [];
   for (const x of [-model.wheelX, model.wheelX]) {
     for (const z of model.wheelZ) {
       const wheel = createWheel(model.wheelRadius, 0.36);
       wheel.pivot.position.set(x, model.wheelRadius, z);
       root.add(wheel.pivot);
-      wheels.push(wheel);
+      wheels.push({ ...wheel, front: z === front });
     }
   }
   const lamps = new THREE.MeshLambertMaterial({ color: '#fff3ce', emissive: '#ffd88e', emissiveIntensity: 0.2 });
@@ -324,7 +329,16 @@ function createVehicle(model) {
   // Circles along the body for collisions, close enough together to leave no gaps.
   const circles = Math.max(2, Math.ceil(model.length / 2.2));
   const along = Array.from({ length: circles }, (_, i) => (i / (circles - 1) - 0.5) * (model.length - 2.2));
-  return { root, wheels, lamps, beacons, radius: model.wheelRadius, length: model.length, along };
+  return {
+    root,
+    wheels,
+    lamps,
+    beacons,
+    radius: model.wheelRadius,
+    length: model.length,
+    along,
+    steering: createSteering(wheelbase),
+  };
 }
 
 /** The fire engine that waits at the village fire station. */
@@ -461,18 +475,26 @@ export function createTraffic(scene, network = VALLEY) {
     return false;
   }
 
-  /** Moves a vehicle to its place on the road and spins its wheels. Out of sight, only where it is matters. */
+  /**
+   * Moves a vehicle to its place on the road, spins its wheels and steers round the bends.
+   * Out of sight, only where it is matters.
+   */
   function place(t, dt) {
     const p = road.offset(t.s, t.direction * t.offset);
     if (!t.root.visible) {
       t.root.position.set(p.x, t.root.position.y, p.z);
+      t.steering.heading = null;
       return;
     }
     const heading = headingOf(p.dx * t.direction, p.dz * t.direction);
     const pose = chassisPose(p.x, p.z, heading, drivingHeight);
     t.root.position.set(p.x, pose.height + 0.06, p.z);
     t.root.rotation.set(pose.pitch, heading, pose.roll, 'YXZ');
-    for (const wheel of t.wheels) wheel.spin.rotation.x -= (t.speed * dt) / t.radius;
+    const angle = steer(t.steering, heading, t.speed, dt);
+    for (const wheel of t.wheels) {
+      if (wheel.front) wheel.pivot.rotation.y = angle;
+      wheel.spin.rotation.x -= (t.speed * dt) / t.radius;
+    }
     const sin = Math.sin(heading);
     const cos = Math.cos(heading);
     for (const offset of t.along) colliders.push({ x: p.x - sin * offset, z: p.z - cos * offset, radius: 1.15 });
@@ -613,6 +635,7 @@ export function createTraffic(scene, network = VALLEY) {
         z: t.root.position.z,
         speed: t.speed,
         pulledOver: t.offset > LANE + 1,
+        steer: t.steering.angle,
       })),
   };
 }

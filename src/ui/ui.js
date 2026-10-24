@@ -2,7 +2,7 @@
 // for a small child who can't read yet, so everything is a picture to tap; the words
 // are labels for screen readers. It knows nothing about Three.js; the game talks to
 // it through callbacks.
-import { CAR_COLORS, CHARACTERS } from '../vehicles/car.js';
+import { CAR_COLORS } from '../vehicles/car.js';
 import { COLORS, DECORATIONS, VEHICLES } from '../core/journal.js';
 import { gnomeArt, gnomeIcon, roofArt } from './art.js';
 
@@ -15,8 +15,7 @@ const LABELS = {
     van: 'Camper van',
     saloon: 'Saloon',
     tractor: 'Tractor',
-    oliver: 'Oliver',
-    ruda: 'Ruda',
+    lorry: 'Lorry',
     hyundai: 'Hyundai',
     mercedes: 'Mercedes',
   },
@@ -125,9 +124,8 @@ export function createUI({ journal, gnomeCount, pictures, on }) {
   function vehiclePicture(vehicle, color) {
     const url = pictures.get(vehicle, color);
     if (!url) return '<span class="waiting"></span>';
-    // The rainbow pictures change colour as the car does; the characters keep their own.
-    const rainbow = color === 'rainbow' && !CHARACTERS.includes(vehicle);
-    return `<img src="${url}" alt=""${rainbow ? ' class="rainbow"' : ''}>`;
+    // The rainbow pictures change colour as the car does.
+    return `<img src="${url}" alt=""${color === 'rainbow' ? ' class="rainbow"' : ''}>`;
   }
 
   const offeredColors = choices => COLORS.filter(c => c !== 'rainbow' || choices.rainbow);
@@ -154,8 +152,6 @@ export function createUI({ journal, gnomeCount, pictures, on }) {
       choose: c => ({ color: c }),
       style: c => `--swatch:${CAR_COLORS[c] ?? 'transparent'}`,
     });
-    // The characters keep their own colours.
-    $('color-options').hidden = CHARACTERS.includes(choices.vehicle);
     // Roof items can be combined, so each button toggles its own item.
     choiceButtons(
       $('decoration-options'),

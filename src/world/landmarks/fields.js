@@ -6,6 +6,7 @@
 // watching, it quietly grows back and the work starts again.
 import * as THREE from 'three';
 import { createRandom, fractalNoise, valueNoise } from '../../core/math.js';
+import { createSteering, steer } from '../../core/steering.js';
 import { chassisPose } from '../../core/suspension.js';
 import { vehicleParts } from '../../vehicles/car.js';
 import { FARMSTEAD, FIELDS, FIELD_PLOTS, fieldPoint } from '../layout.js';
@@ -793,17 +794,24 @@ function wheel(radius, width) {
     .mesh();
 }
 
+/** Puts a wheel on a machine, on a pivot that turns it if it `steers`. The wheel itself spins. */
+function addWheel(root, { x, z, radius, width = 0.4 }, steers) {
+  const pivot = new THREE.Group();
+  pivot.position.set(x, radius + 0.06, z);
+  const mesh = wheel(radius, width);
+  pivot.add(mesh);
+  root.add(pivot);
+  return { pivot, mesh, radius, steers };
+}
+
 /** A copy of the garage's tractor in the farm's own colour, with something hitched behind. */
 function farmTractor(color, implement) {
   const { painted, trim, spec } = vehicleParts('tractor');
   const root = new THREE.Group();
   root.add(painted.mesh({ material: flatMaterial(color) }), trim.mesh());
-  const wheels = spec.wheels.map(({ x, z, radius, width = 0.4 }) => {
-    const mesh = wheel(radius, width);
-    mesh.position.set(x, radius + 0.06, z);
-    root.add(mesh);
-    return { mesh, radius };
-  });
+  // The small front wheels steer.
+  const wheels = spec.wheels.map(w => addWheel(root, w, w.z < 0));
+  const axles = spec.wheels.map(w => w.z);
   const tool = new PartsBuilder();
   tool.box(0.2, 0.15, 1.2, STEEL, { y: 0.75, z: 2.6 }); // drawbar
   if (implement === 'plough') {
@@ -832,6 +840,7 @@ function farmTractor(color, implement) {
     kind: implement,
     root,
     wheels,
+    steering: createSteering(Math.max(...axles) - Math.min(...axles)),
     /** Circles for collisions, as [right, behind, radius] from the middle of the tractor. */
     hits: [
       [0, -1.2, 1.3],
@@ -928,14 +937,9 @@ function combineHarvester() {
 
   // Big drive wheels under the cab, small steering wheels at the back.
   const wheels = [
-    ...[-1.55, 1.55].map(x => ({ x, z: -0.9, radius: 0.85, width: 0.62 })),
-    ...[-1.2, 1.2].map(x => ({ x, z: 3, radius: 0.55, width: 0.42 })),
-  ].map(({ x, z, radius, width }) => {
-    const mesh = wheel(radius, width);
-    mesh.position.set(x, radius + 0.06, z);
-    root.add(mesh);
-    return { mesh, radius };
-  });
+    ...[-1.55, 1.55].map(x => addWheel(root, { x, z: -0.9, radius: 0.85, width: 0.62 }, false)),
+    ...[-1.2, 1.2].map(x => addWheel(root, { x, z: 3, radius: 0.55, width: 0.42 }, true)),
+  ];
   root.traverse(child => {
     if (child.isMesh) child.castShadow = true;
   });
@@ -943,6 +947,8 @@ function combineHarvester() {
     kind: 'combine',
     root,
     wheels,
+    // From the drive wheels back to the steering wheels: negative, as they are behind.
+    steering: createSteering(-3.9),
     reel,
     intake,
     hits: [
@@ -1105,6 +1111,7 @@ export function buildFields(scene, obstacles) {
         done: w.d >= w.route.total,
         x: w.machine.root.position.x,
         z: w.machine.root.position.z,
+        steer: w.machine.steering.angle,
       })),
     update(dt, player) {
       time += dt;
@@ -1138,6 +1145,11 @@ export function buildFields(scene, obstacles) {
         const pose = chassisPose(p.x, p.z, heading, terrainHeight);
         machine.root.position.set(p.x, pose.height, p.z);
         machine.root.rotation.set(pose.pitch, heading, pose.roll, 'YXZ');
+        // It steers round at the end of each lane, where it can be seen.
+        if (inSight) {
+          const angle = steer(machine.steering, heading, worker.moving ? worker.speed : 0, dt);
+          for (const w of machine.wheels) if (w.steers) w.pivot.rotation.y = angle;
+        } else machine.steering.heading = null;
         // The worked ground starts behind the machine, not under it.
         worker.ground.show(Math.max(0, here.worked - 4));
         for (const [right, behind, radius] of machine.hits) {

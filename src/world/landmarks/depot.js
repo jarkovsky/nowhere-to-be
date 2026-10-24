@@ -1,6 +1,6 @@
 // The depot by the trail: a long, low garage with four open doors, a concrete yard in
 // front with painted bays, and a picture of a lorry over the doors. The friends who can
-// come along wait in the bays (see vehicles/friends.js); the lorries' trailers stand back
+// come along wait in the bays (see vehicles/friends.js); the lorry's trailer stands back
 // inside the doors. A lamp over each door comes on at dusk.
 import * as THREE from 'three';
 import { DEPOT } from '../layout.js';

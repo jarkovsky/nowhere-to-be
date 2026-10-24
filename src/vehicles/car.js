@@ -1,8 +1,7 @@
 // The player's vehicles, built from boxes: the little off-roader and the others
-// in the garage. They all drive the same way. Paint is a separate material so
-// the colour can change; everything else on each vehicle is one merged mesh.
-// Four of them are characters with names and colours of their own: two lorries
-// with trailers, a rally car and a racing car.
+// in the garage, among them a lorry with a trailer, a rally car and a racing car.
+// They all drive the same way. Paint is a separate material so the colour can
+// change; everything else on each vehicle is one merged mesh.
 import * as THREE from 'three';
 import { PartsBuilder, flatMaterial, prism } from '../world/build.js';
 import { detailMap } from '../world/detail.js';
@@ -21,9 +20,6 @@ const METAL = '#737e73';
 const GLASS = '#4f6f73';
 const CHROME = '#c9cdc6';
 const DARK = '#2a2e33';
-
-/** The characters, which keep their own colours whatever paint is chosen. */
-export const CHARACTERS = ['oliver', 'ruda', 'hyundai', 'mercedes'];
 
 export const WHEEL_RADIUS = 0.59;
 
@@ -125,12 +121,12 @@ function raceNumber(parts, side, { x, y, z }) {
 }
 
 /**
- * Each builder paints into `painted` (takes the chosen colour), `trim`, and `cargo` (luggage
- * that makes way for the roof tent), and describes its wheels, lamps and where things go:
- * `mounts` for the decorations, and `tent` as [x, y, z, length, ladder] for the roof tent,
- * where `ladder` is how far out to the side its ladder hangs, clear of the body and wheels.
- * The characters also have a `voice` for the engine and horn, a `camera` that stands
- * further back for the big ones, and the lorries a `trailer`.
+ * Each builder paints into `painted` (takes the chosen colour: white for the colour itself,
+ * grey for a darker shade of it), `trim`, and `cargo` (luggage that makes way for the roof
+ * tent), and describes its wheels, lamps and where things go: `mounts` for the decorations,
+ * and `tent` as [x, y, z, length, ladder] for the roof tent, where `ladder` is how far out to
+ * the side its ladder hangs, clear of the body and wheels. Some also have a `voice` for the
+ * engine and horn, a `camera` that stands further back for the big one, and the lorry a `trailer`.
  */
 const VEHICLE_BUILDERS = {
   offroader(painted, trim, cargo) {
@@ -402,14 +398,155 @@ const VEHICLE_BUILDERS = {
     };
   },
 
-  oliver: lorry('#2f6cb3'),
-  ruda: lorry('#c43b2e'),
+  lorry(painted, trim) {
+    // A European lorry with a flat-fronted cab, pulling a box trailer in the same colour.
+    const line = shade('#ffffff', 0.78); // seams, a little darker than the paint
+    const wheels = [
+      ...[-1.02, 1.02].map(x => ({ x, z: -1.5, radius: 0.52, width: 0.36, hub: CHROME })),
+      ...[-0.98, 0.98].map(x => ({ x, z: 2.1, radius: 0.52, width: 0.56, hub: CHROME })),
+    ];
+    // The cab sits over the front wheels, with its front corners cut off, a raised roof
+    // and an opening over each front wheel lined with a black mudguard.
+    const cab = back => [
+      [-1.22, back],
+      [-1.22, -2.17],
+      [-1.06, -2.35],
+      [1.06, -2.35],
+      [1.22, -2.17],
+      [1.22, back],
+    ];
+    painted.add(plan(cab(-0.05), 1.26, 3.4), '#ffffff');
+    painted.add(plan(cab(-2.06), 1.0, 1.26), '#ffffff');
+    painted.box(2.44, 0.26, 0.89, '#ffffff', { y: 1.13, z: -0.495 });
+    painted.add(
+      profile(
+        [
+          [-2.22, 3.39],
+          [-1.98, 3.82],
+          [-0.05, 3.88],
+          [-0.05, 3.39],
+        ],
+        2.3,
+      ),
+      '#ffffff',
+    );
+    const mudguard = profile(archBand(wheels[0], 0.6, 0.68, 0.75), 0.42); // over the front wheels
+    // The front: a big windscreen in a black surround with its wipers, a sun visor with marker
+    // lamps, the grille with its bright bars and the bumper with the lamps.
+    trim.box(2.1, 1.1, 0.03, DARK, { y: 2.7, z: -2.355 });
+    trim.box(2.0, 1.0, 0.04, GLASS, { y: 2.72, z: -2.365 });
+    for (const x of [-0.5, 0.45]) {
+      trim.beam({ x: x - 0.38, y: 2.27, z: -2.39 }, { x: x + 0.38, y: 2.33, z: -2.39 }, 0.03, DARK);
+    }
+    trim.box(2.12, 0.14, 0.42, DARK, { y: 3.27, z: -2.5 });
+    for (let i = -2; i <= 2; i++) trim.box(0.14, 0.06, 0.03, '#f2c14e', { x: i * 0.42, y: 3.27, z: -2.72 });
+    trim.box(1.76, 0.74, 0.03, DARK, { y: 1.7, z: -2.36 });
+    for (let i = 0; i < 4; i++) trim.box(1.76, 0.06, 0.03, CHROME, { y: 1.43 + i * 0.18, z: -2.375 });
+    painted.add(
+      plan(
+        [
+          [-1.2, -2.05],
+          [-1.2, -2.27],
+          [-1.04, -2.46],
+          [1.04, -2.46],
+          [1.2, -2.27],
+          [1.2, -2.05],
+        ],
+        0.6,
+        1.0,
+      ),
+      '#ffffff',
+    );
+    trim.add(
+      plan(
+        [
+          [-1.14, -2.1],
+          [-1.14, -2.27],
+          [-1.0, -2.43],
+          [1.0, -2.43],
+          [1.14, -2.27],
+          [1.14, -2.1],
+        ],
+        0.47,
+        0.6,
+      ),
+      DARK,
+    );
+    for (const side of [-1, 1]) {
+      trim.box(0.16, 0.12, 0.03, '#e39a3b', { x: side * 1.13, y: 0.82, z: -2.375, ry: -side * 0.87 });
+      trim.add(mudguard, DARK, { x: side * 1.05 });
+      trim.box(0.02, 0.26, 1.12, DARK, { x: side * 0.82, y: 1.13, z: -1.5 });
+      trim.box(0.04, 0.72, 0.92, GLASS, { x: side * 1.225, y: 2.72, z: -1.66 });
+      painted.box(0.03, 2.25, 0.03, line, { x: side * 1.225, y: 2.125, z: -0.5 }); // back of the door
+      trim.box(0.04, 0.06, 0.24, CHROME, { x: side * 1.235, y: 2.15, z: -0.72 });
+      // Big mirrors on arms, and steps up to the door.
+      trim.beam({ x: side * 1.15, y: 3.0, z: -2.27 }, { x: side * 1.5, y: 2.95, z: -2.36 }, 0.06, DARK);
+      painted.box(0.13, 0.62, 0.26, '#ffffff', { x: side * 1.52, y: 2.7, z: -2.36 });
+      trim.box(0.09, 0.52, 0.02, '#b9cfd0', { x: side * 1.52, y: 2.7, z: -2.22 });
+      for (const y of [0.45, 0.78]) trim.box(0.34, 0.06, 0.34, DARK, { x: side * 1.08, y, z: -0.62 });
+      // The chassis behind the cab: fuel tanks, mudguards over the back wheels and the frame.
+      trim.add(new THREE.CylinderGeometry(0.3, 0.3, 1.0, 10), CHROME, {
+        x: side * 0.98,
+        y: 0.72,
+        z: 0.5,
+        rx: Math.PI / 2,
+      });
+      trim.box(0.62, 0.05, 1.2, DARK, { x: side * 0.98, y: 1.135, z: 2.1 });
+      trim.box(0.6, 0.5, 0.03, DARK, { x: side * 0.98, y: 0.55, z: 2.75 });
+      trim.box(0.18, 0.28, 5.6, DARK, { x: side * 0.5, y: 0.82, z: 0.55 });
+    }
+    trim.box(2.1, 0.32, 0.06, DARK, { y: 0.9, z: 3.31 }); // the panel the brake lights sit on
+    trim.box(1.3, 0.14, 1.1, '#3b3f3c', { y: 1.07, z: 1.9 }); // the hitch
 
-  hyundai(_, trim, cargo) {
-    // A rally car: a short hatchback on very wide arches, with a big wing, in dark blue and
-    // pale silver with red stripes.
+    // The trailer, built from its hitch point, which rests on the lorry's hitch, and painted like it.
+    const trailerPaint = new PartsBuilder();
+    const trailer = new PartsBuilder();
+    trailerPaint.box(2.5, 2.74, 10, '#ffffff', { y: 1.43, z: 3.75 });
+    trailer.box(2.54, 0.16, 10.04, DARK, { y: 0.1, z: 3.75 });
+    for (const side of [-1, 1]) {
+      for (let z = -0.75; z < 8.5; z += 1) trailerPaint.box(0.04, 2.56, 0.07, line, { x: side * 1.26, y: 1.5, z });
+      // The frame, the legs it stands on when unhitched and the side guards all start behind
+      // the lorry, so they stay clear of its back wheels however far the trailer swings.
+      trailer.box(0.2, 0.3, 6.7, DARK, { x: side * 0.5, y: -0.13, z: 5.35 });
+      trailer.box(0.12, 0.85, 0.12, DARK, { x: side * 0.9, y: -0.42, z: 2.4 });
+      trailer.box(0.24, 0.05, 0.3, DARK, { x: side * 0.9, y: -0.86, z: 2.4 });
+      for (const y of [-0.22, -0.45]) trailer.box(0.04, 0.08, 2.6, METAL, { x: side * 1.2, y, z: 3.9 });
+    }
+    // The back: two doors with their lock bars, and a bumper with the lamps.
+    trailerPaint.box(0.03, 2.56, 0.02, line, { y: 1.5, z: 8.76 });
+    for (const x of [-0.95, -0.35, 0.35, 0.95]) trailer.box(0.05, 2.4, 0.04, METAL, { x, y: 1.5, z: 8.78 });
+    trailer.box(2.3, 0.16, 0.14, DARK, { y: -0.42, z: 8.62 });
+
+    return {
+      wheels,
+      headlamps: { x: 0.8, y: 0.82, z: -2.47, square: true, size: [0.42, 0.2] },
+      brakeLights: { x: 0.9, y: 0.9, z: 3.36 },
+      mounts: { flag: [0.95, 3.88, -0.3], teddy: [-0.45, 3.86, -1.75], gnome: [0.45, 3.86, -1.75] },
+      tent: [0, 3.88, -1.05, 1.9, 1.42],
+      voice: { engine: 0.7, horn: 'air' },
+      camera: 1.6,
+      trailer: {
+        painted: trailerPaint,
+        parts: trailer,
+        wheel: { radius: 0.5, width: 0.46, hub: CHROME },
+        axles: [5.8, 6.85, 7.9],
+        lamps: [
+          [-0.85, -0.42, 8.7],
+          [0.85, -0.42, 8.7],
+        ],
+        // Where the wheels hang below the hitch, from the hitch to the middle axle, and across.
+        rest: -0.56,
+        hitch: [0, 1.14, 1.9],
+        axle: 6.85,
+        track: 1.96,
+      },
+    };
+  },
+
+  hyundai(painted, trim, cargo) {
+    // A rally car: a short hatchback on very wide arches, with a big wing, painted with dark
+    // blue arches, roof and wing, and red stripes.
     const navy = '#1f2b4b';
-    const pale = '#c6cdd8';
     const red = '#d0392f';
     const wheels = [-0.86, 0.86].flatMap(x =>
       [-1.3, 1.3].map(z => ({ x, z, radius: 0.42, width: 0.34, hub: '#d6a537' })),
@@ -433,7 +570,7 @@ const VEHICLE_BUILDERS = {
       [2.07, 0.62],
       [2.03, sill],
     ];
-    trim.add(profile([...nose, [-1.94, 0.86], [-0.86, 0.99], [1.0, 1.06], ...tail], 1.32), pale);
+    painted.add(profile([...nose, [-1.94, 0.86], [-0.86, 0.99], [1.0, 1.06], ...tail], 1.32), '#ffffff');
     const outline = [...nose, [-1.9, 0.92], [-1.62, 1.05], [-0.9, 1.03], [-0.8, 0.995], [1.0, 1.06], ...tail];
     const wall = profile(outline, 0.04);
     const flank = profile([...outline, ...archCut(back, arch, sill), ...archCut(front, arch, sill)], 0.24);
@@ -454,13 +591,13 @@ const VEHICLE_BUILDERS = {
     );
     trim.box(1.54, 0.06, 1.54, navy, { y: 1.47, z: 0.65 }); // roof
     for (const side of [-1, 1]) {
-      trim.add(wall, pale, { x: side * 0.66 });
-      trim.add(flank, pale, { x: side * 0.8 });
+      painted.add(wall, '#ffffff', { x: side * 0.66 });
+      painted.add(flank, '#ffffff', { x: side * 0.8 });
       for (const flare of flares) trim.add(flare, navy, { x: side * 0.86 });
-      // Dark pillars, and a pale one at the back.
+      // Dark pillars, and a painted one at the back.
       trim.beam({ x: side * 0.755, y: 0.99, z: -0.86 }, { x: side * 0.755, y: 1.44, z: -0.1 }, 0.03, navy, 0.07);
       trim.box(0.03, 0.44, 0.1, navy, { x: side * 0.755, y: 1.22, z: 0.32 });
-      trim.add(
+      painted.add(
         profile(
           [
             [1.0, 1.06],
@@ -470,7 +607,7 @@ const VEHICLE_BUILDERS = {
           ],
           0.03,
         ),
-        pale,
+        '#ffffff',
         { x: side * 0.755 },
       );
       trim.box(0.2, 0.12, 0.16, navy, { x: side * 0.86, y: 1.06, z: -0.66 }); // mirrors
@@ -533,10 +670,9 @@ const VEHICLE_BUILDERS = {
     };
   },
 
-  mercedes(_, trim) {
-    // A racing car: low and wide, silver, with a long bonnet, the cabin set far back under a
-    // fastback roof, a grille of upright bars and a big wing on curved posts.
-    const silver = '#ced2d4';
+  mercedes(painted, trim) {
+    // A racing car: low and wide, with a long bonnet, the cabin set far back under a fastback
+    // roof, a grille of upright bars and a big wing on curved posts.
     const wheels = [-0.9, 0.9].flatMap(x =>
       [-1.45, 1.35].map(z => ({ x, z, radius: 0.4, width: 0.34, hub: '#45494e' })),
     );
@@ -559,7 +695,7 @@ const VEHICLE_BUILDERS = {
       [2.3, 0.56],
       [2.24, sill],
     ];
-    trim.add(profile([...nose, [-2.14, 0.75], [-1.5, 0.82], [-0.5, 0.9], [1.52, 0.98], ...tail], 1.36), silver);
+    painted.add(profile([...nose, [-2.14, 0.75], [-1.5, 0.82], [-0.5, 0.9], [1.52, 0.98], ...tail], 1.36), '#ffffff');
     const outline = [
       ...nose,
       [-2.12, 0.79],
@@ -589,14 +725,14 @@ const VEHICLE_BUILDERS = {
       ),
       GLASS,
     );
-    trim.box(1.44, 0.04, 0.48, silver, { y: 1.322, z: 0.39 }); // roof
+    painted.box(1.44, 0.04, 0.48, '#ffffff', { y: 1.322, z: 0.39 }); // roof
     for (const side of [-1, 1]) {
-      trim.add(wall, silver, { x: side * 0.68 });
-      trim.add(flank, silver, { x: side * 0.83 });
-      for (const flare of flares) trim.add(flare, silver, { x: side * 0.885 });
+      painted.add(wall, '#ffffff', { x: side * 0.68 });
+      painted.add(flank, '#ffffff', { x: side * 0.83 });
+      for (const flare of flares) painted.add(flare, '#ffffff', { x: side * 0.885 });
       // The pillars, and the panel behind the side window.
-      trim.beam({ x: side * 0.715, y: 0.9, z: -0.5 }, { x: side * 0.715, y: 1.3, z: 0.18 }, 0.03, silver, 0.07);
-      trim.add(
+      painted.beam({ x: side * 0.715, y: 0.9, z: -0.5 }, { x: side * 0.715, y: 1.3, z: 0.18 }, 0.03, '#ffffff', 0.07);
+      painted.add(
         profile(
           [
             [0.7, 0.945],
@@ -605,10 +741,10 @@ const VEHICLE_BUILDERS = {
           ],
           0.03,
         ),
-        silver,
+        '#ffffff',
         { x: side * 0.715 },
       );
-      trim.box(0.2, 0.1, 0.16, silver, { x: side * 0.84, y: 0.97, z: -0.3 }); // mirrors
+      painted.box(0.2, 0.1, 0.16, '#ffffff', { x: side * 0.84, y: 0.97, z: -0.3 }); // mirrors
       trim.box(0.04, 0.06, 0.02, '#b9cfd0', { x: side * 0.84, y: 0.97, z: -0.215 });
       raceNumber(trim, side, { x: side * 0.975, y: 0.62, z: 0.1 });
       // Side skirts with the exhausts coming out of them in front of the back wheels.
@@ -620,7 +756,7 @@ const VEHICLE_BUILDERS = {
       // Vents: behind the front wheels, on top of the front wings and in the bonnet.
       trim.box(0.02, 0.24, 0.24, DARK, { x: side * 0.965, y: 0.66, z: -0.8 });
       trim.box(0.26, 0.02, 0.5, DARK, { x: side * 0.8, y: 1.016, z: -1.4 });
-      for (const z of [-1.55, -1.4, -1.25]) trim.box(0.26, 0.02, 0.03, silver, { x: side * 0.8, y: 1.03, z });
+      for (const z of [-1.55, -1.4, -1.25]) painted.box(0.26, 0.02, 0.03, '#ffffff', { x: side * 0.8, y: 1.03, z });
       trim.box(0.34, 0.02, 0.42, DARK, { x: side * 0.3, y: 0.866, z: -1.0, rx: -0.08 });
       // Air intakes at the corners of the bumper, with two little wings outside each.
       trim.box(0.3, 0.18, 0.03, DARK, { x: side * 0.72, y: 0.42, z: -2.34 });
@@ -652,151 +788,6 @@ const VEHICLE_BUILDERS = {
     };
   },
 };
-
-/** A European lorry with a flat-fronted cab, pulling a box trailer in the same colour. */
-function lorry(paint) {
-  return (_, trim) => {
-    const line = shade(paint, 0.78);
-    const wheels = [
-      ...[-1.02, 1.02].map(x => ({ x, z: -1.5, radius: 0.52, width: 0.36, hub: CHROME })),
-      ...[-0.98, 0.98].map(x => ({ x, z: 2.1, radius: 0.52, width: 0.56, hub: CHROME })),
-    ];
-    // The cab sits over the front wheels, with its front corners cut off, a raised roof
-    // and an opening over each front wheel lined with a black mudguard.
-    const cab = back => [
-      [-1.22, back],
-      [-1.22, -2.17],
-      [-1.06, -2.35],
-      [1.06, -2.35],
-      [1.22, -2.17],
-      [1.22, back],
-    ];
-    trim.add(plan(cab(-0.05), 1.26, 3.4), paint);
-    trim.add(plan(cab(-2.06), 1.0, 1.26), paint);
-    trim.box(2.44, 0.26, 0.89, paint, { y: 1.13, z: -0.495 });
-    trim.add(
-      profile(
-        [
-          [-2.22, 3.39],
-          [-1.98, 3.82],
-          [-0.05, 3.88],
-          [-0.05, 3.39],
-        ],
-        2.3,
-      ),
-      paint,
-    );
-    const mudguard = profile(archBand(wheels[0], 0.6, 0.68, 0.75), 0.42); // over the front wheels
-    // The front: a big windscreen in a black surround with its wipers, a sun visor with marker
-    // lamps, the grille with its bright bars and the bumper with the lamps.
-    trim.box(2.1, 1.1, 0.03, DARK, { y: 2.7, z: -2.355 });
-    trim.box(2.0, 1.0, 0.04, GLASS, { y: 2.72, z: -2.365 });
-    for (const x of [-0.5, 0.45]) {
-      trim.beam({ x: x - 0.38, y: 2.27, z: -2.39 }, { x: x + 0.38, y: 2.33, z: -2.39 }, 0.03, DARK);
-    }
-    trim.box(2.12, 0.14, 0.42, DARK, { y: 3.27, z: -2.5 });
-    for (let i = -2; i <= 2; i++) trim.box(0.14, 0.06, 0.03, '#f2c14e', { x: i * 0.42, y: 3.27, z: -2.72 });
-    trim.box(1.76, 0.74, 0.03, DARK, { y: 1.7, z: -2.36 });
-    for (let i = 0; i < 4; i++) trim.box(1.76, 0.06, 0.03, CHROME, { y: 1.43 + i * 0.18, z: -2.375 });
-    trim.add(
-      plan(
-        [
-          [-1.2, -2.05],
-          [-1.2, -2.27],
-          [-1.04, -2.46],
-          [1.04, -2.46],
-          [1.2, -2.27],
-          [1.2, -2.05],
-        ],
-        0.6,
-        1.0,
-      ),
-      paint,
-    );
-    trim.add(
-      plan(
-        [
-          [-1.14, -2.1],
-          [-1.14, -2.27],
-          [-1.0, -2.43],
-          [1.0, -2.43],
-          [1.14, -2.27],
-          [1.14, -2.1],
-        ],
-        0.47,
-        0.6,
-      ),
-      DARK,
-    );
-    for (const side of [-1, 1]) {
-      trim.box(0.16, 0.12, 0.03, '#e39a3b', { x: side * 1.13, y: 0.82, z: -2.375, ry: -side * 0.87 });
-      trim.add(mudguard, DARK, { x: side * 1.05 });
-      trim.box(0.02, 0.26, 1.12, DARK, { x: side * 0.82, y: 1.13, z: -1.5 });
-      trim.box(0.04, 0.72, 0.92, GLASS, { x: side * 1.225, y: 2.72, z: -1.66 });
-      trim.box(0.03, 2.25, 0.03, line, { x: side * 1.225, y: 2.125, z: -0.5 }); // back of the door
-      trim.box(0.04, 0.06, 0.24, CHROME, { x: side * 1.235, y: 2.15, z: -0.72 });
-      // Big mirrors on arms, and steps up to the door.
-      trim.beam({ x: side * 1.15, y: 3.0, z: -2.27 }, { x: side * 1.5, y: 2.95, z: -2.36 }, 0.06, DARK);
-      trim.box(0.13, 0.62, 0.26, paint, { x: side * 1.52, y: 2.7, z: -2.36 });
-      trim.box(0.09, 0.52, 0.02, '#b9cfd0', { x: side * 1.52, y: 2.7, z: -2.22 });
-      for (const y of [0.45, 0.78]) trim.box(0.34, 0.06, 0.34, DARK, { x: side * 1.08, y, z: -0.62 });
-      // The chassis behind the cab: fuel tanks, mudguards over the back wheels and the frame.
-      trim.add(new THREE.CylinderGeometry(0.3, 0.3, 1.0, 10), CHROME, {
-        x: side * 0.98,
-        y: 0.72,
-        z: 0.5,
-        rx: Math.PI / 2,
-      });
-      trim.box(0.62, 0.05, 1.2, DARK, { x: side * 0.98, y: 1.135, z: 2.1 });
-      trim.box(0.6, 0.5, 0.03, DARK, { x: side * 0.98, y: 0.55, z: 2.75 });
-      trim.box(0.18, 0.28, 5.6, DARK, { x: side * 0.5, y: 0.82, z: 0.55 });
-    }
-    trim.box(2.1, 0.32, 0.06, DARK, { y: 0.9, z: 3.31 }); // the panel the brake lights sit on
-    trim.box(1.3, 0.14, 1.1, '#3b3f3c', { y: 1.07, z: 1.9 }); // the hitch
-
-    // The trailer, built from its hitch point, which rests on the lorry's hitch.
-    const trailer = new PartsBuilder();
-    trailer.box(2.5, 2.74, 10, paint, { y: 1.43, z: 3.75 });
-    trailer.box(2.54, 0.16, 10.04, DARK, { y: 0.1, z: 3.75 });
-    for (const side of [-1, 1]) {
-      for (let z = -0.75; z < 8.5; z += 1) trailer.box(0.04, 2.56, 0.07, line, { x: side * 1.26, y: 1.5, z });
-      // The frame, the legs it stands on when unhitched and the side guards all start behind
-      // the lorry, so they stay clear of its back wheels however far the trailer swings.
-      trailer.box(0.2, 0.3, 6.7, DARK, { x: side * 0.5, y: -0.13, z: 5.35 });
-      trailer.box(0.12, 0.85, 0.12, DARK, { x: side * 0.9, y: -0.42, z: 2.4 });
-      trailer.box(0.24, 0.05, 0.3, DARK, { x: side * 0.9, y: -0.86, z: 2.4 });
-      for (const y of [-0.22, -0.45]) trailer.box(0.04, 0.08, 2.6, METAL, { x: side * 1.2, y, z: 3.9 });
-    }
-    // The back: two doors with their lock bars, and a bumper with the lamps.
-    trailer.box(0.03, 2.56, 0.02, line, { y: 1.5, z: 8.76 });
-    for (const x of [-0.95, -0.35, 0.35, 0.95]) trailer.box(0.05, 2.4, 0.04, METAL, { x, y: 1.5, z: 8.78 });
-    trailer.box(2.3, 0.16, 0.14, DARK, { y: -0.42, z: 8.62 });
-
-    return {
-      wheels,
-      headlamps: { x: 0.8, y: 0.82, z: -2.47, square: true, size: [0.42, 0.2] },
-      brakeLights: { x: 0.9, y: 0.9, z: 3.36 },
-      mounts: { flag: [0.95, 3.88, -0.3], teddy: [-0.45, 3.86, -1.75], gnome: [0.45, 3.86, -1.75] },
-      tent: [0, 3.88, -1.05, 1.9, 1.42],
-      voice: { engine: 0.7, horn: 'air' },
-      camera: 1.6,
-      trailer: {
-        parts: trailer,
-        wheel: { radius: 0.5, width: 0.46, hub: CHROME },
-        axles: [5.8, 6.85, 7.9],
-        lamps: [
-          [-0.85, -0.42, 8.7],
-          [0.85, -0.42, 8.7],
-        ],
-        // Where the wheels hang below the hitch, from the hitch to the middle axle, and across.
-        rest: -0.56,
-        hitch: [0, 1.14, 1.9],
-        axle: 6.85,
-        track: 1.96,
-      },
-    };
-  };
-}
 
 /** The parts of one of the garage's vehicles, for building a copy of it elsewhere (the farm's tractors). */
 export function vehicleParts(name) {
@@ -860,7 +851,8 @@ export function createCar() {
   const body = new THREE.Group();
   root.add(body);
 
-  const paint = new THREE.MeshLambertMaterial({ color: CAR_COLORS.orange, flatShading: true });
+  // Parts painted grey rather than white come out a darker shade of the paint.
+  const paint = new THREE.MeshLambertMaterial({ color: CAR_COLORS.orange, flatShading: true, vertexColors: true });
   // Lamps glow brighter at night; brake lights glow when braking.
   const headlampMaterial = new THREE.MeshLambertMaterial({
     color: '#fff3ce',
@@ -869,7 +861,7 @@ export function createCar() {
   });
   const brakeMaterial = new THREE.MeshLambertMaterial({ color: '#ad3f28', emissive: '#ff3a1c', emissiveIntensity: 0 });
 
-  // The lorries' trailers aren't fixed to the lorry, so they live beside it in the scene.
+  // The lorry's trailer isn't fixed to the lorry, so it lives beside it in the scene.
   const towed = new THREE.Group();
   const vehicles = {};
   for (const [name, build] of Object.entries(VEHICLE_BUILDERS)) {
@@ -901,7 +893,7 @@ export function createCar() {
       shell.add(lamp, brake);
     }
     body.add(shell);
-    const trailer = spec.trailer ? createTrailer(spec.trailer, brakeMaterial) : null;
+    const trailer = spec.trailer ? createTrailer(spec.trailer, paint, brakeMaterial) : null;
     if (trailer) towed.add(trailer.root);
 
     // Wheels hang from the root rather than the body, so they don't lean with it.
@@ -1017,9 +1009,9 @@ export function createCar() {
 }
 
 /** A trailer built from its spec, with its own wheels and brake lamps. Its origin is the hitch point. */
-function createTrailer(spec, brakeMaterial) {
+function createTrailer(spec, paint, brakeMaterial) {
   const root = new THREE.Group();
-  root.add(spec.parts.mesh());
+  root.add(spec.painted.mesh({ material: paint }), spec.parts.mesh());
   const lamps = new PartsBuilder();
   for (const [x, y, z] of spec.lamps) lamps.box(0.3, 0.16, 0.05, '#ffffff', { x, y, z });
   root.add(lamps.mesh({ material: brakeMaterial, castShadow: false }));

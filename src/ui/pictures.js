@@ -3,7 +3,7 @@
 // second WebGL context can cost an iPad the game's, into buffers off the screen, one a
 // frame while the game is paused, and kept as images for the rest of the visit.
 import * as THREE from 'three';
-import { CHARACTERS, createCar } from '../vehicles/car.js';
+import { createCar } from '../vehicles/car.js';
 
 /** A picture's size in CSS pixels: a little larger than the tiles show it, and their shape. */
 const WIDTH = 112;
@@ -18,8 +18,7 @@ const DISTANCE = 3.2;
 /** The space left round the car, as a share of the picture. */
 const MARGIN = 0.04;
 
-/** The characters keep their own colours, so one picture each does for every paint. */
-const pictureName = (vehicle, color) => (CHARACTERS.includes(vehicle) ? vehicle : `${vehicle} ${color}`);
+const pictureName = (vehicle, color) => `${vehicle} ${color}`;
 
 /** The game calls `drawNext` each frame while it's paused, and `onReady` is called as each picture is ready. */
 export function createVehiclePictures(renderer, { onReady }) {
@@ -201,7 +200,7 @@ function createStudio(renderer) {
       // The rainbow paint changes colour as it goes: this is where it starts.
       if (color === 'rainbow') car.animate(0);
       car.setMud(0);
-      // The lorries' trailers stand on their hitches, straight behind.
+      // The lorry's trailer stands on its hitch, straight behind.
       if (car.trailer) {
         car.trailer.root.position.set(...car.trailer.spec.hitch);
         car.trailer.root.rotation.set(0, 0, 0);

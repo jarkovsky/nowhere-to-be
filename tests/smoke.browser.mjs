@@ -87,12 +87,12 @@ try {
   assert.equal((await state(page)).tentOpen, 1, 'the open tent stays still');
   await page.getByRole('button', { name: 'Tractor' }).click();
   assert.equal((await state(page)).journal.vehicle, 'tractor');
-  // The characters keep their own colours, so the paint choice goes away for them.
-  await page.getByRole('button', { name: 'Oliver' }).click();
-  assert.equal(await page.locator('#color-options').isVisible(), false);
+  // Every vehicle takes the paint, the lorry with its trailer too.
+  await page.getByRole('button', { name: 'Lorry' }).click();
+  assert.equal((await state(page)).journal.vehicle, 'lorry');
   assert.ok((await state(page)).trailer, 'the lorry has its trailer');
-  await page.getByRole('button', { name: 'Off-roader' }).click();
   assert.ok(await page.locator('#color-options').isVisible());
+  await page.getByRole('button', { name: 'Off-roader' }).click();
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   assert.equal((await state(page)).cameraMode, 'chase');
@@ -133,7 +133,7 @@ try {
 
   await page.getByRole('button', { name: 'Pause' }).click();
   await page.getByRole('button', { name: 'Car' }).click();
-  await page.getByRole('button', { name: 'Oliver' }).click();
+  await page.getByRole('button', { name: 'Lorry' }).click();
   await page.getByRole('button', { name: 'Resume' }).click();
   await page.evaluate(() => window.__game.teleport(540, 120, -1.57));
   assert.equal((await state(page)).trailer.swing, 0);

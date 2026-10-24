@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { penetration } from '../core/collision.js';
 import { createRandom, valueNoise } from '../core/math.js';
+import { createSteering, steer } from '../core/steering.js';
 import { chassisPose } from '../core/suspension.js';
 import { HITCH, ROPE, createTow, helping, isTowed, stepTow } from '../core/tow.js';
 import { vehicleParts } from '../vehicles/car.js';
@@ -133,7 +134,7 @@ function splashGeometry() {
   return parts.geometry();
 }
 
-/** A pair of the tractor's wheels on one axle, which turn together. */
+/** The tractor's wheels on one axle, which turn together, or one wheel on its own. */
 function axle(wheels) {
   const parts = new PartsBuilder();
   for (const { x, radius, width = 0.4 } of wheels) {
@@ -166,12 +167,30 @@ function buildTractor() {
   const root = new THREE.Group();
   root.add(painted.mesh({ material: flatMaterial(PAINT) }), trim.mesh());
   const axles = [];
+  const steered = [];
   for (const z of new Set(spec.wheels.map(wheel => wheel.z))) {
-    const pair = axle(spec.wheels.filter(wheel => wheel.z === z));
-    root.add(pair.mesh);
-    axles.push(pair);
+    const wheels = spec.wheels.filter(wheel => wheel.z === z);
+    if (z > 0) {
+      const pair = axle(wheels);
+      root.add(pair.mesh);
+      axles.push(pair);
+      continue;
+    }
+    // The front wheels steer, so each turns on a pivot of its own.
+    for (const wheel of wheels) {
+      const one = axle([{ ...wheel, x: 0 }]);
+      const pivot = new THREE.Group();
+      pivot.position.set(wheel.x, one.mesh.position.y, z);
+      one.mesh.position.set(0, 0, 0);
+      pivot.add(one.mesh);
+      root.add(pivot);
+      axles.push(one);
+      steered.push(pivot);
+    }
   }
-  return { root, axles, exhaust: new THREE.Vector3(0.28, 2.95, -1.35) };
+  const along = spec.wheels.map(wheel => wheel.z);
+  const steering = createSteering(Math.max(...along) - Math.min(...along));
+  return { root, axles, steered, steering, exhaust: new THREE.Vector3(0.28, 2.95, -1.35) };
 }
 
 /**
@@ -252,6 +271,8 @@ export function createMudHole(scene, { obstacles, onToot }) {
     const pose = chassisPose(x, z, heading, terrainHeight);
     tractor.root.position.set(x, pose.height, z);
     tractor.root.rotation.set(pose.pitch, heading, pose.roll, 'YXZ');
+    const angle = steer(tractor.steering, heading, speed, dt);
+    for (const pivot of tractor.steered) pivot.rotation.y = angle;
     tractor.root.updateMatrixWorld();
     for (const pair of tractor.axles) pair.mesh.rotation.x -= (speed * dt) / pair.radius;
     colliders.length = 0;
@@ -375,7 +396,10 @@ export function createMudHole(scene, { obstacles, onToot }) {
         onToot?.();
         puff(2.2);
       }
-      if (!near) return;
+      if (!near) {
+        tractor.steering.heading = null;
+        return;
+      }
       placeTractor(dt);
       // Puffs from the exhaust while it works.
       const working = tow.tractor.mode !== 'home' && tow.tractor.speed > 0.2;

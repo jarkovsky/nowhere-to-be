@@ -1,4 +1,4 @@
-// The lorries' trailers. A trailer's front rests on the hitch above the lorry's back
+// The lorry's trailer. A trailer's front rests on the hitch above the lorry's back
 // wheels, and its own wheels follow the hitch the way a real trailer's do, cutting in
 // a little on bends. Reversing is made forgiving: the trailer always swings back into
 // line rather than folding up, which a small driver would have no way to undo.

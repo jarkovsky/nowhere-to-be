@@ -334,11 +334,11 @@ try {
   await page.waitForFunction(() => document.getElementById('toast').hidden, null, { timeout: 30000 });
   await capture(page, 'garage', 2500);
 
-  // Two of the characters: Oliver the lorry on the upland road, and the rally car on the summit track.
+  // The lorry on the upland road, and the rally car on the summit track.
   for (const item of ['Flag', 'Teddy', 'Roof tent']) await page.getByRole('button', { name: item }).click();
   for (const [name, shot, setup] of [
     [
-      'Oliver',
+      'Lorry',
       'lorry',
       `const p = L.RING_ROAD.offset(1000, 2.2);
       const heading = Math.atan2(-p.dx, -p.dz);
