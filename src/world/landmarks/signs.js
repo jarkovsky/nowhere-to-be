@@ -5,10 +5,8 @@ import {
   ROAD_HALF_WIDTH,
   CAMP_TRAIL,
   TRACKS,
-  TRAILS,
   BRIDGE,
   WATERFALL,
-  LOOKOUT,
   LAKE,
   CREEK,
   BROOK,
@@ -361,8 +359,6 @@ function paintMap(ctx, w, h) {
   trail(ROAD, 6);
   trail(CAMP_TRAIL, 4);
   for (const track of TRACKS) trail(track.path, 3, [5, 7]);
-  // The marked trails in their colours, over their footpaths.
-  for (const { path, color } of TRAILS) trail(path, 5, [9, 5], color);
   ctx.fillStyle = '#7d8e86';
   ctx.beginPath();
   ctx.moveTo(px(TUNNEL.x - 22), pz(TUNNEL.z + 16));
@@ -374,7 +370,6 @@ function paintMap(ctx, w, h) {
     bridge: 'Bridge',
     tunnel: 'Echo Mountain',
     campsite: 'Camp',
-    lookout: 'Lookout',
     farm: 'Farm',
     tower: 'Fire Tower',
     oxbow: 'Deep ford',
@@ -395,7 +390,6 @@ function paintMap(ctx, w, h) {
     depot: 'Depot',
     horses: 'Horses',
     goats: 'Goats',
-    ...Object.fromEntries(TRAILS.map(({ id }) => [`view-${id}`, 'Viewpoint'])),
   };
   /** Draws text in the current font and alignment, and returns the box it fills. */
   const write = (text, x, y, size) => {
@@ -418,7 +412,7 @@ function paintMap(ctx, w, h) {
   ctx.font = `700 26px ${FONT}`;
   ctx.textAlign = 'center';
   // Labels sit above their dot, except where that would crowd a neighbour: then below it, or beside it.
-  const below = ['bridge', 'jetty', 'lookout', 'bunker', 'helipad', 'view-blue'];
+  const below = ['bridge', 'jetty', 'bunker', 'helipad'];
   const beside = ['oxbow'];
   const margin = 46;
   const clampX = x => Math.min(w - margin, Math.max(margin, x));
@@ -515,8 +509,6 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
   trailSign(scene, parts, junction - 10, -1, 'CAMPSITE', CAMP);
   trailSign(scene, parts, DEPOT.s - 24, -1, 'DEPOT', DEPOT);
   trailSign(scene, parts, BRIDGE.s - 16, 1, 'WHISPERING FALLS', WATERFALL);
-  const lookout = ROAD.nearest(LOOKOUT.x, LOOKOUT.z).s;
-  trailSign(scene, parts, lookout - 12, -1, 'LOOKOUT', LOOKOUT);
   // Signs where the side tracks leave the trail.
   const destinations = {
     farm: ['FARM', FARM],

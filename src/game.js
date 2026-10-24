@@ -6,7 +6,6 @@ import { createObstacleIndex } from './core/collision.js';
 import { stepDirt } from './core/dirt.js';
 import { createCarState, placeCar, steerAngle, stepDriving } from './core/driving.js';
 import { createJournal } from './core/journal.js';
-import { createLookout } from './core/lookout.js';
 import { chassisPose, settleWheels } from './core/suspension.js';
 import { createTrailerState, stepTrailer } from './core/trailer.js';
 import { createControls } from './input/controls.js';
@@ -36,7 +35,6 @@ import {
   ROAD_HALF_WIDTH,
   SPAWN,
   TRACKS,
-  TRAILS,
   GRAVEL_HALF_WIDTH,
   onAirfield,
   onPaved,
@@ -217,8 +215,6 @@ export function createGame(canvas) {
     waterDepth: wadingDepth,
   };
   const mudHole = createMudHole(scene, { obstacles: world.obstacles, onToot: () => sound.otherHorn() });
-  // The viewpoints at the ends of the marked trails.
-  const lookout = createLookout(TRAILS.map(trail => trail.view));
 
   // Friends wait at the depot to come along for the ride.
   const friends = createFriends(scene, {
@@ -548,7 +544,7 @@ export function createGame(canvas) {
     intro: introShot,
     camp: campShot,
     shot: debugShot,
-    watch: mudHole.watch() ?? lookout.watch(),
+    watch: mudHole.watch(),
   });
 
   // --- Camera framing for the title screen and the night at camp -----------------------
@@ -685,7 +681,6 @@ export function createGame(canvas) {
       // On the tractor's rope, the car goes where it is pulled.
       if (!mudHole.holding()) stepDriving(state, input, dt, world);
       mudHole.update(dt, state, input, car, trailer);
-      lookout.step(state, dt);
       if (state.impact > 2.5) sound.bump(state.impact);
       updateCarModel(dt);
       wasBraking = input.brake || (input.backward && state.speed > 0.5) || (input.forward && state.speed < -0.5);
@@ -797,7 +792,6 @@ export function createGame(canvas) {
         friends: friends.getState(),
         fields: landmarks.fields.getState(),
         mudHole: mudHole.getState(),
-        lookout: lookout.getState(),
         gnomes: gnomes.getState(),
         wildlife: wildlife.getState(),
         cameraBlocked: chase.isBlocked(),

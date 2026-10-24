@@ -10,7 +10,6 @@ import {
   TUNNEL,
   CAMP,
   CABIN,
-  LOOKOUT,
   SPAWN,
   GNOMES,
   PLACES,
@@ -202,7 +201,7 @@ test('buildings and the camp stand on flat ground', () => {
     });
     assert.ok(Math.max(...heights) - Math.min(...heights) < 0.5, `pad at ${pad.x}, ${pad.z} is not flat`);
   }
-  for (const place of [CAMP, CABIN, LOOKOUT]) {
+  for (const place of [CAMP, CABIN]) {
     assert.ok(PADS.some(pad => Math.hypot(pad.x - place.x, pad.z - place.z) < pad.radius));
   }
 });

@@ -1,7 +1,7 @@
-// The lakeside campsite, the cabin by the trailhead and the lookout bench.
+// The lakeside campsite and the cabin by the trailhead.
 // All three stand on flattened pads (see PADS in layout.js), so nothing floats.
 import * as THREE from 'three';
-import { CAMP, CABIN, LOOKOUT } from '../layout.js';
+import { CAMP, CABIN } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder, localFrame as frame, prism, createSmoke } from '../build.js';
 
@@ -255,31 +255,9 @@ function buildCabin(scene, obstacles) {
   return createSmoke(scene, at(1.7, 7.4, -1.6), { count: 7, rate: 0.12, rise: 9, size: 0.6 });
 }
 
-function buildLookout(scene, obstacles) {
-  const parts = new PartsBuilder();
-  const local = frame(LOOKOUT.x, LOOKOUT.z, LOOKOUT.heading);
-  const y = terrainHeight(LOOKOUT.x, LOOKOUT.z);
-  const at = (lx, ly, lz, extra = {}) => ({ ...local(lx, lz), y: y + ly, ry: LOOKOUT.heading, ...extra });
-  // Bench looking out over the lake.
-  parts.box(2.4, 0.12, 0.6, '#8a6446', at(-2.6, 0.55, -1));
-  parts.box(2.4, 0.5, 0.1, '#8a6446', at(-2.6, 0.95, -0.72));
-  for (const lx of [-3.6, -1.6]) parts.box(0.12, 0.55, 0.5, '#5f4532', at(lx, 0.27, -1));
-  // A coin telescope on a post.
-  parts.box(0.18, 1.3, 0.18, '#4e5b55', at(1.6, 0.65, -2.2));
-  parts.add(new THREE.CylinderGeometry(0.16, 0.22, 1.1, 8), '#3d4a45', at(1.6, 1.45, -2.4, { rx: Math.PI / 2 - 0.25 }));
-  // A short fence along the drop.
-  for (let i = -3; i <= 3; i++) parts.box(0.14, 1, 0.14, '#7a6a4f', at(i * 1.2, 0.4, -3.6));
-  parts.box(7.4, 0.1, 0.1, '#7a6a4f', at(0, 0.82, -3.6));
-  scene.add(parts.mesh());
-  const telescope = local(1.6, -2.2);
-  const bench = local(-2.6, -1);
-  obstacles.push({ ...telescope, radius: 0.25 }, { ...bench, radius: 1.1 });
-}
-
 export function buildCampsites(scene, obstacles) {
   const fire = buildCamp(scene, obstacles);
   const cabin = buildCabin(scene, obstacles);
-  buildLookout(scene, obstacles);
   return {
     fire: fire.position,
     update(time, night) {

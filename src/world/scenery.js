@@ -15,7 +15,6 @@ import {
   FORD,
   CAMP_TRAIL,
   TRACKS,
-  TRAILS,
   RAILWAY,
   HALT,
   BRIDGE,
@@ -23,7 +22,6 @@ import {
   WATERFALL,
   CAMP,
   CABIN,
-  LOOKOUT,
   FARM,
   TOWER,
   WINDMILL,
@@ -391,7 +389,6 @@ const CLEARINGS = [
   { x: DEPOT.x, z: DEPOT.z, r: 26 },
   { x: CAMP.x, z: CAMP.z, r: 24 },
   { x: CABIN.x, z: CABIN.z, r: 14 },
-  { x: LOOKOUT.x, z: LOOKOUT.z, r: 26 },
   { x: TUNNEL.x, z: TUNNEL.z, r: 34 },
   { x: BRIDGE.x, z: BRIDGE.z, r: 18 },
   { x: WATERFALL.x, z: WATERFALL.z, r: 26 },
@@ -426,15 +423,6 @@ const CLEARINGS = [
   { x: VILLAGE.fireStation.x, z: VILLAGE.fireStation.z, r: 14 },
   ...PONDS.map(({ x, z, radius }) => ({ x, z, r: radius + 6 })),
   ...GNOMES.map(gnome => ({ ...gnome, r: 4 })),
-  // Room round each viewpoint at the end of a marked trail, for a clear view out in front of it
-  // and for the camera, which swings out behind the car to take it in.
-  ...TRAILS.flatMap(({ view }) =>
-    [-6, 18].map(back => ({
-      x: view.x + Math.sin(view.heading) * back,
-      z: view.z + Math.cos(view.heading) * back,
-      r: 16,
-    })),
-  ),
   // The mud lies on the tracks, which are kept clear anyway.
   ...SURFACES.filter(p => p.id !== 'mud').map(p => ({ x: p.x, z: p.z, r: Math.max(p.rx, p.rz) + 4 })),
 ];

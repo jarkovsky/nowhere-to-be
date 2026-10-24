@@ -631,8 +631,6 @@ export const CABIN = { x: -62, z: 112, rotation: 0.35 };
 /** A small upland farm where the fields track ends: a timber cottage and an open shed. */
 export const FARMSTEAD = { x: 236, z: 312, rotation: FIELDS.rotation };
 
-export const LOOKOUT = { x: -148, z: -44, heading: headingOf(1, 0.1) };
-
 function nearestRoadSample(x, z) {
   return ROAD.nearest(x, z).sample;
 }
@@ -659,69 +657,9 @@ function fromOuterRoad(...points) {
 }
 
 /**
- * Marked hiking trails, Czech style, each with the colour of its stripes: they leave the trail at
- * a signpost and climb to a viewpoint, where a bench or a platform at `view` looks out the way
- * `view.heading` faces. (The red trail up to the hut is marked by the hut itself.)
- */
-export const TRAILS = [
-  {
-    // Up the slope north of the trail and onto a terrace above the lake, to a platform on its edge.
-    id: 'blue',
-    color: '#2d62b8',
-    path: createPath(
-      fromRoad(
-        20,
-        -120,
-        [6, -128],
-        [-10, -140],
-        [-22, -154],
-        [-32, -168],
-        [-35, -180],
-        [-27, -192],
-        [-15, -203],
-        [-3, -209],
-        [3, -210],
-      ),
-    ),
-    view: { x: 4, z: -203.5, heading: headingOf(0.05, 1), platform: true },
-  },
-  {
-    // Round the west side of the knoll south of the farm and up to the lone tree on top.
-    id: 'green',
-    color: '#2f8a3e',
-    path: createPath(
-      fromRoad(
-        -102,
-        70,
-        [-110, 82],
-        [-120, 96],
-        [-132, 109],
-        [-146, 117],
-        [-160, 126],
-        [-171, 141],
-        [-172, 157],
-        [-165, 173],
-        [-157, 187],
-        [-147, 198],
-        [-132, 202],
-        [-119, 197],
-      ),
-    ),
-    view: { x: -114, z: 191, heading: headingOf(0.1, -1) },
-  },
-  {
-    // A short one, up the slope east of the lake.
-    id: 'yellow',
-    color: '#f2c21b',
-    path: createPath(fromRoad(154, 15, [168, 15], [184, 12], [200, 18], [217, 25], [233, 32], [244, 38], [251, 41])),
-    view: { x: 246, z: 33, heading: headingOf(-0.86, -0.51) },
-  },
-];
-
-/**
- * Narrow side tracks: two dirt ruts with grass between, or a footpath along the shore and up
- * the marked trails. `grade`, where given, is the steepest they climb, and `window` how far
- * either way the lie of the land is smoothed along them (14 m unless given).
+ * Narrow side tracks: two dirt ruts with grass between, or a footpath along the shore. `grade`,
+ * where given, is the steepest they climb, and `window` how far either way the lie of the land
+ * is smoothed along them (14 m unless given).
  */
 export const TRACKS = [
   { id: 'farm', ruts: true, path: createPath(fromRoad(-118, 52, [-104, 38], [-92, 27], [-80, 18])) },
@@ -866,7 +804,6 @@ export const TRACKS = [
     path: createPath(fromOuterRoad(...FJORD_VILLAGE.road)),
   },
   // Footpaths up the marked trails.
-  ...TRAILS.map(({ id, path }) => ({ id, ruts: false, grade: 0.2, path })),
 ];
 
 /**
@@ -1159,7 +1096,6 @@ export const PLACES = [
   { id: 'bridge', x: BRIDGE.x, z: BRIDGE.z },
   { id: 'tunnel', x: TUNNEL.x, z: TUNNEL.z },
   { id: 'campsite', x: CAMP.x, z: CAMP.z },
-  { id: 'lookout', x: LOOKOUT.x, z: LOOKOUT.z },
   { id: 'farm', x: FARM.x, z: FARM.z },
   { id: 'tower', x: TOWER.x, z: TOWER.z },
   { id: 'oxbow', x: OXBOW.ford.x, z: OXBOW.ford.z },
@@ -1179,7 +1115,6 @@ export const PLACES = [
   { id: 'fjord', x: FJORD_VILLAGE.pier.x, z: FJORD_VILLAGE.pier.z },
   { id: 'village', x: VILLAGE.fireStation.x, z: VILLAGE.fireStation.z },
   ...FARMS.map(({ id, x, z }) => ({ id, x, z })),
-  ...TRAILS.map(({ id, view }) => ({ id: `view-${id}`, x: view.x, z: view.z })),
 ];
 
 /**
@@ -1200,7 +1135,6 @@ export const PADS = [
   ...PONDS.map(({ x, z, radius }) => ({ x, z, radius: radius + 5, falloff: 8 })),
   { x: CAMP.x - 4, z: CAMP.z - 2, radius: 11, falloff: 16 },
   { x: CABIN.x, z: CABIN.z, radius: 9, falloff: 8 },
-  { x: LOOKOUT.x, z: LOOKOUT.z, radius: 6, falloff: 8 },
   { x: FARM.x, z: FARM.z, radius: 20, falloff: 10 },
   { x: TOWER.x, z: TOWER.z, radius: 7, falloff: 8 },
   { x: WINDMILL.x, z: WINDMILL.z, radius: 8, falloff: 8 },
@@ -1272,7 +1206,7 @@ export const GNOMES = [
   { x: 211.5, z: -70 }, // beside the waterfall pool
   { ...ROAD.offset(TUNNEL.s + 6, 5.4) }, // in the tunnel
   { x: -170, z: 58 }, // in the autumn grove
-  { x: -144, z: -40 }, // at the lookout
+  { x: -144, z: -40 }, // above the trail west of the lake
   { x: 40, z: -318 }, // on the northern ridge
   { x: 64, z: 262 }, // on the southern hills
   { x: -318, z: 70 }, // far out west

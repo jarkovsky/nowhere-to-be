@@ -163,20 +163,6 @@ try {
   // Once let go, the car is free to be moved on.
   await page.waitForFunction(() => window.__game.getState().mudHole.phase === 'free', null, { timeout: 60000 });
 
-  // At the end of the blue trail, where the camera swings out over the lake.
-  await inGame(
-    page,
-    `
-    const { path } = L.TRAILS.find(t => t.id === 'blue');
-    const p = path.at(path.length - 18);
-    g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz));
-  `,
-  );
-  await page.keyboard.down('ArrowUp');
-  await page.waitForFunction(() => window.__game.getState().lookout.view >= 0, null, { timeout: 15000 });
-  await page.keyboard.up('ArrowUp');
-  await capture(page, 'viewpoint', 2800);
-
   // The wolf pack on the slopes below the summit.
   await inGame(
     page,
