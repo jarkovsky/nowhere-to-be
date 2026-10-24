@@ -45,19 +45,34 @@ function rimPoints(tire) {
   return points;
 }
 
-/** Moves one wheel along the suspension axis until its tyre rests on the ground. */
+/** How far the lowest point of a wheel's tyre is above the ground. */
+function clearanceOf(wheel, sample) {
+  wheel.tire.updateWorldMatrix(true, false);
+  let clearance = Infinity;
+  for (const point of wheel.rim) {
+    vertex.copy(point).applyMatrix4(wheel.tire.matrixWorld);
+    clearance = Math.min(clearance, vertex.y - sample(vertex.x, vertex.z));
+  }
+  return clearance;
+}
+
+/**
+ * Moves one wheel along the suspension axis until its tyre rests on the ground. On a slope
+ * the axis leans, so the wheel also moves across the ground as it rises and the ground under
+ * it falls away: how much the clearance changes per metre of travel is measured from each
+ * step rather than assumed, or on steep ground the steps overshoot further and further.
+ */
 function settleWheel(wheel, sample) {
   wheel.rim ??= rimPoints(wheel.tire);
-  for (let iteration = 0; iteration < 4; iteration++) {
-    wheel.tire.updateWorldMatrix(true, false);
-    let clearance = Infinity;
-    for (const point of wheel.rim) {
-      vertex.copy(point).applyMatrix4(wheel.tire.matrixWorld);
-      clearance = Math.min(clearance, vertex.y - sample(vertex.x, vertex.z));
-    }
-    const correction = (CONTACT_CLEARANCE - clearance) / up.y;
-    wheel.pivot.position.y += correction;
+  let clearance = clearanceOf(wheel, sample);
+  let rate = up.y;
+  for (let iteration = 0; iteration < 6; iteration++) {
+    const correction = (CONTACT_CLEARANCE - clearance) / rate;
     if (Math.abs(correction) < 0.0005) break;
+    wheel.pivot.position.y += correction;
+    const next = clearanceOf(wheel, sample);
+    rate = Math.min(Math.max((next - clearance) / correction, 0.3), 4);
+    clearance = next;
   }
 }
 
