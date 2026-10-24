@@ -4,6 +4,7 @@
 // texture made here, sampled in world space at a few different sizes.
 import * as THREE from 'three';
 import { createRandom } from '../core/math.js';
+import { TRAMPLE_PARS, trampleUniforms } from './trample.js';
 
 const SIZE = 128;
 
@@ -67,8 +68,8 @@ export function detailMap() {
   return detail;
 }
 
-/** Shared by everything that sways: the time, and where the car is, for the grass to bend away from it. */
-export const SWAY = { time: { value: 0 }, pusher: { value: new THREE.Vector3(0, -1000, 0) } };
+/** Shared by everything that sways in the wind: the time. */
+export const SWAY = { time: { value: 0 } };
 
 /**
  * The ground's material: smooth-shaded, coloured by its vertices, with the detail drawn on
@@ -133,25 +134,29 @@ const GROUND_DETAIL = /* glsl */ `
  * The material for scattered trees (`kind` 'trees') or grass ('grass'): coloured by its
  * vertices, and by each one's own tint where the geometry's `tinted` attribute is 1 (the
  * leaves, but not the trunks), swaying in the wind, and with some grain in the leaves.
- * Grass also bends away from the car, and grows out of the ground as it comes within
- * `range` of the camera, so it doesn't appear all at once. Only for the scenery's instanced
- * meshes, which are never moved, so the position after the instance's matrix is in the world.
+ * Grass also lies down where a car has driven through it and bends ahead of one pushing
+ * through it (see trample.js), and grows out of the ground as it comes within `range` of the
+ * camera, so it doesn't appear all at once. Only for instanced meshes that are never moved, so
+ * the position after the instance's matrix is in the world.
+ *
+ * The stalks of a crop pass `crop`, uniforms of their own: each stands while `cropCut` is
+ * between the first two of its `cropSpan` and, once the cut passes the last, is carried
+ * `cropSpan.z` times as far as it has gone on along `cropAxis` (see `nearStalks` in fields.js).
  */
-export function foliageMaterial(kind, range = 0) {
+export function foliageMaterial(kind, range = 0, crop = null) {
   const key = `foliage|${kind}|${range}`;
-  if (materials.has(key)) return materials.get(key);
+  if (!crop && materials.has(key)) return materials.get(key);
   detail ??= { value: detailTexture() };
   const grass = kind === 'grass';
   const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: !grass, name: kind });
   material.defines = { [grass ? 'SWAY_GRASS' : 'SWAY_TREES']: '' };
   if (range) material.defines.GRASS_RANGE = range.toFixed(1);
-  materials.set(key, material);
+  if (crop) material.defines.CROP_SPAN = '';
+  else materials.set(key, material);
   material.onBeforeCompile = shader => {
-    shader.uniforms.groundDetail = detail;
-    shader.uniforms.swayTime = SWAY.time;
-    shader.uniforms.swayPusher = SWAY.pusher;
+    Object.assign(shader.uniforms, crop, trampleUniforms(), { groundDetail: detail, swayTime: SWAY.time });
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\n${SWAY_PARS}`)
+      .replace('#include <common>', `#include <common>\n${SWAY_PARS}\n${TRAMPLE_PARS}`)
       .replace('vColor.xyz *= instanceColor.xyz;', 'vColor.xyz *= mix( vec3( 1.0 ), instanceColor.xyz, tinted );')
       .replace('#include <project_vertex>', SWAY_VERTEX);
     shader.fragmentShader = shader.fragmentShader
@@ -166,10 +171,14 @@ export function foliageMaterial(kind, range = 0) {
 
 const SWAY_PARS = /* glsl */ `
   uniform float swayTime;
-  uniform vec3 swayPusher;
   attribute float tinted;
   varying vec3 vFoliage;
   varying float vFoliageHeight;
+  #ifdef CROP_SPAN
+    uniform float cropCut;
+    uniform vec2 cropAxis;
+    attribute vec4 cropSpan;
+  #endif
 `;
 
 const SWAY_VERTEX = /* glsl */ `
@@ -179,7 +188,15 @@ const SWAY_VERTEX = /* glsl */ `
     #ifdef GRASS_RANGE
       mvPosition.xyz *= 1.0 - smoothstep( GRASS_RANGE * 0.72, GRASS_RANGE * 0.97, distance( root.xz, cameraPosition.xz ) );
     #endif
+    #ifdef CROP_SPAN
+      mvPosition.xyz *= step( cropSpan.x, cropCut ) * step( cropCut, cropSpan.y );
+      vec2 carried = cropAxis * cropSpan.z * max( cropCut - cropSpan.w, 0.0 );
+    #else
+      vec2 carried = vec2( 0.0 );
+    #endif
     mvPosition = instanceMatrix * mvPosition;
+    mvPosition.xz += carried;
+    root.xz += carried;
   #else
     vec3 root = vec3( 0.0 );
   #endif
@@ -189,12 +206,14 @@ const SWAY_VERTEX = /* glsl */ `
     mvPosition.xz += vec2( sin( phase ), cos( phase * 0.8 ) ) * position.y * position.y * 0.0012;
   #else
     mvPosition.xz += vec2( sin( phase * 1.7 ), cos( phase * 1.3 ) ) * position.y * 0.06;
-    // Pushed aside, and down a little, where the car drives through.
-    vec2 away = mvPosition.xz - swayPusher.xz;
-    float gap = max( length( away ), 0.001 );
-    float push = ( 1.0 - smoothstep( 1.4, 3.4, gap ) ) * step( abs( mvPosition.y - swayPusher.y ), 3.0 ) * position.y;
-    mvPosition.xz += away / gap * push * 0.7;
-    mvPosition.y -= push * 0.45;
+    // Laid over where a car has driven through, or bent ahead of one pushing through: every
+    // blade goes over from its root the way the stalks there lie, whichever way it leant before.
+    vec3 lay = trampled( root );
+    float fall = pow( lay.x, 0.8 ) * 1.45;
+    vec3 rel = mvPosition.xyz - root;
+    rel.xz = rel.xz * ( 1.0 - 0.5 * fall / 1.45 ) + lay.yz * rel.y * sin( fall );
+    rel.y *= cos( fall );
+    mvPosition.xyz = root + rel;
   #endif
   vFoliage = mvPosition.xyz;
   vFoliageHeight = position.y;

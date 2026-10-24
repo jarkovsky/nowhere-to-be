@@ -69,6 +69,7 @@ import { terrainHeight, naturalHeight, brookLevel, creekLevel, riverLevel, snowC
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PartsBuilder, flatMaterial, freeze, prism, tintable, vertexColorMaterial } from './build.js';
 import { SWAY, foliageMaterial, groundMaterial } from './detail.js';
+import { growsTall } from './trample.js';
 import { createGround } from './ground.js';
 import { boulderGeometry } from './rocks.js';
 import { createScatter } from './scatter.js';
@@ -861,13 +862,62 @@ function buildRocks(scatter, obstacles) {
   scatter.add({ geometry: shapes, far: boulderGeometry(5, { detail: 0 }), near: ROCK_DETAIL, cell: FAR_CELL, items });
 }
 
+/**
+ * A few wildflowers from one spot, to draw many of: thin stems with a leaf or two at the foot,
+ * each with a head of five petals round a yellow middle, facing up and cupped a little. The petals
+ * are white, to take each one's own colour; the stems, the leaves and the middles keep theirs.
+ */
+function flowerGeometry() {
+  const [STEM, LEAF, MIDDLE] = ['#7d9c4b', '#8aa857', '#e5b83b'];
+  const parts = new PartsBuilder();
+  /** A flat triangle with a face on both sides. */
+  const both = (a, b, c) => prism([a, b, c, a, c, b]);
+  for (const [x, z, height, turn] of [
+    [0, 0, 0.42, 0],
+    [0.09, 0.05, 0.33, 2.1],
+    [-0.06, 0.08, 0.26, 4.4],
+  ]) {
+    parts.add(both([x - 0.012, 0, z], [x + 0.012, 0, z], [x, height, z]), STEM);
+    const at = (angle, r, lift) => [x + Math.cos(angle) * r, height + lift, z + Math.sin(angle) * r];
+    for (let k = 0; k < 5; k++) {
+      const a = turn + (k * Math.PI * 2) / 5;
+      parts.add(prism([at(0, 0, 0), at(a + 0.38, 0.085, 0.03), at(a - 0.38, 0.085, 0.03)]), '#ffffff');
+    }
+    parts.add(prism([at(turn, 0.028, 0.014), at(turn + 4.2, 0.028, 0.014), at(turn + 2.1, 0.028, 0.014)]), MIDDLE);
+  }
+  for (const a of [0.6, 3.5]) {
+    const [dx, dz] = [Math.cos(a), Math.sin(a)];
+    parts.add(both([-dz * 0.02, 0, dx * 0.02], [dz * 0.02, 0, -dx * 0.02], [dx * 0.11, 0.14, dz * 0.11]), LEAF);
+  }
+  return tintable(parts.geometry(), [STEM, LEAF, MIDDLE]);
+}
+
+/** A tuft of grass, to draw many of: five blades from one root, leaning out, each with a face on both sides. */
+function tuftGeometry() {
+  const parts = new PartsBuilder();
+  for (let k = 0; k < 5; k++) {
+    const a = k * 2.5;
+    const [dx, dz] = [Math.cos(a), Math.sin(a)];
+    const height = [0.7, 0.5, 0.62, 0.45, 0.56][k];
+    const lean = 0.16 + (k % 2) * 0.12;
+    const [left, right] = [
+      [-dz * 0.03, 0, dx * 0.03],
+      [dz * 0.03, 0, -dx * 0.03],
+    ];
+    const top = [dx * lean * height, height, dz * lean * height];
+    parts.add(prism([left, right, top, right, left, top]), '#ffffff');
+  }
+  return tintable(parts.geometry());
+}
+
 /** Wildflowers and grass tufts: tiny, numerous and shadowless. */
 function buildGroundCover(scatter) {
   const dummy = new THREE.Object3D();
-  const flowerColors = ['#f3efdf', '#e9c75a', '#b49ac8', '#dd8f6e', '#8fa56a', '#8fa56a', '#8fa56a'];
+  // Daisies, buttercups, clover, cornflowers and the odd poppy.
+  const flowerColors = ['#f4f1e6', '#f4f1e6', '#f0cf4a', '#f0cf4a', '#c98fc4', '#7f96d8', '#dd5b3e'];
   const flowers = [];
   const tufts = [];
-  // A try for every 58 square metres, and no more than one flower for every 237.
+  // A try for every 58 square metres, and no more than one patch of flowers for every 237.
   const across = 2 * VALLEY_RADIUS;
   for (let i = 0; i < across ** 2 / 58 && flowers.length < across ** 2 / 237; i++) {
     const x = (random() - 0.5) * across;
@@ -880,25 +930,15 @@ function buildGroundCover(scatter) {
     else if (random() < 0.5) tufts.push({ x, z });
   }
   const flowerItems = flowers.map(flower => {
-    dummy.position.set(flower.x, terrainHeight(flower.x, flower.z) + 0.2, flower.z);
+    dummy.position.set(flower.x, terrainHeight(flower.x, flower.z) - 0.02, flower.z);
     dummy.rotation.set(0, random() * 3, 0);
     dummy.scale.setScalar(0.7 + random() * 0.8);
     dummy.updateMatrix();
     return { matrix: dummy.matrix.clone(), color: new THREE.Color(flower.color) };
   });
-  const flowerGeometry = tintable(new PartsBuilder().add(new THREE.ConeGeometry(0.16, 0.5, 4), '#ffffff').geometry());
   const grass = foliageMaterial('grass', DETAIL_RANGE);
-  scatter.add({ geometry: flowerGeometry, near: DETAIL_RANGE, shadows: false, material: grass, items: flowerItems });
+  scatter.add({ geometry: flowerGeometry(), near: DETAIL_RANGE, shadows: false, material: grass, items: flowerItems });
 
-  const blades = new PartsBuilder();
-  for (let k = 0; k < 3; k++) {
-    blades.add(new THREE.ConeGeometry(0.07, 0.75, 3, 1, true), '#ffffff', {
-      x: Math.cos(k * 1.7) * 0.14,
-      y: 0.3,
-      z: Math.sin(k * 1.7) * 0.14,
-      rz: (k - 1) * 0.2,
-    });
-  }
   const tuftItems = tufts.map(tuft => {
     dummy.position.set(tuft.x, terrainHeight(tuft.x, tuft.z), tuft.z);
     dummy.rotation.set(0, random() * 6.3, 0);
@@ -909,13 +949,7 @@ function buildGroundCover(scatter) {
       color: new THREE.Color().setHSL(0.2 + random() * 0.05, 0.3, 0.42 + random() * 0.12),
     };
   });
-  scatter.add({
-    geometry: tintable(blades.geometry()),
-    near: DETAIL_RANGE,
-    shadows: false,
-    material: grass,
-    items: tuftItems,
-  });
+  scatter.add({ geometry: tuftGeometry(), near: DETAIL_RANGE, shadows: false, material: grass, items: tuftItems });
 }
 
 /** Long grass grows this close to the camera, rising out of the ground as it comes into range. */
@@ -939,8 +973,9 @@ function isLongGrassGround(x, z) {
 
 /**
  * Long grass in patches across the meadows and along the edges of the woods, taller in the
- * middle of a patch than at its edges. It sways, and bends away from the car. It has numbers
- * of its own, so it doesn't move anything else.
+ * middle of a patch than at its edges. It sways, bends ahead of the car and lies down where the
+ * car has driven through it (see trample.js). It has numbers of its own, so it doesn't move
+ * anything else.
  */
 function buildLongGrass(scatter) {
   const grassRandom = createRandom(6011);
@@ -949,6 +984,7 @@ function buildLongGrass(scatter) {
   /** A clump at (x, z), `height` from 0 to 1 of the tallest, tinted round the patch's own `hue`. */
   const clump = (x, z, height, hue) => {
     if (!isLongGrassGround(x, z)) return;
+    growsTall(x, z, 1);
     dummy.position.set(x, terrainHeight(x, z) - 0.05, z);
     dummy.rotation.set(0, grassRandom() * 6.3, 0);
     const width = 1 + grassRandom() * 0.5;
@@ -1298,10 +1334,9 @@ export function buildScenery(parent) {
   parent.add(scene);
   return {
     obstacles: obstacles.filter(o => o.x === undefined || outsideCrops(o.x, o.z)),
-    /** `eye` is where the camera is, `sun` the light whose shadows are drawn (if any), and `car` where the car is. */
-    update(dt, eye, sun, car) {
+    /** `eye` is where the camera is, and `sun` the light whose shadows are drawn (if any). */
+    update(dt, eye, sun) {
       SWAY.time.value += dt;
-      if (car) SWAY.pusher.value.set(car.x, terrainHeight(car.x, car.z), car.z);
       water.update(dt);
       ground.update(eye);
       scatter.update(eye, sun);

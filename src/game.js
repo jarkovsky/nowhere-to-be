@@ -49,6 +49,7 @@ import { SHADOW_LAYER } from './world/scatter.js';
 import { buildScenery } from './world/scenery.js';
 import { createSecrets } from './world/secrets.js';
 import { createSurfaces } from './world/surfaces.js';
+import { updateTrample } from './world/trample.js';
 import {
   drivingHeight,
   isDriveable,
@@ -752,12 +753,16 @@ export function createGame(canvas) {
       night,
     });
     for (const road of openRoads) road.update(dt, { player: state, blockers: towed, night });
+    // The car and the friends following it lay the long grass and the crops over where they drive through.
+    const wheels = car.wheels.map(({ pivot, radius }) => ({ x: pivot.position.x, z: pivot.position.z, radius }));
+    const player = { x: state.x, z: state.z, y: state.y, heading: state.heading, speed: state.speed, wheels };
+    updateTrample(dt, [player, ...friends.tramplers()]);
 
     if (mode === 'title') updateIntroShot(clock);
     chase.update(dt, carView(), cameraOptions());
     minimap.update(now);
     // After the camera has moved, so the scenery around it is filled in for where it is now.
-    scenery.update(dt, camera.position, sun, state);
+    scenery.update(dt, camera.position, sun);
 
     sound.update({
       speed: driving ? state.speed + mudHole.slip : 0,

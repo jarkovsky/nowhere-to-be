@@ -7,7 +7,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { createRandom, lerp, smoothstep } from '../../core/math.js';
 import { OXBOW, TRACKS } from '../layout.js';
 import { OXBOW_LEVEL, terrainHeight } from '../terrain.js';
-import { PartsBuilder, vertexColorMaterial } from '../build.js';
+import { PartsBuilder, prism, vertexColorMaterial } from '../build.js';
 import { boulderGeometry } from '../rocks.js';
 
 const SHALLOW = new THREE.Color('#a3cfc6');
@@ -66,7 +66,15 @@ function waterGeometry() {
 
 /** Reeds along both banks, thicker towards the ends, which are all reeds; the ford and the footbridge are left clear. */
 function addReeds(parts, random) {
-  const blade = new THREE.ConeGeometry(0.07, 1, 3, 1, true);
+  // A leaf: a flat blade a metre tall with a face on both sides, and a stalk of two crossed.
+  const [left, right, top] = [
+    [-0.07, -0.5, 0],
+    [0.07, -0.5, 0],
+    [0, 0.5, 0],
+  ];
+  const leaf = [left, right, top, right, left, top];
+  const blade = prism(leaf);
+  const stalk = prism([...leaf, ...leaf.map(([x, y]) => [0, y, x])]);
   const head = new THREE.CylinderGeometry(0.075, 0.075, 0.4, 4);
   const clump = (x, z, size) => {
     for (let k = 7 + Math.floor(random() * 6); k > 0; k--) {
@@ -78,7 +86,7 @@ function addReeds(parts, random) {
       const y = terrainHeight(at.x, at.z);
       if (random() < 0.3) {
         // A bulrush: a straight stalk with its brown head near the top.
-        parts.add(blade, REEDS[0], { ...at, y: y + height * 0.55, sy: height * 1.15, sx: 0.6, sz: 0.6 });
+        parts.add(stalk, REEDS[0], { ...at, y: y + height * 0.55, sy: height * 1.15, sx: 0.6, sz: 0.6 });
         parts.add(head, BULRUSH, { ...at, y: y + height * 0.95 });
       } else {
         const tilt = { rx: (random() - 0.5) * 0.3, rz: (random() - 0.5) * 0.3, ry: random() * 3 };
@@ -114,10 +122,28 @@ function addReeds(parts, random) {
   }
 }
 
+/** A water lily's flower: two rings of pointed petals, the inner one standing up more, round a middle. */
+function bloom() {
+  const petals = [];
+  for (const [count, reach, lift, turn] of [
+    [8, 0.14, 0.03, 0],
+    [6, 0.09, 0.08, 0.5],
+  ]) {
+    for (let k = 0; k < count; k++) {
+      const a = turn + (k * Math.PI * 2) / count;
+      const at = (angle, r, y) => [Math.cos(angle) * r, y, Math.sin(angle) * r];
+      petals.push(at(a, 0.02, 0), at(a + 0.3, reach * 0.55, lift * 0.6), at(a, reach, lift));
+      petals.push(at(a, 0.02, 0), at(a, reach, lift), at(a - 0.3, reach * 0.55, lift * 0.6));
+    }
+  }
+  const middle = [0, 2.1, 4.2].map(a => [Math.cos(a) * 0.03, 0.045, Math.sin(a) * 0.03]);
+  return { petals: prism(petals), middle: prism([middle[0], middle[2], middle[1]]) };
+}
+
 /** Water lilies in a few patches on the quieter water, away from the ford. */
 function addLilies(parts, random) {
   const pad = new THREE.CircleGeometry(1, 9, 0.5, Math.PI * 2 - 0.6).rotateX(-Math.PI / 2);
-  const flower = new THREE.ConeGeometry(0.12, 0.12, 5);
+  const flower = bloom();
   for (const [s, side] of [
     [7, 0.6],
     [10.5, -2.4],
@@ -131,7 +157,10 @@ function addLilies(parts, random) {
       const r = 0.4 + random() * 0.35;
       const color = LILIES[Math.floor(random() * LILIES.length)];
       parts.add(pad, color, { x: p.x, y: OXBOW_LEVEL + 0.02, z: p.z, sx: r, sz: r, ry: random() * 6.3 });
-      if (random() < 0.3) parts.add(flower, '#f3eee2', { x: p.x, y: OXBOW_LEVEL + 0.08, z: p.z, rx: Math.PI });
+      if (random() < 0.3) {
+        const at = { x: p.x, y: OXBOW_LEVEL + 0.04, z: p.z, ry: r * 9 };
+        parts.add(flower.petals, '#f3eee2', at).add(flower.middle, '#e8c24a', at);
+      }
     }
   }
 }

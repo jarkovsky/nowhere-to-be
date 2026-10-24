@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { FARM, FARMS, FIELDS, HERDS, VILLAGE, fieldPoint, inCrop } from '../src/world/layout.js';
+import { FARM, FARMS, FIELDS, FIELD_PLOTS, HERDS, VILLAGE, fieldPoint, inCrop } from '../src/world/layout.js';
 import { buildFields } from '../src/world/landmarks/fields.js';
 import { buildScenery } from '../src/world/scenery.js';
 import { localFrame } from '../src/world/build.js';
@@ -58,6 +58,58 @@ test('a finished field grows back only while nobody is near', () => {
     fields.getState().every(w => !w.done && w.worked < 3),
     'then start again',
   );
+});
+
+test('the machines take turns where their headlands meet, and never run into each other or into the other fields', () => {
+  const fields = buildFields(new THREE.Scene(), []);
+  const plots = { plough: FIELD_PLOTS.plough, mower: FIELD_PLOTS.mow, combine: FIELD_PLOTS.wheat };
+  const cos = Math.cos(FIELDS.rotation);
+  const sin = Math.sin(FIELDS.rotation);
+  let waited = 0;
+  let finished = 0;
+  const check = time => {
+    const circles = fields.colliders;
+    for (const [i, a] of circles.entries()) {
+      for (const b of circles.slice(i + 1)) {
+        if (a.kind === b.kind) continue;
+        // They keep a little room between them, not just out of each other.
+        const gap = Math.hypot(a.x - b.x, a.z - b.z) - a.radius - b.radius;
+        assert.ok(
+          gap >= 0.2,
+          `the ${a.kind} and the ${b.kind} come within ${gap.toFixed(2)} m at ${time.toFixed(1)} s`,
+        );
+      }
+      // In the farmland's frame, clear of every field but its own.
+      const lx = (a.x - FIELDS.x) * cos - (a.z - FIELDS.z) * sin;
+      const lz = (a.x - FIELDS.x) * sin + (a.z - FIELDS.z) * cos;
+      for (const plot of Object.values(FIELD_PLOTS)) {
+        if (plot === plots[a.kind]) continue;
+        const out = Math.max(plot.x0 - lx, lx - plot.x1, plot.z0 - lz, lz - plot.z1);
+        assert.ok(out >= a.radius, `the ${a.kind} is in another field at ${time.toFixed(1)} s`);
+      }
+    }
+    const state = fields.getState();
+    waited += state.filter(w => w.waiting).length;
+    finished += state.filter(w => w.done).length;
+  };
+  // Many rounds of work, the fields growing back each time with nobody about, then a long while
+  // with someone watching, so nothing starts again until every machine has finished.
+  let time = 0;
+  for (const [seconds, player] of [
+    [6000, { x: 0, z: 0 }],
+    [1800, { x: FIELDS.x, z: FIELDS.z - 150 }],
+  ]) {
+    for (let t = 0; t < seconds; t += 1 / 20, time += 1 / 20) {
+      fields.update(1 / 20, player);
+      check(time);
+    }
+  }
+  assert.ok(waited > 0, 'the machines had to take turns');
+  assert.ok(
+    fields.getState().every(w => w.done),
+    'and none of them was kept waiting for good',
+  );
+  assert.ok(finished > 0);
 });
 
 test('nothing grows in the crop fields, and they keep clear of the farms, the village and the herds', () => {
