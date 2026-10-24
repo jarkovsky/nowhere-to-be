@@ -4,7 +4,7 @@
 // It waits while you are on the runway, goes round again if you are on it as it comes
 // in to land, and stops for you while taxiing. A second plane stays parked.
 import * as THREE from 'three';
-import { angleDelta, clamp, damp } from '../core/math.js';
+import { angleDelta, clamp, createRandom, damp } from '../core/math.js';
 import { AIRFIELD } from '../world/layout.js';
 import { createPath, headingOf } from '../world/path.js';
 import { terrainHeight } from '../world/terrain.js';
@@ -22,7 +22,8 @@ const TOUCHDOWN = 21;
 const FIRST_FLIGHT = [35, 70];
 const BETWEEN_FLIGHTS = [130, 220];
 
-const between = ([least, most]) => least + Math.random() * (most - least);
+/** A time between `least` and `most`, drawn from `random`. */
+const between = (random, [least, most]) => least + random() * (most - least);
 /** On the ground the planes are too small to make out from further away than this. */
 const DRAW_DISTANCE = 450;
 
@@ -163,7 +164,9 @@ export function createPlanes(scene, obstacles) {
   const turnOff = rollout.nearest(AIRFIELD.x, 178).s;
 
   let phase = 'parked'; // parked, starting, taxiOut, holding, rolling, flying, landing, rollout, stopping
-  let timer = between(FIRST_FLIGHT);
+  // When the planes fly, the same on every visit.
+  const random = createRandom(1903);
+  let timer = between(random, FIRST_FLIGHT);
   let along = 0;
   let speed = 0;
   let spin = 0;
@@ -278,7 +281,7 @@ export function createPlanes(scene, obstacles) {
       } else if (phase === 'stopping') {
         spin = clamp(timer / SPIN_DOWN, 0, 1) * 0.5;
         heading += angleDelta(heading, STAND.heading) * Math.min(1, dt * 2);
-        if (timer <= 0) [phase, timer, spin] = ['parked', between(BETWEEN_FLIGHTS), 0];
+        if (timer <= 0) [phase, timer, spin] = ['parked', between(random, BETWEEN_FLIGHTS), 0];
       }
       if (phase !== 'flying' && phase !== 'landing') {
         position.y = ground;

@@ -4,7 +4,7 @@
 // an ambulance, a fire engine or a police car with its blue lights on, while the
 // others pull over to let it pass, or an army off-roader that just drives through.
 import * as THREE from 'three';
-import { damp } from '../core/math.js';
+import { createRandom, damp } from '../core/math.js';
 import { createSteering, steer } from '../core/steering.js';
 import { chassisPose } from '../core/suspension.js';
 import { BRIDGE, OUTER_ROAD, RING_ROAD, ROAD } from '../world/layout.js';
@@ -344,7 +344,8 @@ export function createVehicle(model) {
 /** The fire engine that waits at the village fire station. */
 export const parkedFireEngine = () => createVehicle(fireEngine());
 
-const between = ([least, most]) => least + Math.random() * (most - least);
+/** A time between `least` and `most`, drawn from `random`. */
+const between = (random, [least, most]) => least + random() * (most - least);
 
 /**
  * Who drives where. Travellers are always about: [model, where they start as a fraction
@@ -408,6 +409,8 @@ export const OUTER = {
 
 export function createTraffic(scene, network = VALLEY) {
   const { road, narrow } = network;
+  // Who comes when, and from which way, the same on every visit, so a drive can be gone over again.
+  const random = createRandom(Math.round(road.length));
   /** Distance between two points on the loop, whichever way round is shorter. */
   const apart = (a, b) => Math.min(road.wrap(a - b), road.wrap(b - a));
   const travellers = network.travellers.map(([model, at, direction, cruise]) => ({
@@ -436,7 +439,7 @@ export function createTraffic(scene, network = VALLEY) {
   }));
   const everyone = [...travellers, ...visitors];
   for (const t of travellers) scene.add(t.root);
-  let nextCall = between(network.firstCall);
+  let nextCall = between(random, network.firstCall);
   let calls = 0;
   let time = 0;
 
@@ -461,7 +464,7 @@ export function createTraffic(scene, network = VALLEY) {
     if (active() || !road.isNear(player.x, player.z, 24)) return false;
     const { s: playerS } = road.nearest(player.x, player.z);
     const visitor = visitors.find(v => v.kind === kind) ?? visitors[calls % visitors.length];
-    for (const direction of Math.random() < 0.5 ? [1, -1] : [-1, 1]) {
+    for (const direction of random() < 0.5 ? [1, -1] : [-1, 1]) {
       const s = road.wrap(playerS - direction * 190);
       const start = road.at(s);
       // Where the road doubles back, the start could be in plain view.
@@ -531,7 +534,7 @@ export function createTraffic(scene, network = VALLEY) {
       time += dt;
       colliders.length = 0;
       const visitor = active();
-      if (!visitor && (nextCall -= dt) <= 0) nextCall = callOut(player) ? between(network.betweenCalls) : 5;
+      if (!visitor && (nextCall -= dt) <= 0) nextCall = callOut(player) ? between(random, network.betweenCalls) : 5;
       const responder = visitor?.emergency ? visitor : null;
 
       // Only those in sight are in the scene: hidden ones would still be updated every frame.
@@ -624,7 +627,7 @@ export function createTraffic(scene, network = VALLEY) {
     answerHonk(x, z, respond) {
       for (const t of [...travellers, ...visitors.filter(v => v.active)]) {
         if (t.honkAt === null && Math.hypot(t.root.position.x - x, t.root.position.z - z) < 32) {
-          t.honkAt = 0.45 + Math.random() * 0.3;
+          t.honkAt = 0.45 + random() * 0.3;
           t.onHonk = respond;
         }
       }

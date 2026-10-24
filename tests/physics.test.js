@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { penetration } from '../src/core/collision.js';
 import { CAR, createCarState, stepDriving } from '../src/core/driving.js';
+import { createFixedStep } from '../src/core/clock.js';
 import { createRandom } from '../src/core/math.js';
 import { flatWorld } from './helpers.js';
 
@@ -154,26 +155,73 @@ test('at top speed and the longest step there is, the car does not pass through 
   }
 });
 
-test('the same drive at different frame rates ends up in about the same place', () => {
-  const script = [
-    [{ cruise: true }, 3],
-    [{ cruise: true, left: true }, 2],
-    [{ forward: true }, 2],
-    [{ forward: true, right: true }, 1.5],
-    [{ brake: true }, 1],
-    [{ backward: true, left: true }, 2],
-    [{}, 2],
-  ];
-  const ends = [20, 30, 60, 144, 240].map(fps => {
-    const car = createCarState({ x: 0, z: 0, heading: 0 });
-    const world = flatWorld();
-    for (const [input, seconds] of script) {
-      for (let i = 0; i < Math.round(seconds * fps); i++) stepDriving(car, input, 1 / fps, world);
-    }
-    return car;
-  });
+const SCRIPT = [
+  [{ cruise: true }, 3],
+  [{ cruise: true, left: true }, 2],
+  [{ forward: true }, 2],
+  [{ forward: true, right: true }, 1.5],
+  [{ brake: true }, 1],
+  [{ backward: true, left: true }, 2],
+  [{}, 2],
+];
+
+/** Drives the script at `fps` frames a second, each frame's time handed to `advance`. */
+function driveScript(fps, advance) {
+  const car = createCarState({ x: 0, z: 0, heading: 0 });
+  const world = flatWorld();
+  for (const [input, seconds] of SCRIPT) {
+    for (let i = 0; i < Math.round(seconds * fps); i++) advance(car, input, 1 / fps, world);
+  }
+  return car;
+}
+
+test('driven a frame at a time, the same drive at different frame rates ends up in about the same place', () => {
+  const ends = [20, 30, 60, 144, 240].map(fps => driveScript(fps, stepDriving));
   for (const car of ends) {
     assert.ok(Math.hypot(car.x - ends[2].x, car.z - ends[2].z) < 1, `${car.x.toFixed(2)}, ${car.z.toFixed(2)}`);
     assert.ok(Math.abs(car.heading - ends[2].heading) < 0.08);
   }
+});
+
+test('driven in fixed steps, as the game does, the same drive at any frame rate ends up in just the same place', () => {
+  const ends = [20, 30, 45, 60, 120, 240].map(fps => {
+    const steps = createFixedStep(1 / 60);
+    return driveScript(fps, (car, input, dt, world) => steps.advance(dt, step => stepDriving(car, input, step, world)));
+  });
+  for (const car of ends) {
+    assert.ok(
+      Math.hypot(car.x - ends[0].x, car.z - ends[0].z) < 1e-9,
+      `${car.x}, ${car.z} against ${ends[0].x}, ${ends[0].z}`,
+    );
+    assert.ok(Math.abs(car.heading - ends[0].heading) < 1e-9);
+  }
+});
+
+test('the fixed step runs a whole step for each step of time, carries on what is left over and says how far into the next step it is', () => {
+  const steps = createFixedStep(0.1);
+  let runs = 0;
+  assert.equal(
+    steps.advance(0.25, () => runs++),
+    2,
+  );
+  assert.ok(Math.abs(steps.alpha - 0.5) < 1e-9);
+  assert.equal(
+    steps.advance(0.05, () => runs++),
+    1,
+  );
+  assert.ok(steps.alpha < 1e-6);
+  // A long stall runs no more than a few steps, and none for no time or for time going backwards.
+  assert.equal(
+    steps.advance(10, () => runs++),
+    6,
+  );
+  assert.equal(
+    steps.advance(0, () => runs++),
+    0,
+  );
+  assert.equal(
+    steps.advance(-1, () => runs++),
+    0,
+  );
+  assert.equal(runs, 9);
 });
