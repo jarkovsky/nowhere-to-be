@@ -5,6 +5,7 @@
 import {
   CAMP_TRAIL,
   DEPOT,
+  DESERT,
   GRAVEL,
   GRAVEL_HALF_WIDTH,
   PAVED,
@@ -27,6 +28,7 @@ const frame = ({ x, z, rotation }, lx, lz) => ({
 export const PARKED = [
   ...DEPOT.bays.map((lx, i) => ({ name: `depot bay ${i + 1}`, ...frame(DEPOT, lx, DEPOT.noses - 2) })),
   { name: 'fire engine', ...frame(VILLAGE.fireStation, -2.6, 5.2) },
+  { name: 'camper van at the petrol station', ...frame(DESERT.station, -0.6, 5.1) },
   { name: 'planes on the apron', x: 540, z: 162 },
   { name: 'planes on the apron', x: 560, z: 178 },
 ];

@@ -58,6 +58,7 @@ import {
   FARMS,
   VILLAGE,
   PONDS,
+  DESERT,
   inFjord,
   inCrop,
   onAirfield,
@@ -67,7 +68,17 @@ import {
   rockiness,
   lakeDistance,
 } from './layout.js';
-import { terrainHeight, naturalHeight, brookLevel, creekLevel, riverLevel, snowCover, POOL, FORDS } from './terrain.js';
+import {
+  terrainHeight,
+  naturalHeight,
+  placementHeight,
+  brookLevel,
+  creekLevel,
+  riverLevel,
+  snowCover,
+  POOL,
+  FORDS,
+} from './terrain.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PartsBuilder, flatMaterial, freeze, prism, tintable, vertexColorMaterial } from './build.js';
 import { SWAY, foliageMaterial, groundMaterial } from './detail.js';
@@ -75,6 +86,7 @@ import { growsTall } from './trample.js';
 import { createGround } from './ground.js';
 import { boulderGeometry } from './rocks.js';
 import { createScatter } from './scatter.js';
+import { buildDesertScenery, desertGround, desertTakes } from './sand.js';
 
 const random = createRandom(82741);
 
@@ -137,6 +149,7 @@ function groundColor(x, z, h, up, out) {
     if (d < 1 && patch.id === 'leaves') out.lerp(GROUND.leaves, 0.75);
     if (d < 1.2 && patch.id === 'mud') out.lerp(GROUND.mud, 0.85 * (1 - smoothstep(d, 0.8, 1.2)));
   }
+  desertGround(x, z, up, out);
   return out.multiplyScalar(0.96 + random() * 0.08);
 }
 
@@ -426,11 +439,19 @@ const CLEARINGS = [
   ]),
   ...VILLAGE.houses.map(({ x, z }) => ({ x, z, r: 10 })),
   { x: VILLAGE.fireStation.x, z: VILLAGE.fireStation.z, r: 14 },
-  ...PONDS.map(({ x, z, radius }) => ({ x, z, r: radius + 6 })),
+  ...PONDS.filter(pond => pond !== DESERT.oasis).map(({ x, z, radius }) => ({ x, z, r: radius + 6 })),
   ...GNOMES.map(gnome => ({ ...gnome, r: 4 })),
   // The mud lies on the tracks, which are kept clear anyway.
   ...SURFACES.filter(p => p.id !== 'mud').map(p => ({ x: p.x, z: p.z, r: Math.max(p.rx, p.rz) + 4 })),
 ];
+
+/**
+ * The tracks that the trees, rocks and grass are kept off. The desert's track and its oasis are
+ * left out of these and of the clearings: everything is tried in turn from the same run of random
+ * numbers, so keeping something off them would move everything placed after it. The desert
+ * clears its own ground instead (see desertTakes).
+ */
+const PLACED_TRACKS = TRACKS.filter(track => !track.desert);
 
 /** True in or just around a patch of mud. */
 const inMud = (x, z) =>
@@ -453,7 +474,7 @@ function isClearGround(x, z, { road = 9 } = {}) {
   if (CLEARINGS.some(c => (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r)) return false;
   if (nearWalkway(HABITATS.deer, x, z, 5) || nearWalkway(HABITATS.ducks, x, z, 5)) return false;
   if (ROAD.isNear(x, z, road) || CAMP_TRAIL.isNear(x, z, 6) || RAILWAY.isNear(x, z, 9)) return false;
-  if (TRACKS.some(track => track.path.isNear(x, z, 5))) return false;
+  if (PLACED_TRACKS.some(track => track.path.isNear(x, z, 5))) return false;
   if (onPaved(x, z, road) || onGravel(x, z, road - 1) || onDriveway(x, z, 4)) return false;
   // The airfield's levelled ground is kept as open, mown grass.
   const { ground } = AIRFIELD;
@@ -464,10 +485,10 @@ function isClearGround(x, z, { road = 9 } = {}) {
   return !nearRiver(x, z, 11) && !inFjord(x, z, 3);
 }
 
-/** Rise over run of the ground at a point. */
+/** Rise over run of the land at a point, as it was before the desert (see placementHeight). */
 function steepness(x, z) {
-  const h = terrainHeight(x, z);
-  return Math.hypot(terrainHeight(x + 1, z) - h, terrainHeight(x, z + 1) - h);
+  const h = placementHeight(x, z);
+  return Math.hypot(placementHeight(x + 1, z) - h, placementHeight(x, z + 1) - h);
 }
 
 const TRUNK = '#7a6d52';
@@ -628,7 +649,7 @@ function buildTrees(scatter, obstacles) {
     // Woods in some places, open meadows in others. They are kept open enough to drive through.
     const woods = smoothstep(fractalNoise(x / 150 + 3.3, z / 150 + 8.1, 2, 5), 0.36, 0.6);
     if (random() > 0.1 + woods * 0.9) continue;
-    const height = terrainHeight(x, z);
+    const height = placementHeight(x, z);
     // Trees thin out towards the treeline and stop at it, and hardly grow on bare rock.
     if (random() < smoothstep(height, 84, 104) || steepness(x, z) > 0.9) continue;
     if (random() < rockiness(x, z) * 0.85) continue;
@@ -808,7 +829,7 @@ function buildRocks(scatter, obstacles) {
     const z = (random() - 0.5) * across;
     if (!isClearGround(x, z, { road: 8 })) continue;
     // Stony ground up high has more of them.
-    if (terrainHeight(x, z) < 80 && Math.hypot(x, z) > UPLANDS_RADIUS && random() < 0.4) continue;
+    if (placementHeight(x, z) < 80 && Math.hypot(x, z) > UPLANDS_RADIUS && random() < 0.4) continue;
     const size = 0.6 + random() ** 2 * 2.4;
     add({ x, z, size, rotation: random() * 6.3, tilt: (random() - 0.5) * 0.3 });
     for (let k = Math.floor(random() * 3); k > 0; k--) {
@@ -928,7 +949,7 @@ function buildGroundCover(scatter) {
     const x = (random() - 0.5) * across;
     const z = (random() - 0.5) * across;
     if (Math.hypot(x, z) > VALLEY_RADIUS - 4 || !isClearGround(x, z, { road: 6 }) || inMud(x, z)) continue;
-    if (terrainHeight(x, z) > 96) continue;
+    if (placementHeight(x, z) > 96) continue;
     // Flowers gather in drifts; tufts of long grass grow everywhere else.
     const drift = fractalNoise(x / 40 + 2, z / 40 + 6, 2, 17);
     if (drift > 0.55) flowers.push({ x, z, color: flowerColors[Math.floor(random() * flowerColors.length)] });
@@ -967,13 +988,13 @@ function isLongGrassGround(x, z) {
     return false;
   if (onPaved(x, z, ROAD_HALF_WIDTH + 0.8) || onAirfield(x, z, 2)) return false;
   if (onGravel(x, z, GRAVEL_HALF_WIDTH + 0.8)) return false;
-  if (TRACKS.some(track => track.path.isNear(x, z, track.ruts ? 1.6 : 1.3))) return false;
+  if (PLACED_TRACKS.some(track => track.path.isNear(x, z, track.ruts ? 1.6 : 1.3))) return false;
   if (onDriveway(x, z, 0.8)) return false;
   if (CLEARINGS.some(c => (x - c.x) ** 2 + (z - c.z) ** 2 < (c.r * 0.7) ** 2) || inMud(x, z)) return false;
   if (Math.hypot(x - FIELDS.x, z - FIELDS.z) < FIELDS.radius + 4) return false;
   if (lakeDistance(x, z) < 2.4 || (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 6))) return false;
   if (BROOK.isNear(x, z, 3.2) || nearRiver(x, z, 7) || inFjord(x, z, 3) || OXBOW.path.isNear(x, z, 11)) return false;
-  const h = terrainHeight(x, z);
+  const h = placementHeight(x, z);
   return h < 92 && snowCover(x, z, h) < 0.2 && steepness(x, z) < 0.5;
 }
 
@@ -990,7 +1011,7 @@ function buildLongGrass(scatter) {
   /** A clump at (x, z), `height` from 0 to 1 of the tallest, tinted round the patch's own `hue`. */
   const clump = (x, z, height, hue) => {
     if (!isLongGrassGround(x, z)) return;
-    growsTall(x, z, 1);
+    if (!desertTakes(x, z)) growsTall(x, z, 1);
     dummy.position.set(x, terrainHeight(x, z) - 0.05, z);
     dummy.rotation.set(0, grassRandom() * 6.3, 0);
     const width = 1 + grassRandom() * 0.5;
@@ -1026,7 +1047,7 @@ function buildLongGrass(scatter) {
       CAMP_TRAIL.isNear(cx, cz, 40) ||
       onPaved(cx, cz, 50) ||
       onGravel(cx, cz, 50) ||
-      TRACKS.some(track => track.path.isNear(cx, cz, 40));
+      PLACED_TRACKS.some(track => track.path.isNear(cx, cz, 40));
     const chance = Math.max(meadow, edge * 0.8) * (seen ? 1 : 0.2);
     if (grassRandom() > chance || !isLongGrassGround(cx, cz)) continue;
     patches++;
@@ -1318,15 +1339,16 @@ export function buildScenery(parent) {
   // Concrete driveways out to the road, a little under the road where they meet it.
   for (const { path, halfWidth } of DRIVEWAYS) scene.add(ribbon(path, halfWidth, '#b9b6ab', { lift: 0.045 }));
   const water = buildWater(scene);
-  // What would grow in the crop fields is left out as it is added rather than where it is
-  // placed, so that leaving it out doesn't move everything placed after it.
+  // What would grow in the crop fields, or in the desert, is left out as it is added rather than
+  // where it is placed, so that leaving it out doesn't move everything placed after it.
   const everything = createScatter(scene);
+  const grows = (x, z) => outsideCrops(x, z) && !desertTakes(x, z);
   const scatter = {
     ...everything,
     add: kind =>
       everything.add({
         ...kind,
-        items: kind.items.filter(({ matrix: m }) => outsideCrops(m.elements[12], m.elements[14])),
+        items: kind.items.filter(({ matrix: m }) => grows(m.elements[12], m.elements[14])),
       }),
   };
   buildTrees(scatter, obstacles);
@@ -1338,10 +1360,15 @@ export function buildScenery(parent) {
   buildLongGrass(scatter);
   buildPeaks(scene);
   buildFences(scene, scatter);
+  // The logs' obstacles are left out with them, by their middles.
+  const kept = obstacles.filter(o =>
+    o.x === undefined ? !desertTakes((o.ax + o.bx) / 2, (o.az + o.bz) / 2) : grows(o.x, o.z),
+  );
+  kept.push(...buildDesertScenery(everything));
   freeze(scene);
   parent.add(scene);
   return {
-    obstacles: obstacles.filter(o => o.x === undefined || outsideCrops(o.x, o.z)),
+    obstacles: kept,
     /** `eye` is where the camera is, and `sun` the light whose shadows are drawn (if any). */
     update(dt, eye, sun) {
       SWAY.time.value += dt;

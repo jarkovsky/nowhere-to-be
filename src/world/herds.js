@@ -1,7 +1,7 @@
-// Herds out in the outlands: horses, goats and pigs at the farms, sheep above the fjord, and
-// moose, wild boar, red deer and mouflon out in the wild. Each animal wanders round its
-// herd's patch of ground, stopping to graze, and now and then breaks into a run just for the
-// fun of it. When a car comes close, or honks, they all run off and settle again further away.
+// Herds out in the outlands: horses, goats and pigs at the farms, sheep above the fjord, camels
+// in the desert, and moose, wild boar, red deer and mouflon out in the wild. Each animal
+// wanders round its herd's patch of ground, stopping to graze, and now and then breaks into a
+// run just for the fun of it. When a car comes close, or honks, they all run off and settle again further away.
 // A herd is drawn with one instanced mesh each for bodies, heads and legs, and only when the
 // player is near enough to see it.
 import * as THREE from 'three';
@@ -188,6 +188,36 @@ export const KINDS = {
     shy: 20,
     frisky: 0.15,
     call: 'baa',
+  },
+  camel: {
+    // A dromedary: one hump, a long neck reaching forward and up, and long legs on broad pads.
+    body: p =>
+      p
+        .box(1.8, 0.75, 0.7, '#c8a06a', { y: 1.75 })
+        .box(0.55, 0.62, 0.64, '#c8a06a', { x: 0.72, y: 1.66 })
+        .add(new THREE.SphereGeometry(0.5, 10, 7), '#c29a63', { x: -0.1, y: 2.16, sx: 1.2, sy: 1, sz: 0.82 })
+        .box(0.08, 0.6, 0.08, '#c8a06a', { x: -0.93, y: 1.55, rz: -0.2 })
+        .box(0.12, 0.22, 0.1, '#6f5439', { x: -0.99, y: 1.2, rz: -0.2 }),
+    head: p =>
+      p
+        .box(0.34, 1.25, 0.3, '#c8a06a', { x: 0.36, y: 0.38, rz: -0.75 })
+        .box(0.64, 0.3, 0.3, '#c8a06a', { x: 0.94, y: 0.9, rz: 0.15 })
+        .box(0.2, 0.22, 0.26, '#a8845a', { x: 1.22, y: 0.82, rz: 0.15 })
+        .box(0.08, 0.14, 0.06, '#a8845a', { x: 0.74, y: 1.1, z: 0.1 })
+        .box(0.08, 0.14, 0.06, '#a8845a', { x: 0.74, y: 1.1, z: -0.1 }),
+    leg: p =>
+      p
+        .box(0.17, 1.36, 0.17, '#bf9762', { y: -0.68 })
+        .box(0.22, 0.17, 0.22, '#b38a58', { y: -0.74 })
+        .box(0.26, 0.1, 0.26, '#6f5439', { y: -1.37 }),
+    hip: 1.42,
+    feet: [0.62, 0.22],
+    neck: [0.86, 1.95],
+    graze: 0.9,
+    walk: 0.9,
+    run: 4.2,
+    shy: 16,
+    frisky: 0.06,
   },
 };
 

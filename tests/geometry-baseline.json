@@ -78,6 +78,9 @@
     "floating": 1,
     "one-sided": 2
   },
+  "landmark.desert": {
+    "one-sided": 1
+  },
   "model.garage.offroader.orange": {
     "one-sided": 1,
     "flicker": 1

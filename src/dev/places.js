@@ -10,6 +10,7 @@ import {
   CHAPEL,
   CHATA,
   DEPOT,
+  DESERT,
   FARM,
   FARMS,
   FARMSTEAD,
@@ -37,6 +38,8 @@ import {
 const halt = RAILWAY.offset((HALT.from + HALT.to) / 2, HALT.side * 4);
 const fin = ROCK_FIN.path.at(ROCK_FIN.arch / 2);
 const descent = ROCK_FIN.path.at((ROCK_FIN.archEnd + ROCK_FIN.path.length) / 2);
+const [west, east] = DESERT.buttes;
+const canyon = { x: (west.x + east.x) / 2, z: (west.z + east.z) / 2 };
 
 export const PLACES = [
   { id: 'airfield', name: 'Airfield', landmark: 'airfield', x: 560, z: 116, radius: 130 },
@@ -119,4 +122,18 @@ export const PLACES = [
     ...house,
     radius: 10,
   })),
+  { id: 'desert', name: 'Desert', landmark: 'desert', ...DESERT, radius: 130 },
+  { id: 'desert.canyon', name: 'Canyon between two buttes', landmark: 'desert', ...canyon, radius: 40 },
+  { id: 'desert.mesa', name: 'Flat-topped butte', landmark: 'desert', ...DESERT.buttes[2], radius: 42 },
+  { id: 'desert.spire', name: 'Rock spire', landmark: 'desert', ...DESERT.buttes[3], radius: 22 },
+  { id: 'desert.oasis', name: 'Oasis', landmark: 'desert', ...DESERT.oasis, radius: 24 },
+  { id: 'desert.windpump', name: 'Wind pump, tank and trough', landmark: 'desert', ...DESERT.windpump, radius: 11 },
+  ...DESERT.houses.map((house, i) => ({
+    id: `desert.house.${i}`,
+    name: `Mud-brick house ${i + 1}`,
+    landmark: 'desert',
+    ...house,
+    radius: 9,
+  })),
+  { id: 'desert.station', name: 'Petrol station', landmark: 'desert', ...DESERT.station, radius: 22 },
 ];

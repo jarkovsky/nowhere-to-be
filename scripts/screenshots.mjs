@@ -254,6 +254,20 @@ try {
   `,
   );
   await capture(page, 'arch', 2500);
+
+  // The oasis in the desert, at the end of the track through the canyon.
+  await inGame(
+    page,
+    `
+    const track = L.TRACKS.find(t => t.id === 'desert').path;
+    const car = track.at(track.length - 22);
+    g.teleport(car.x, car.z, Math.atan2(-car.dx, -car.dz));
+    const { oasis } = L.DESERT;
+    const eye = { x: car.x + 17, z: car.z + 13 };
+    g.shot([eye.x, T.terrainHeight(eye.x, eye.z) + 4.5, eye.z], [oasis.x - 2, T.terrainHeight(oasis.x, oasis.z) + 1.5, oasis.z + 2]);
+  `,
+  );
+  await capture(page, 'desert', 2500);
   await inGame(page, `g.followCar();`);
 
   await inGame(

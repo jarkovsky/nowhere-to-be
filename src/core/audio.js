@@ -23,6 +23,7 @@ const SURFACE_BEDS = {
   mud: { cutoff: 420, gain: 0.03, bubbles: 0.8 },
   snow: { cutoff: 1600, gain: 0.01, bubbles: 0 },
   leaves: { cutoff: 2400, gain: 0.008, bubbles: 0 },
+  sand: { cutoff: 1900, gain: 0.012, bubbles: 0 },
 };
 
 export function createAudio() {

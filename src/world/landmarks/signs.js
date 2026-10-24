@@ -390,6 +390,7 @@ function paintMap(ctx, w, h) {
     depot: 'Depot',
     horses: 'Horses',
     goats: 'Goats',
+    desert: 'Desert',
   };
   /** Draws text in the current font and alignment, and returns the box it fills. */
   const write = (text, x, y, size) => {
