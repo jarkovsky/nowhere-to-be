@@ -182,6 +182,7 @@ export function createAtmosphere(scene, sun, ambient) {
       p.needsUpdate = true;
     }
     shootingStar.material.opacity = Math.max(0, Math.sin((Math.max(0, meteor.life) / 0.9) * Math.PI)) * (1 - day);
+    shootingStar.visible = meteor.life > 0;
   }
 
   return {
