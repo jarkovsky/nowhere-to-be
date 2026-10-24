@@ -187,6 +187,15 @@ export function localFrame(x, z, rotation) {
   return (lx, lz) => ({ x: x + lx * cos + lz * sin, z: z - lx * sin + lz * cos });
 }
 
+/** A leg or a head on its own pivot at (x, y, z) on `parent`, built as its own small mesh, for animating. */
+export function limb(parent, x, y, z, build) {
+  const pivot = new THREE.Group();
+  pivot.position.set(x, y, z);
+  pivot.add(build(new PartsBuilder()).mesh({ receiveShadow: false }));
+  parent.add(pivot);
+  return pivot;
+}
+
 /**
  * A copy of `geometry` with every triangle also facing the other way, so a thin open surface
  * (a band of slats, a railing) can be seen from behind as well as in front.

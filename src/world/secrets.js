@@ -132,8 +132,7 @@ export function createSecrets(scene, { onCall = () => {} } = {}) {
       if (rise > 0.5 && Math.hypot(x - YETI.x, z - YETI.z) < 60) wave = 2.5;
       if (dark && Math.hypot(x - perch.x, z - perch.z) < 70) onCall('hoot');
     },
-    update(dt, player, running, night = 0) {
-      if (!running) return;
+    update(dt, player, night = 0) {
       time += dt;
       const distance = Math.hypot(player.x - YETI.x, player.z - YETI.z);
       // Leans out from behind the rock when you're a little way off, and slips

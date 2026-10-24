@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { angleDelta, createRandom, smoothstep } from '../core/math.js';
 import { FARM, HABITATS, LAKE } from './layout.js';
 import { terrainHeight } from './terrain.js';
-import { PartsBuilder, localFrame } from './build.js';
+import { PartsBuilder, limb, localFrame } from './build.js';
 import { createWolves } from './wolves.js';
 import { createChickens } from './chickens.js';
 import { createHerds } from './herds.js';
@@ -15,15 +15,6 @@ import { createDodge, stepDodge } from './dodge.js';
 
 const DARK = '#394439';
 const CREAM = '#eee4c9';
-
-/** A leg (or head) that animates around a pivot, built as its own small mesh. */
-function limb(parent, x, y, z, build) {
-  const pivot = new THREE.Group();
-  pivot.position.set(x, y, z);
-  pivot.add(build(new PartsBuilder()).mesh({ receiveShadow: false }));
-  parent.add(pivot);
-  return pivot;
-}
 
 export function deer() {
   const root = new THREE.Group();
@@ -620,8 +611,7 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
       wolves: wolves.getState(),
       herds: herds.getState(),
     }),
-    update(dt, player, running, night = 0) {
-      if (!running) return;
+    update(dt, player, night = 0) {
       time += dt;
       sheepLookUp = Math.max(0, sheepLookUp - dt);
       for (const group of walkers) group.startle = Math.max(0, group.startle - dt * 0.9);

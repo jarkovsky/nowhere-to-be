@@ -6,7 +6,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { angleDelta, clamp, damp } from '../core/math.js';
 import { createSteering, steer } from '../core/steering.js';
 import { chassisPose, settleWheels } from '../core/suspension.js';
-import { createTrailerState, stepTrailer } from '../core/trailer.js';
+import { createTrailerState, hangTrailer } from '../core/trailer.js';
 import { drivingHeight } from '../world/terrain.js';
 import { createCar } from './car.js';
 
@@ -35,37 +35,6 @@ function createCopy() {
     hitch: new THREE.Vector3(),
     point: new THREE.Vector3(),
   };
-}
-
-/** Hangs the trailer from the lorry's hitch and lets it follow on behind, as the player's does. */
-function hangTrailer(copy, heading, speed, sample) {
-  const { car, trailer, hitch, point } = copy;
-  const { root, axles, spec } = car.trailer;
-  const { radius } = spec.wheel;
-  car.root.localToWorld(hitch.set(...spec.hitch));
-  const moved = Math.hypot(hitch.x - trailer.x, hitch.z - trailer.z);
-  stepTrailer(trailer, hitch, heading, spec.axle);
-  const sin = Math.sin(trailer.heading);
-  const cos = Math.cos(trailer.heading);
-  const ground = (lx, lz) => sample(hitch.x + cos * lx + sin * lz, hitch.z - sin * lx + cos * lz);
-  const left = ground(-spec.track / 2, spec.axle);
-  const right = ground(spec.track / 2, spec.axle);
-  const drop = (left + right) / 2 + radius + 0.01 - hitch.y - spec.rest;
-  root.position.copy(hitch);
-  root.rotation.set(
-    Math.asin(clamp(-drop / spec.axle, -0.5, 0.5)),
-    trailer.heading,
-    Math.atan((right - left) / spec.track),
-    'YXZ',
-  );
-  root.updateMatrixWorld();
-  const roll = moved < 5 ? moved * Math.sign(speed) : 0;
-  for (const axle of axles) {
-    const under = (ground(-spec.track / 2, axle.z) + ground(spec.track / 2, axle.z)) / 2 + radius + 0.01;
-    const height = root.localToWorld(point.set(0, spec.rest, axle.z)).y;
-    axle.pivot.position.y = spec.rest + clamp(under - height, -0.24, 0.13);
-    axle.spin.rotation.x -= roll / radius;
-  }
 }
 
 /**
