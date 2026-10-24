@@ -747,7 +747,8 @@ export function createGame(canvas) {
     car.setMud(dirt);
     traffic.update(dt, {
       player: state,
-      blockers: [...wildlife.crossingDucks(), ...landmarks.crossing.blockers(), ...towed],
+      // The tractor from the mud hole comes out along the trail to tow, so the traffic waits for it too.
+      blockers: [...wildlife.crossingDucks(), ...landmarks.crossing.blockers(), ...towed, ...mudHole.colliders],
       night,
     });
     for (const road of openRoads) road.update(dt, { player: state, blockers: towed, night });
