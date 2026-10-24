@@ -1,4 +1,4 @@
-// The DOM side of the game: title screen, pause menu, garage and toasts. It is made
+// The DOM side of the game: title screen, pause menu, garage, map and toasts. It is made
 // for a small child who can't read yet, so everything is a picture to tap; the words
 // are labels for screen readers. It knows nothing about Three.js; the game talks to
 // it through callbacks.
@@ -41,12 +41,14 @@ export function createUI({ journal, gnomeCount, pictures, on }) {
   let toastTimer = null;
   let gnomeTimer = null;
   let showroom = false;
+  let mapOpen = false;
   const toastQueue = [];
 
   // --- Title screen and HUD -------------------------------------------------------
 
   $('play').addEventListener('click', () => on.play());
   $('pause').addEventListener('click', () => on.pause());
+  $('corner-map').addEventListener('click', () => on.openMap());
   for (const button of menu.querySelectorAll('[data-resume]')) button.addEventListener('click', () => on.resume());
   $('wake').addEventListener('click', () => on.wake());
   menu.addEventListener('cancel', event => {
@@ -83,9 +85,18 @@ export function createUI({ journal, gnomeCount, pictures, on }) {
     on.showroom(enabled);
   }
 
+  /** The map fills nearly the whole screen. */
+  function setMapOpen(enabled) {
+    if (enabled === mapOpen) return;
+    mapOpen = enabled;
+    menu.classList.toggle('map-open', enabled);
+    on.map(enabled);
+  }
+
   function showPage(name) {
     for (const page of menu.querySelectorAll('.menu-page')) page.hidden = page.dataset.page !== name;
     setShowroom(name === 'garage');
+    setMapOpen(name === 'map');
     if (name === 'garage') renderGarage();
     menu.scrollTop = 0;
     menu.querySelector(`[data-page="${name}"] h2`)?.focus({ preventScroll: true });
@@ -96,8 +107,10 @@ export function createUI({ journal, gnomeCount, pictures, on }) {
 
   $('sound').addEventListener('click', () => on.sound());
   $('cruise').addEventListener('click', () => on.cruise());
+  $('minimap').addEventListener('click', () => on.minimap());
   $('tilt').addEventListener('click', () => on.tilt());
   $('tilt-center').addEventListener('click', () => on.tiltCenter());
+  $('tilt-reverse').addEventListener('click', () => on.tiltReverse());
   $('camp').addEventListener('click', () => on.camp());
   $('home').addEventListener('click', () => on.home());
 
@@ -258,6 +271,7 @@ export function createUI({ journal, gnomeCount, pictures, on }) {
     },
     closeMenu() {
       setShowroom(false);
+      setMapOpen(false);
       if (menu.open) menu.close();
     },
     isMenuOpen: () => menu.open,
@@ -274,10 +288,13 @@ export function createUI({ journal, gnomeCount, pictures, on }) {
       $(id).setAttribute('aria-checked', String(on));
       // With cruise control on, the car drives itself: the pedal for going forward isn't needed.
       if (id === 'cruise') document.body.classList.toggle('cruising', on);
+      // Leaning the screen back reverses while tilt steers: the reverse pedal isn't needed then.
+      if (id === 'tilt-reverse') document.body.classList.toggle('lean-reverse', on);
     },
     setTilt(state) {
       $('tilt').setAttribute('aria-checked', String(state.enabled || state.pending));
       $('tilt-center').hidden = !state.enabled;
+      $('tilt-reverse').hidden = !state.enabled;
       const message = LABELS.tilt[state.status];
       $('tilt-status').textContent = message;
       $('tilt-status').hidden = !message;

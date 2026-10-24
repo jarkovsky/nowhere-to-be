@@ -80,6 +80,17 @@ test('rainbow paint needs to be unlocked first', () => {
   assert.equal(sanitise({ color: 'rainbow', rainbow: true }).color, 'rainbow');
 });
 
+test('the minimap and leaning back to reverse stay off until switched on', () => {
+  assert.equal(sanitise({}).minimap, false);
+  assert.equal(sanitise({}).tiltReverse, false);
+  assert.equal(sanitise({ minimap: 'yes', tiltReverse: 1 }).minimap, false);
+  assert.equal(sanitise({ minimap: 'yes', tiltReverse: 1 }).tiltReverse, false);
+  const storage = memoryStorage();
+  createJournal(storage).save({ minimap: true, tiltReverse: true });
+  assert.equal(createJournal(storage).get().minimap, true);
+  assert.equal(createJournal(storage).get().tiltReverse, true);
+});
+
 test('the game keeps working when storage is unavailable', () => {
   const journal = createJournal({
     getItem: () => null,

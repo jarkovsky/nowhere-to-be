@@ -113,7 +113,8 @@ export function createControls({ touchRoot, tilt, onAction, isDriving }) {
       const motion = tilt.getState();
       return {
         forward: pressed('forward'),
-        backward: pressed('backward'),
+        // Leaning the screen back holds the reverse pedal down, when that's switched on.
+        backward: pressed('backward') || motion.reversing,
         left: pressed('left'),
         right: pressed('right'),
         // While tilt is finding its centre, hold the car still.
