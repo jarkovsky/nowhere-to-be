@@ -92,11 +92,14 @@ export function createPath(points, { closed = false, spacing = 1 } = {}) {
     const bx = Math.floor(x / BUCKET);
     const bz = Math.floor(z / BUCKET);
     const limit = distance * distance;
-    for (let i = -1; i <= 1; i++) {
-      for (let j = -1; j <= 1; j++) {
-        for (const sample of buckets.get(bucketKey(bx + i, bz + j)) ?? []) {
-          if ((x - sample.x) ** 2 + (z - sample.z) ** 2 < limit) return true;
-        }
+    // Only the buckets that reach within `distance` of the point, and no further than the next ones.
+    const i1 = Math.min(bx + 1, Math.floor((x + distance) / BUCKET));
+    const j1 = Math.min(bz + 1, Math.floor((z + distance) / BUCKET));
+    for (let i = Math.max(bx - 1, Math.floor((x - distance) / BUCKET)); i <= i1; i++) {
+      for (let j = Math.max(bz - 1, Math.floor((z - distance) / BUCKET)); j <= j1; j++) {
+        const bucket = buckets.get(bucketKey(i, j));
+        if (!bucket) continue;
+        for (const sample of bucket) if ((x - sample.x) ** 2 + (z - sample.z) ** 2 < limit) return true;
       }
     }
     return false;
