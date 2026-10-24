@@ -30,6 +30,8 @@ export const TRAMPLERS = 3;
  * for everything it is drawing to finish.
  */
 const SEND = 1 / 20;
+/** How often it is sent while the stalks are only rising again, which is too slow to see sooner. */
+const RISE_SEND = 0.5;
 /** Side of the cells of the grid that says where anything grows tall enough to be laid over. */
 const CELL = 8;
 const CELLS = 256;
@@ -43,10 +45,14 @@ texture.magFilter = texture.minFilter = THREE.LinearFilter;
 texture.generateMipmaps = false;
 texture.needsUpdate = true;
 
-/** The columns along each row that hold stalks laid over, whether any have changed since the texture was last sent, and how long ago that was. */
+/**
+ * The columns along each row that hold stalks laid over, whether any have been laid over, cut
+ * or cleared since the texture was last sent, whether any have risen, and how long ago that was.
+ */
 const low = new Int16Array(SIZE).fill(SIZE);
 const high = new Int16Array(SIZE).fill(-1);
-let changed = true;
+let fresh = true;
+let rising = false;
 let sent = 0;
 /** Where tall grass or a crop grows, in cells of the grid. */
 const tall = new Uint8Array(CELLS * CELLS);
@@ -111,7 +117,7 @@ function press(x, z, fx, fz, ahead, behind, half, amount, wx, wz, force = false)
         low[row] = Math.min(low[row], column);
         high[row] = Math.max(high[row], column);
       }
-      changed = true;
+      fresh = true;
     }
   }
 }
@@ -133,7 +139,7 @@ function follow(x, z) {
   }
   Object.assign(middle, next);
   TRAMPLE.window.value.set(next.x, next.z, SPAN);
-  changed = true;
+  fresh = true;
   sent = SEND;
 }
 
@@ -152,7 +158,7 @@ function rise(dt) {
       if (data[k]) [lo, hi] = [Math.min(lo, column), Math.max(hi, column)];
       else empty(k);
     }
-    changed = true;
+    rising = true;
     [low[row], high[row]] = [lo, hi];
   }
 }
@@ -243,9 +249,9 @@ export function updateTrample(dt, cars) {
   }
   // Sent a little behind the car is enough, and right away once the window has moved.
   sent += dt;
-  if (changed && sent >= SEND) {
+  if ((fresh && sent >= SEND) || (rising && sent >= RISE_SEND)) {
     texture.needsUpdate = true;
-    changed = false;
+    fresh = rising = false;
     sent = 0;
   }
 }
