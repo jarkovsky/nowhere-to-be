@@ -6,8 +6,9 @@
 import * as THREE from 'three';
 import { RAILWAY, HALT, LEVEL_CROSSING, ROAD, ROAD_HALF_WIDTH } from '../layout.js';
 import { railLevel, terrainHeight } from '../terrain.js';
-import { PartsBuilder, localFrame } from '../build.js';
+import { PartsBuilder } from '../build.js';
 import { LANE } from '../../vehicles/traffic.js';
+import { framer } from './frame.js';
 
 /** Height of the top of the rails above the bed. The train's wheels stand on it. */
 export const RAIL_TOP = 0.4;
@@ -97,8 +98,7 @@ function buildHalt(parts, obstacles) {
   }
   // A brick shelter at the back of the platform, with a bench and a timetable.
   const shelter = trackside((from + to) / 2, side * 4.3, 0.75);
-  const local = localFrame(shelter.x, shelter.z, shelter.ry);
-  const at = (lx, ly, lz, extra = {}) => ({ ...local(lx, lz), y: shelter.y + ly, ry: shelter.ry, ...extra });
+  const { at, local } = framer({ x: shelter.x, z: shelter.z, rotation: shelter.ry }, shelter.y);
   // Local Z runs along the line and local X points to its left, so `out` points away from the track.
   const out = -side;
   const back = out * 0.9;
@@ -122,9 +122,8 @@ function buildHalt(parts, obstacles) {
 function buildPortal(parts, obstacles) {
   const end = RAILWAY.length;
   const mouth = trackside(end);
-  const local = localFrame(mouth.x, mouth.z, mouth.ry);
   // Local Z runs into the hill.
-  const at = (lx, ly, lz, extra = {}) => ({ ...local(lx, lz), y: mouth.y + ly, ry: mouth.ry, ...extra });
+  const { at, local } = framer({ x: mouth.x, z: mouth.z, rotation: mouth.ry }, mouth.y);
   const span = 3.4; // half the width of the bore
   const depth = 12; // the headwall reaches back under the hillside, over the end of the cutting
   // A stone headwall either side of the bore and over it, with wing walls holding back the cutting.
@@ -173,8 +172,7 @@ function buildCrossing(scene, parts, obstacles) {
     const y = terrainHeight(spot.x, spot.z);
     // The signal faces oncoming traffic.
     const facing = Math.atan2(-spot.dx * direction, -spot.dz * direction) + Math.PI;
-    const local = localFrame(spot.x, spot.z, facing);
-    const at = (lx, ly, lz, extra = {}) => ({ ...local(lx, lz), y: y + ly, ry: facing, ...extra });
+    const { at, local } = framer({ x: spot.x, z: spot.z, rotation: facing }, y);
     parts.add(new THREE.CylinderGeometry(0.1, 0.12, 4.4, 8), '#a9ada7', at(0, 2.2, 0));
     // The cross: two red-and-white boards.
     for (const tilt of [0.6, -0.6]) {

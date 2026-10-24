@@ -3,21 +3,16 @@
 import * as THREE from 'three';
 import { FARM } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
-import { PartsBuilder, localFrame, gableRoof, gableEnds, createSmoke } from '../build.js';
+import { PartsBuilder, gableRoof, gableEnds, createSmoke } from '../build.js';
 import { wheatField } from './fields.js';
+import { framer } from './frame.js';
 
 const WHITE = '#eee7d3';
 
 export function buildFarm(scene, obstacles) {
   const parts = new PartsBuilder();
-  const { rotation } = FARM;
-  const local = localFrame(FARM.x, FARM.z, rotation);
   const y = terrainHeight(FARM.x, FARM.z);
-  const at = (lx, ly, lz, extra = {}) => ({ ...local(lx, lz), y: y + ly, ry: rotation, ...extra });
-  const ground = (lx, lz) => {
-    const p = local(lx, lz);
-    return terrainHeight(p.x, p.z);
-  };
+  const { at, local, ground, rotation } = framer(FARM, y);
 
   // Farmhouse.
   const house = { x: -8, z: -6 };

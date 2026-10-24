@@ -15,7 +15,8 @@ import { headingOf } from '../path.js';
 import { terrainHeight } from '../terrain.js';
 import { SWAY, detailMap, foliageMaterial, groundMaterial } from '../detail.js';
 import { TRAMPLE_PARS, cutTrample, growsTall, pressTrample, trampleUniforms } from '../trample.js';
-import { PartsBuilder, flatMaterial, gableRoof, gableEnds, localFrame, createSmoke, tintable } from '../build.js';
+import { PartsBuilder, flatMaterial, gableRoof, gableEnds, createSmoke, tintable } from '../build.js';
+import { framer } from './frame.js';
 
 /** Width of one pass of the plough or the mower. */
 const LANE = 3.6;
@@ -1356,10 +1357,7 @@ function gullFlock(scene, count) {
 
 /** The cottage, the shed and the bales where the track ends. */
 function buildFarmstead(scene, parts, obstacles) {
-  const { rotation } = FARMSTEAD;
-  const local = localFrame(FARMSTEAD.x, FARMSTEAD.z, rotation);
-  const y = terrainHeight(FARMSTEAD.x, FARMSTEAD.z);
-  const at = (lx, ly, lz, extra = {}) => ({ ...local(lx, lz), y: y + ly, ry: rotation, ...extra });
+  const { at, local, rotation } = framer(FARMSTEAD);
   const turned = rotation + Math.PI / 2;
 
   // A log cottage: dark timber with white chinking between the logs, on a stone footing.

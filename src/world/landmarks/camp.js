@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { CAMP, CABIN } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder, localFrame as frame, prism, createSmoke } from '../build.js';
+import { framer } from './frame.js';
 
 function addTent(parts, x, z, rotation) {
   const y = terrainHeight(x, z) - 0.04;
@@ -195,10 +196,9 @@ function buildCamp(scene, obstacles) {
 
 function buildCabin(scene, obstacles) {
   const parts = new PartsBuilder();
-  const { x, z, rotation } = CABIN;
+  const { x, z } = CABIN;
   const y = terrainHeight(x, z);
-  const local = frame(x, z, rotation);
-  const at = (lx, ly, lz, extra = {}) => ({ ...local(lx, lz), y: y + ly, ry: rotation, ...extra });
+  const { at, local } = framer(CABIN, y);
 
   // A classic A-frame: the roof comes right down to the stone footing.
   const eave = 4.4;
