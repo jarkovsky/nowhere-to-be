@@ -6,7 +6,16 @@ export const SAVE_KEY = 'little-wilds-adventures-v1';
 
 export const COLORS = ['orange', 'sage', 'blue', 'berry', 'yellow', 'rainbow'];
 export const DECORATIONS = ['flag', 'teddy', 'tent', 'gnome'];
-export const VEHICLES = ['offroader', 'pickup', 'van', 'saloon', 'tractor', 'oliver', 'ruda', 'hyundai', 'mercedes'];
+export const VEHICLES = ['offroader', 'pickup', 'van', 'saloon', 'tractor', 'lorry', 'hyundai', 'mercedes'];
+
+/**
+ * There used to be two lorries in colours of their own, Oliver in blue and Ruda in red. A save
+ * with one of them gets the lorry in the paint nearest its colour (for Ruda, the orange).
+ */
+const OLD_LORRIES = new Map([
+  ['oliver', 'blue'],
+  ['ruda', 'orange'],
+]);
 
 const DEFAULTS = {
   gnomes: [],
@@ -23,11 +32,13 @@ export function sanitise(saved) {
   if (!saved || typeof saved !== 'object') return { ...DEFAULTS };
   const list = (value, valid) => (Array.isArray(value) ? [...new Set(value.filter(valid))] : []);
   const rainbow = saved.rainbow === true;
-  const color = COLORS.includes(saved.color) && (saved.color !== 'rainbow' || rainbow) ? saved.color : DEFAULTS.color;
+  const lorry = OLD_LORRIES.get(saved.vehicle);
+  const vehicle = lorry ? 'lorry' : saved.vehicle;
+  const color = lorry ?? saved.color;
   return {
     gnomes: list(saved.gnomes, i => Number.isInteger(i) && i >= 0 && i < 64),
-    color,
-    vehicle: VEHICLES.includes(saved.vehicle) ? saved.vehicle : DEFAULTS.vehicle,
+    color: COLORS.includes(color) && (color !== 'rainbow' || rainbow) ? color : DEFAULTS.color,
+    vehicle: VEHICLES.includes(vehicle) ? vehicle : DEFAULTS.vehicle,
     // Older saves kept a single `decoration`.
     decorations: list(saved.decorations ?? [saved.decoration], id => DECORATIONS.includes(id)),
     camp: saved.camp === true,

@@ -76,7 +76,7 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
     }
   }
 
-  /** `car.scale` stands the camera further back and higher for the lorries, to see over their trailers. */
+  /** `car.scale` stands the camera further back and higher for the lorry, to see over its trailer. */
   function chaseGoal(car, compact) {
     const speedFactor = clamp(Math.abs(car.speed) / 14, 0, 1);
     const scale = car.scale ?? 1;

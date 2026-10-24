@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { VEHICLES } from '../core/journal.js';
 import { angleDelta, clamp, damp } from '../core/math.js';
+import { createSteering, steer } from '../core/steering.js';
 import { chassisPose, settleWheels } from '../core/suspension.js';
 import { createTrailerState, stepTrailer } from '../core/trailer.js';
 import { drivingHeight } from '../world/terrain.js';
@@ -38,7 +39,8 @@ function createCopy() {
     wheelbase: 0,
     /** Where its trailer is; `ready` false puts it straight behind next time. */
     trailer: createTrailerState(),
-    lean: { pitch: 0, roll: 0, steer: 0, speed: 0, heading: 0 },
+    lean: { pitch: 0, roll: 0, speed: 0, heading: 0 },
+    steering: createSteering(0),
     hitch: new THREE.Vector3(),
     point: new THREE.Vector3(),
   };
@@ -92,17 +94,14 @@ export function poseCopy(copy, { x, z, heading, speed }, dt, settle) {
     const yawRate = angleDelta(lean.heading, heading) / dt;
     lean.pitch = damp(lean.pitch, clamp(accel * 0.006, -0.05, 0.04), 6, dt);
     lean.roll = damp(lean.roll, clamp(-yawRate * speed * 0.0045, -0.06, 0.06), 6, dt);
-    // The front wheels turn as far as the bend needs.
-    if (Math.abs(speed) > 0.3) {
-      const steer = clamp(Math.atan((yawRate * copy.wheelbase) / speed), -0.58, 0.58);
-      lean.steer = damp(lean.steer, steer, 8, dt);
-    }
   }
   lean.speed = speed;
   lean.heading = heading;
   car.body.rotation.set(lean.pitch, 0, lean.roll);
+  // The front wheels turn as far as the bend needs.
+  const angle = steer(copy.steering, heading, speed, dt);
   for (const wheel of car.wheels) {
-    wheel.pivot.rotation.y = wheel.front ? lean.steer : 0;
+    wheel.pivot.rotation.y = wheel.front ? angle : 0;
     wheel.spin.rotation.x -= (speed * dt) / wheel.radius;
   }
   if (settle) settleWheels(car, drivingHeight);
@@ -128,6 +127,7 @@ export function createCopies(scene) {
     copy.color = color;
     const axles = copy.car.wheels.map(wheel => wheel.pivot.position.z);
     copy.wheelbase = Math.max(...axles) - Math.min(...axles);
+    copy.steering = createSteering(copy.wheelbase);
     copy.trailer.ready = false;
   }
 
@@ -190,12 +190,17 @@ export function createCopies(scene) {
         for (const name of Object.keys(geometry.attributes)) {
           if (name !== 'position' && name !== 'normal' && name !== 'color') geometry.deleteAttribute(name);
         }
-        // Parts painted with a material's colour rather than their own take it on as theirs.
+        // Parts painted with a material's colour take it on as theirs, shaded by their own if they have one.
+        const { r, g, b } = mesh.material.color;
         if (!mesh.material.vertexColors || !geometry.attributes.color) {
-          const { r, g, b } = mesh.material.color;
           const colors = new Float32Array(geometry.attributes.position.count * 3);
           for (let i = 0; i < colors.length; i += 3) colors.set([r, g, b], i);
           geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        } else if (r !== 1 || g !== 1 || b !== 1) {
+          const colors = geometry.attributes.color;
+          for (let i = 0; i < colors.count; i++) {
+            colors.setXYZ(i, colors.getX(i) * r, colors.getY(i) * g, colors.getZ(i) * b);
+          }
         }
         pieces.push(geometry.applyMatrix4(mesh.matrixWorld));
       };
@@ -213,7 +218,8 @@ export function createCopies(scene) {
       copy.busy = true;
       dress(copy, vehicle, color);
       copy.trailer.ready = false;
-      Object.assign(copy.lean, { pitch: 0, roll: 0, steer: 0, speed: 0, heading });
+      Object.assign(copy.lean, { pitch: 0, roll: 0, speed: 0, heading });
+      Object.assign(copy.steering, { angle: 0, heading });
       scene.add(copy.car.root, copy.car.towed);
       return copy;
     },

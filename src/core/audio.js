@@ -272,7 +272,7 @@ export function createAudio() {
       if (value && context) ready().catch(() => {});
     },
 
-    /** A friendly two-note beep, or the lorries' deep air horn, echoing in the tunnel. */
+    /** A friendly two-note beep, or the lorry's deep air horn, echoing in the tunnel. */
     horn(inTunnel = false, kind = 'beep') {
       if (!playable()) return false;
       const now = context.currentTime;
@@ -287,7 +287,7 @@ export function createAudio() {
       return true;
     },
 
-    /** Lower for the lorries' big engines, higher for the racing cars'. 1 is the little off-roader. */
+    /** Lower for the lorry's big engine, higher for the racing cars'. 1 is the little off-roader. */
     setEngine(pitch = 1) {
       enginePitch = pitch;
     },

@@ -474,7 +474,7 @@ export function createGame(canvas) {
     if (car.trailer) placeTrailer();
   }
 
-  // --- The lorries' trailers ---------------------------------------------------------------
+  // --- The lorry's trailer -----------------------------------------------------------------
 
   const trailer = createTrailerState();
   const hitch = new THREE.Vector3();
