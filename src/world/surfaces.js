@@ -1,4 +1,4 @@
-// Puddles and creek splashes, crunchy leaves, mud, and tyre tracks in the snow.
+// Puddles and creek splashes, crunchy leaves, mud, and tyre tracks in the snow and the sand.
 import * as THREE from 'three';
 import { createRandom, valueNoise } from '../core/math.js';
 import { ROAD, ROAD_HALF_WIDTH, SURFACES, TRACKS, surfaceAt } from './layout.js';
@@ -167,14 +167,19 @@ export function createSurfaces(scene, sound) {
     scene.add(mud);
   });
 
-  const tracks = new THREE.InstancedMesh(
-    new THREE.PlaneGeometry(0.39, 0.68),
-    new THREE.MeshLambertMaterial({ color: '#b3c3c4', polygonOffset: true, polygonOffsetFactor: -4 }),
-    TRACK_CAPACITY,
-  );
-  tracks.count = 0;
-  tracks.frustumCulled = false;
-  scene.add(tracks);
+  /** Tyre tracks pressed into the snow, and into the desert's sand, `capacity` of each at most. */
+  const trackMesh = (color, capacity) => {
+    const mesh = new THREE.InstancedMesh(
+      new THREE.PlaneGeometry(0.39, 0.68),
+      new THREE.MeshLambertMaterial({ color, polygonOffset: true, polygonOffsetFactor: -4 }),
+      capacity,
+    );
+    mesh.count = 0;
+    mesh.frustumCulled = false;
+    scene.add(mesh);
+    return { mesh, capacity, cursor: 0 };
+  };
+  const trails = { snow: trackMesh('#b3c3c4', TRACK_CAPACITY), sand: trackMesh('#c9a46c', TRACK_CAPACITY / 3) };
 
   const particleGeometry = new THREE.IcosahedronGeometry(0.13, 0);
   const particleMaterials = {
@@ -183,6 +188,7 @@ export function createSurfaces(scene, sound) {
     leaves: new THREE.MeshLambertMaterial({ color: '#e0a449' }),
     mud: new THREE.MeshLambertMaterial({ color: '#5e4630' }),
     snow: new THREE.MeshBasicMaterial({ color: '#faffff' }),
+    sand: new THREE.MeshLambertMaterial({ color: '#e6cb94' }),
   };
   // One instanced mesh for each kind, so all the particles of a kind are drawn at once.
   const PARTICLE_COUNT = 72;
@@ -209,7 +215,6 @@ export function createSurfaces(scene, sound) {
   }));
 
   let cursor = 0;
-  let trackCursor = 0;
   let lastTrack = null;
   let lastParticle = 0;
   let time = 0;
@@ -218,7 +223,12 @@ export function createSurfaces(scene, sound) {
   return {
     /** The grove's tree trunks, for collisions. */
     obstacles,
-    getState: () => ({ surface: current, tracks: tracks.count, particles: particles.filter(p => p.life > 0).length }),
+    getState: () => ({
+      surface: current,
+      tracks: trails.snow.mesh.count,
+      sandTracks: trails.sand.mesh.count,
+      particles: particles.filter(p => p.life > 0).length,
+    }),
     /** `spin` is how much faster than the car its wheels are turning, when they spin in the mud. */
     update(dt, car, running, spin = 0) {
       if (!running) return;
@@ -251,18 +261,19 @@ export function createSurfaces(scene, sound) {
             p.vy = 2 + random() * (current === 'water' ? 3 : 2) + (spinning ? 1.5 : 0);
           }
         }
-        if (current === 'snow' && (!lastTrack || Math.hypot(car.x - lastTrack.x, car.z - lastTrack.z) > 0.48)) {
+        const trail = trails[current];
+        if (trail && (!lastTrack || Math.hypot(car.x - lastTrack.x, car.z - lastTrack.z) > 0.48)) {
           for (const side of [-1, 1]) {
             const x = car.x + cos * side * 1.08;
             const z = car.z - sin * side * 1.08;
-            if (effectAt(x, z, puddles) !== 'snow') continue;
+            if (effectAt(x, z, puddles) !== current) continue;
             layOnGround(dummy, x, z, car.heading);
             dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
-            tracks.setMatrixAt(trackCursor++ % TRACK_CAPACITY, dummy.matrix);
-            tracks.count = Math.min(trackCursor, TRACK_CAPACITY);
+            trail.mesh.setMatrixAt(trail.cursor++ % trail.capacity, dummy.matrix);
+            trail.mesh.count = Math.min(trail.cursor, trail.capacity);
           }
-          tracks.instanceMatrix.needsUpdate = true;
+          trail.mesh.instanceMatrix.needsUpdate = true;
           lastTrack = { x: car.x, z: car.z };
         }
       }

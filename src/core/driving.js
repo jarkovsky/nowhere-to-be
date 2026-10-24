@@ -19,11 +19,13 @@ export const CAR = {
 /**
  * How each surface changes top speed and grip. Leaves and snow lie on the
  * trail itself, so they only make the car slide; rough ground, rock, mud and water slow it.
+ * Loose sand slows it a little more than grass and lets it slide a little.
  */
 const SURFACE_HANDLING = {
   road: { speed: 1, grip: 1 },
   track: { speed: 0.92, grip: 0.92 },
   grass: { speed: 0.82, grip: 0.85 },
+  sand: { speed: 0.78, grip: 0.75 },
   rock: { speed: 0.42, grip: 0.9 },
   leaves: { speed: 1, grip: 0.6 },
   snow: { speed: 1, grip: 0.38 },

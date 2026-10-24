@@ -6,6 +6,7 @@ const DIRTYING = {
   mud: { rate: 0.45, most: 1 },
   puddle: { rate: 0.3, most: 0.8 },
   grass: { rate: 0.012, most: 0.4 },
+  sand: { rate: 0.02, most: 0.45 },
   track: { rate: 0.01, most: 0.4 },
   leaves: { rate: 0.01, most: 0.4 },
   road: { rate: 0.003, most: 0.25 },

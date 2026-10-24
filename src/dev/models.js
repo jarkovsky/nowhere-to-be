@@ -37,6 +37,14 @@ import {
   stumpGeometry,
 } from '../world/scenery.js';
 import { boulderGeometry } from '../world/rocks.js';
+import {
+  barrelCactusGeometry,
+  dryBushGeometry,
+  dryTuftGeometry,
+  pricklyPearGeometry,
+  saguaroGeometry,
+} from '../world/sand.js';
+import { palmGeometry, tumbleweedGeometry } from '../world/landmarks/desert.js';
 import { PartsBuilder, vertexColorMaterial } from '../world/build.js';
 import { foliageMaterial } from '../world/detail.js';
 
@@ -235,6 +243,18 @@ export const MODELS = [
     ['log', 'Fallen log', () => plant(logGeometry())],
     ['boulder', 'Boulder', () => plant(boulderGeometry(1))],
     ['stalk', 'Wheat stalk', () => plant(stalkGeometry(), '#ffffff')],
+    ['palm', 'Date palm', () => plant(palmGeometry(), '#f2f4ea')],
+    ...[1, 2, 3].map(arms => [
+      `saguaro.${arms}`,
+      `Saguaro with ${arms} arm${arms > 1 ? 's' : ''}`,
+      () => plant(saguaroGeometry(arms), '#5b7f4c'),
+    ]),
+    ['pear', 'Prickly pear', () => plant(pricklyPearGeometry(), '#f2f4ea')],
+    ['barrel', 'Barrel cactus', () => plant(barrelCactusGeometry(), '#f2f4ea')],
+    ['drybush', 'Dry bush', () => plant(dryBushGeometry(), '#f2f4ea')],
+    ['drytuft', 'Tuft of dry grass', () => plant(dryTuftGeometry(), '#d6bd7c')],
+    // It rolls about, so it is made round its middle.
+    ['tumbleweed', 'Tumbleweed', () => plant(tumbleweedGeometry().translate(0, 0.55, 0))],
   ].map(([id, name, create]) => ({
     id: `nature.${id}`,
     name,

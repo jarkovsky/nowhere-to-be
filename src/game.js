@@ -91,7 +91,7 @@ function surfaceUnder(x, z) {
   if (onGravel(x, z, GRAVEL_HALF_WIDTH + 0.4)) return 'track';
   if (rockiness(x, z) > 0.5) return 'rock';
   if (TRACKS.some(track => track.path.isNear(x, z, 2))) return 'track';
-  return 'grass';
+  return patch === 'sand' ? 'sand' : 'grass';
 }
 
 /** Rise over run along `heading` on the surface `height(x, z)`; positive means uphill. */

@@ -51,6 +51,7 @@ import {
   FJORD,
   inFjord,
   PONDS,
+  DESERT,
   lakeDistance,
   nearRiver,
   rockiness,
@@ -378,14 +379,56 @@ function isInTunnel(s) {
   return delta < TUNNEL.length / 2 + 6;
 }
 
+// --- The desert's dunes ------------------------------------------------------
+
+/** The desert's dunes, track, pads and oasis all lie within this far of its middle, along each axis. */
+const DESERT_REACH = 150;
+
+function inDesertBox(x, z) {
+  return Math.abs(x - DESERT.x) < DESERT_REACH && Math.abs(z - DESERT.z) < DESERT_REACH;
+}
+
+const desertTrack = TRACKS.find(track => track.desert).path;
+
+/** The dunes rise within this distance of the desert's middle. */
+const DUNES = 110;
+/** The way the wind blows across the desert, from the west-south-west, as the smoke drifts. */
+const WIND = { x: 0.89, z: -0.45 };
+
+/**
+ * How high the sand dunes stand at a point: long ridges lying across the wind, rising gently on the
+ * side it comes from and dropping more steeply on the far side, wandering, swelling and dying away
+ * towards the desert's edge. They are kept off the outer road, which runs through on the land as it
+ * was, off the ground round the petrol station and the oasis, and low beside the desert's track,
+ * so it runs between them and not in a cutting.
+ */
+function duneHeight(x, z) {
+  const dx = x - DESERT.x;
+  const dz = z - DESERT.z;
+  if (Math.abs(dx) > DUNES || Math.abs(dz) > DUNES) return 0;
+  const quiet = (place, from, to) => smoothstep(Math.hypot(x - place.x, z - place.z), from, to);
+  const weight =
+    (1 - smoothstep(Math.hypot(dx, dz), DUNES * 0.6, DUNES)) *
+    smoothstep(Math.abs(Math.hypot(x, z) - outerRadius(Math.atan2(z, x))), 12, 40) *
+    quiet(DESERT.station, 24, 44) *
+    quiet(DESERT.oasis, 45, 65);
+  if (weight <= 0) return 0;
+  const beside = smoothstep(desertTrack.nearest(x, z).distance, 4, 24);
+  if (beside <= 0) return 0;
+  const across = x * WIND.x + z * WIND.z + (fractalNoise(x / 120 + 2.3, z / 120 + 7.1, 2, 61) - 0.5) * 24;
+  const t = (((across / 72) % 1) + 1) % 1;
+  const ridge = t < 0.65 ? smoothstep(t, 0, 0.65) : 1 - smoothstep(t, 0.65, 1);
+  return weight * beside * 3 * ridge * (0.55 + 0.45 * valueNoise(x / 70, z / 70, 63));
+}
+
 // --- Build the height field -------------------------------------------------
 
 for (let iz = 0; iz < GRID; iz++) {
   for (let ix = 0; ix < GRID; ix++) heights[iz * GRID + ix] = naturalHeight(AXIS[ix], AXIS[iz]);
 }
 
-function flattenPads() {
-  for (const pad of PADS) {
+function flattenPads(pads) {
+  for (const pad of pads) {
     const level = pad.level ?? naturalHeight(pad.x, pad.z);
     forEachVertexNear(pad.x, pad.z, pad.radius + pad.falloff, (vertex, _x, _z, distance) => {
       heights[vertex] = lerp(heights[vertex], level, 1 - smoothstep(distance, pad.radius, pad.radius + pad.falloff));
@@ -496,7 +539,7 @@ const railProfile = levelRailway();
 // The driveways run from their forecourts down to the road; the pads after them level the forecourts.
 for (const { path, halfWidth } of DRIVEWAYS) levelAlong(path, () => halfWidth + 0.6, 6, { grade: 0.12 });
 // Pads come after the side tracks so the tracks run up onto level ground.
-flattenPads();
+flattenPads(PADS.filter(pad => !inDesertBox(pad.x, pad.z)));
 
 // The tunnel floor is levelled wider than the bore so no ground pokes inside.
 const trailWidth = s => (isInTunnel(s) ? 9 : ROAD_HALF_WIDTH + 1.4);
@@ -510,19 +553,22 @@ for (const link of LINKS)
 // The new road being built off the ring does too, and stays gentle all the way to the site.
 levelAlong(ROADWORKS.path, PAVED_WIDTH, 10, { window: 30, banks: 1.5, grade: 0.04, flatEnds: 10 });
 for (const { path } of CONNECTORS) levelAlong(path, GRAVEL_WIDTH, 10, { ...GRAVEL_GRADE, flatEnds: 10 });
-TRACKS.filter(offGravel).forEach(levelTrack);
+TRACKS.filter(track => offGravel(track) && !track.desert).forEach(levelTrack);
 levelAlong(ROAD, trailWidth, 0.5, { levels: roadProfile });
 levelAlong(RING_ROAD, PAVED_WIDTH, 0.5, { levels: ringLevels });
 levelAlong(OUTER_ROAD, GRAVEL_WIDTH, 0.5, { levels: outerLevels });
 
-// Ponds lie in shallow bowls dug into the levelled green, their water just below its edge.
+// Ponds lie in shallow bowls dug into the levelled green, their water just below its edge. The
+// oasis is dug with the rest of the desert, last.
 const pondLevels = PONDS.map(({ x, z }) => sampleGrid(x, z) - 0.3);
-PONDS.forEach((pond, i) => {
+function digPond(pond, level) {
   forEachVertexNear(pond.x, pond.z, pond.radius + 3, (vertex, _x, _z, distance) => {
-    const bowl =
-      pondLevels[i] - 1.1 * (1 - smoothstep(distance, 0, pond.radius)) + Math.max(0, distance - pond.radius) * 0.4;
+    const bowl = level - 1.1 * (1 - smoothstep(distance, 0, pond.radius)) + Math.max(0, distance - pond.radius) * 0.4;
     heights[vertex] = Math.min(heights[vertex], bowl);
   });
+}
+PONDS.forEach((pond, i) => {
+  if (pond !== DESERT.oasis) digPond(pond, pondLevels[i]);
 });
 
 // --- River channels ------------------------------------------------------------------------
@@ -654,6 +700,42 @@ for (const [vertex, { index, distance }] of nearestSamples(OXBOW.path, OXBOW_REA
       : OXBOW_LEVEL + (distance - halfWidth) * lerp(0.35, 0.16, onTrack);
   heights[vertex] = Math.min(heights[vertex], bed);
 }
+
+// --- The desert ----------------------------------------------------------------------------
+
+// The desert's dunes, its track, its pads and the hollow for its oasis are laid last, in the square
+// round it. The land in the square as it was before is kept, for placing the scenery by (see
+// placementHeight).
+const desertBox = (() => {
+  const ix0 = Math.floor(gridCoordinate(DESERT.x - DESERT_REACH));
+  const ix1 = Math.ceil(gridCoordinate(DESERT.x + DESERT_REACH));
+  const iz0 = Math.floor(gridCoordinate(DESERT.z - DESERT_REACH));
+  const iz1 = Math.ceil(gridCoordinate(DESERT.z + DESERT_REACH));
+  const columns = ix1 - ix0 + 1;
+  const before = new Float32Array(columns * (iz1 - iz0 + 1));
+  for (let iz = iz0; iz <= iz1; iz++) {
+    for (let ix = ix0; ix <= ix1; ix++) before[(iz - iz0) * columns + ix - ix0] = heights[iz * GRID + ix];
+  }
+  return { ix0, ix1, iz0, iz1, columns, before };
+})();
+// The outer road where it crosses the desert, as it is, to put back once the track has been laid
+// off it and the petrol station beside it.
+const desertRoad = (() => {
+  const stretch = createPath(
+    OUTER_ROAD.samples.filter(p => Math.hypot(p.x - DESERT.x, p.z - DESERT.z) < DESERT_REACH - 20).map(p => [p.x, p.z]),
+  );
+  return { stretch, levels: stretch.samples.map(p => sampleGrid(p.x, p.z)) };
+})();
+for (let iz = desertBox.iz0; iz <= desertBox.iz1; iz++) {
+  for (let ix = desertBox.ix0; ix <= desertBox.ix1; ix++) heights[iz * GRID + ix] += duneHeight(AXIS[ix], AXIS[iz]);
+}
+flattenPads(PADS.filter(pad => inDesertBox(pad.x, pad.z)));
+TRACKS.filter(track => track.desert).forEach(levelTrack);
+const oasis = PONDS.indexOf(DESERT.oasis);
+pondLevels[oasis] = sampleGrid(DESERT.oasis.x, DESERT.oasis.z) - 0.3;
+digPond(DESERT.oasis, pondLevels[oasis]);
+levelAlong(desertRoad.stretch, GRAVEL_WIDTH, 0.5, { levels: desertRoad.levels });
+
 closestIndex = closestDistance = null;
 
 export { heights };
@@ -673,6 +755,27 @@ const railBed = smoothProfile(
 
 /** Ground height at any point, matching the rendered ground exactly. */
 export const terrainHeight = sampleGrid;
+
+/**
+ * The height of the land at a point as it was before the desert was laid over it. The trees, rocks
+ * and grass are tried at spot after spot from one run of random numbers, and which of them are kept
+ * goes by how high and steep the land is, so they are placed by this: that way the desert moves none
+ * of them outside it, and inside it, it clears them away (see desertTakes). Elsewhere it is the
+ * ground's height.
+ */
+export function placementHeight(x, z) {
+  const { ix0, ix1, iz0, iz1, columns, before } = desertBox;
+  const gx = gridCoordinate(x);
+  const gz = gridCoordinate(z);
+  const ix = Math.floor(gx);
+  const iz = Math.floor(gz);
+  if (ix < ix0 || ix >= ix1 || iz < iz0 || iz >= iz1) return sampleGrid(x, z);
+  const u = gx - ix;
+  const v = gz - iz;
+  const i = (iz - iz0) * columns + ix - ix0;
+  const [a, b, c, d] = [before[i], before[i + 1], before[i + columns], before[i + columns + 1]];
+  return u + v <= 1 ? a + (b - a) * u + (c - a) * v : d + (c - d) * (1 - u) + (b - d) * (1 - v);
+}
 
 /** Water surface height of the creek at a distance along it. */
 export function creekLevel(s) {

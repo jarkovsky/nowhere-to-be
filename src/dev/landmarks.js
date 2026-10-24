@@ -22,6 +22,7 @@ import { buildFjord } from '../world/landmarks/fjord.js';
 import { buildFarms } from '../world/landmarks/farms.js';
 import { buildVillage } from '../world/landmarks/village.js';
 import { buildDepot } from '../world/landmarks/depot.js';
+import { buildDesert } from '../world/landmarks/desert.js';
 import { buildHeaps } from '../world/heaps.js';
 import { HELIPAD, KRYSTOF } from '../world/layout.js';
 import { drivingHeight, waterLevel } from '../world/terrain.js';
@@ -59,5 +60,6 @@ export const LANDMARKS = {
   farms: buildFarms,
   village: buildVillage,
   depot: buildDepot,
+  desert: buildDesert,
   heaps: scene => buildHeaps(scene),
 };

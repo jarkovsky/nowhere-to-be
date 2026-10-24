@@ -1,6 +1,6 @@
 // Where everything in the valley is. Pure data, so tests and the renderer
 // agree on the same coordinates. +X is east, +Z is south, heights are metres.
-import { createRandom, lerp, smoothstep } from '../core/math.js';
+import { createRandom, lerp, smoothstep, valueNoise } from '../core/math.js';
 import { createPath, headingOf } from './path.js';
 import { localFrame } from './build.js';
 
@@ -228,6 +228,71 @@ export function nearRiver(x, z, distance) {
   return null;
 }
 
+// --- The desert ----------------------------------------------------------------------------
+
+/**
+ * A desert to the south, where the outer road crosses a stretch of sand between the river and
+ * the road out from the south: dunes, sandstone buttes, cacti, a petrol station on the road, and
+ * a track that winds through a narrow canyon to an oasis with palms, a wind pump and two
+ * mud-brick houses, where camels wander. The sand is bare out to `radius` metres from its middle
+ * and gives way to grass by `edge`. Places in it are given in metres east and south of its middle.
+ */
+export const DESERT = (() => {
+  const [x, z] = polar(98, 805);
+  const at = (dx, dz, extra = {}) => ({ x: x + dx, z: z + dz, ...extra });
+  const butte = (dx, dz, rx, rz, height, seed) => at(dx, dz, { rx, rz, radius: Math.max(rx, rz), height, seed });
+  const oasis = at(-45, -85, { radius: 10 });
+  const facing = (place, target) => ({ ...place, rotation: Math.atan2(target.x - place.x, target.z - place.z) });
+  // The petrol station stands back from the outer road on its inner side, square to it, with
+  // its forecourt (in its own frame, +Z towards the road) running out to the road's edge.
+  const along = OUTER_ROAD.nearest(x + 55, z + 60).s;
+  const road = OUTER_ROAD.at(along);
+  const inward = (q => (Math.hypot(q.x, q.z) < Math.hypot(road.x, road.z) ? 1 : -1))(OUTER_ROAD.offset(along, 1));
+  const back = 19;
+  const station = facing(OUTER_ROAD.offset(along, back * inward), road);
+  return {
+    x,
+    z,
+    radius: 120,
+    edge: 200,
+    /**
+     * Sandstone buttes, reaching about `rx` metres east and west and `rz` north and south at the
+     * foot of their walls, `radius` the more of the two, and `height` up to their flat tops. The
+     * first two stand either side of the track, long ways on to it, and make a canyon.
+     */
+    buttes: [
+      butte(-50, -10, 10, 18, 17, 1),
+      butte(-12, -14, 10, 17, 21, 2),
+      butte(76, -52, 26, 17, 19, 3),
+      butte(-78, 112, 6, 6, 20, 4),
+      butte(72, 118, 13, 10, 11, 5),
+    ],
+    oasis,
+    station: { ...station, forecourt: { x0: -15, x1: 15, z0: -11, z1: back - GRAVEL_HALF_WIDTH + 0.4 } },
+    houses: [facing(at(-77, -80), oasis), facing(at(-63, -108), oasis)],
+    windpump: at(-20, -103),
+    /** Where the camels wander. */
+    herd: at(15, -85, { radius: 28 }),
+    /** The track from the outer road through the canyon to the oasis. */
+    track: [at(-22, 38), at(-27, 18), at(-30, -2), at(-31, -18), at(-36, -38), at(-41, -56), at(-44, -70)],
+  };
+})();
+
+/** How far the desert has taken over at a point: 1 on bare sand, 0 on grass. Its edge wanders. */
+export function desertness(x, z) {
+  const dx = x - DESERT.x;
+  const dz = z - DESERT.z;
+  if (Math.abs(dx) > DESERT.edge + 30 || Math.abs(dz) > DESERT.edge + 30) return 0;
+  const wander = (valueNoise(x / 45, z / 45, 97) - 0.5) * 60;
+  return 1 - smoothstep(Math.hypot(dx, dz) + wander, DESERT.radius, DESERT.edge);
+}
+
+/** True where the tyres are in sand: in the desert, off its roads. */
+function inSand(x, z) {
+  if (desertness(x, z) < 0.5 || onGravel(x, z, GRAVEL_HALF_WIDTH + 0.4) || onForecourt(x, z)) return false;
+  return !TRACKS.some(track => track.desert && track.path.isNear(x, z, 2));
+}
+
 /** A hill of bare rock out to the east, with a track that winds round it to the top. */
 export const ROCK_HILL = { x: 857, z: -198, radius: 70, height: 44 };
 
@@ -408,8 +473,8 @@ export const VILLAGE = (() => {
   };
 })();
 
-/** Village ponds: still water in a shallow bowl, with a level stone edge. */
-export const PONDS = [VILLAGE.pond];
+/** Still water in a shallow bowl: the village pond, with a level stone edge, and the desert's oasis. */
+export const PONDS = [VILLAGE.pond, DESERT.oasis];
 
 /** True on a pond's water, or within `margin` metres of it. */
 export function inPond(x, z, margin = 0) {
@@ -430,6 +495,7 @@ export const HERDS = [
   { kind: 'boar', ...spot(262, 760), radius: 40, count: 5, young: 3 },
   { kind: 'deer', ...spot(306, 750), radius: 50, count: 4, young: 1 },
   { kind: 'mouflon', x: ROCK_HILL.x, z: ROCK_HILL.z, radius: ROCK_HILL.radius, count: 5, young: 2 },
+  { kind: 'camel', ...DESERT.herd, count: 4, young: 1 },
 ];
 
 /** Like `polar`, as { x, z }. */
@@ -807,6 +873,16 @@ export const TRACKS = [
     grade: 0.14,
     path: createPath(fromOuterRoad(...FJORD_VILLAGE.road)),
   },
+  {
+    // Off the outer road into the desert, over the dunes and through the canyon to the oasis. The
+    // desert clears the ground round it itself, so the scenery outside isn't placed round it (see
+    // PLACED_TRACKS in scenery.js).
+    id: 'desert',
+    ruts: true,
+    desert: true,
+    grade: 0.16,
+    path: createPath(fromOuterRoad(...DESERT.track.map(({ x, z }) => [x, z]))),
+  },
   // Footpaths up the marked trails.
 ];
 
@@ -1120,6 +1196,7 @@ function inFrame({ x, z, rotation }, lx, lz) {
 export const FORECOURTS = [
   { id: 'depot', frame: DEPOT, x0: -13, x1: 13, z0: 0, z1: 9 },
   { id: 'fire station', frame: VILLAGE.fireStation, x0: -5.5, x1: 5.5, z0: 1, z1: 8 },
+  { id: 'petrol station', frame: DESERT.station, ...DESERT.station.forecourt },
 ];
 
 /**
@@ -1186,6 +1263,7 @@ export const PLACES = [
   { id: 'fjord', x: FJORD_VILLAGE.pier.x, z: FJORD_VILLAGE.pier.z },
   { id: 'village', x: VILLAGE.fireStation.x, z: VILLAGE.fireStation.z },
   ...FARMS.map(({ id, x, z }) => ({ id, x, z })),
+  { id: 'desert', x: DESERT.oasis.x, z: DESERT.oasis.z },
 ];
 
 /**
@@ -1219,6 +1297,10 @@ export const PADS = [
   { x: FARMSTEAD.x, z: FARMSTEAD.z, radius: 12, falloff: 10 },
   // Cut into the slope a little above the trail, so the yard runs gently up from it.
   { x: DEPOT.x, z: DEPOT.z, radius: 17, falloff: 9, level: 1 },
+  // The petrol station, the houses and the wind pump in the desert.
+  { x: DESERT.station.x, z: DESERT.station.z, radius: 9, falloff: 6 },
+  ...DESERT.houses.map(({ x, z }) => ({ x, z, radius: 5.5, falloff: 5 })),
+  { x: DESERT.windpump.x, z: DESERT.windpump.z, radius: 4, falloff: 5 },
 ];
 
 function patchOnRoad(x, z) {
@@ -1248,7 +1330,7 @@ export const SURFACES = [
 
 export function surfaceAt(x, z) {
   const patch = SURFACES.find(p => Math.hypot((x - p.x) / p.rx, (z - p.z) / p.rz) < 1);
-  return patch ? patch.id : 'grass';
+  return patch ? patch.id : inSand(x, z) ? 'sand' : 'grass';
 }
 
 export function lakeDistance(x, z) {

@@ -13,6 +13,7 @@ const {
   CAMP_TRAIL,
   CREEK,
   CREEK_HALF_WIDTH,
+  DESERT,
   FARM,
   FIELDS,
   FIELD_PLOTS,
@@ -30,6 +31,7 @@ const {
   TRACKS,
   VALLEY_RADIUS,
   WATERFALL,
+  desertness,
   lakeDistance,
   rockiness,
 } = layout;
@@ -121,6 +123,13 @@ export const PLACE_ICONS = {
     name: 'Fjord',
     color: BLUE,
     d: 'M2 15.5 6 4l3.5 11.5M22 15.5 18 4l-3.5 11.5M3.5 19.5q2.1-1.8 4.2 0t4.3 0 4.3 0 4.2 0',
+  },
+  desert: {
+    name: 'Desert',
+    color: '#c4943b',
+    d: 'M3 21h18',
+    solid:
+      'M10 21V5a2 2 0 0 1 4 0v16ZM10 15.5H7.5A2.5 2.5 0 0 1 5 13V9.5a1.5 1.5 0 0 1 3 0V13h2ZM14 12.5h2.5A2.5 2.5 0 0 0 19 10V6.5a1.5 1.5 0 0 0-3 0V10h-2Z',
   },
   village: {
     name: 'Fire station',
@@ -263,6 +272,16 @@ function boxes(list) {
   return shape;
 }
 
+/** The desert's buttes, as one Path2D in world metres. */
+function buttes() {
+  const shape = new Path2D();
+  for (const { x, z, rx, rz } of DESERT.buttes) {
+    shape.moveTo(x + rx, z);
+    shape.ellipse(x, z, rx, rz, 0, 0, Math.PI * 2);
+  }
+  return shape;
+}
+
 function segment(x0, z0, x1, z1) {
   const shape = new Path2D();
   shape.moveTo(x0, z0);
@@ -297,6 +316,7 @@ function mapLines() {
     { shape: shapeOf(tracks), color: '#94704a', width: 2.6, min: 1.8, dash: [6, 4] },
     { shape: shapeOf(GRAVEL), color: '#e6d9b4', width: 6.8, min: 3.2, casing: 1.6, edge: '#a08d6b' },
     { shape: boxes([apron, taxiway]), fill: '#d6d7d0', edge: '#8f918a' },
+    { shape: buttes(), fill: '#cf9b72', edge: '#a26a46' },
     { shape: boxes([runway]), fill: '#a9aba4', edge: '#7e807a' },
     {
       shape: segment(AIRFIELD.x, AIRFIELD.z0 + 8, AIRFIELD.x, AIRFIELD.z1 - 8),
@@ -369,6 +389,7 @@ const TINT = {
   alpine: rgb('#c9c6b6'),
   snow: rgb('#f7f8f3'),
   sand: rgb('#e8dcb2'),
+  desert: rgb('#eed9a8'),
   paper: rgb(PAPER),
   shallow: rgb('#a4d2de'),
   deep: rgb(WATER),
@@ -417,11 +438,14 @@ function groundTint(x, z, h, slope, c) {
   // they grow (buildTrees in scenery.js).
   const woods = smoothstep(fractalNoise(x / 150 + 3.3, z / 150 + 8.1, 2, 5), 0.465, 0.49);
   const rocky = rockiness(x, z);
-  mix(c, TINT.woods, woods * (1 - smoothstep(h, 88, 100)) * (1 - rocky) * (1 - smoothstep(slope, 0.8, 1)));
+  // The desert, where the woods give way to sand.
+  const sand = desertness(x, z);
+  mix(c, TINT.woods, woods * (1 - smoothstep(h, 88, 100)) * (1 - rocky) * (1 - sand) * (1 - smoothstep(slope, 0.8, 1)));
   mix(c, TINT.rock, smoothstep(slope, 0.6, 1.05) * 0.85);
   mix(c, TINT.alpine, smoothstep(h, 86, 108) * 0.75);
   if (h > 90) mix(c, TINT.snow, snowCover(x, z, h) * (1 - smoothstep(slope, 0.85, 1.3)));
   if (rocky > 0) mix(c, TINT.stone, rocky * 0.85);
+  if (sand > 0) mix(c, TINT.desert, smoothstep(sand, 0.25, 0.75));
   if (lakeDistance(x, z) < 2.2) mix(c, TINT.sand, 1 - smoothstep(h, LAKE.level + 0.35, LAKE.level + 1.2));
   const crop = r < 400 ? cropAt(x, z) : null;
   if (crop) mix(c, crop, 0.9);

@@ -23,6 +23,7 @@ import { buildFjord } from './fjord.js';
 import { buildFarms } from './farms.js';
 import { buildVillage } from './village.js';
 import { buildDepot } from './depot.js';
+import { buildDesert } from './desert.js';
 import { buildHeaps } from '../heaps.js';
 import { HELIPAD, KRYSTOF } from '../layout.js';
 
@@ -69,6 +70,7 @@ export function buildLandmarks(scene, obstacles) {
   const farms = own('farms', buildFarms);
   const village = own('village', buildVillage);
   const depot = own('depot', buildDepot);
+  const desert = own('desert', buildDesert);
   own('heaps', group => buildHeaps(group));
   own('signs', group => buildSigns(group, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard }));
 
@@ -81,6 +83,7 @@ export function buildLandmarks(scene, obstacles) {
       ...airfield.occluders,
       ...gate.occluders,
       ...depot.occluders,
+      ...desert.occluders,
     ],
     /** The level crossing: where traffic waits, and the barriers while they are down. */
     crossing,
@@ -110,6 +113,7 @@ export function buildLandmarks(scene, obstacles) {
       farms.update(time);
       village.update(dt);
       depot.update(night);
+      desert.update(dt, night, player);
     },
   };
 }
