@@ -104,6 +104,11 @@ function skirtDepth(from, to, at) {
   return depth + 0.3;
 }
 
+/** Lets go of an attribute's array once it is on the graphics card. Out here, it holds on to nothing else. */
+function release() {
+  this.array = null;
+}
+
 /** One version of a tile, with its cells `stride` grid lines across, and its skirts. */
 function tileGeometry(xs, zs, stride, shading, depths) {
   const columns = (xs.to - xs.from) / stride;
@@ -113,14 +118,17 @@ function tileGeometry(xs, zs, stride, shading, depths) {
   const normals = new Int8Array(vertices * 3);
   // Colours as bytes take a quarter of the memory of floats.
   const colors = new Uint8Array(vertices * 4);
-  const indices = [];
+  const indices = new (vertices > 65535 ? Uint32Array : Uint16Array)(columns * rows * 6 + 2 * (columns + rows) * 6);
+  let n = 0;
   let v = 0;
   /** Adds a vertex at grid point (ix, iz), lowered by `drop`, shaded like the point. */
   const vertex = (ix, iz, drop = 0) => {
-    positions.set([AXIS[ix], height(ix, iz) - drop, AXIS[iz]], v * 3);
     const i = iz * GRID + ix;
-    normals.set(shading.normals.subarray(i * 3, i * 3 + 3), v * 3);
-    colors.set(shading.colors.subarray(i * 4, i * 4 + 4), v * 4);
+    positions[v * 3] = AXIS[ix];
+    positions[v * 3 + 1] = height(ix, iz) - drop;
+    positions[v * 3 + 2] = AXIS[iz];
+    for (let k = 0; k < 3; k++) normals[v * 3 + k] = shading.normals[i * 3 + k];
+    for (let k = 0; k < 4; k++) colors[v * 4 + k] = shading.colors[i * 4 + k];
     return v++;
   };
 
@@ -132,7 +140,9 @@ function tileGeometry(xs, zs, stride, shading, depths) {
     for (let ix = xs.from; ix < xs.to; ix += stride) {
       for (let t = 0; t < 2; t++) {
         const c = corners(ix, iz, stride, t);
-        indices.push(at(c[0], c[1]), at(c[2], c[3]), at(c[4], c[5]));
+        indices[n++] = at(c[0], c[1]);
+        indices[n++] = at(c[2], c[3]);
+        indices[n++] = at(c[4], c[5]);
       }
     }
   }
@@ -145,7 +155,7 @@ function tileGeometry(xs, zs, stride, shading, depths) {
       const [ux, uz] = [AXIS[points[k + 1][0]] - AXIS[points[k][0]], AXIS[points[k + 1][1]] - AXIS[points[k][1]]];
       const quad = [a, b, bottoms[k + 1], bottoms[k]];
       const order = ux * inward[1] - uz * inward[0] > 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2];
-      for (const n of order) indices.push(quad[n]);
+      for (const k of order) indices[n++] = quad[k];
     }
   };
   const along = (count, point) => Array.from({ length: count + 1 }, (_, k) => point(k * stride));
@@ -174,14 +184,10 @@ function tileGeometry(xs, zs, stride, shading, depths) {
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3, true));
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 4, true));
-  geometry.setIndex(indices);
+  geometry.setIndex(new THREE.BufferAttribute(indices, 1));
   geometry.computeBoundingSphere();
   // The arrays are large and aren't needed again once they are on the graphics card.
-  for (const attribute of [...Object.values(geometry.attributes), geometry.index]) {
-    attribute.onUpload(function () {
-      this.array = null;
-    });
-  }
+  for (const attribute of [...Object.values(geometry.attributes), geometry.index]) attribute.onUpload(release);
   return geometry;
 }
 

@@ -130,7 +130,9 @@ function groundColor(x, z, h, up, out) {
     // Mud's ragged edge comes from noise rather than the shared random numbers, so that
     // adding a patch of it doesn't move every tree placed after the ground.
     const ragged = patch.id === 'mud' ? (valueNoise(x / 2.5, z / 2.5, 9) - 0.5) * 0.5 : (random() - 0.5) * 0.12;
-    const d = Math.hypot((x - patch.x) / patch.rx, (z - patch.z) / patch.rz) + ragged;
+    const ux = (x - patch.x) / patch.rx;
+    const uz = (z - patch.z) / patch.rz;
+    const d = Math.sqrt(ux * ux + uz * uz) + ragged;
     if (d < 1 && patch.id === 'snow') out.copy(GROUND.snow);
     if (d < 1 && patch.id === 'leaves') out.lerp(GROUND.leaves, 0.75);
     if (d < 1.2 && patch.id === 'mud') out.lerp(GROUND.mud, 0.85 * (1 - smoothstep(d, 0.8, 1.2)));
@@ -431,7 +433,8 @@ const CLEARINGS = [
 ];
 
 /** True in or just around a patch of mud. */
-const inMud = (x, z) => SURFACES.some(p => p.id === 'mud' && Math.hypot((x - p.x) / p.rx, (z - p.z) / p.rz) < 1.15);
+const inMud = (x, z) =>
+  SURFACES.some(p => p.id === 'mud' && ((x - p.x) / p.rx) ** 2 + ((z - p.z) / p.rz) ** 2 < 1.15 ** 2);
 
 /** Nothing grows in the crop fields, nor within a couple of metres of them. */
 const outsideCrops = (x, z) => !inCrop(x, z, 2);
@@ -447,7 +450,7 @@ function isClearGround(x, z, { road = 9 } = {}) {
   const r = Math.hypot(x, z);
   if (Math.abs(r - VALLEY_RADIUS - 1.8) < 4) return false;
   if (lakeDistance(x, z) < 2.2 && terrainHeight(x, z) < LAKE.level + 0.8) return false;
-  if (CLEARINGS.some(c => Math.hypot(x - c.x, z - c.z) < c.r)) return false;
+  if (CLEARINGS.some(c => (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r)) return false;
   if (nearWalkway(HABITATS.deer, x, z, 5) || nearWalkway(HABITATS.ducks, x, z, 5)) return false;
   if (ROAD.isNear(x, z, road) || CAMP_TRAIL.isNear(x, z, 6) || RAILWAY.isNear(x, z, 9)) return false;
   if (TRACKS.some(track => track.path.isNear(x, z, 5))) return false;
@@ -966,7 +969,7 @@ function isLongGrassGround(x, z) {
   if (onGravel(x, z, GRAVEL_HALF_WIDTH + 0.8)) return false;
   if (TRACKS.some(track => track.path.isNear(x, z, track.ruts ? 1.6 : 1.3))) return false;
   if (onDriveway(x, z, 0.8)) return false;
-  if (CLEARINGS.some(c => Math.hypot(x - c.x, z - c.z) < c.r * 0.7) || inMud(x, z)) return false;
+  if (CLEARINGS.some(c => (x - c.x) ** 2 + (z - c.z) ** 2 < (c.r * 0.7) ** 2) || inMud(x, z)) return false;
   if (Math.hypot(x - FIELDS.x, z - FIELDS.z) < FIELDS.radius + 4) return false;
   if (lakeDistance(x, z) < 2.4 || (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 6))) return false;
   if (BROOK.isNear(x, z, 3.2) || nearRiver(x, z, 7) || inFjord(x, z, 3) || OXBOW.path.isNear(x, z, 11)) return false;
@@ -1152,7 +1155,7 @@ function buildPeaks(scene) {
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
-  const peaks = new THREE.Mesh(geometry, groundMaterial());
+  const peaks = new THREE.Mesh(geometry, groundMaterial({ name: 'peaks' }));
   peaks.name = 'peaks';
   scene.add(peaks);
 }

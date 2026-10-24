@@ -250,10 +250,13 @@ function forEachVertexNear(x, z, radius, visit) {
   const x1 = Math.ceil(gridCoordinate(x + radius));
   const z0 = Math.floor(gridCoordinate(z - radius));
   const z1 = Math.ceil(gridCoordinate(z + radius));
+  const limit = radius * radius;
   for (let iz = z0; iz <= z1; iz++) {
+    const dz = AXIS[iz] - z;
     for (let ix = x0; ix <= x1; ix++) {
-      const distance = Math.hypot(AXIS[ix] - x, AXIS[iz] - z);
-      if (distance <= radius) visit(iz * GRID + ix, AXIS[ix], AXIS[iz], distance);
+      const dx = AXIS[ix] - x;
+      const d2 = dx * dx + dz * dz;
+      if (d2 <= limit) visit(iz * GRID + ix, AXIS[ix], AXIS[iz], Math.sqrt(d2));
     }
   }
 }

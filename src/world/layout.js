@@ -557,14 +557,18 @@ export const FARM = {
 };
 
 /** True in one of the crop fields, the farm's or the upland farm's, or within `margin` metres of one. */
+let cropPlots = null;
 export function inCrop(x, z, margin = 0) {
-  const within = (plot, { x: ox, z: oz, rotation }) => {
+  cropPlots ??= [[FARM.wheat, FARM], ...Object.values(FIELD_PLOTS).map(plot => [plot, FIELDS])].map(
+    ([plot, { x, z, rotation }]) => ({ plot, x, z, cos: Math.cos(rotation), sin: Math.sin(rotation) }),
+  );
+  for (const { plot, x: ox, z: oz, cos, sin } of cropPlots) {
     const [dx, dz] = [x - ox, z - oz];
-    const lx = dx * Math.cos(rotation) - dz * Math.sin(rotation);
-    const lz = dx * Math.sin(rotation) + dz * Math.cos(rotation);
-    return lx > plot.x0 - margin && lx < plot.x1 + margin && lz > plot.z0 - margin && lz < plot.z1 + margin;
-  };
-  return within(FARM.wheat, FARM) || Object.values(FIELD_PLOTS).some(plot => within(plot, FIELDS));
+    const lx = dx * cos - dz * sin;
+    const lz = dx * sin + dz * cos;
+    if (lx > plot.x0 - margin && lx < plot.x1 + margin && lz > plot.z0 - margin && lz < plot.z1 + margin) return true;
+  }
+  return false;
 }
 
 /** A point given in the farm's own frame. */

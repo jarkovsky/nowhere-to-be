@@ -1114,6 +1114,7 @@ function standingCrop(plot, point, route, stand) {
   }
   const cut = { cropCut: { value: -1e6 }, cropAxis: { value: axis } };
   const stalks = nearStalks(items, geometry, stand.range, cut);
+  for (const list of Object.values(items)) list.length = 0;
   const group = new THREE.Group();
   group.add(mesh, stalks.mesh);
   return {
