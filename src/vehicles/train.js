@@ -11,7 +11,7 @@ import { PartsBuilder } from '../world/build.js';
 const CAR_LENGTH = 13.4;
 const COUPLING = 0.8;
 const CARS = 2;
-export const TRAIN_LENGTH = CARS * CAR_LENGTH + (CARS - 1) * COUPLING;
+const TRAIN_LENGTH = CARS * CAR_LENGTH + (CARS - 1) * COUPLING;
 const AXLES = 4.4; // from the middle of a car to each axle
 const CRUISE = 9;
 const ACCELERATION = 0.9;
@@ -213,7 +213,6 @@ export function createTrain(scene, { onHorn = () => {} } = {}) {
     answerHonk(point) {
       if (this.distanceTo(point) < 60 && hootAt === null) hootAt = 0.5;
     },
-    isRunning: () => phase === 'out' || phase === 'in',
     getState: () => ({ phase, head: +head.toFixed(1), speed: +speed.toFixed(1) }),
   };
 }

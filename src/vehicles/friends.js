@@ -754,16 +754,15 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
     /** Points along the friends on the move, for the traffic and the train to stop short of. */
     points,
     update,
-    /** A tap on the game: asks a friend along, or lets one stay. Returns true if it was one of them. */
+    /** A tap on the game: asks a friend along, or lets one stay. */
     tap(ray, state) {
       const friend = pick(ray);
-      if (!friend) return false;
+      if (!friend) return;
       if (friend.mode !== 'following') invite(friend);
       // While the player is stopped, a tap lets one stay (though not one that has only just set
       // off); on the move it just honks back.
       else if (Math.abs(state.speed) < 1.5 && time - friend.since > 4) stay(friend);
       else honk(friend, 0.1);
-      return true;
     },
     /** The keyboard's way to ask along the nearest friend that can come. */
     inviteNearest() {
@@ -777,7 +776,6 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
         }
       }
       if (best) invite(best);
-      return Boolean(best);
     },
     /**
      * How far round the camera should swing to look back past the parked car at the friends

@@ -622,15 +622,12 @@ export function createTraffic(scene, network = VALLEY) {
     },
     /** Travellers within earshot answer a honk with one of their own. */
     answerHonk(x, z, respond) {
-      let answered = false;
       for (const t of [...travellers, ...visitors.filter(v => v.active)]) {
         if (t.honkAt === null && Math.hypot(t.root.position.x - x, t.root.position.z - z) < 32) {
           t.honkAt = 0.45 + Math.random() * 0.3;
           t.onHonk = respond;
-          answered = true;
         }
       }
-      return answered;
     },
     getState: () =>
       travellers.map(t => ({
