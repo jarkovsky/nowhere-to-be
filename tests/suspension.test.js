@@ -63,3 +63,24 @@ test('tyres stay on the real terrain while the body eases into its angle', () =>
       assert.ok(gap >= -0.003 && gap < 0.025, `gap ${gap} at step ${i}`);
   }
 });
+
+test('the car stays on steep slopes instead of being thrown into the air', () => {
+  const car = createCar();
+  for (const vehicle of VEHICLES) {
+    car.customize('orange', [], vehicle);
+    // Up to a little steeper than the steepest ground the car can climb, facing every way.
+    for (const grade of [0.8, 1.1, 1.4]) {
+      const sample = (x, z) => -grade * z + 0.15 * Math.sin(x * 0.7);
+      for (let heading = 0; heading < Math.PI * 2; heading += 0.3) {
+        place(car, 3, 7, heading, sample);
+        const lift = car.root.position.y - chassisPose(3, 7, heading, sample).height;
+        assert.ok(
+          lift < 0.6,
+          `${vehicle} on a ${grade} grade facing ${heading.toFixed(1)}: lifted ${lift.toFixed(2)} m`,
+        );
+        for (const gap of clearances(car, sample))
+          assert.ok(gap > -0.03, `${vehicle}: tyre ${gap.toFixed(3)} m in the ground`);
+      }
+    }
+  }
+});

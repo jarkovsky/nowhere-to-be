@@ -1012,9 +1012,28 @@ export const ROADWORKS = (() => {
   ];
   const path = createPath([point(0, 0), point(20, 0), point(45, 2), point(70, 6), point(92, 12)]);
   const asphalt = 40;
+  const gravel = 64;
   const finished = createPath(path.samples.filter(p => p.s <= asphalt).map(p => [p.x, p.z]));
-  return { path, asphalt, gravel: 64, site: path.at(path.length), finished };
+  /** `along` the road and `side` metres to its right; past the end it runs straight on. */
+  const roadside = (along, side) => {
+    const p = path.offset(along, side);
+    const over = Math.max(0, along - path.length);
+    return { x: p.x + p.dx * over, z: p.z + p.dz * over };
+  };
+  // A pile of gravel for the skid steer to fetch from, a heap of sand and the earth the excavator digs.
+  const heaps = [
+    { ...roadside(gravel - 4, 10.5), radius: 4.6, height: 2, color: '#a9a395', id: 'gravel' },
+    { ...roadside(asphalt + 6, 9.5), radius: 3.8, height: 1.3, color: '#d1b98a', id: 'sand' },
+    { ...roadside(path.length + 2, -9.5), radius: 4.4, height: 1.8, color: '#8c7457', id: 'earth' },
+  ];
+  return { path, asphalt, gravel, site: path.at(path.length), finished, heaps };
 })();
+
+/**
+ * Heaps of gravel, sand, earth or dung that the car drives over rather than bumps into: `height`
+ * high in the middle, falling away to nothing `radius` metres out (see heapHeight in terrain.js).
+ */
+export const HEAPS = [...ROADWORKS.heaps];
 
 /** Every paved road outside the valley: the upland ring, the links to it and the new road's finished stretch. */
 export const PAVED = [RING_ROAD, ...LINKS.map(link => link.path), ROADWORKS.finished];

@@ -521,12 +521,20 @@ export function createGame(canvas) {
     }));
   }
 
+  /** How steeply the ground climbs over the next stretch the car is heading for (negative downhill). */
+  function gradeAhead() {
+    const reach = 12 * (car.spec.camera ?? 1);
+    const ahead = drivingHeight(state.x - Math.sin(state.heading) * reach, state.z - Math.cos(state.heading) * reach);
+    return clamp((ahead - drivingHeight(state.x, state.z)) / reach, -0.8, 0.9);
+  }
+
   const carView = () => ({
     x: state.x,
     y: car.root.position.y,
     z: state.z,
     heading: state.heading,
     speed: state.speed,
+    grade: gradeAhead(),
     scale: car.spec.camera ?? 1,
     turn: friends.lookBack(),
   });

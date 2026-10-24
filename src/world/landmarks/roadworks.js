@@ -8,7 +8,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { lerp, smoothstep } from '../../core/math.js';
 import { ROADWORKS, ROAD_HALF_WIDTH } from '../layout.js';
 import { headingOf } from '../path.js';
-import { terrainHeight } from '../terrain.js';
+import { drivingHeight, terrainHeight } from '../terrain.js';
 import { PartsBuilder } from '../build.js';
 import { ASPHALT, ribbonGeometry, ribbonMesh } from '../scenery.js';
 
@@ -19,9 +19,9 @@ const GLASS = '#4f6f73';
 const ORANGE = '#d9752e';
 const HALF_WIDTH = ROAD_HALF_WIDTH;
 
-const { path, asphalt, gravel } = ROADWORKS;
-/** How far along the road the skid steer fetches gravel from its pile. */
-const LOADER_AT = gravel - 4;
+const { path, asphalt, gravel, heaps } = ROADWORKS;
+/** The heap the skid steer fetches gravel from. */
+const GRAVEL_HEAP = heaps.find(heap => heap.id === 'gravel');
 
 /** A point beside the new road: `along` metres along it and `side` metres to its right, on the ground. Past the end it runs straight on. */
 function roadside(along, side = 0) {
@@ -32,9 +32,9 @@ function roadside(along, side = 0) {
   return { x, y: terrainHeight(x, z), z, heading: headingOf(p.dx, p.dz) };
 }
 
-/** Puts a group on the ground at a spot, facing `heading`. */
+/** Puts a group on the ground (or up on a heap) at a spot, facing `heading`. */
 function place(object, spot, heading = spot.heading) {
-  object.position.set(spot.x, terrainHeight(spot.x, spot.z), spot.z);
+  object.position.set(spot.x, drivingHeight(spot.x, spot.z), spot.z);
   object.rotation.y = heading;
 }
 
@@ -294,17 +294,6 @@ function buildClutter(parts, obstacles) {
       ...extra.t,
     });
 
-  // Piles of gravel and sand beside the gravel stretch, and dug earth by the excavator.
-  for (const [along, side, radius, height, color] of [
-    [LOADER_AT, 10, 3.6, 2.2, '#a9a395'],
-    [asphalt + 6, 9, 2.8, 1.6, '#d1b98a'],
-    [path.length + 2, -9, 3.4, 2, '#8c7457'],
-  ]) {
-    const spot = roadside(along, side);
-    add(new THREE.ConeGeometry(radius, height, 9), color, spot, { y: height / 2 - 0.15 });
-    obstacles.push({ x: spot.x, z: spot.z, radius: radius * 0.8 });
-  }
-
   // The site cabin and a portable toilet, near the end of the asphalt.
   const cabin = roadside(asphalt - 4, -10);
   const turn = cabin.heading;
@@ -344,7 +333,7 @@ function buildClutter(parts, obstacles) {
   // Cones along both edges of the unfinished stretch, with a gap where the skid steer comes and goes.
   for (let s = asphalt + 2; s < path.length; s += 6) {
     for (const side of [-1, 1]) {
-      if (side > 0 && Math.abs(s - LOADER_AT) < 3) continue;
+      if (side > 0 && Math.abs(s - path.nearest(GRAVEL_HEAP.x, GRAVEL_HEAP.z).s) < 3) continue;
       const spot = roadside(s, side * (HALF_WIDTH + 0.5));
       add(new THREE.ConeGeometry(0.25, 0.75, 8), '#e2672f', spot, { y: 0.37 });
       add(new THREE.CylinderGeometry(0.16, 0.19, 0.12, 8), '#f1ede2', spot, { y: 0.42 });
@@ -401,8 +390,14 @@ export function buildRoadworks(scene, obstacles) {
     { machine: roll, side: 1.1, from: asphalt + 3, to: gravel - 3, speed: 1.6, wait: 1.5, at: asphalt + 3, way: 1 },
     { machine: grade, side: -1.5, from: asphalt + 5, to: gravel - 4, speed: 1.1, wait: 3, at: gravel - 4, way: -1 },
   ];
-  const pile = roadside(LOADER_AT, 10);
-  const roadEdge = roadside(LOADER_AT, 3);
+  // It drives from the edge of the road up to the foot of the heap.
+  const roadEdge = roadside(path.nearest(GRAVEL_HEAP.x, GRAVEL_HEAP.z).s, 3);
+  const reach = Math.hypot(GRAVEL_HEAP.x - roadEdge.x, GRAVEL_HEAP.z - roadEdge.z);
+  const toFoot = (reach - GRAVEL_HEAP.radius * 0.45) / reach;
+  const pile = {
+    x: roadEdge.x + (GRAVEL_HEAP.x - roadEdge.x) * toFoot,
+    z: roadEdge.z + (GRAVEL_HEAP.z - roadEdge.z) * toFoot,
+  };
   let loaderAt = 0; // 0 at the road, 1 at the pile
   let loaderWay = 1;
   let loaderWait = 0;
@@ -452,9 +447,9 @@ export function buildRoadworks(scene, obstacles) {
       if (loaderWait > 0) loaderWait -= dt;
       else if (!blocked(x, z, player)) {
         loaderAt += (loaderWay * 1.6 * dt) / Math.hypot(pile.x - roadEdge.x, pile.z - roadEdge.z);
-        if (loaderAt > 0.62 || loaderAt < 0) {
+        if (loaderAt > 1 || loaderAt < 0) {
           loaderWay = -loaderWay;
-          loaderAt = Math.min(0.62, Math.max(0, loaderAt));
+          loaderAt = Math.min(1, Math.max(0, loaderAt));
           loaderWait = 2;
         }
       }

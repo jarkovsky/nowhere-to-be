@@ -40,6 +40,7 @@ import {
   CONNECTORS,
   GRAVEL,
   GRAVEL_HALF_WIDTH,
+  HEAPS,
   OUTLAND_HILLS,
   RIVERS,
   FORD_DEPTH,
@@ -807,9 +808,40 @@ export function rockHeight(x, z) {
   return lift;
 }
 
-/** The surface the tyres rest on: a deck where there is one, otherwise the ground and any rocks on it. */
+// --- Heaps --------------------------------------------------------------------------
+
+/**
+ * How high a heap stands at `t` of the way out from its middle to its edge: a rounded top,
+ * sides about as steep as loose gravel lies, and a soft foot.
+ */
+export function heapProfile(t) {
+  return t >= 1 ? 0 : (1 - t * t) ** 2;
+}
+
+/** A heap's own lumps, so it isn't perfectly round: up to a tenth of its height either way. */
+function heapLumps(heap, x, z) {
+  return (valueNoise((x - heap.x) / 1.3 + heap.radius, (z - heap.z) / 1.3, 47) - 0.5) * 0.2;
+}
+
+/** How high one heap stands above the ground at a point. */
+export function heapSurface(heap, x, z) {
+  const t = Math.hypot(x - heap.x, z - heap.z) / heap.radius;
+  return t < 1 ? heap.height * heapProfile(t) * (1 + heapLumps(heap, x, z)) : 0;
+}
+
+/** How far the heaps lift the tyres at a point. */
+export function heapHeight(x, z) {
+  let lift = 0;
+  for (const heap of HEAPS) {
+    if (Math.abs(x - heap.x) < heap.radius && Math.abs(z - heap.z) < heap.radius)
+      lift = Math.max(lift, heapSurface(heap, x, z));
+  }
+  return lift;
+}
+
+/** The surface the tyres rest on: a deck where there is one, otherwise the ground and any rocks or heaps on it. */
 export function drivingHeight(x, z) {
-  const ground = terrainHeight(x, z) + rockHeight(x, z);
+  const ground = terrainHeight(x, z) + Math.max(rockHeight(x, z), heapHeight(x, z));
   const deck = bridgeHeight(x, z) ?? jettyHeight(x, z);
   return deck === null ? ground : Math.max(ground, deck);
 }

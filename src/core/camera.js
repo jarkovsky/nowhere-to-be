@@ -22,6 +22,8 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
   // Offsets for keeping something else in view as well as the car, such as the tractor
   // coming to pull it out of the mud, and how far the view looks over towards it.
   const framing = { yaw: 0, pitch: 0, zoom: 1, toward: 0 };
+  // How steeply the ground climbs (or falls) ahead of the car, smoothed.
+  let grade = 0;
 
   /** Shortens the boom so nothing solid sits between the car and the camera. */
   function clearLineOfSight(from, to) {
@@ -76,21 +78,28 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
     }
   }
 
-  /** `car.scale` stands the camera further back and higher for the lorry, to see over its trailer. */
+  /**
+   * `car.scale` stands the camera further back and higher for the lorry, to see over its
+   * trailer. On a slope the boom tips with the ground: lower behind the car going uphill, so
+   * it looks up the slope rather than into it, and higher going downhill, so it stays clear of
+   * the ground behind and looks down the way ahead.
+   */
   function chaseGoal(car, compact) {
     const speedFactor = clamp(Math.abs(car.speed) / 14, 0, 1);
     const scale = car.scale ?? 1;
     const distance = ((compact ? 17 : 14) + speedFactor * 2.5) * scale;
     const height = ((compact ? 7.5 : 6) + speedFactor * 0.8) * scale ** 1.8;
     // Directly behind the car along its (smoothed) heading, unless the player has swung it round.
-    const elevation = clamp(Math.atan2(height, distance) + orbit.pitch + framing.pitch, 0.06, 1.25);
+    const tipped = Math.atan2(height, distance) - Math.atan(grade) * 0.45;
+    const elevation = clamp(tipped + orbit.pitch + framing.pitch, 0.06, 1.25);
     const boom = Math.hypot(distance, height) * orbit.zoom * framing.zoom;
     aroundCar(car, heading + orbit.yaw + framing.yaw, elevation, boom, 0);
-    // Look ahead of the car normally; at the car itself while looking around.
-    const ahead = 3 * scale * (1 - clamp(Math.abs(orbit.yaw + framing.yaw) / 0.6, 0, 1));
+    // Look at the ground a little ahead of the car normally; at the car itself while looking around.
+    const behind = clamp(Math.abs(orbit.yaw + framing.yaw) / 0.6, 0, 1);
+    const ahead = 3 * scale * (1 - behind);
     look.set(
       car.x - Math.sin(car.heading) * ahead * scale,
-      car.y + 2 * scale,
+      car.y + 2 * scale + grade * ahead * scale,
       car.z - Math.cos(car.heading) * ahead * scale,
     );
     // Over towards whatever else is being watched.
@@ -147,6 +156,7 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
       if (!orbit.dragging) orbit.idle += dt;
       if (mode === 'chase') {
         heading += angleDelta(heading, car.heading) * (1 - Math.exp(-2.6 * dt));
+        grade = snap ? (car.grade ?? 0) : damp(grade, car.grade ?? 0, 2, dt);
         // Once the player lets go, the view drifts back behind the car, or round to `car.turn`
         // (to look back past the car at friends waiting behind it).
         if (!orbit.dragging && orbit.idle > 1.2) {
