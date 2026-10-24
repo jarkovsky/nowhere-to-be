@@ -8,17 +8,7 @@ import { inspect } from './inspect.js';
 import { LANDMARKS, standing } from './landmarks.js';
 import { MODELS } from './models.js';
 
-const middle = new THREE.Vector3();
-
-/**
- * A fault's name in the baseline: its kind and the middle of what it marks, to a tenth of a
- * metre. The world is built the same way every time, so the same fault always has the same name.
- */
-export function findingKey(issue) {
-  issue.box.getCenter(middle);
-  const at = [middle.x, middle.y, middle.z].map(v => (Math.round(v * 10) / 10).toFixed(1)).join(', ');
-  return `${issue.kind} at ${at}`;
-}
+export { findingKey } from './inspect.js';
 
 /** The faults in a landmark, built where it stands in the world. */
 export function checkLandmark(name) {

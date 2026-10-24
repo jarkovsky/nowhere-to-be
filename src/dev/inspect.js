@@ -896,6 +896,19 @@ function inside(obstacle, x, z) {
   return penetration(x, z, 0.6, obstacle) !== null;
 }
 
+const findingMiddle = new THREE.Vector3();
+
+/**
+ * A fault's name in the baseline (tests/geometry-baseline.json): its kind and the middle of what
+ * it marks, to a tenth of a metre. The world is built the same way every time, so the same
+ * fault always has the same name.
+ */
+export function findingKey(issue) {
+  const middle = issue.box.getCenter(findingMiddle);
+  const at = [middle.x, middle.y, middle.z].map(v => (Math.round(v * 10) / 10).toFixed(1)).join(', ');
+  return `${issue.kind} at ${at}`;
+}
+
 /**
  * Everything wrong with the meshes under `root`. `ground(x, z)` is the ground's height (leave it
  * out for a model on its own, which stands at y = 0); `drivable(x, z)` the height the car's wheels
