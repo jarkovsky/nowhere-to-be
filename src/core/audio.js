@@ -42,6 +42,21 @@ export function createAudio() {
   let surfacePace = 0;
   let nextCrackle = 0;
   let nextBubble = 0;
+  // Where each parameter was last sent gliding to, and with what time constant.
+  const gliding = new Map();
+
+  /**
+   * Glides a parameter towards `value` from `start`, as setTargetAtTime does, unless it is already
+   * gliding there with the same time constant: starting that glide again would sound the same.
+   */
+  function glide(param, value, start, timeConstant) {
+    let last = gliding.get(param);
+    if (!last) gliding.set(param, (last = { value: NaN, timeConstant: NaN }));
+    if (last.value === value && last.timeConstant === timeConstant) return;
+    last.value = value;
+    last.timeConstant = timeConstant;
+    param.setTargetAtTime(value, start, timeConstant);
+  }
 
   function noiseSource(filterType, frequency, gainValue) {
     const source = context.createBufferSource();
@@ -318,14 +333,14 @@ export function createAudio() {
     rotor(level, rate) {
       if (!context) return;
       const now = context.currentTime;
-      rotor.beat.frequency.setTargetAtTime(rate, now, 0.3);
-      rotor.gain.gain.setTargetAtTime(level * 0.5, now, 0.2);
+      glide(rotor.beat.frequency, rate, now, 0.3);
+      glide(rotor.gain.gain, level * 0.5, now, 0.2);
     },
 
     /** An emergency vehicle's siren: `level` 0 to 1 for how near it is. */
     siren(level) {
       if (!context) return;
-      siren.gain.gain.setTargetAtTime(level ** 1.5 * 0.045, context.currentTime, 0.3);
+      glide(siren.gain.gain, level ** 1.5 * 0.045, context.currentTime, 0.3);
     },
 
     /** One strike of the level crossing's bell. */
@@ -407,22 +422,22 @@ export function createAudio() {
     update({ speed, throttle = 0, engineOn = true, active, rain }) {
       if (!context) return;
       const now = context.currentTime;
-      master.gain.setTargetAtTime(enabled && active ? 0.6 : 0, now, 0.15);
+      glide(master.gain, enabled && active ? 0.6 : 0, now, 0.15);
 
       const rpm = engineRpm(speed, throttle);
       const firing = (rpm / 30) * enginePitch; // four cylinders, two firings per turn
-      engine.pulses.frequency.setTargetAtTime(firing, now, 0.08);
-      engine.body.frequency.setTargetAtTime(firing, now, 0.08);
-      engine.exhaust.frequency.setTargetAtTime((220 + rpm * 0.09 + throttle * 200) * enginePitch, now, 0.1);
+      glide(engine.pulses.frequency, firing, now, 0.08);
+      glide(engine.body.frequency, firing, now, 0.08);
+      glide(engine.exhaust.frequency, (220 + rpm * 0.09 + throttle * 200) * enginePitch, now, 0.1);
       const loudness = 0.05 + throttle * 0.035 + (rpm / 4000) * 0.03;
-      engine.volume.gain.setTargetAtTime(engineOn ? loudness : 0, now, engineOn ? 0.15 : 0.4);
+      glide(engine.volume.gain, engineOn ? loudness : 0, now, engineOn ? 0.15 : 0.4);
 
       const profile = SURFACE_BEDS[surface];
       const pace = engineOn ? surfacePace : 0;
-      bed.gain.gain.setTargetAtTime(profile ? profile.gain * pace : 0, now, 0.2);
-      if (profile) bed.filter.frequency.setTargetAtTime(profile.cutoff, now, 0.1);
-      windGain.gain.setTargetAtTime(0.012 + Math.abs(speed) * 0.0015, now, 0.3);
-      rainGain.gain.setTargetAtTime(rain * 0.05, now, 0.5);
+      glide(bed.gain.gain, profile ? profile.gain * pace : 0, now, 0.2);
+      if (profile) glide(bed.filter.frequency, profile.cutoff, now, 0.1);
+      glide(windGain.gain, 0.012 + Math.abs(speed) * 0.0015, now, 0.3);
+      glide(rainGain.gain, rain * 0.05, now, 0.5);
     },
   };
 }

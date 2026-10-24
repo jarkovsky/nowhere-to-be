@@ -12,7 +12,7 @@
 // The ones out driving are full copies of the player's car, borrowed from a small pool (copies.js).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { angleDelta, clamp, damp } from '../core/math.js';
+import { angleDelta, damp, segmentDistance } from '../core/math.js';
 import { penetration } from '../core/collision.js';
 import { CAR } from '../core/driving.js';
 import {
@@ -83,15 +83,6 @@ const sphere = new THREE.Sphere();
 const near = new THREE.Vector3();
 const far = new THREE.Vector3();
 const pose = { x: 0, z: 0, heading: 0 };
-
-/** Distance from (px, pz) to the segment from (ax, az) to (bx, bz). */
-function segmentGap(px, pz, ax, az, bx, bz) {
-  const dx = bx - ax;
-  const dz = bz - az;
-  const lengthSq = dx * dx + dz * dz;
-  const t = lengthSq ? clamp(((px - ax) * dx + (pz - az) * dz) / lengthSq, 0, 1) : 0;
-  return Math.hypot(px - ax - dx * t, pz - az - dz * t);
-}
 
 function put(circle, x, z, radius) {
   circle.x = x;
@@ -437,14 +428,14 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
       const lx = -Math.sin(leader.heading);
       const lz = -Math.cos(leader.heading);
       const { front, back } = leader.size;
-      straight = segmentGap(
+      straight = segmentDistance(
         noseX,
         noseZ,
         leader.x + lx * front,
         leader.z + lz * front,
         leader.x - lx * back,
         leader.z - lz * back,
-      );
+      ).distance;
     }
 
     // Anything else in the way along the route: traffic, the train, the barriers, parked friends,
@@ -763,16 +754,15 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
     /** Points along the friends on the move, for the traffic and the train to stop short of. */
     points,
     update,
-    /** A tap on the game: asks a friend along, or lets one stay. Returns true if it was one of them. */
+    /** A tap on the game: asks a friend along, or lets one stay. */
     tap(ray, state) {
       const friend = pick(ray);
-      if (!friend) return false;
+      if (!friend) return;
       if (friend.mode !== 'following') invite(friend);
       // While the player is stopped, a tap lets one stay (though not one that has only just set
       // off); on the move it just honks back.
       else if (Math.abs(state.speed) < 1.5 && time - friend.since > 4) stay(friend);
       else honk(friend, 0.1);
-      return true;
     },
     /** The keyboard's way to ask along the nearest friend that can come. */
     inviteNearest() {
@@ -786,7 +776,6 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
         }
       }
       if (best) invite(best);
-      return Boolean(best);
     },
     /**
      * How far round the camera should swing to look back past the parked car at the friends
@@ -826,16 +815,14 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
     },
     /** The friends coming along, with their wheels, for the long grass and the crops they drive through. */
     tramplers: () =>
-      party
-        .filter(friend => friend.copy)
-        .map(({ x, z, heading, speed, copy }) => ({
-          x,
-          z,
-          y: drivingHeight(x, z),
-          heading,
-          speed,
-          wheels: copy.car.wheels.map(({ pivot, radius }) => ({ x: pivot.position.x, z: pivot.position.z, radius })),
-        })),
+      party.map(({ x, z, heading, speed, copy }) => ({
+        x,
+        z,
+        y: drivingHeight(x, z),
+        heading,
+        speed,
+        wheels: copy.car.spec.wheels,
+      })),
     getState: () =>
       friends.map(friend => ({
         vehicle: friend.vehicle,

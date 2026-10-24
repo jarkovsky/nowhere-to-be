@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { angleDelta, createRandom, smoothstep } from '../core/math.js';
 import { FARM, HABITATS, LAKE } from './layout.js';
 import { terrainHeight } from './terrain.js';
-import { PartsBuilder, localFrame } from './build.js';
+import { PartsBuilder, limb, localFrame } from './build.js';
 import { createWolves } from './wolves.js';
 import { createChickens } from './chickens.js';
 import { createHerds } from './herds.js';
@@ -15,15 +15,6 @@ import { createDodge, stepDodge } from './dodge.js';
 
 const DARK = '#394439';
 const CREAM = '#eee4c9';
-
-/** A leg (or head) that animates around a pivot, built as its own small mesh. */
-function limb(parent, x, y, z, build) {
-  const pivot = new THREE.Group();
-  pivot.position.set(x, y, z);
-  pivot.add(build(new PartsBuilder()).mesh({ receiveShadow: false }));
-  parent.add(pivot);
-  return pivot;
-}
 
 export function deer() {
   const root = new THREE.Group();
@@ -170,8 +161,10 @@ function geeseFlock(scene, count) {
   const wing = new PartsBuilder().box(0.55, 0.05, 1.1, '#6f6c62', { z: 0.55 }).mesh(unlit);
   const bodies = new THREE.InstancedMesh(body.geometry, body.material, count);
   const wings = new THREE.InstancedMesh(wing.geometry, wing.material, count * 2);
+  // Round the lead goose, big enough for the whole V and its wings, so the flock isn't drawn while it is out of view.
+  const bounds = new THREE.Sphere(new THREE.Vector3(), 25);
   for (const mesh of [bodies, wings]) {
-    mesh.frustumCulled = false;
+    mesh.boundingSphere = bounds;
     scene.add(mesh);
   }
   const dummy = new THREE.Object3D();
@@ -190,7 +183,9 @@ function geeseFlock(scene, count) {
         wings.setMatrixAt(i * 2 + (side > 0 ? 1 : 0), hinge.matrixWorld);
       }
     },
-    done() {
+    /** Sends the new places, and moves the bounds along with the lead goose at `lead`. */
+    done(lead) {
+      bounds.center.copy(lead);
       bodies.instanceMatrix.needsUpdate = true;
       wings.instanceMatrix.needsUpdate = true;
     },
@@ -438,7 +433,7 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
       geese.place(i, x, y, z, Math.atan2(-Math.cos(a), -Math.sin(a)), Math.sin(time * 5 + i * 0.7) * 0.5);
       if (i === 0) leadGoose.set(x, y, z);
     }
-    geese.done();
+    geese.done(leadGoose);
   }
 
   /** Every few seconds a fish jumps somewhere on the lake, preferably where the player can see it. */
@@ -616,8 +611,7 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
       wolves: wolves.getState(),
       herds: herds.getState(),
     }),
-    update(dt, player, running, night = 0) {
-      if (!running) return;
+    update(dt, player, night = 0) {
       time += dt;
       sheepLookUp = Math.max(0, sheepLookUp - dt);
       for (const group of walkers) group.startle = Math.max(0, group.startle - dt * 0.9);

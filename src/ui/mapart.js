@@ -381,14 +381,14 @@ const CROPS = [
     plot,
     tint: rgb({ plough: '#bc9a74', mow: '#c4d58f', rapeseed: '#ecd962', wheat: '#e6cd82' }[name] ?? '#c9da9c'),
   })),
-];
+].map(crop => ({ ...crop, cos: Math.cos(crop.frame.rotation), sin: Math.sin(crop.frame.rotation) }));
 
 function cropAt(x, z) {
-  for (const { frame, plot, tint } of CROPS) {
+  for (const { frame, plot, tint, cos, sin } of CROPS) {
     const dx = x - frame.x;
     const dz = z - frame.z;
-    const lx = dx * Math.cos(frame.rotation) - dz * Math.sin(frame.rotation);
-    const lz = dx * Math.sin(frame.rotation) + dz * Math.cos(frame.rotation);
+    const lx = dx * cos - dz * sin;
+    const lz = dx * sin + dz * cos;
     if (lx > plot.x0 && lx < plot.x1 && lz > plot.z0 && lz < plot.z1) return tint;
   }
   return null;
@@ -567,7 +567,7 @@ function* paintPicture() {
 /**
  * The map's picture, `SIZE` pixels square, covering MAP_EXTENT metres each way from the middle.
  * `canvas` is null until it is painted. `prepare(ms)` paints it over the next frames, about `ms`
- * of each, and resolves with the canvas; `finish()` paints whatever is left at once.
+ * of each (the latest asked for), and resolves with the canvas.
  */
 export function createMapPicture() {
   let canvas = null;
@@ -595,13 +595,12 @@ export function createMapPicture() {
       return canvas;
     },
     prepare(ms = 6) {
-      budget = Math.max(budget, ms);
+      budget = ms;
       waiting ??= new Promise(resolve => {
         const next = () => (step(budget) ? resolve(canvas) : requestAnimationFrame(next));
         requestAnimationFrame(next);
       });
       return waiting;
     },
-    finish: () => step(Infinity),
   };
 }

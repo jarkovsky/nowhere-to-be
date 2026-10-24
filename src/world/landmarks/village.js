@@ -3,6 +3,7 @@
 // for drying the hoses, a siren on the roof and the fire engine parked out front. Sound the
 // horn by it and the engine answers with its blue lights and siren.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FORECOURTS, VILLAGE } from '../layout.js';
 import { terrainHeight, pondLevel } from '../terrain.js';
 import { PartsBuilder, gableRoof, gableEnds, hipRoof } from '../build.js';
@@ -58,6 +59,41 @@ function fireStation(parts, obstacles, frame) {
   obstacles.push({ ...local(tower.x, tower.z), radius: 2.2 });
 }
 
+/**
+ * Merges the meshes under `root` that share a material into one mesh each, with where they
+ * stand built in, leaving those on `keep` as they are. For a group that never comes apart,
+ * while it still stands at the origin.
+ */
+function mergeByMaterial(root, keep) {
+  root.updateMatrixWorld(true);
+  const groups = new Map();
+  root.traverse(mesh => {
+    if (!mesh.isMesh || keep.includes(mesh.material)) return;
+    if (!groups.has(mesh.material)) groups.set(mesh.material, []);
+    groups.get(mesh.material).push(mesh);
+  });
+  for (const [material, meshes] of groups) {
+    if (meshes.length < 2) continue;
+    const merged = new THREE.Mesh(
+      mergeGeometries(meshes.map(mesh => mesh.geometry.clone().applyMatrix4(mesh.matrixWorld))),
+      material,
+    );
+    merged.castShadow = meshes[0].castShadow;
+    merged.receiveShadow = meshes[0].receiveShadow;
+    for (const mesh of meshes) {
+      // And the groups that held only it, such as a wheel's pivot.
+      let parent = mesh.parent;
+      mesh.removeFromParent();
+      while (parent !== root && parent.children.length === 0) {
+        const above = parent.parent;
+        parent.removeFromParent();
+        parent = above;
+      }
+    }
+    root.add(merged);
+  }
+}
+
 /** The pond: still water inside a ring of flat stones, and a bench on the bank. */
 function pond(scene, parts, obstacles) {
   const { x, z, radius } = VILLAGE.pond;
@@ -95,6 +131,8 @@ export function buildVillage(scene, obstacles) {
 
   // The fire engine on the apron, facing the road.
   const engine = parkedFireEngine();
+  // It never moves, so its parts are drawn a material at a time. The blue lights flash, so they stay apart.
+  mergeByMaterial(engine.root, engine.beacons);
   const spot = frame.local(-2.6, 5.2);
   const heading = headingOf(Math.sin(frame.rotation), Math.cos(frame.rotation));
   engine.root.position.set(spot.x, terrainHeight(spot.x, spot.z) + 0.06, spot.z);

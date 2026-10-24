@@ -1,11 +1,11 @@
 // Hens and a rooster pecking about each farmyard. They wander, stop to peck, and
-// scatter with a flap when a car drives into the yard. One instanced mesh for the
-// hens and one for the roosters.
+// scatter with a flap when a car drives into the yard. Each yard has one instanced
+// mesh for its hens and one for its rooster.
 import * as THREE from 'three';
 import { createRandom } from '../core/math.js';
 import { YARDS } from './layout.js';
 import { terrainHeight } from './terrain.js';
-import { PartsBuilder, flatMaterial, localFrame } from './build.js';
+import { PartsBuilder, localFrame, vertexColorMaterial } from './build.js';
 
 const SCARE = 9;
 const BEAK = '#e0a942';
@@ -32,10 +32,16 @@ export function chickenGeometry(feathers, rooster) {
 
 export function createChickens(scene) {
   const random = createRandom(2718);
-  const birds = [];
+  const henGeometry = chickenGeometry('#ffffff', false);
+  const roosterGeometry = chickenGeometry('#b5653a', true);
+  const tint = new THREE.Color();
+  let henCount = 0;
+  /** Each yard's birds and its own meshes, so a yard out of view or far away is left out. */
+  const flocks = [];
   for (const yard of YARDS) {
     const toWorld = localFrame(yard.x, yard.z, yard.rotation);
     const spot = () => toWorld(yard.x0 + random() * (yard.x1 - yard.x0), yard.z0 + random() * (yard.z1 - yard.z0));
+    const birds = [];
     for (let i = 0; i <= yard.hens; i++) {
       const start = spot();
       birds.push({
@@ -51,26 +57,81 @@ export function createChickens(scene) {
         phase: random() * 10,
       });
     }
+    const henMesh = new THREE.InstancedMesh(henGeometry, vertexColorMaterial, yard.hens);
+    const roosterMesh = new THREE.InstancedMesh(roosterGeometry, vertexColorMaterial, 1);
+    // Some hens are white and some are brown, taking turns across all the yards.
+    for (let i = 0; i < yard.hens; i++) {
+      henMesh.setColorAt(i, henCount++ % 3 ? tint.set('#f4efe4') : tint.set('#d79a62'));
+    }
+    for (const mesh of [henMesh, roosterMesh]) {
+      mesh.castShadow = true;
+      scene.add(mesh);
+    }
+    flocks.push({ birds, henMesh, roosterMesh });
   }
-  const hens = birds.filter(bird => !bird.rooster);
-  const roosters = birds.filter(bird => bird.rooster);
-  const material = flatMaterial('#ffffff', { vertexColors: true });
-  const henMesh = new THREE.InstancedMesh(chickenGeometry('#ffffff', false), material, hens.length);
-  const roosterMesh = new THREE.InstancedMesh(chickenGeometry('#b5653a', true), material, roosters.length);
-  // Some hens are white and some are brown.
-  const tint = new THREE.Color();
-  hens.forEach((hen, i) => henMesh.setColorAt(i, i % 3 ? tint.set('#f4efe4') : tint.set('#d79a62')));
-  for (const mesh of [henMesh, roosterMesh]) {
-    mesh.castShadow = true;
-    mesh.frustumCulled = false;
-    scene.add(mesh);
-  }
+  const birds = flocks.flatMap(flock => flock.birds);
   const dummy = new THREE.Object3D();
   dummy.rotation.order = 'YXZ';
   let time = 0;
 
+  /** Moves one yard's birds and puts them in its meshes. */
+  function updateFlock({ birds, henMesh, roosterMesh }, dt, player) {
+    const place = { hen: 0, rooster: 0 };
+    for (const bird of birds) {
+      const dx = bird.x - player.x;
+      const dz = bird.z - player.z;
+      const distance = Math.hypot(dx, dz);
+      if (distance < SCARE) {
+        // Run away from the car, but not too far from home.
+        bird.flee = 1.2;
+        const away = 6 / Math.max(distance, 0.5);
+        const toHome = Math.hypot(bird.home.x - bird.x, bird.home.z - bird.z) > 18 ? 0.5 : 0;
+        bird.target = {
+          x: bird.x + dx * away + (bird.home.x - bird.x) * toHome,
+          z: bird.z + dz * away + (bird.home.z - bird.z) * toHome,
+        };
+      }
+      bird.flee = Math.max(0, bird.flee - dt);
+      let walking = false;
+      const tx = bird.target.x - bird.x;
+      const tz = bird.target.z - bird.z;
+      const gap = Math.hypot(tx, tz);
+      if (bird.rest > 0 && bird.flee === 0) {
+        bird.rest -= dt;
+      } else if (gap < 0.3) {
+        bird.target = bird.spot();
+        bird.rest = 2 + random() * 5;
+      } else {
+        const speed = bird.flee > 0 ? 3.4 : 0.8;
+        const step = Math.min(gap, speed * dt);
+        bird.x += (tx / gap) * step;
+        bird.z += (tz / gap) * step;
+        bird.heading = Math.atan2(-tz, tx);
+        walking = true;
+      }
+      const running = bird.flee > 0 && walking;
+      const hop = running
+        ? Math.abs(Math.sin(time * 16 + bird.phase)) * 0.25
+        : walking
+          ? Math.abs(Math.sin(time * 9 + bird.phase)) * 0.04
+          : 0;
+      // Pecking: the body dips forward in quick bobs while standing still.
+      const peck =
+        !walking && Math.sin(time * 1.3 + bird.phase) > 0.2 ? Math.max(0, Math.sin(time * 11 + bird.phase)) * 0.7 : 0;
+      dummy.position.set(bird.x, terrainHeight(bird.x, bird.z) + hop, bird.z);
+      dummy.rotation.set(0, bird.heading, -peck + (running ? 0.25 : 0));
+      dummy.updateMatrix();
+      if (bird.rooster) roosterMesh.setMatrixAt(place.rooster++, dummy.matrix);
+      else henMesh.setMatrixAt(place.hen++, dummy.matrix);
+    }
+    for (const mesh of [henMesh, roosterMesh]) {
+      mesh.instanceMatrix.needsUpdate = true;
+      // Round where the birds are now, so the yard is left out of the drawing while it is out of view.
+      mesh.computeBoundingSphere();
+    }
+  }
+
   return {
-    /** How close the nearest chicken is. */
     /** A honk sends the nearby ones running. Returns true if any heard it. */
     hearHorn(x, z) {
       let heard = false;
@@ -84,59 +145,11 @@ export function createChickens(scene) {
     },
     update(dt, player) {
       time += dt;
-      const near = birds.some(bird => Math.hypot(player.x - bird.x, player.z - bird.z) < 200);
-      henMesh.visible = roosterMesh.visible = near;
-      if (!near) return;
-      const place = { hen: 0, rooster: 0 };
-      for (const bird of birds) {
-        const dx = bird.x - player.x;
-        const dz = bird.z - player.z;
-        const distance = Math.hypot(dx, dz);
-        if (distance < SCARE) {
-          // Run away from the car, but not too far from home.
-          bird.flee = 1.2;
-          const away = 6 / Math.max(distance, 0.5);
-          const toHome = Math.hypot(bird.home.x - bird.x, bird.home.z - bird.z) > 18 ? 0.5 : 0;
-          bird.target = {
-            x: bird.x + dx * away + (bird.home.x - bird.x) * toHome,
-            z: bird.z + dz * away + (bird.home.z - bird.z) * toHome,
-          };
-        }
-        bird.flee = Math.max(0, bird.flee - dt);
-        let walking = false;
-        const tx = bird.target.x - bird.x;
-        const tz = bird.target.z - bird.z;
-        const gap = Math.hypot(tx, tz);
-        if (bird.rest > 0 && bird.flee === 0) {
-          bird.rest -= dt;
-        } else if (gap < 0.3) {
-          bird.target = bird.spot();
-          bird.rest = 2 + random() * 5;
-        } else {
-          const speed = bird.flee > 0 ? 3.4 : 0.8;
-          const step = Math.min(gap, speed * dt);
-          bird.x += (tx / gap) * step;
-          bird.z += (tz / gap) * step;
-          bird.heading = Math.atan2(-tz, tx);
-          walking = true;
-        }
-        const running = bird.flee > 0 && walking;
-        const hop = running
-          ? Math.abs(Math.sin(time * 16 + bird.phase)) * 0.25
-          : walking
-            ? Math.abs(Math.sin(time * 9 + bird.phase)) * 0.04
-            : 0;
-        // Pecking: the body dips forward in quick bobs while standing still.
-        const peck =
-          !walking && Math.sin(time * 1.3 + bird.phase) > 0.2 ? Math.max(0, Math.sin(time * 11 + bird.phase)) * 0.7 : 0;
-        dummy.position.set(bird.x, terrainHeight(bird.x, bird.z) + hop, bird.z);
-        dummy.rotation.set(0, bird.heading, -peck + (running ? 0.25 : 0));
-        dummy.updateMatrix();
-        if (bird.rooster) roosterMesh.setMatrixAt(place.rooster++, dummy.matrix);
-        else henMesh.setMatrixAt(place.hen++, dummy.matrix);
+      for (const flock of flocks) {
+        const near = flock.birds.some(bird => Math.hypot(player.x - bird.x, player.z - bird.z) < 200);
+        flock.henMesh.visible = flock.roosterMesh.visible = near;
+        if (near) updateFlock(flock, dt, player);
       }
-      henMesh.instanceMatrix.needsUpdate = true;
-      roosterMesh.instanceMatrix.needsUpdate = true;
     },
   };
 }

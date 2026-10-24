@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { CAMP, CABIN } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder, localFrame as frame, prism, createSmoke } from '../build.js';
+import { framer } from './frame.js';
 
 function addTent(parts, x, z, rotation) {
   const y = terrainHeight(x, z) - 0.04;
@@ -123,15 +124,13 @@ function addCampfire(scene, parts, x, z) {
   glow.position.set(x, y + 0.08, z);
   scene.add(glow);
 
-  const sparks = Array.from({ length: 10 }, (_, i) => {
-    const spark = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.07), coreMaterial);
-    spark.userData.offset = i / 10;
-    scene.add(spark);
-    return spark;
-  });
+  const sparks = new THREE.InstancedMesh(new THREE.BoxGeometry(0.07, 0.07, 0.07), coreMaterial, 10);
+  // Everywhere the sparks rise to, so they aren't drawn while the fire is out of view.
+  sparks.boundingSphere = new THREE.Sphere(new THREE.Vector3(x, y + 2.75, z), 2.5);
+  scene.add(sparks);
+  const dummy = new THREE.Object3D();
 
   return {
-    position: { x, y, z },
     update(time, night) {
       flames.forEach((flame, i) => {
         flame.scale.set(
@@ -141,12 +140,17 @@ function addCampfire(scene, parts, x, z) {
         );
       });
       glowMaterial.opacity = (0.35 + night * 0.65) * (0.9 + Math.sin(time * 8) * 0.1);
-      for (const spark of sparks) {
-        const t = (time * 0.5 + spark.userData.offset) % 1;
-        const a = spark.userData.offset * 40;
-        spark.position.set(x + Math.sin(a + t * 3) * 0.4 * t, y + 1 + t * 3.5, z + Math.cos(a + t * 2) * 0.4 * t);
-        spark.visible = night > 0.3;
+      sparks.visible = night > 0.3;
+      if (!sparks.visible) return;
+      for (let i = 0; i < sparks.count; i++) {
+        const offset = i / sparks.count;
+        const t = (time * 0.5 + offset) % 1;
+        const a = offset * 40;
+        dummy.position.set(x + Math.sin(a + t * 3) * 0.4 * t, y + 1 + t * 3.5, z + Math.cos(a + t * 2) * 0.4 * t);
+        dummy.updateMatrix();
+        sparks.setMatrixAt(i, dummy.matrix);
       }
+      sparks.instanceMatrix.needsUpdate = true;
     },
   };
 }
@@ -192,10 +196,9 @@ function buildCamp(scene, obstacles) {
 
 function buildCabin(scene, obstacles) {
   const parts = new PartsBuilder();
-  const { x, z, rotation } = CABIN;
+  const { x, z } = CABIN;
   const y = terrainHeight(x, z);
-  const local = frame(x, z, rotation);
-  const at = (lx, ly, lz, extra = {}) => ({ ...local(lx, lz), y: y + ly, ry: rotation, ...extra });
+  const { at, local } = framer(CABIN, y);
 
   // A classic A-frame: the roof comes right down to the stone footing.
   const eave = 4.4;
@@ -259,7 +262,6 @@ export function buildCampsites(scene, obstacles) {
   const fire = buildCamp(scene, obstacles);
   const cabin = buildCabin(scene, obstacles);
   return {
-    fire: fire.position,
     update(time, night) {
       fire.update(time, night);
       cabin.update(time);

@@ -37,10 +37,4 @@ export function createLook(element, { accepts = () => true, onDrag, onRelease, o
     },
     { passive: false },
   );
-
-  return {
-    get dragging() {
-      return active !== null;
-    },
-  };
 }

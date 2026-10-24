@@ -10,6 +10,56 @@ const origin = new THREE.Vector3();
 const direction = new THREE.Vector3();
 const desired = new THREE.Vector3();
 const look = new THREE.Vector3();
+const reached = new THREE.Vector3();
+const hits = [];
+
+/** How far across the pieces are that the occluders are cut into for the camera's rays, in metres. */
+const PIECE = 10;
+
+/**
+ * An occluder's triangles in the world, cut into pieces about PIECE metres across, each with
+ * bounds of its own, so a ray only tests the triangles of the pieces it comes near rather than
+ * every one in a whole mountain. The pieces keep the occluder's material, so their triangles
+ * face the same way, and are never drawn.
+ */
+function cutUp(occluder) {
+  occluder.updateWorldMatrix(true, false);
+  const { index, attributes } = occluder.geometry;
+  const count = index ? index.count : attributes.position.count;
+  const corner = new THREE.Vector3();
+  const cells = new Map();
+  for (let i = 0; i < count; i += 3) {
+    const triangle = [];
+    for (let k = i; k < i + 3; k++) {
+      corner.fromBufferAttribute(attributes.position, index ? index.getX(k) : k).applyMatrix4(occluder.matrixWorld);
+      triangle.push(corner.x, corner.y, corner.z);
+    }
+    // Each triangle goes in the piece its middle is in.
+    const cell = [0, 1, 2].map(axis =>
+      Math.floor((triangle[axis] + triangle[axis + 3] + triangle[axis + 6]) / 3 / PIECE),
+    );
+    const key = cell.join();
+    if (!cells.has(key)) cells.set(key, []);
+    cells.get(key).push(...triangle);
+  }
+  return [...cells.values()].map(points => {
+    const geometry = new THREE.BufferGeometry();
+    // In double precision, so a ray meets a piece just where it meets the occluder itself.
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float64Array(points), 3));
+    geometry.computeBoundingSphere();
+    geometry.computeBoundingBox();
+    const piece = new THREE.Mesh(geometry, occluder.material);
+    piece.matrixAutoUpdate = false;
+    return piece;
+  });
+}
+
+/** An occluder's bounding sphere in the world. */
+function boundsOf(occluder) {
+  occluder.updateWorldMatrix(true, false);
+  if (!occluder.geometry.boundingSphere) occluder.geometry.computeBoundingSphere();
+  return occluder.geometry.boundingSphere.clone().applyMatrix4(occluder.matrixWorld);
+}
 
 export function createChaseCamera(camera, { occluders, groundHeight }) {
   let heading = 0;
@@ -24,6 +74,8 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
   const framing = { yaw: 0, pitch: 0, zoom: 1, toward: 0 };
   // How steeply the ground climbs (or falls) ahead of the car, smoothed.
   let grade = 0;
+  // The occluders, each with its bounds in the world and, once a ray first comes near it, its pieces.
+  const solids = occluders.map(mesh => ({ mesh, sphere: null, pieces: null }));
 
   /** Shortens the boom so nothing solid sits between the car and the camera. */
   function clearLineOfSight(from, to) {
@@ -32,7 +84,19 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
     direction.divideScalar(length);
     raycaster.set(from, direction);
     raycaster.far = length;
-    const hit = raycaster.intersectObjects(occluders, false)[0];
+    const { ray } = raycaster;
+    hits.length = 0;
+    for (const solid of solids) {
+      solid.sphere ??= boundsOf(solid.mesh);
+      // Past the occluder's bounds, or beyond the camera, the ray can't meet it.
+      if (!solid.sphere.containsPoint(ray.origin)) {
+        if (!ray.intersectSphere(solid.sphere, reached)) continue;
+        if (ray.origin.distanceToSquared(reached) > length ** 2) continue;
+      }
+      solid.pieces ??= cutUp(solid.mesh);
+      raycaster.intersectObjects(solid.pieces, false, hits);
+    }
+    const hit = hits[0];
     return hit ? clamp((hit.distance - 0.8) / length, 0.18, 1) : 1;
   }
 

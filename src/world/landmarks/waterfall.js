@@ -133,7 +133,11 @@ export function buildWaterfall(scene, obstacles) {
     new THREE.MeshBasicMaterial({ color: '#f4fbf8', transparent: true, opacity: 0.8 }),
     streaks.length,
   );
-  streakMesh.frustumCulled = false;
+  // Everywhere the streaks go, so they aren't drawn while the falls are out of view.
+  streakMesh.boundingSphere = new THREE.Sphere(
+    new THREE.Vector3(POOL.x + 10.5, POOL.level + top / 2, POOL.z),
+    Math.hypot(2, top / 2 + 1.5, 1.3) + 0.5,
+  );
   scene.add(streakMesh);
   const dummy = new THREE.Object3D();
   const foam = [0, 1, 2].map(i => {

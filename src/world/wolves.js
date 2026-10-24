@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { angleDelta, createRandom } from '../core/math.js';
 import { WOLF_ROUTE } from './layout.js';
 import { terrainHeight } from './terrain.js';
-import { PartsBuilder } from './build.js';
+import { PartsBuilder, limb } from './build.js';
 
 const FUR = '#7d7f7a';
 const PALE = '#d9d6cc';
@@ -13,15 +13,6 @@ const DARK = '#2f332f';
 const TROT = 2.2;
 const SPACING = 3.4;
 const HOWL = 3.4;
-
-/** A leg or the head, on its own pivot. */
-function limb(parent, x, y, z, build) {
-  const pivot = new THREE.Group();
-  pivot.position.set(x, y, z);
-  pivot.add(build(new PartsBuilder()).mesh({ receiveShadow: false }));
-  parent.add(pivot);
-  return pivot;
-}
 
 /** A grey wolf facing +X, a little larger than the fox and longer in the leg. */
 export function wolf(scale) {

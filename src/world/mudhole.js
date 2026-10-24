@@ -232,8 +232,13 @@ export function createMudHole(scene, { obstacles, onToot }) {
     new THREE.MeshLambertMaterial({ color: '#4a3a2c', flatShading: true }),
     BUBBLES,
   );
+  // Culled round the hole: worked out from where the bubbles first stand, it would stay there.
+  bubbles.boundingSphere = new THREE.Sphere(
+    new THREE.Vector3(MUD_HOLE.x, terrainHeight(MUD_HOLE.x, MUD_HOLE.z), MUD_HOLE.z),
+    MUD_HOLE.radius,
+  );
   const bubbleRandom = createRandom(91);
-  const bubbleSpots = Array.from({ length: BUBBLES }, () => ({ t: bubbleRandom() * 4, x: 0, z: 0 }));
+  const bubbleSpots = Array.from({ length: BUBBLES }, () => ({ t: bubbleRandom() * 4, x: MUD_HOLE.x, z: MUD_HOLE.z }));
   scene.add(bubbles);
 
   const tractor = buildTractor();

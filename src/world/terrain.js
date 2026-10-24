@@ -250,10 +250,13 @@ function forEachVertexNear(x, z, radius, visit) {
   const x1 = Math.ceil(gridCoordinate(x + radius));
   const z0 = Math.floor(gridCoordinate(z - radius));
   const z1 = Math.ceil(gridCoordinate(z + radius));
+  const limit = radius * radius;
   for (let iz = z0; iz <= z1; iz++) {
+    const dz = AXIS[iz] - z;
     for (let ix = x0; ix <= x1; ix++) {
-      const distance = Math.hypot(AXIS[ix] - x, AXIS[iz] - z);
-      if (distance <= radius) visit(iz * GRID + ix, AXIS[ix], AXIS[iz], distance);
+      const dx = AXIS[ix] - x;
+      const d2 = dx * dx + dz * dz;
+      if (d2 <= limit) visit(iz * GRID + ix, AXIS[ix], AXIS[iz], Math.sqrt(d2));
     }
   }
 }
@@ -787,8 +790,11 @@ export function onDeck(x, z) {
 
 // --- The railway track ---------------------------------------------------------------
 
-// How far the road over the level crossing reaches along the line, allowing for the angle.
-const crossingReach = (() => {
+/**
+ * How far the road over the level crossing reaches along the line either side, allowing for the
+ * angle. The railway lays rubber panels there instead of ballast and sleepers.
+ */
+export const CROSSING_REACH = (() => {
   const rail = RAILWAY.at(LEVEL_CROSSING.s);
   const road = ROAD.at(LEVEL_CROSSING.roadS);
   return (ROAD_HALF_WIDTH + 0.6) / Math.abs(rail.dx * road.dz - rail.dz * road.dx);
@@ -806,7 +812,7 @@ function trackHeight(x, z) {
   if (off > 2.1) return null;
   const s = sample.s + (x - sample.x) * sample.dx + (z - sample.z) * sample.dz;
   if (s < 0 || s > RAILWAY.length) return null;
-  if (Math.abs(s - LEVEL_CROSSING.s) < crossingReach) return off < 1.62 ? terrainHeight(x, z) + 0.16 : null;
+  if (Math.abs(s - LEVEL_CROSSING.s) < CROSSING_REACH) return off < 1.62 ? terrainHeight(x, z) + 0.16 : null;
   const bed = railLevel(s);
   if (off < 1.25) return bed + 0.28;
   if (off < 1.6) return bed + 0.17;

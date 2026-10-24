@@ -182,6 +182,7 @@ export function createAtmosphere(scene, sun, ambient) {
       p.needsUpdate = true;
     }
     shootingStar.material.opacity = Math.max(0, Math.sin((Math.max(0, meteor.life) / 0.9) * Math.PI)) * (1 - day);
+    shootingStar.visible = meteor.life > 0;
   }
 
   return {
@@ -278,13 +279,18 @@ export function createAtmosphere(scene, sun, ambient) {
       rainLines.visible = rain > 0.02;
       rainLines.material.opacity = rain * 0.55;
       if (rainLines.visible) {
-        const ground = terrainHeight(centre.x, centre.z);
-        rainSeeds.forEach((seed, i) => {
+        for (let i = 0, k = 0; i < RAIN_COUNT; i++, k += 6) {
+          const seed = rainSeeds[i];
           const x = around(seed.x, centre.x, 75);
           const z = around(seed.z, centre.z, 75);
           const y = ground + ((((seed.y - time * seed.speed) % 35) + 35) % 35);
-          rainPositions.set([x, y, z, x - 0.18, y + 1.3, z + 0.08], i * 6);
-        });
+          rainPositions[k] = x;
+          rainPositions[k + 1] = y;
+          rainPositions[k + 2] = z;
+          rainPositions[k + 3] = x - 0.18;
+          rainPositions[k + 4] = y + 1.3;
+          rainPositions[k + 5] = z + 0.08;
+        }
         rainGeometry.attributes.position.needsUpdate = true;
       }
 
@@ -294,7 +300,9 @@ export function createAtmosphere(scene, sun, ambient) {
         flySeeds.forEach((fly, i) => {
           const x = around(fly.x, centre.x, 100) + Math.sin(time * 0.3 + fly.phase) * 1.4;
           const z = around(fly.z, centre.z, 100);
-          flyPositions.set([x, terrainHeight(x, z) + fly.y + Math.sin(time + fly.phase) * 0.5, z], i * 3);
+          flyPositions[i * 3] = x;
+          flyPositions[i * 3 + 1] = terrainHeight(x, z) + fly.y + Math.sin(time + fly.phase) * 0.5;
+          flyPositions[i * 3 + 2] = z;
         });
         flyGeometry.attributes.position.needsUpdate = true;
       }

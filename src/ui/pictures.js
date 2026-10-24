@@ -86,8 +86,7 @@ function createStudio(renderer) {
   // Everything made for this copy is its own to dispose. The materials it shares with the
   // rest of the game, such as the plain colours, were made before it and stay.
   const firstMaterial = new THREE.Material().id;
-  const car = createCar();
-  car.headlight.removeFromParent();
+  const car = createCar({ headlight: false });
   const scene = new THREE.Scene();
   const sky = new THREE.HemisphereLight('#eef5ee', '#788567', 1.8);
   const sun = new THREE.DirectionalLight('#fff0cc', 2.4);

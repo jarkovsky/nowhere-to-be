@@ -11,6 +11,9 @@ const SWEEP = 2.2;
 const NOSE = 2.2;
 /** How long an animal stays out of the way before it heads back, in seconds. */
 const HOLD = 3.5;
+/** How fast an animal runs out of the way, and walks back, in metres a second. */
+const RUN = 6.5;
+const BACK = 1;
 
 export function createDodge() {
   return { x: 0, z: 0, tx: 0, tz: 0, hold: 0, span: 0 };
@@ -18,12 +21,12 @@ export function createDodge() {
 
 /**
  * Moves `dodge` on by `dt` for an animal whose routine puts it at (x, z), with the car at
- * `car` ({ x, z, vx, vz }). It runs at `run` metres a second and walks back at `back`.
+ * `car` ({ x, z, vx, vz }).
  * Returns where the animal is, { x, z, moving, facing }: `moving` is 'run' or 'walk' while
  * the offset is changing, and `facing` the turn about the vertical that points an animal
  * facing +x the way it is going.
  */
-export function stepDodge(dodge, x, z, car, dt, { run = 6.5, back = 1 } = {}) {
+export function stepDodge(dodge, x, z, car, dt) {
   const rx = x + dodge.x - car.x;
   const rz = z + dodge.z - car.z;
   const gap = Math.hypot(rx, rz);
@@ -71,7 +74,7 @@ export function stepDodge(dodge, x, z, car, dt, { run = 6.5, back = 1 } = {}) {
   }
   const running = dodge.span > 0;
   // Off at a run straight away, slowing as it gets clear.
-  const pace = running ? run * Math.max(0.35, Math.min(1, left / (dodge.span * 0.4))) : back;
+  const pace = running ? RUN * Math.max(0.35, Math.min(1, left / (dodge.span * 0.4))) : BACK;
   const step = Math.min(left, pace * dt);
   dodge.x += (mx / left) * step;
   dodge.z += (mz / left) * step;

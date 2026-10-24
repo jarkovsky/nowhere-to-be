@@ -227,8 +227,5 @@ export function createTiltSteering(host = window, onChange = () => {}) {
       if (Math.abs(steering) < 0.001) steering = 0;
       steering = clamp(steering);
     },
-    dispose() {
-      disable();
-    },
   };
 }

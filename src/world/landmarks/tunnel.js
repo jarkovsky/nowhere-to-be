@@ -193,7 +193,6 @@ export function buildTunnel(scene, obstacles) {
   return {
     occluders: [mountain, liningMesh],
     portal: { ...toWorld(entrance, 0, SPRING + TUNNEL.radius + 2.2), yaw: Math.atan2(entrance.dx, entrance.dz) },
-    frames,
   };
 }
 

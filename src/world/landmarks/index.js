@@ -82,7 +82,6 @@ export function buildLandmarks(scene, obstacles) {
       ...gate.occluders,
       ...depot.occluders,
     ],
-    fire: camps.fire,
     /** The level crossing: where traffic waits, and the barriers while they are down. */
     crossing,
     /** The roadworks machines and the tractors in the fields, for collisions. */

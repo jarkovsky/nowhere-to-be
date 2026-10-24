@@ -4,7 +4,7 @@
 // It waits while you are on the runway, goes round again if you are on it as it comes
 // in to land, and stops for you while taxiing. A second plane stays parked.
 import * as THREE from 'three';
-import { angleDelta, clamp, damp, smoothstep } from '../core/math.js';
+import { angleDelta, clamp, damp } from '../core/math.js';
 import { AIRFIELD } from '../world/layout.js';
 import { createPath, headingOf } from '../world/path.js';
 import { terrainHeight } from '../world/terrain.js';

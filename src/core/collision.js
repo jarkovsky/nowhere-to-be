@@ -23,6 +23,23 @@ function bounds(obstacle) {
   };
 }
 
+/**
+ * True if (x, z) comes within `reach` of the obstacle's bounds along both axes. A circle of
+ * radius `reach` there can only touch the obstacle if it does.
+ */
+export function mayTouch(obstacle, x, z, reach) {
+  const grow = obstacle.radius + reach;
+  if ('ax' in obstacle) {
+    return (
+      x > Math.min(obstacle.ax, obstacle.bx) - grow &&
+      x < Math.max(obstacle.ax, obstacle.bx) + grow &&
+      z > Math.min(obstacle.az, obstacle.bz) - grow &&
+      z < Math.max(obstacle.az, obstacle.bz) + grow
+    );
+  }
+  return Math.abs(x - obstacle.x) < grow && Math.abs(z - obstacle.z) < grow;
+}
+
 /** True if something with its wheels at height `y` can bump into the obstacle. */
 export function atLevel(obstacle, y) {
   if (obstacle.top !== undefined && y > obstacle.top - 0.4) return false;
@@ -44,7 +61,6 @@ export function createObstacleIndex(obstacles) {
   }
   const found = new Set();
   return {
-    all: obstacles,
     /**
      * Obstacles whose bounds may touch a circle at (x, z), for something whose wheels are at
      * height `y`: on the ground, unless it says otherwise.

@@ -25,7 +25,6 @@ export function createGnomes(scene, { found = [], onFound = () => {} } = {}) {
   });
 
   return {
-    count: GNOMES.length,
     update(dt, player, running) {
       if (!running) return;
       for (const gnome of gnomes) {

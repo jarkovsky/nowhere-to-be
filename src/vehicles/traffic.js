@@ -434,8 +434,8 @@ export function createTraffic(scene, network = VALLEY) {
     direction: 1,
     driven: 0,
   }));
-  for (const t of [...travellers, ...visitors]) scene.add(t.root);
-  for (const v of visitors) v.root.visible = false;
+  const everyone = [...travellers, ...visitors];
+  for (const t of travellers) scene.add(t.root);
   let nextCall = between(network.firstCall);
   let calls = 0;
   let time = 0;
@@ -481,7 +481,7 @@ export function createTraffic(scene, network = VALLEY) {
    */
   function place(t, dt) {
     const p = road.offset(t.s, t.direction * t.offset);
-    if (!t.root.visible) {
+    if (!t.root.parent) {
       t.root.position.set(p.x, t.root.position.y, p.z);
       t.steering.heading = null;
       return;
@@ -534,16 +534,19 @@ export function createTraffic(scene, network = VALLEY) {
       if (!visitor && (nextCall -= dt) <= 0) nextCall = callOut(player) ? between(network.betweenCalls) : 5;
       const responder = visitor?.emergency ? visitor : null;
 
-      for (const t of [...travellers, ...visitors]) {
+      // Only those in sight are in the scene: hidden ones would still be updated every frame.
+      for (const t of everyone) {
         const { x, z } = t.root.position;
-        t.root.visible = (t.active ?? true) && Math.hypot(x - player.x, z - player.z) < DRAW_DISTANCE;
+        const shown = (t.active ?? true) && Math.hypot(x - player.x, z - player.z) < DRAW_DISTANCE;
+        if (shown && !t.root.parent) scene.add(t.root);
+        else if (!shown && t.root.parent) scene.remove(t.root);
       }
       for (const t of travellers) {
         // Pull over onto the verge while an emergency vehicle goes by, though not where it's narrow.
         const yielding = responder && apart(t.s, responder.s) < 55;
         t.offset = damp(t.offset, yielding && !narrow(t.s) ? VERGE : LANE, 1.6, dt);
         let gap = gapTo(t, player.x, player.z);
-        for (const other of [...travellers, ...visitors]) {
+        for (const other of everyone) {
           if (other !== t && (other.active ?? true))
             gap = Math.min(gap, gapTo(t, other.root.position.x, other.root.position.z) - other.length / 2);
         }
@@ -619,15 +622,12 @@ export function createTraffic(scene, network = VALLEY) {
     },
     /** Travellers within earshot answer a honk with one of their own. */
     answerHonk(x, z, respond) {
-      let answered = false;
       for (const t of [...travellers, ...visitors.filter(v => v.active)]) {
         if (t.honkAt === null && Math.hypot(t.root.position.x - x, t.root.position.z - z) < 32) {
           t.honkAt = 0.45 + Math.random() * 0.3;
           t.onHonk = respond;
-          answered = true;
         }
       }
-      return answered;
     },
     getState: () =>
       travellers.map(t => ({
