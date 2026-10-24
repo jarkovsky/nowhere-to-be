@@ -5,6 +5,7 @@ import { FARMS } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder, createSmoke } from '../build.js';
 import { gabledHouse } from './house.js';
+import { createFences } from '../fences.js';
 import { framer } from './frame.js';
 import { mudGeometry, wet } from '../mudhole.js';
 
@@ -47,29 +48,18 @@ export function cottage(parts, obstacles, frame, lx, lz, { walls, roof }) {
   return at(lx + 2.4, ridge + 1, lz - 0.8);
 }
 
-/** A ring of fence posts with two rails round a paddock, following the ground. */
-export function ringFence(
-  parts,
-  obstacles,
-  { x, z, radius },
-  { posts = Math.round((radius * 2 * Math.PI) / 2.6) } = {},
-) {
-  const point = k => {
+/** A ring of fence posts with two rails round a paddock, following the ground, which the car can knock down. */
+export function ringFence(fences, { x, z, radius }, { posts = Math.round((radius * 2 * Math.PI) / 2.6) } = {}) {
+  const points = Array.from({ length: posts }, (_, k) => {
     const a = (k / posts) * Math.PI * 2;
     const px = x + Math.cos(a) * radius;
     const pz = z + Math.sin(a) * radius;
     return { x: px, z: pz, y: terrainHeight(px, pz) };
-  };
-  for (let k = 0; k < posts; k++) {
-    const p = point(k);
-    const q = point(k + 1);
-    parts.box(0.16, 1.4, 0.16, WOOD, { x: p.x, y: p.y + 0.55, z: p.z });
-    for (const h of [0.55, 1.05]) parts.beam({ ...p, y: p.y + h }, { ...q, y: q.y + h }, 0.09, '#9c8a6a', 0.12);
-    obstacles.push({ ax: p.x, az: p.z, bx: q.x, bz: q.z, radius: 0.25 });
-  }
+  });
+  fences.add(points, { closed: true });
 }
 
-function buildOne(scene, obstacles, farm) {
+function buildOne(scene, obstacles, fences, farm) {
   const parts = new PartsBuilder();
   const frame = framer(farm);
   const { at, local, ground } = frame;
@@ -106,7 +96,7 @@ function buildOne(scene, obstacles, farm) {
     obstacles.push({ ...local(lx, lz), radius: 0.9 });
   }
 
-  ringFence(parts, obstacles, farm.paddock);
+  ringFence(fences, farm.paddock);
   // A trough inside the paddock fence on the yard side, along the fence.
   const towardYard = Math.atan2(farm.z - farm.paddock.z, farm.x - farm.paddock.x);
   const trough = {
@@ -121,7 +111,7 @@ function buildOne(scene, obstacles, farm) {
 
   if (farm.sty) {
     // A low fence round a muddy pen, with a little shelter at the back.
-    ringFence(parts, obstacles, farm.sty, { posts: 14 });
+    ringFence(fences, farm.sty, { posts: 14 });
     const mud = new THREE.Mesh(
       mudGeometry({
         ...farm.sty,
@@ -142,6 +132,8 @@ function buildOne(scene, obstacles, farm) {
     const floor = shelter.ground(0, 0);
     parts.box(3.2, 1.4 + high - low, 2, '#8a6a4a', shelter.at(0, (high + low) / 2 + 0.7 - floor, -3.2));
     parts.box(3.6, 0.12, 2.6, '#5f5b54', shelter.at(0, high + 1.5 - floor, -3.1, { rx: 0.18 }));
+    // The fence round it can be knocked down, so the shelter stops the car itself.
+    obstacles.push({ ...shelter.local(0, -3.2), halfX: 1.9, halfZ: 1.3, rotation: shelter.rotation, radius: 0 });
   }
 
   scene.add(parts.mesh());
@@ -149,8 +141,12 @@ function buildOne(scene, obstacles, farm) {
 }
 
 export function buildFarms(scene, obstacles) {
-  const chimneys = FARMS.map(farm => buildOne(scene, obstacles, farm));
+  const fences = createFences();
+  const chimneys = FARMS.map(farm => buildOne(scene, obstacles, fences, farm));
+  scene.add(fences.mesh());
+  obstacles.push(...fences.obstacles);
   return {
+    fences,
     update(time) {
       for (const smoke of chimneys) smoke.update(time);
     },

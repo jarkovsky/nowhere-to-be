@@ -88,14 +88,15 @@ export function createObstacleIndex(obstacles) {
   return {
     /**
      * Obstacles whose bounds may touch a circle at (x, z), for something whose wheels are at
-     * height `y`: on the ground, unless it says otherwise.
+     * height `y`: on the ground, unless it says otherwise. One switched `off` (a stretch of
+     * fence knocked flat) is left out.
      */
     near(x, z, radius, y = -Infinity) {
       found.clear();
       for (let cx = Math.floor((x - radius) / CELL); cx <= Math.floor((x + radius) / CELL); cx++) {
         for (let cz = Math.floor((z - radius) / CELL); cz <= Math.floor((z + radius) / CELL); cz++) {
           const list = cells.get(key(cx, cz));
-          if (list) for (const obstacle of list) if (atLevel(obstacle, y)) found.add(obstacle);
+          if (list) for (const obstacle of list) if (!obstacle.off && atLevel(obstacle, y)) found.add(obstacle);
         }
       }
       return found;

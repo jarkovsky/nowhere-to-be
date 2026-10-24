@@ -51,7 +51,8 @@ export function partsOf(root, { instances = 64 } = {}) {
     if (!mesh.isMesh || !mesh.geometry?.attributes.position) return;
     // See-through effects (spray, foam, a wake) aren't solid things.
     if (mesh.material?.transparent) return;
-    const copies = mesh.isInstancedMesh ? Math.min(mesh.count, instances) : 1;
+    // Of copies of the same thing (trees), a few are enough; copies that make up one thing (a fence) all count.
+    const copies = mesh.isInstancedMesh ? (mesh.userData.whole ? mesh.count : Math.min(mesh.count, instances)) : 1;
     for (let k = 0; k < copies; k++) {
       matrix.copy(mesh.matrixWorld);
       if (mesh.isInstancedMesh) matrix.multiply((mesh.getMatrixAt(k, instanceMatrix), instanceMatrix));

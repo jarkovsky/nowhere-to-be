@@ -716,6 +716,8 @@ export function createGame(canvas) {
         ...mudHole.colliders,
         ...friends.colliders,
       );
+      // A paddock fence driven into fast enough goes over.
+      if (landmarks.knockFences(state, dt)) sound.knock();
       // On the tractor's rope, the car goes where it is pulled.
       if (!mudHole.holding()) stepDriving(state, input, dt, world);
       mudHole.update(dt, state, input, car, trailer);
