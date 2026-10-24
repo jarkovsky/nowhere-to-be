@@ -12,7 +12,7 @@
 // The ones out driving are full copies of the player's car, borrowed from a small pool (copies.js).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { angleDelta, clamp, damp } from '../core/math.js';
+import { angleDelta, damp, segmentDistance } from '../core/math.js';
 import { penetration } from '../core/collision.js';
 import { CAR } from '../core/driving.js';
 import {
@@ -83,15 +83,6 @@ const sphere = new THREE.Sphere();
 const near = new THREE.Vector3();
 const far = new THREE.Vector3();
 const pose = { x: 0, z: 0, heading: 0 };
-
-/** Distance from (px, pz) to the segment from (ax, az) to (bx, bz). */
-function segmentGap(px, pz, ax, az, bx, bz) {
-  const dx = bx - ax;
-  const dz = bz - az;
-  const lengthSq = dx * dx + dz * dz;
-  const t = lengthSq ? clamp(((px - ax) * dx + (pz - az) * dz) / lengthSq, 0, 1) : 0;
-  return Math.hypot(px - ax - dx * t, pz - az - dz * t);
-}
 
 function put(circle, x, z, radius) {
   circle.x = x;
@@ -437,14 +428,14 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
       const lx = -Math.sin(leader.heading);
       const lz = -Math.cos(leader.heading);
       const { front, back } = leader.size;
-      straight = segmentGap(
+      straight = segmentDistance(
         noseX,
         noseZ,
         leader.x + lx * front,
         leader.z + lz * front,
         leader.x - lx * back,
         leader.z - lz * back,
-      );
+      ).distance;
     }
 
     // Anything else in the way along the route: traffic, the train, the barriers, parked friends,
