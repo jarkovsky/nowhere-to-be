@@ -87,7 +87,7 @@ export function buildFarm(scene, obstacles) {
     });
   }
 
-  // Paddock fence, with a gap for the gate on the house side.
+  // Paddock fence, with a gate on the house side, shut.
   const { x0, x1, z0, z1 } = FARM.paddock;
   const corners = [
     [x0, z0],
@@ -107,9 +107,16 @@ export function buildFarm(scene, obstacles) {
       parts.box(0.16, 1.4, 0.16, '#8d7a5c', { ...local(lx, lz), y: ground(lx, lz) + 0.55, ry: rotation });
       if (i === posts) continue;
       const gate = side === 0 && i === 2;
-      if (gate) continue;
       const nx = ax + (bx - ax) * ((i + 1) / posts);
       const nz = az + (bz - az) * ((i + 1) / posts);
+      // The gate: three bars between two stiles just inside the posts, and a brace across them.
+      if (gate) {
+        const end = (t, h) => ({ ...local(lx + (nx - lx) * t, lz + (nz - lz) * t), y: ground(lx, lz) + h });
+        for (const h of [0.35, 0.7, 1.05]) parts.beam(end(0.06, h), end(0.94, h), 0.08, '#c9bb9b', 0.1);
+        for (const t of [0.06, 0.94]) parts.beam(end(t, 0.3), end(t, 1.1), 0.1, '#c9bb9b', 0.1);
+        parts.beam(end(0.06, 0.35), end(0.94, 1.05), 0.08, '#c9bb9b', 0.1);
+        continue;
+      }
       for (const h of [0.55, 1.05]) {
         parts.beam(
           { ...local(lx, lz), y: ground(lx, lz) + h },

@@ -40,7 +40,10 @@ const SURFACE_HANDLING = {
  */
 export const WADING = { from: 0.25, to: 0.55, slowest: 0.4 };
 
-/** The front (-1) and back (1) ends of the body, where its two circles are. */
+/** How many times at most the car is pushed out of what it touches in a step. */
+const PASSES = 4;
+
+/** The back (-1) and front (1) ends of the body, where its two circles are. */
 const ENDS = [-1, 1];
 /** How far a push can move the car in one step before every moving collider is tried, in metres. */
 const SHOVE = 2;
@@ -159,10 +162,16 @@ export function stepDriving(state, input, dt, world) {
   }
   let cx = 0;
   let cz = 0;
-  /** Pushes the circle at (cx, cz) out of the obstacle, taking away the speed it hit it with. */
+  let turning = true;
+  let pushed = false;
+  /**
+   * Pushes the circle at (cx, cz) out of the obstacle, taking away the speed it hit it with, and
+   * while `turning`, turns the car along it if it only glanced off.
+   */
   const resolve = obstacle => {
     const hit = penetration(cx, cz, CAR.bodyRadius, obstacle);
     if (!hit) return;
+    pushed = true;
     // The circle goes with the car, so the next obstacle is tried where it is now.
     x += hit.nx * hit.depth;
     z += hit.nz * hit.depth;
@@ -181,16 +190,22 @@ export function stepDriving(state, input, dt, world) {
       const keep = tangent > 1e-6 ? Math.max(0, tangent + (glancing ? 0.05 : 0.6) * into) / tangent : 0;
       state.vx *= keep;
       state.vz *= keep;
-      if (glancing) {
+      if (glancing && turning) {
         const along = Math.atan2(-state.vx * Math.sign(forward || 1), -state.vz * Math.sign(forward || 1));
         state.heading += angleDelta(state.heading, along) * 0.2;
       }
     }
   };
-  for (let pass = 0; pass < 2; pass++) {
+  // The first pass may turn the car along what it glanced off; the next ones only push it out, from
+  // where its circles are once turned, so it never ends a step turned into a wall. Caught between
+  // two things, pushing one end out can push the other back in, so it goes on until nothing
+  // pushes, a few passes at most.
+  for (let pass = 0; pass < PASSES && (pass === 0 || pushed); pass++) {
+    turning = pass === 0;
+    pushed = false;
     for (const end of ENDS) {
-      cx = x - nsin * CAR.bodyOffset * end;
-      cz = z - ncos * CAR.bodyOffset * end;
+      cx = x - Math.sin(state.heading) * CAR.bodyOffset * end;
+      cz = z - Math.cos(state.heading) * CAR.bodyOffset * end;
       const moving = Math.hypot(x - fromX, z - fromZ) > SHOVE ? dynamic : nearbyDynamic;
       for (const obstacle of world.obstacles.near(cx, cz, CAR.bodyRadius + 2, state.y)) resolve(obstacle);
       for (const obstacle of moving) resolve(obstacle);

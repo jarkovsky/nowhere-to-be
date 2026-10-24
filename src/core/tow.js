@@ -159,9 +159,10 @@ export function planRoute(from, to, clear, via = []) {
 
 /**
  * The car's outline as lines to keep clear of: from its front to its back, and its trailer.
- * `body` is { front, rear, back, trailer }: how far its front and its own back are from its
- * middle, how far back the rope goes on when pulling it backwards (the end of its trailer, if
- * it has one), and the trailer as { x, z, heading, length } from the hitch.
+ * `body` is { front, rear, back, hitch, trailer }: how far its front and its own back are from
+ * its middle, how far back the rope goes on when pulling it backwards (the end of its trailer,
+ * if it has one), how far back its hitch is, and the trailer as { x, z, heading, length } from
+ * the hitch. While the car is pulled out by its trailer, the tow moves the trailer too.
  */
 function outline(car, body) {
   const f = facing(car.heading);
@@ -179,9 +180,18 @@ function outline(car, body) {
 const clearOf = (lines, x, z, distance) =>
   lines.every(([ax, az, bx, bz]) => segmentDistance(x, z, ax, az, bx, bz).distance > distance);
 
-/** Where the rope goes on the car: its front, or its back when it is pulled out backwards. */
+/**
+ * Where the rope goes on the car: its front, or its back when it is pulled out backwards, which
+ * for a lorry is the back of its trailer, however far the trailer is swung out.
+ */
 function towPoint(tow, car, body) {
   const f = facing(car.heading);
+  const { trailer } = body;
+  if (tow.dir < 0 && trailer) {
+    const back = facing(trailer.heading);
+    const hitch = { x: car.x - f.x * body.hitch, z: car.z - f.z * body.hitch };
+    return { x: hitch.x - back.x * trailer.length, z: hitch.z - back.z * trailer.length };
+  }
   const end = tow.dir > 0 ? body.front : -body.back;
   return { x: car.x + f.x * end, z: car.z + f.z * end };
 }
@@ -356,12 +366,24 @@ function pull(tow, car, body, dt) {
     const k = Math.min(gap - ROPE, PULL * 1.5 * dt) / gap;
     const ex = end.x + (hitch.x - end.x) * k;
     const ez = end.z + (hitch.z - end.z) * k;
-    const ux = ex - car.x;
-    const uz = ez - car.z;
-    const length = Math.hypot(ux, uz) || 1;
-    car.x = ex - (ux / length) * reach;
-    car.z = ez - (uz / length) * reach;
-    car.heading = tow.dir > 0 ? headingOf(ux, uz) : headingOf(-ux, -uz);
+    if (tow.dir < 0 && body.trailer) {
+      // Pulled out by its trailer: the trailer's back comes along the rope, its front follows on
+      // behind, and the lorry follows the trailer's front, each lining up behind the one before.
+      const f = facing(car.heading);
+      const front = dragged(ex, ez, car.x - f.x * body.hitch, car.z - f.z * body.hitch, body.trailer.length);
+      const middle = dragged(front.x, front.z, car.x, car.z, body.hitch);
+      Object.assign(body.trailer, { x: front.x, z: front.z, heading: headingOf(front.x - ex, front.z - ez) });
+      car.heading = headingOf(middle.x - front.x, middle.z - front.z);
+      car.x = middle.x;
+      car.z = middle.z;
+    } else {
+      const ux = ex - car.x;
+      const uz = ez - car.z;
+      const length = Math.hypot(ux, uz) || 1;
+      car.x = ex - (ux / length) * reach;
+      car.z = ez - (uz / length) * reach;
+      car.heading = tow.dir > 0 ? headingOf(ux, uz) : headingOf(-ux, -uz);
+    }
   }
   car.vx = (car.x - oldX) / dt;
   car.vz = (car.z - oldZ) / dt;
@@ -375,6 +397,12 @@ function pull(tow, car, body, dt) {
     Object.assign(tractor, { mode: 'unhitch', time: 0, speed: 0 });
     Object.assign(tow.rope, { attached: false, length: ROPE });
   }
+}
+
+/** The point `distance` from (ax, az) towards (bx, bz): where something dragged by a bar from a to b ends up. */
+function dragged(ax, az, bx, bz, distance) {
+  const length = Math.hypot(bx - ax, bz - az) || 1;
+  return { x: ax + ((bx - ax) / length) * distance, z: az + ((bz - az) / length) * distance };
 }
 
 /** True once the tractor is out of the way the car is facing, so it can drive off without running into it. */

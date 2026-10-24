@@ -171,6 +171,53 @@ test('it is pulled out backwards if it reversed in', () => {
   assert.ok(Math.abs(car.heading) < 0.05, 'still facing the same way');
 });
 
+test('a lorry reversed in with its trailer swung out has the rope put on the back of the trailer, and comes out in line', () => {
+  const tow = createTow({ hole: HOLE, home: HOME });
+  const car = createCarState({ x: 0, z: -18, heading: 0 });
+  runUntil(tow, car, { backward: true }, () => tow.phase === 'stuck', 20);
+  // The trailer, swung well out to one side behind the lorry.
+  const swung = car.heading + 0.7;
+  const body = {
+    front: 2.5,
+    rear: 2.4,
+    back: 10.7,
+    hitch: 1.9,
+    trailer: {
+      x: car.x + Math.sin(car.heading) * 1.9,
+      z: car.z + Math.cos(car.heading) * 1.9,
+      heading: swung,
+      length: 8.8,
+    },
+  };
+  const trailerEnd = () => ({
+    x: body.trailer.x + Math.sin(body.trailer.heading) * body.trailer.length,
+    z: body.trailer.z + Math.cos(body.trailer.heading) * body.trailer.length,
+  });
+  let worst = 0;
+  runUntil(
+    tow,
+    car,
+    {},
+    () => tow.tractor.mode === 'unhitch',
+    60,
+    body,
+    () => {
+      if (!tow.rope.attached) return;
+      const end = trailerEnd();
+      worst = Math.max(worst, Math.hypot(tow.rope.end.x - end.x, tow.rope.end.z - end.z));
+      // The lorry keeps its trailer on its hitch.
+      const hitch = { x: car.x + Math.sin(car.heading) * 1.9, z: car.z + Math.cos(car.heading) * 1.9 };
+      assert.ok(Math.hypot(hitch.x - body.trailer.x, hitch.z - body.trailer.z) < 1e-6);
+    },
+  );
+  assert.equal(tow.tractor.mode, 'unhitch', 'pulled out');
+  assert.ok(worst < 1e-6, `the rope was ${worst.toFixed(2)} m off the back of the trailer`);
+  const swing = Math.abs(
+    Math.atan2(Math.sin(body.trailer.heading - car.heading), Math.cos(body.trailer.heading - car.heading)),
+  );
+  assert.ok(swing < 0.25, `the trailer still swung out ${swing.toFixed(2)} rad`);
+});
+
 /** How far a point is from the car's outline, its trailer included. */
 function apart(x, z, car, body) {
   const fx = -Math.sin(car.heading);
@@ -196,6 +243,7 @@ test('from whichever way the car comes in, the tractor keeps clear of it and its
             front: 2.5,
             rear: 2.4,
             back: 10.7,
+            hitch: 1.9,
             trailer: {
               x: car.x + Math.sin(car.heading) * 1.9,
               z: car.z + Math.cos(car.heading) * 1.9,

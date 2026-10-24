@@ -339,14 +339,17 @@ function createHerd(scene, herd, random) {
         // Keep a little apart from each other.
         for (let j = i + 1; j < animals.length; j++) {
           const other = animals[j];
-          const gap = Math.hypot(other.x - animal.x, other.z - animal.z);
+          const dx = other.x - animal.x;
+          const dz = other.z - animal.z;
+          const gap = Math.hypot(dx, dz);
           const room = (animal.scale + other.scale) * kind.feet[0] * 1.4;
           if (gap > 0.01 && gap < room) {
+            // Each steps back half the overlap, so the pair stay centred where they were.
             const push = ((room - gap) / gap) * 0.5;
-            animal.x -= (other.x - animal.x) * push;
-            animal.z -= (other.z - animal.z) * push;
-            other.x += (other.x - animal.x) * push;
-            other.z += (other.z - animal.z) * push;
+            animal.x -= dx * push;
+            animal.z -= dz * push;
+            other.x += dx * push;
+            other.z += dz * push;
           }
         }
         // And within their patch: for farm animals, that is inside the fence.
