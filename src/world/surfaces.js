@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { createRandom, valueNoise } from '../core/math.js';
 import { ROAD, ROAD_HALF_WIDTH, SURFACES, TRACKS, surfaceAt } from './layout.js';
+import { PartsBuilder } from './build.js';
 import { groundMaterial } from './detail.js';
 import { onDeck, snowCover, terrainHeight, waterDepth } from './terrain.js';
 
@@ -96,20 +97,25 @@ export function createSurfaces(scene, sound) {
     polygonOffsetFactor: -4,
   });
   const puddles = [];
+  const puddleParts = new PartsBuilder();
   for (const patch of SURFACES.filter(p => p.id === 'puddle')) {
     for (let i = 0; i < 4; i++) {
       const x = patch.x + (random() - 0.5) * patch.rx * 1.2;
       const z = patch.z + (random() - 0.5) * patch.rz * 1.2;
       const r = 1.2 + random() * 1.4;
       const angle = random() * 3;
-      const puddle = new THREE.Mesh(new THREE.CircleGeometry(r, 9), puddleMaterial);
-      puddle.rotation.set(-Math.PI / 2, 0, angle);
-      puddle.scale.set(1.5, 1, 1);
-      puddle.position.set(x, terrainHeight(x, z) + 0.1, z);
-      scene.add(puddle);
+      puddleParts.add(new THREE.CircleGeometry(r, 9), '#8dbbbe', {
+        x,
+        y: terrainHeight(x, z) + 0.1,
+        z,
+        rx: -Math.PI / 2,
+        rz: angle,
+        sx: 1.5,
+      });
       puddles.push({ x, z, r, angle });
     }
   }
+  scene.add(puddleParts.mesh({ material: puddleMaterial, castShadow: false, receiveShadow: false }));
 
   // Fallen leaves scattered across the autumn grove, under copper-coloured trees.
   const grove = SURFACES.find(p => p.id === 'leaves');
@@ -133,7 +139,7 @@ export function createSurfaces(scene, sound) {
   }
   scene.add(leaves);
   // Copper-coloured trees ring the grove, but never stand on the trail or a track.
-  const crowns = new THREE.Group();
+  const trees = new PartsBuilder();
   const obstacles = [];
   for (let i = 0, placed = 0; i < 16 && placed < 8; i++) {
     const angle = (i / 16) * Math.PI * 2 + 0.3;
@@ -142,22 +148,16 @@ export function createSurfaces(scene, sound) {
     if (ROAD.nearest(x, z).distance < ROAD_HALF_WIDTH + 7) continue;
     if (TRACKS.some(track => track.path.nearest(x, z).distance < 6)) continue;
     const y = terrainHeight(x, z);
-    const trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.3, 0.5, 5, 6),
-      new THREE.MeshLambertMaterial({ color: '#7e6a50', flatShading: true }),
-    );
-    trunk.position.set(x, y + 2.3, z);
-    const crown = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(3.6 + random(), 1),
-      new THREE.MeshLambertMaterial({ color: ['#bb773d', '#c99a50', '#a66135'][placed % 3], flatShading: true }),
-    );
-    crown.position.set(x, y + 6, z);
-    crown.castShadow = trunk.castShadow = true;
-    crowns.add(trunk, crown);
+    trees.add(new THREE.CylinderGeometry(0.3, 0.5, 5, 6), '#7e6a50', { x, y: y + 2.3, z });
+    trees.add(new THREE.IcosahedronGeometry(3.6 + random(), 1), ['#bb773d', '#c99a50', '#a66135'][placed % 3], {
+      x,
+      y: y + 6,
+      z,
+    });
     obstacles.push({ x, z, radius: 0.5 });
     placed++;
   }
-  scene.add(crowns);
+  scene.add(trees.mesh({ receiveShadow: false }));
 
   // Mud across the side tracks, with the same grain as the ground around it.
   const mudMaterial = groundMaterial({ polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
