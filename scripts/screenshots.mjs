@@ -241,6 +241,21 @@ try {
   }
   await inGame(page, `g.followCar();`);
 
+  // The rock arch, with the causeway along the fin up onto its top.
+  await inGame(
+    page,
+    `
+    const G = L.ROCK_GATE;
+    const car = L.OUTER_ROAD.at(G.s - 18);
+    g.teleport(car.x, car.z, Math.atan2(-car.dx, -car.dz));
+    const ground = T.terrainHeight(G.x, G.z);
+    const eye = { x: G.x - G.dx * 55 - G.dz * 30, z: G.z - G.dz * 55 + G.dx * 30 };
+    g.shot([eye.x, T.terrainHeight(eye.x, eye.z) + 14, eye.z], [G.x + 15, ground + 16, G.z]);
+  `,
+  );
+  await capture(page, 'arch', 2500);
+  await inGame(page, `g.followCar();`);
+
   await inGame(
     page,
     `
@@ -313,6 +328,10 @@ try {
   await page.waitForTimeout(4000);
   await page.getByRole('button', { name: 'Pause' }).click();
   await capture(page, 'menu', 600);
+  await page.getByRole('button', { name: 'Map', exact: true }).click();
+  await page.waitForFunction(() => window.__game.getState().map.ready, null, { timeout: 30000 });
+  await capture(page, 'map', 800);
+  await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Car' }).click();
   await page.getByRole('button', { name: 'Flag' }).click();
   await page.getByRole('button', { name: 'Teddy' }).click();

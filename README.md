@@ -44,15 +44,18 @@ Play it at [nowhere-to-be.jarkovsky.com](https://nowhere-to-be.jarkovsky.com).
 </p>
 <p>
   <img src="docs/depot.jpg" width="49%" alt="The depot, with an arrow over each vehicle that can come along">
-  <img src="docs/viewpoint.jpg" width="49%" alt="At the end of the blue trail the camera swings out over the lake">
+  <img src="docs/arch.jpg" width="49%" alt="The rock arch over the outer road, with a causeway along a fin of rock up onto its top">
 </p>
 <p>
-  <img src="docs/lorry.jpg" width="49%" alt="Oliver, a blue lorry with a trailer, on the upland road">
+  <img src="docs/lorry.jpg" width="49%" alt="The lorry with its trailer on the upland road">
   <img src="docs/rally.jpg" width="49%" alt="A rally car on the track up to the summit">
 </p>
 <p>
-  <img src="docs/menu.jpg" width="49%" alt="The pause menu: a play button and picture buttons for the car, sound, cruise control, a night at camp and going back to the start">
+  <img src="docs/menu.jpg" width="49%" alt="The pause menu: a play button and picture buttons for the car, the map, sound, cruise control, the minimap, a night at camp and going back to the start">
   <img src="docs/garage.jpg" width="49%" alt="Choosing a vehicle, a colour and roof items, with the roof tent open on the car">
+</p>
+<p>
+  <img src="docs/map.jpg" width="98%" alt="The map of the valley from the pause menu, with a picture for each place and an arrow for the car">
 </p>
 
 ## Controls
@@ -67,6 +70,7 @@ Play it at [nowhere-to-be.jarkovsky.com](https://nowhere-to-be.jarkovsky.com).
 | Horn           | `H`                  | Horn button above the pedals       |
 | Look           | Drag, scroll to zoom | Drag on the scenery                |
 | Cruise         | `E`                  | In the menu                        |
+| Map            | In the menu          | In the menu, or tap the minimap    |
 | Bring a friend | `F` by the depot     | Tap the friend at the depot        |
 | Pause          | `Esc`                | ❚❚ button, top right               |
 | Back to start  | `R`                  | Home button in the menu            |
@@ -83,6 +87,8 @@ The game works on phones and tablets with on-screen pedals. You can also steer b
 2. Tap ❚❚, then the button with the tilted phone on it, and allow motion access.
 3. Hold the phone like a wheel and turn it. The button with the target on it resets the straight-ahead position.
 
+Lying the device flat stops the car. With the reverse button in the menu switched on (it only shows while tilt steering is on), leaning the device back past the way you hold it for a moment reverses, and the reverse pedal is hidden.
+
 Browsers only allow motion sensors on secure (HTTPS) pages. The hosted game is served over HTTPS, but a local `http://192.168…` address supports the touch pedals only.
 
 To play on your phone from your own computer, run `npm run dev` and open the **Network** address it prints, with both devices on the same Wi-Fi.
@@ -95,7 +101,7 @@ To play on your phone from your own computer, run `npm run dev` and open the **N
 - **The outlands.** Out past the uplands, before the mountains:
   - A river with two shallow fords that the gravel road dips through.
   - A hill of bare rock with a track winding up to its top over rocks and scree, which is slow, bumpy going.
-  - A natural rock arch over the road.
+  - A natural rock arch over the road. A fin of the same rock runs out to it from the rocky hill, and a rough causeway along its top leads from the track up the hill right out onto the arch, while the road still runs underneath.
   - In the north-west, a fjord: deep water between steep walls with waterfalls down them. Hairpins lead down to a village at its head with grass-roofed houses, red boathouses, a stave church, a pier and a little ferry that sails out along the fjord and back. A sign at the top of the road warns of trolls.
   - A village in the west with a pond and a fire station, where the fire engine waits outside.
   - A horse farm and a farm with goats and pigs.
@@ -105,11 +111,10 @@ To play on your phone from your own computer, run `npm run dev` and open the **N
 - **Side tracks.** Narrow dirt tracks lead off the main trail to the farm, the tower, the windmill, the summit, the upland farm and up a hairpin to the hut, and a path follows the lake shore.
 - **Roadworks.** A new road is being built off the upland road, a little south of where the west road comes up: fresh asphalt from the junction, then gravel, then bare earth where the machines are working.
 - **Mud and water.** The car gets dusty off the trail and caked in mud in the puddles and the muddy stretches of the side tracks, and water and rain wash it clean. A brook runs from a spring at the foot of the northern hills, across the trail at a shallow ford and into the lake, and a track up its bank climbs over rocks that rock the car from side to side. In a hollow south of the trail, just past the start, a track goes through a deep ford where the water comes up to the doors: the car slows to a crawl, pushes a bow wave ahead of it, leaves a wake and comes out dripping.
-- **Marked trails.** Three footpaths are marked like Czech hiking trails, with a stripe of blue, green or yellow between two white ones on posts along the way. Each leaves the trail at a signpost and climbs to a viewpoint: a platform above the lake, a bench by a lone tree on a knoll, and a bench on the slope east of the lake. Stop there and the camera swings out wide over the view for a few seconds, then comes back.
-- **Marked trails.** Three footpaths are waymarked the Czech way, with a blue, a green or a yellow stripe between two white ones painted on posts beside the path every thirty metres or so and at the bends. Each starts at a signpost with an arrow where it leaves the main trail and climbs to a viewpoint: a platform on a terrace above the lake, a bench under the lone tree on the knoll south of the farm, or a bench on the slope east of the lake. Drive up to one and the camera swings out slowly to take in the view for a few seconds, then comes back behind the car. The hut's track is marked in red.
 - **The mud hole.** Below the farm, where the lane between the paddock and the wheat field runs out into the meadow, there is a deep mud hole. Drive into it and the car sinks in and gets stuck, its wheels spinning and throwing up mud. After a few seconds the farm's red tractor comes over, stops in front of the car, and pulls it out on a rope onto firm ground, then toots and drives home. The car can also creep back out in reverse before the tractor gets there.
-- **The garage.** Pick an off-roader, a pickup, a camper van, a saloon or a tractor by its picture, then a colour and roof items. There are also four characters with colours of their own: Oliver and Ruda, a blue and a red lorry that each pull a trailer, a rally car and a racing car. The lorries have a deep air horn. The roof tent opens when the car has been parked for a moment: the lid folds out as an awning on two poles and a ladder comes down beside the car.
-- **The depot.** A little way along the trail from the start, some of the vehicles you aren't driving wait at a depot, Oliver and Ruda among them. Drive up and an arrow bobs over each one. Tap one (or press `F`) and it honks, flashes its lamps, pulls out and follows you a little way behind, stopping when you stop and honking back when you honk. Two can come along at once. Tap one while you are stopped, or park at the depot with them, and they stay and go back to their bays.
+- **The garage.** Pick an off-roader, a pickup, a camper van, a saloon, a tractor, a lorry that pulls a trailer, a rally car or a racing car by its picture, then a colour and roof items. Every one comes in the same colours. The lorry has a deep air horn. The roof tent opens when the car has been parked for a moment: the lid folds out as an awning on two poles and a ladder comes down beside the car.
+- **The depot.** A little way along the trail from the start, some of the vehicles you aren't driving wait at a depot, each in a colour of its own. Drive up and an arrow bobs over each one. Tap one (or press `F`) and it honks, flashes its lamps, pulls out and follows you a little way behind, stopping when you stop and honking back when you honk. Two can come along at once. Tap one while you are stopped, or park at the depot with them, and they stay and go back to their bays.
+- **The map.** The map in the pause menu shows the whole valley, with a picture for each place and an arrow for the car pointing the way it faces. Drag it, pinch or scroll to zoom, and the button with the arrow on it brings it back to the car. A small round minimap that turns with the car can be switched on in the menu; tap it to open the map.
 - **Garden gnomes.** Ten are hidden around the valley, some of them far off the trail. Each one you find fills in a row of gnomes on screen, so you can see how many are left without reading. The same row is in the pause menu. Finding them all unlocks something for the car.
 - **A few secrets.** Try the horn in the tunnel, near the animals, at passing cars and the train, at the helipads, at the fire station and next to the planes. Keep an eye on the snow, too.
 
@@ -121,7 +126,8 @@ Everything is generated in code with [Three.js](https://threejs.org) and Web Aud
 
 - **Terrain:** a height field built from layered noise and a few hand-placed landforms: knolls, a flat-topped hill, rocky ridges, a summit, flattened farmland and a ledge for the waterfall. Grass gives way to stony ground and then snow with height. It is fine everywhere you can drive and coarse under the distant peaks. The trails are levelled across their width, the paved and gravel roads climb no steeper than a set grade through cuttings and on banks, the railway climbs at an even grade on embankments and through a cutting, the creek, the river and the fjord are carved into the ground, and buildings sit on flattened pads, so nothing floats or sinks. Wherever a road crosses a river, it dips into the water at a ford on its own grade. Rivers, rocky ground, farms, herds and ponds are each kept in a list, so adding another is a matter of adding an entry. A test checks there are no cliffs on the valley floor.
 - **Driving:** an arcade model with real velocity, tyre grip per surface, slowdown on hills and in deep water, and soft collisions. Each tyre is settled onto the terrain triangle beneath it, within the travel its suspension allows.
-- **Camera:** a spring arm that pulls in when rock comes between it and the car, so the tunnel and cliffs never swallow the view. Drag to swing it round; it drifts back behind the car when you let go.
+- **Camera:** a spring arm that pulls in when rock comes between it and the car, so the tunnel and cliffs never swallow the view, and tips with the slope ahead so it looks up a hill rather than into it. Drag to swing it round; it drifts back behind the car when you let go.
+- **Checking the models:** `viewer.html` (open `/viewer.html` with `npm run dev`) shows every vehicle, machine, animal, plant and place on its own, with checks that point out parts left floating, gaps under buildings on slopes, surfaces that can be seen through from behind, faces that flicker against each other and floors the car would sink into. A test holds every model and landmark to the faults recorded in `tests/geometry-baseline.json`, so new ones can't creep in.
 - **Performance:** cheap Lambert materials, merged and instanced meshes, one shadow-casting light, a 60 fps cap, no rendering while paused, and a resolution that adapts to the device. The ground is split into tiles, and tiles far from the camera are drawn with fewer, larger triangles. Trees and rocks are grouped by area so whatever is out of view is skipped, distant rocks take a simpler shape, flowers, grass and bushes are only drawn near the camera, and only what stands near the car casts shadows. So the cost of a frame depends on what is around the camera rather than on the size of the map.
 
 ```
@@ -144,6 +150,8 @@ npm test               # unit tests: physics, terrain, scenery, saves, tilt, a f
 npm run test:browser   # end-to-end smoke test in Chrome
 npm run perf           # start-up time and frame cost around the map (add -- --phone for a slow phone)
 npm run screenshots    # regenerate the images in docs/
+npm run catalogue      # photograph every model and place from several sides into artifacts/catalogue/
+npm run geometry       # record the geometry checks' findings as the new baseline
 npm run build          # static build in dist/, ready for any static host
 ```
 
