@@ -1227,6 +1227,8 @@ export function createCar({ mud = true, headlight: beam = true } = {}) {
     brakes.material = brakeMaterial;
     shell.add(brakes);
     if (!spec.popups) shell.add(lamps);
+    // Measured before it goes on the car, so where the car is doesn't come into it.
+    const reach = sizeOf(shell, spec);
     body.add(shell);
     const trailer = spec.trailer ? createTrailer(spec.trailer, paint, brakeMaterial) : null;
     if (trailer) towed.add(trailer.root);
@@ -1246,7 +1248,7 @@ export function createCar({ mud = true, headlight: beam = true } = {}) {
     }
     for (const wheel of wheels) wheel.spin.children.forEach(muddy);
     trailer?.root.traverse(part => part.isMesh && part.material !== brakeMaterial && muddy(part));
-    return (vehicles[name] = { shell, wheels, spec, cargo, tent, trailer, popups });
+    return (vehicles[name] = { shell, wheels, spec, cargo, tent, trailer, popups, size: reach });
   }
 
   // One spotlight between the headlamps keeps the light count (and cost) down.
@@ -1308,6 +1310,8 @@ export function createCar({ mud = true, headlight: beam = true } = {}) {
     wheels: current.wheels,
     /** The current vehicle's description, and its trailer ({ root, wheels, spec }) if it has one. */
     spec: current.spec,
+    /** How far it reaches ahead of its middle and behind (its trailer left out), and half its width. */
+    size: current.size,
     trailer: null,
     headlight,
     /** `chosen` lists the roof items to show; they all fit at once. With the tent, the roof ones ride on it. */
@@ -1316,6 +1320,7 @@ export function createCar({ mud = true, headlight: beam = true } = {}) {
       current = vehicles[name] ?? build(name);
       car.wheels = current.wheels;
       car.spec = current.spec;
+      car.size = current.size;
       car.trailer = current.trailer;
       // Only the chosen vehicle is in the scene: hidden ones would still be updated every frame.
       for (const v of Object.values(vehicles)) {
@@ -1384,6 +1389,26 @@ export function createCar({ mud = true, headlight: beam = true } = {}) {
   };
   car.customize('orange');
   return car;
+}
+
+/**
+ * How far a vehicle's body (`shell`, as built) and wheels reach ahead of its middle and behind it,
+ * and half its width: what of it can bump into things. Hidden parts, like the packed tent, don't count.
+ */
+function sizeOf(shell, spec) {
+  const box = new THREE.Box3();
+  const part = new THREE.Box3();
+  shell.updateMatrixWorld(true);
+  shell.traverseVisible(mesh => {
+    if (!mesh.isMesh) return;
+    mesh.geometry.boundingBox ?? mesh.geometry.computeBoundingBox();
+    box.union(part.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrixWorld));
+  });
+  for (const { x, z, radius, width = 0.4 } of spec.wheels) {
+    box.expandByPoint(part.min.set(Math.abs(x) + width / 2, 0, z - radius));
+    box.expandByPoint(part.min.set(-Math.abs(x) - width / 2, 0, z + radius));
+  }
+  return { front: -box.min.z, back: box.max.z, half: Math.max(-box.min.x, box.max.x) };
 }
 
 /** A trailer built from its spec, with its own wheels and brake lamps. Its origin is the hitch point. */

@@ -4,9 +4,9 @@ import { createAudio } from './core/audio.js';
 import { createChaseCamera } from './core/camera.js';
 import { createObstacleIndex } from './core/collision.js';
 import { stepDirt } from './core/dirt.js';
-import { createCarState, placeCar, steerAngle, stepDriving } from './core/driving.js';
+import { bodyOf, createCarState, placeCar, steerAngle, stepDriving } from './core/driving.js';
 import { createJournal } from './core/journal.js';
-import { chassisPose, settleWheels } from './core/suspension.js';
+import { chassisPose, layoutOf, settleWheels } from './core/suspension.js';
 import { createTrailerState, hangTrailer, swingOf } from './core/trailer.js';
 import { createControls } from './input/controls.js';
 import { createLook } from './input/look.js';
@@ -445,6 +445,8 @@ export function createGame(canvas) {
   function applyChoices() {
     const { color, decorations, vehicle } = journal.get();
     car.customize(color, decorations, vehicle);
+    state.body = bodyOf(car.size);
+    wheelLayout = layoutOf(car.spec.wheels);
     hasTent = decorations.includes('tent');
     sound.setEngine(car.spec.voice?.engine);
     friends.choose(vehicle, color);
@@ -491,10 +493,12 @@ export function createGame(canvas) {
   // --- Car model -------------------------------------------------------------------------
 
   const body = { pitch: 0, roll: 0, lastSpeed: 0, lastHeading: state.heading };
+  /** Where the current vehicle's wheels are, for fitting it to the ground. */
+  let wheelLayout;
 
   function updateCarModel(dt) {
     state.y = drivingHeight(state.x, state.z, state.y);
-    const pose = chassisPose(state.x, state.z, state.heading, surfaceHeight);
+    const pose = chassisPose(state.x, state.z, state.heading, surfaceHeight, wheelLayout);
     car.root.position.set(state.x, pose.height, state.z);
     car.root.rotation.order = 'YXZ';
     car.root.rotation.y = state.heading;
@@ -535,7 +539,12 @@ export function createGame(canvas) {
 
   /** Hangs the trailer from the lorry's hitch, lets it follow on behind and rests its wheels on the ground. */
   function placeTrailer() {
-    hangTrailer({ car, trailer, hitch, point }, state.heading, state.speed, surfaceHeight);
+    hangTrailer(
+      { car, trailer, hitch, point, obstacles: world.obstacles, level: state.y },
+      state.heading,
+      state.speed,
+      surfaceHeight,
+    );
   }
 
   /** Points along the trailer, for the other traffic and the train to stop short of. */

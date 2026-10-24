@@ -14,7 +14,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { angleDelta, damp, segmentDistance } from '../core/math.js';
 import { penetration } from '../core/collision.js';
-import { CAR } from '../core/driving.js';
+import { DEFAULT_BODY } from '../core/driving.js';
 import {
   addCrumb,
   createFollower,
@@ -205,8 +205,9 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
   const player = { x: 0, z: 0, heading: 0, speed: 0, size: sizeOf(playerVehicle) };
   /** The way the player has come lately, for a friend catching up. */
   const trail = createRoute();
+  // The player's car as circles, its trailer's included.
   const body = Object.assign(
-    Array.from({ length: 4 }, () => ({ x: 0, z: 0, radius: 1 })),
+    Array.from({ length: 8 }, () => ({ x: 0, z: 0, radius: 1 })),
     { used: 0 },
   );
 
@@ -596,14 +597,8 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
     const sin = Math.sin(player.heading);
     const cos = Math.cos(player.heading);
     body.used = 0;
-    for (let end = -1; end <= 1; end += 2) {
-      put(
-        body[body.used++],
-        player.x - sin * CAR.bodyOffset * end,
-        player.z - cos * CAR.bodyOffset * end,
-        CAR.bodyRadius,
-      );
-    }
+    const { radius, offsets } = state.body ?? DEFAULT_BODY;
+    for (const offset of offsets) put(body[body.used++], player.x - sin * offset, player.z - cos * offset, radius);
     for (let k = 0; k < Math.min(2, tail.length); k++) put(body[body.used++], tail[k].x, tail[k].z, 1.3);
 
     // Parked at the depot with friends who have been out, they are home.

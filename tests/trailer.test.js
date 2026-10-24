@@ -52,3 +52,26 @@ test('a jump (a new vehicle or a teleport) puts it straight behind again', () =>
   stepTrailer(trailer, { x: lorry.x + 40, z: lorry.z }, lorry.heading, LENGTH);
   assert.equal(swingOf(trailer, lorry.heading), 0);
 });
+
+test('a trailer whose side would go into a wall swings clear of it, as far as it can swing, and never holds the lorry back', async () => {
+  const { createObstacleIndex } = await import('../src/core/collision.js');
+  const { swingClear } = await import('../src/core/trailer.js');
+  // The lorry facing -Z at the origin, its trailer straight out behind along +Z, and a wall along
+  // the trailer's left (-X) side, 0.9 m from its middle where the trailer is 1.25 m wide each side.
+  const wall = createObstacleIndex([{ x: -1.4, z: 6, halfX: 0.5, halfZ: 5, rotation: 0, radius: 0 }]);
+  const trailer = { x: 0, z: 0, heading: 0, ready: true };
+  swingClear(trailer, 0, wall);
+  assert.ok(trailer.heading > 0.05, `swung ${trailer.heading.toFixed(2)}, towards the wall or not at all`);
+  for (const along of [2.6, 4.25, 5.9, 7.55]) {
+    const x = Math.sin(trailer.heading) * along;
+    assert.ok(x - 1.25 > -0.9 - 0.05, `its side ${along} m back is still in the wall`);
+  }
+  // Pressed hard into it, it goes no further than it can swing.
+  const tight = createObstacleIndex([{ x: -0.2, z: 6, halfX: 0.5, halfZ: 5, rotation: 0, radius: 0 }]);
+  const pressed = { x: 0, z: 0, heading: 0, ready: true };
+  swingClear(pressed, 0, tight);
+  assert.ok(swingOf(pressed, 0) > 0.3 && swingOf(pressed, 0) <= MAX_SWING + 1e-9, `swung ${swingOf(pressed, 0)}`);
+  // Its hitch stays where the lorry has it.
+  assert.equal(pressed.x, 0);
+  assert.equal(pressed.z, 0);
+});
