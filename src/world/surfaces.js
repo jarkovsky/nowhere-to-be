@@ -184,12 +184,29 @@ export function createSurfaces(scene, sound) {
     mud: new THREE.MeshLambertMaterial({ color: '#5e4630' }),
     snow: new THREE.MeshBasicMaterial({ color: '#faffff' }),
   };
-  const particles = Array.from({ length: 72 }, () => {
-    const mesh = new THREE.Mesh(particleGeometry, particleMaterials.water);
+  // One instanced mesh for each kind, so all the particles of a kind are drawn at once.
+  const PARTICLE_COUNT = 72;
+  const particleMeshes = {};
+  for (const [kind, material] of Object.entries(particleMaterials)) {
+    const mesh = new THREE.InstancedMesh(particleGeometry, material, PARTICLE_COUNT);
+    mesh.count = 0;
     mesh.visible = false;
+    mesh.frustumCulled = false;
     scene.add(mesh);
-    return { mesh, life: 0, vx: 0, vy: 0, vz: 0 };
-  });
+    particleMeshes[kind] = mesh;
+  }
+  /** Each particle's kind, where it is, how far it has spun, how long it has left and how fast it is going. */
+  const particles = Array.from({ length: PARTICLE_COUNT }, () => ({
+    kind: 'water',
+    x: 0,
+    y: 0,
+    z: 0,
+    rx: 0,
+    life: 0,
+    vx: 0,
+    vy: 0,
+    vz: 0,
+  }));
 
   let cursor = 0;
   let trackCursor = 0;
@@ -221,9 +238,10 @@ export function createSurfaces(scene, sound) {
             const p = particles[cursor++ % particles.length];
             const x = car.x + cos * side * 1.15 + sin * 1.2;
             const z = car.z - sin * side * 1.15 + cos * 1.2;
-            p.mesh.material = particleMaterials[current];
-            p.mesh.position.set(x, terrainHeight(x, z) + (current === 'water' ? 0.6 : 0.4), z);
-            p.mesh.visible = true;
+            p.kind = current;
+            p.x = x;
+            p.y = terrainHeight(x, z) + (current === 'water' ? 0.6 : 0.4);
+            p.z = z;
             p.life = 0.65;
             const spread = current === 'water' ? 3 : 2;
             // Spinning wheels fling it out behind them, high up.
@@ -249,15 +267,27 @@ export function createSurfaces(scene, sound) {
         }
       }
 
+      for (const mesh of Object.values(particleMeshes)) mesh.count = 0;
       for (const p of particles) {
         if (p.life <= 0) continue;
         p.life -= dt;
         p.vy -= 9 * dt;
-        p.mesh.position.x += p.vx * dt;
-        p.mesh.position.y += p.vy * dt;
-        p.mesh.position.z += p.vz * dt;
-        p.mesh.rotation.x += dt * 4;
-        p.mesh.visible = p.life > 0 && p.mesh.position.y > terrainHeight(p.mesh.position.x, p.mesh.position.z) - 0.3;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.z += p.vz * dt;
+        p.rx += dt * 4;
+        // Drawn until it runs out or goes into the ground.
+        if (p.life <= 0 || p.y <= terrainHeight(p.x, p.z) - 0.3) continue;
+        dummy.position.set(p.x, p.y, p.z);
+        dummy.rotation.set(p.rx, 0, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        const mesh = particleMeshes[p.kind];
+        mesh.setMatrixAt(mesh.count++, dummy.matrix);
+      }
+      for (const mesh of Object.values(particleMeshes)) {
+        mesh.visible = mesh.count > 0;
+        if (mesh.visible) mesh.instanceMatrix.needsUpdate = true;
       }
     },
   };
