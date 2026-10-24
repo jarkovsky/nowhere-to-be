@@ -374,10 +374,7 @@ function levelAlong(path, flatWidth, falloff, { window = 14, banks = 0, grade = 
   return profile;
 }
 
-function isInTunnel(s) {
-  const delta = Math.abs(ROAD.wrap(s - TUNNEL.s + ROAD.length / 2) - ROAD.length / 2);
-  return delta < TUNNEL.length / 2 + 6;
-}
+const isInTunnel = s => ROAD.apart(s, TUNNEL.s) < TUNNEL.length / 2 + 6;
 
 // --- The desert's dunes ------------------------------------------------------
 
@@ -806,10 +803,7 @@ export function waterLevel(x, z) {
   let level = -Infinity;
   if (lakeDistance(x, z) < 2) level = LAKE.level;
   if (Math.hypot(x - POOL.x, z - POOL.z) < WATERFALL.poolRadius + 6) level = Math.max(level, POOL.level);
-  if (x > 135 && x < 235 && z > -75 && z < -35) {
-    const creek = CREEK.nearest(x, z);
-    if (creek.distance < CREEK_HALF_WIDTH + 4) level = Math.max(level, creekLevel(creek.s));
-  }
+  if (CREEK.isNear(x, z, CREEK_HALF_WIDTH + 4)) level = Math.max(level, creekLevel(CREEK.nearest(x, z).s));
   if (BROOK.isNear(x, z, BROOK_HALF_WIDTH + 4)) level = Math.max(level, brookLevel(BROOK.nearest(x, z).s));
   if (Math.hypot(x - SPRING.x, z - SPRING.z) < SPRING.radius + 2) level = Math.max(level, SPRING_LEVEL);
   if (OXBOW.path.isNear(x, z, OXBOW_REACH)) level = Math.max(level, OXBOW_LEVEL);

@@ -281,6 +281,8 @@ function junctionCorners(radius) {
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  // Indexed like the ribbons it is merged with.
+  geometry.setIndex(Array.from({ length: positions.length / 3 }, (_, i) => i));
   return geometry;
 }
 

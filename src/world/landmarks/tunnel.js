@@ -199,6 +199,5 @@ export function buildTunnel(scene, obstacles) {
 /** True when a point is inside the bore (used by the camera and the horn echo). */
 export function insideTunnel(x, z) {
   const near = ROAD.nearest(x, z);
-  const along = Math.abs(ROAD.wrap(near.s - TUNNEL.s + ROAD.length / 2) - ROAD.length / 2);
-  return along < TUNNEL.length / 2 && near.distance < TUNNEL.radius;
+  return ROAD.apart(near.s, TUNNEL.s) < TUNNEL.length / 2 && near.distance < TUNNEL.radius;
 }

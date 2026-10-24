@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { createRandom } from '../core/math.js';
 import { HEAPS } from './layout.js';
 import { heapSurface, terrainHeight } from './terrain.js';
-import { vertexColorMaterial } from './build.js';
+import { triangleGeometry, vertexColorMaterial } from './build.js';
 
 const RINGS = 7;
 const SIDES = 16;
@@ -57,12 +57,7 @@ export function buildHeaps(scene, heaps = HEAPS) {
   const positions = [];
   const colors = [];
   for (const heap of heaps) heapTriangles(heap, positions, colors);
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  geometry.computeVertexNormals();
-  geometry.computeBoundingSphere();
-  const mesh = new THREE.Mesh(geometry, vertexColorMaterial);
+  const mesh = new THREE.Mesh(triangleGeometry(positions, colors), vertexColorMaterial);
   mesh.castShadow = mesh.receiveShadow = true;
   mesh.name = 'heaps';
   scene.add(mesh);

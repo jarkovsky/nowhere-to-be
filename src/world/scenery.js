@@ -122,10 +122,7 @@ function groundColor(x, z, h, up, out) {
   if (lakeDistance(x, z) < 2.2) out.lerp(GROUND.shore, 1 - smoothstep(h, LAKE.level + 0.35, LAKE.level + 0.9));
   if (h < FJORD.level + 1.5 && inFjord(x, z, 6))
     out.lerp(GROUND.bank, 1 - smoothstep(h, FJORD.level + 0.4, FJORD.level + 1.5));
-  if (x > 135 && x < 245 && z > -85 && z < -30) {
-    const creek = CREEK.nearest(x, z);
-    if (creek.distance < 9) out.lerp(GROUND.bank, 1 - smoothstep(creek.distance, 5, 9));
-  }
+  if (CREEK.isNear(x, z, 9)) out.lerp(GROUND.bank, 1 - smoothstep(CREEK.nearest(x, z).distance, 5, 9));
   if (BROOK.isNear(x, z, 6)) out.lerp(GROUND.bank, 1 - smoothstep(BROOK.nearest(x, z).distance, 2.5, 6));
   const river = nearRiver(x, z, 12);
   if (river)
@@ -187,58 +184,47 @@ export function ribbonGeometry(
 ) {
   const base = new THREE.Color(color);
   const tint = new THREE.Color();
-  const rows = [];
-  for (const sample of path.samples) {
-    if (skip(sample.s)) {
-      rows.push(null);
-      continue;
-    }
-    const row = [];
-    for (let j = 0; j <= across; j++) {
+  // Each row of corners across the path is stored once and shared by the quads either side of
+  // it: `rows` holds the first vertex of each, or -1 where the path is skipped.
+  const { samples } = path;
+  const rows = samples.map(sample => !skip(sample.s));
+  const vertices = rows.filter(Boolean).length * (across + 1);
+  const positions = new Float32Array(vertices * 3);
+  const normals = new Float32Array(vertices * 3);
+  const colors = new Float32Array(vertices * 3);
+  let v = 0;
+  samples.forEach((sample, i) => {
+    if (!rows[i]) return (rows[i] = -1);
+    rows[i] = v / 3;
+    for (let j = 0; j <= across; j++, v += 3) {
       const side = offset + ((j / across) * 2 - 1) * halfWidth;
       const x = sample.x - sample.dz * side;
       const z = sample.z + sample.dx * side;
       const patch = 1 - smoothstep(Math.hypot((x - SNOW.x) / SNOW.rx, (z - SNOW.z) / SNOW.rz), 0.78, 1);
       const snow = Math.max(patch, snowCover(x, z));
-      row.push({
-        position: [x, terrainHeight(x, z) + lift, z],
-        normal: groundNormal(x, z),
-        color: tint.copy(base).lerp(PACKED_SNOW, snow).toArray(),
-      });
+      positions.set([x, terrainHeight(x, z) + lift, z], v);
+      normals.set(groundNormal(x, z), v);
+      tint.copy(base).lerp(PACKED_SNOW, snow).toArray(colors, v);
     }
-    rows.push(row);
-  }
-  const positions = [];
-  const normals = [];
-  const colors = [];
+  });
+  const indices = [];
   const count = path.closed ? rows.length : rows.length - 1;
   for (let i = 0; i < count; i++) {
     const a = rows[i];
     const b = rows[(i + 1) % rows.length];
-    if (!a || !b) continue;
-    for (let j = 0; j < across; j++) {
-      for (const corner of [a[j], a[j + 1], b[j], a[j + 1], b[j + 1], b[j]]) {
-        positions.push(...corner.position);
-        normals.push(...corner.normal);
-        colors.push(...corner.color);
-      }
-    }
+    if (a < 0 || b < 0) continue;
+    for (let j = 0; j < across; j++) indices.push(a + j, a + j + 1, b + j, a + j + 1, b + j + 1, b + j);
   }
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.setIndex(indices);
   return geometry;
 }
 
-function inTunnel(s) {
-  return Math.abs(ROAD.wrap(s - TUNNEL.s + ROAD.length / 2) - ROAD.length / 2) < TUNNEL.length / 2 + 4;
-}
-
-function onBridge(s) {
-  const delta = Math.abs(ROAD.wrap(s - BRIDGE.s + ROAD.length / 2) - ROAD.length / 2);
-  return delta < BRIDGE.length / 2 - 0.6;
-}
+const inTunnel = s => ROAD.apart(s, TUNNEL.s) < TUNNEL.length / 2 + 4;
+const onBridge = s => ROAD.apart(s, BRIDGE.s) < BRIDGE.length / 2 - 0.6;
 
 /**
  * A flat strip of water along a stream, `halfWidth` either side of it at `level(s)`, leaving
@@ -479,7 +465,7 @@ function isClearGround(x, z, { road = 9 } = {}) {
   // The airfield's levelled ground is kept as open, mown grass.
   const { ground } = AIRFIELD;
   if (x > ground.x0 - 6 && x < ground.x1 + 6 && z > ground.z0 - 6 && z < ground.z1 + 6) return false;
-  if (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 10)) return false;
+  if (CREEK.isNear(x, z, 10)) return false;
   if (BROOK.isNear(x, z, 7) || Math.hypot(x - SPRING.x, z - SPRING.z) < SPRING.radius + 6) return false;
   if (OXBOW.path.isNear(x, z, 14)) return false;
   return !nearRiver(x, z, 11) && !inFjord(x, z, 3);
@@ -738,22 +724,30 @@ function buildTrees(scatter, obstacles) {
   }
 }
 
+/** The mossy stones by the brook and the rivers, made the first time they are wanted. */
+let mossy = null;
+const mossyStones = () => (mossy ??= [0, 1, 2, 3].map(seed => boulderGeometry(seed + 11, { moss: 0.5 })));
+
+/** Where a stone `size` across and `height` high stands at (x, z), sunk a little, turned by `turn`. */
+function stoneMatrix(x, z, size, height, turn) {
+  return new THREE.Matrix4().compose(
+    new THREE.Vector3(x, terrainHeight(x, z) - size * 0.12, z),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(0, turn, 0)),
+    new THREE.Vector3(size, height, size),
+  );
+}
+
 /**
  * Stones along the brook and round its spring. They have numbers of their own, so they
  * don't move anything else that is scattered.
  */
 function buildBrookStones(scene) {
   const stoneRandom = createRandom(5150);
-  const shapes = [0, 1, 2, 3].map(seed => boulderGeometry(seed + 11, { moss: 0.5 }));
+  const shapes = mossyStones();
   const parts = [];
-  const stone = (x, z, size, tall = 0.7) => {
+  const stone = (x, z, size) => {
     const shape = shapes[Math.floor(stoneRandom() * shapes.length)];
-    const matrix = new THREE.Matrix4().compose(
-      new THREE.Vector3(x, terrainHeight(x, z) - size * 0.12, z),
-      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, stoneRandom() * 6.3, 0)),
-      new THREE.Vector3(size, size * tall, size),
-    );
-    parts.push(shape.clone().applyMatrix4(matrix));
+    parts.push(shape.clone().applyMatrix4(stoneMatrix(x, z, size, size * 0.7, stoneRandom() * 6.3)));
   };
   for (let s = 2; s < BROOK.length - 14; s += 2.6) {
     if (Math.abs(s - FORD.brook) < 10) continue;
@@ -779,12 +773,7 @@ function buildTrackRocks(scatter) {
   const stoneRandom = createRandom(6421);
   const shapes = [0, 1, 2, 3].map(seed => boulderGeometry(seed + 11, { moss: 0.3 }));
   const items = TRACK_ROCKS.map(rock => {
-    const size = rock.r * 0.85;
-    const matrix = new THREE.Matrix4().compose(
-      new THREE.Vector3(rock.x, terrainHeight(rock.x, rock.z) - size * 0.12, rock.z),
-      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, stoneRandom() * 6.3, 0)),
-      new THREE.Vector3(size, rock.h / 0.72, size),
-    );
+    const matrix = stoneMatrix(rock.x, rock.z, rock.r * 0.85, rock.h / 0.72, stoneRandom() * 6.3);
     return { matrix, shape: Math.floor(stoneRandom() * shapes.length) };
   });
   scatter.add({ geometry: shapes, far: shapes[0], near: UNDERGROWTH_RANGE, range: 600, items });
@@ -793,7 +782,7 @@ function buildTrackRocks(scatter) {
 /** Stones along the rivers' edges, though not where the roads ford them. They have numbers of their own. */
 function buildRiverStones(scatter) {
   const stoneRandom = createRandom(7321);
-  const shapes = [0, 1, 2, 3].map(seed => boulderGeometry(seed + 11, { moss: 0.5 }));
+  const shapes = mossyStones();
   const items = [];
   for (const river of RIVERS) {
     const fords = FORDS.filter(ford => ford.river === river);
@@ -805,12 +794,7 @@ function buildRiverStones(scatter) {
       const shape = Math.floor(stoneRandom() * shapes.length);
       if (Math.hypot(p.x, p.z) > VALLEY_RADIUS + 60) continue;
       if (fords.some(ford => Math.hypot(ford.x - p.x, ford.z - p.z) < river.halfWidth + 8)) continue;
-      const matrix = new THREE.Matrix4().compose(
-        new THREE.Vector3(p.x, terrainHeight(p.x, p.z) - size * 0.12, p.z),
-        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, turn, 0)),
-        new THREE.Vector3(size, size * 0.7, size),
-      );
-      items.push({ matrix, shape });
+      items.push({ matrix: stoneMatrix(p.x, p.z, size, size * 0.7, turn), shape });
     }
   }
   scatter.add({ geometry: shapes, near: UNDERGROWTH_RANGE, items });
@@ -992,7 +976,7 @@ function isLongGrassGround(x, z) {
   if (onDriveway(x, z, 0.8)) return false;
   if (CLEARINGS.some(c => (x - c.x) ** 2 + (z - c.z) ** 2 < (c.r * 0.7) ** 2) || inMud(x, z)) return false;
   if (Math.hypot(x - FIELDS.x, z - FIELDS.z) < FIELDS.radius + 4) return false;
-  if (lakeDistance(x, z) < 2.4 || (x > 130 && x < 250 && z > -90 && z < -20 && CREEK.isNear(x, z, 6))) return false;
+  if (lakeDistance(x, z) < 2.4 || CREEK.isNear(x, z, 6)) return false;
   if (BROOK.isNear(x, z, 3.2) || nearRiver(x, z, 7) || inFjord(x, z, 3) || OXBOW.path.isNear(x, z, 11)) return false;
   const h = placementHeight(x, z);
   return h < 92 && snowCover(x, z, h) < 0.2 && steepness(x, z) < 0.5;
@@ -1222,8 +1206,7 @@ function buildFences(scene, scatter) {
   const trailPosts = new PartsBuilder();
   for (let i = 0; i < 44; i++) {
     const s = (i / 44) * ROAD.length;
-    if (onBridge(s) || Math.abs(ROAD.wrap(s - TUNNEL.s + ROAD.length / 2) - ROAD.length / 2) < TUNNEL.length / 2 + 4)
-      continue;
+    if (onBridge(s) || inTunnel(s)) continue;
     const side = i % 2 ? 1 : -1;
     const p = ROAD.offset(s, side * (ROAD_HALF_WIDTH + 1.8));
     const y = terrainHeight(p.x, p.z);

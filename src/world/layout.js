@@ -42,11 +42,7 @@ export const UPLAND_HILLS = [
 export const FIELDS = { x: 262, z: 318, radius: 95, rotation: 0.85 };
 
 /** A point given in the farmland's own frame: `lx` across the rows, `lz` along them. */
-export function fieldPoint(lx, lz) {
-  const cos = Math.cos(FIELDS.rotation);
-  const sin = Math.sin(FIELDS.rotation);
-  return { x: FIELDS.x + lx * cos + lz * sin, z: FIELDS.z - lx * sin + lz * cos };
-}
+export const fieldPoint = localFrame(FIELDS.x, FIELDS.z, FIELDS.rotation);
 
 /** The fields, in the farmland's frame. The tractors work `plough` and `mow`, the combine `wheat`. */
 export const FIELD_PLOTS = {
@@ -165,6 +161,9 @@ export const OUTER_ROAD = roadAround(outerRadius, 240);
 
 /** A point on the outer road at an angle in degrees. */
 export const outerPoint = degrees => polar(degrees, outerRadius((degrees * Math.PI) / 180));
+
+/** A point on the upland road at an angle in degrees (0 is due east, 90 due south). */
+const ringPoint = degrees => polar(degrees, ringRadius((degrees * Math.PI) / 180));
 
 /** Half the width of the gravel roads. */
 export const GRAVEL_HALF_WIDTH = 3.4;
@@ -476,11 +475,6 @@ export const VILLAGE = (() => {
 /** Still water in a shallow bowl: the village pond, with a level stone edge, and the desert's oasis. */
 export const PONDS = [VILLAGE.pond, DESERT.oasis];
 
-/** True on a pond's water, or within `margin` metres of it. */
-export function inPond(x, z, margin = 0) {
-  return PONDS.some(pond => Math.hypot(x - pond.x, z - pond.z) < pond.radius + margin);
-}
-
 /**
  * Herds of animals that live in the outlands. Each wanders round its own patch of ground,
  * `radius` metres from (x, z), and runs off when a car comes close. Farm animals are fenced
@@ -705,12 +699,12 @@ function nearestRoadSample(x, z) {
   return ROAD.nearest(x, z).sample;
 }
 
-/** Where the trail meets the creek. */
-function findCrossing() {
+/** Where `path` comes closest to `other`: its sample there, how far along `other` that is, and how far apart. */
+function closestApproach(path, other) {
   let best = { distance: Infinity };
-  for (const sample of ROAD.samples) {
-    const { distance } = CREEK.nearest(sample.x, sample.z);
-    if (distance < best.distance) best = { ...sample, distance };
+  for (const sample of path.samples) {
+    const { distance, s } = other.nearest(sample.x, sample.z);
+    if (distance < best.distance) best = { sample, along: s, distance };
   }
   return best;
 }
@@ -883,7 +877,6 @@ export const TRACKS = [
     grade: 0.16,
     path: createPath(fromOuterRoad(...DESERT.track.map(({ x, z }) => [x, z]))),
   },
-  // Footpaths up the marked trails.
 ];
 
 /**
@@ -922,13 +915,6 @@ export const ROCK_FIN = (() => {
   // `arch` and `archEnd` are how far along it the arch's near and far feet are.
   return { path, width: 7.5, arch: at(foot), archEnd: at(-foot) };
 })();
-
-/** A point on the upland road at an angle in degrees (0 is due east, 90 due south). */
-function ringPoint(degrees) {
-  const angle = (degrees * Math.PI) / 180;
-  const radius = ringRadius(angle);
-  return [Math.cos(angle) * radius, Math.sin(angle) * radius];
-}
 
 /**
  * A small airfield on the eastern plateau, between the upland road and the fence. The
@@ -1100,8 +1086,6 @@ export function onPaved(x, z, distance = ROAD_HALF_WIDTH) {
   return PAVED.some(path => path.isNear(x, z, distance));
 }
 
-// The deck runs straight between two points on the curving trail, so the
-// trail never strays far from the middle of the bridge.
 /**
  * Rocks across the tracks to drive over, as bumps in the surface the tyres rest on: `h` high
  * in the middle, easing off to nothing `r` metres away. They lie under one wheel or the other
@@ -1130,15 +1114,13 @@ export const TRACK_ROCKS = (() => {
 
 /** Where the trail fords the brook: `s` along the trail and `brook` along the brook. */
 export const FORD = (() => {
-  let best = { distance: Infinity };
-  for (const sample of ROAD.samples) {
-    const { distance, s } = BROOK.nearest(sample.x, sample.z);
-    if (distance < best.distance) best = { x: sample.x, z: sample.z, s: sample.s, brook: s, distance };
-  }
-  return best;
+  const { sample, along, distance } = closestApproach(ROAD, BROOK);
+  return { x: sample.x, z: sample.z, s: sample.s, brook: along, distance };
 })();
 
-const crossing = findCrossing();
+// Where the trail meets the creek. The deck runs straight between two points on the curving
+// trail, so the trail never strays far from the middle of the bridge.
+const crossing = closestApproach(ROAD, CREEK).sample;
 const bridgeEnds = [ROAD.at(crossing.s - 11), ROAD.at(crossing.s + 11)];
 const span = Math.hypot(bridgeEnds[1].x - bridgeEnds[0].x, bridgeEnds[1].z - bridgeEnds[0].z);
 export const BRIDGE = {
@@ -1153,12 +1135,8 @@ export const BRIDGE = {
 
 /** Where the railway crosses the trail: `s` along the railway, `roadS` along the trail. */
 export const LEVEL_CROSSING = (() => {
-  let best = { distance: Infinity };
-  for (const sample of RAILWAY.samples) {
-    const { distance, s } = ROAD.nearest(sample.x, sample.z);
-    if (distance < best.distance) best = { s: sample.s, roadS: s, x: sample.x, z: sample.z, distance };
-  }
-  return { s: best.s, roadS: best.roadS, x: best.x, z: best.z };
+  const { sample, along } = closestApproach(RAILWAY, ROAD);
+  return { s: sample.s, roadS: along, x: sample.x, z: sample.z };
 })();
 
 const tunnelCentre = nearestRoadSample(-134, -84);
