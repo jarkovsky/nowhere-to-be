@@ -50,9 +50,6 @@
   "landmark.chapel": {
     "one-sided": 4
   },
-  "landmark.summit": {
-    "one-sided": 26
-  },
   "landmark.fields": {
     "gap-under": 2,
     "one-sided": 1,

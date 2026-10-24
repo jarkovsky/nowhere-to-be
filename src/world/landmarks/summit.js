@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { SUMMIT } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
-import { PartsBuilder } from '../build.js';
+import { PartsBuilder, bothSides } from '../build.js';
 
 const STEEL = '#4d5652';
 const TIMBER = '#a87d54';
@@ -26,7 +26,9 @@ export function buildSummit(scene, obstacles) {
     [9.4, 12.4],
   ]) {
     for (let y = from; y < to; y += 0.42) {
-      parts.add(new THREE.CylinderGeometry(radiusAt(y + 0.3), radiusAt(y), 0.3, 5, 1, true), TIMBER, at(y + 0.15));
+      // Seen through the gaps from the other side too.
+      const band = new THREE.CylinderGeometry(radiusAt(y + 0.3), radiusAt(y), 0.3, 5, 1, true);
+      parts.add(bothSides(band), TIMBER, at(y + 0.15));
     }
   }
   for (const y of [4.4, 8.9, 12.9])
@@ -43,7 +45,7 @@ export function buildSummit(scene, obstacles) {
   // The open deck: a floor and a railing.
   parts.add(new THREE.CylinderGeometry(radiusAt(HEIGHT) + 0.3, radiusAt(HEIGHT) + 0.3, 0.25, 5), STEEL, at(13.6));
   parts.add(
-    new THREE.CylinderGeometry(radiusAt(HEIGHT) + 0.3, radiusAt(HEIGHT) + 0.3, 1.1, 5, 1, true),
+    bothSides(new THREE.CylinderGeometry(radiusAt(HEIGHT) + 0.3, radiusAt(HEIGHT) + 0.3, 1.1, 5, 1, true)),
     '#c3c7c1',
     at(14.3),
   );

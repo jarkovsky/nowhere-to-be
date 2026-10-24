@@ -187,6 +187,21 @@ export function localFrame(x, z, rotation) {
   return (lx, lz) => ({ x: x + lx * cos + lz * sin, z: z - lx * sin + lz * cos });
 }
 
+/**
+ * A copy of `geometry` with every triangle also facing the other way, so a thin open surface
+ * (a band of slats, a railing) can be seen from behind as well as in front.
+ */
+export function bothSides(geometry) {
+  const flat = geometry.index ? geometry.toNonIndexed() : geometry;
+  const corners = flat.attributes.position.array;
+  const points = [];
+  for (let i = 0; i < corners.length; i += 9) {
+    const [a, b, c] = [0, 3, 6].map(k => [corners[i + k], corners[i + k + 1], corners[i + k + 2]]);
+    points.push(a, b, c, a, c, b);
+  }
+  return prism(points);
+}
+
 /** Geometry from a flat list of triangle corners. */
 export function prism(points) {
   const geometry = new THREE.BufferGeometry();
