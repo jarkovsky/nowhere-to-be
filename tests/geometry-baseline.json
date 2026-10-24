@@ -9,11 +9,11 @@
     "one-sided": 1
   },
   "landmark.camp": {
-    "gap-under": 10,
+    "gap-under": 3,
     "one-sided": 4
   },
   "landmark.farm": {
-    "gap-under": 6,
+    "gap-under": 1,
     "one-sided": 3
   },
   "landmark.tower": {
@@ -28,7 +28,7 @@
     "sinks": 5
   },
   "landmark.oxbow": {
-    "gap-under": 2,
+    "gap-under": 1,
     "flicker": 4,
     "sinks": 2
   },
@@ -43,7 +43,7 @@
   },
   "landmark.roadworks": {
     "floating": 1,
-    "gap-under": 6,
+    "gap-under": 2,
     "flicker": 3,
     "sinks": 1
   },
@@ -51,7 +51,6 @@
     "one-sided": 4
   },
   "landmark.fields": {
-    "gap-under": 2,
     "one-sided": 1,
     "flicker": 22,
     "sinks": 3
@@ -66,7 +65,6 @@
     "one-sided": 8
   },
   "landmark.farms": {
-    "gap-under": 7,
     "one-sided": 4,
     "sinks": 4
   },

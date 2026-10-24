@@ -199,7 +199,7 @@ function floating(parts, ground, anchored) {
     }));
 }
 
-/** The corners of a part's downward faces: where it would meet the ground. */
+/** The corners of the flat underneath of a part: where it would meet the ground. */
 function footprint(part) {
   const { positions } = part;
   const corners = [];
@@ -208,7 +208,7 @@ function footprint(part) {
     b3.fromArray(positions, t * 9 + 3);
     c3.fromArray(positions, t * 9 + 6);
     normal.crossVectors(edgeA.subVectors(b3, a3), edgeB.subVectors(c3, a3));
-    if (normal.lengthSq() < 1e-8 || normal.normalize().y > -0.7) continue;
+    if (normal.lengthSq() < 1e-8 || normal.normalize().y > -0.95) continue;
     corners.push(a3.clone(), b3.clone(), c3.clone());
   }
   // Only the underside at the bottom, not the eaves of a roof built in the same piece.
@@ -223,18 +223,12 @@ function gapsUnder(parts, ground) {
     const [wide, deep] = [box.max.x - box.min.x, box.max.z - box.min.z];
     // Too small to see a gap under, or big enough to be ground in its own right.
     if ((wide < 0.4 && deep < 0.4) || wide > 25 || deep > 25) continue;
-    let rest;
-    let gap;
+    // Surfaces lying on the ground (a road, mud) have no underside, and follow it anyway.
     const corners = footprint(part);
-    if (corners.length) {
-      // How high each corner of its underside is above the ground there.
-      const heights = corners.map(p => p.y - ground(p.x, p.z));
-      [rest, gap] = [Math.min(...heights), Math.max(...heights)];
-    } else {
-      const { low, high } = groundUnder(box, ground);
-      if (box.min.y < low - 0.05) continue;
-      [rest, gap] = [box.min.y - high, box.min.y - low];
-    }
+    if (!corners.length) continue;
+    // How high each corner of its underside is above the ground there.
+    const heights = corners.map(p => p.y - ground(p.x, p.z));
+    const [rest, gap] = [Math.min(...heights), Math.max(...heights)];
     // Only parts that rest on the ground somewhere, not ones raised up on something else.
     if (rest > TOUCH) continue;
     if (gap > 0.12) {
