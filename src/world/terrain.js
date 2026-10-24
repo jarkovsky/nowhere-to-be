@@ -45,6 +45,8 @@ import {
   RIVERS,
   FORD_DEPTH,
   ROCK_HILL,
+  ROCK_GATE,
+  ROCK_FIN,
   FJORD,
   inFjord,
   PONDS,
@@ -839,11 +841,75 @@ export function heapHeight(x, z) {
   return lift;
 }
 
-/** The surface the tyres rest on: a deck where there is one, otherwise the ground and any rocks or heaps on it. */
-export function drivingHeight(x, z) {
+// --- The rock arch and the fin running out to it ---------------------------------------
+
+/** The ground the arch stands on: the lowest under its feet and in its middle. */
+export const GATE_GROUND = (() => {
+  const { x, z, dx, dz, span, thickness } = ROCK_GATE;
+  const reach = span / 2 + thickness;
+  return Math.min(terrainHeight(x, z), ...[-1, 1].map(k => terrainHeight(x - dz * k * reach, z + dx * k * reach)));
+})();
+
+/** The height of the arch's flat top, and of the fin's top where it runs out onto it. */
+export const GATE_TOP = GATE_GROUND + ROCK_GATE.crown;
+
+/**
+ * The fin's top along its path: level with the ground where it leaves the track, climbing evenly
+ * to the top of the arch by the time it reaches the arch's near foot, and level from there on.
+ */
+const finLevels = (() => {
+  const { path, arch } = ROCK_FIN;
+  const start = terrainHeight(path.samples[0].x, path.samples[0].z);
+  const level = path.samples.map(({ s }) => lerp(start, GATE_TOP, Math.min(1, s / (arch - 6))));
+  return smoothProfile(level, 6, false);
+})();
+const finBox = (() => {
+  const xs = ROCK_FIN.path.samples.map(p => p.x);
+  const zs = ROCK_FIN.path.samples.map(p => p.z);
+  const pad = ROCK_FIN.width;
+  return { x0: Math.min(...xs) - pad, x1: Math.max(...xs) + pad, z0: Math.min(...zs) - pad, z1: Math.max(...zs) + pad };
+})();
+
+/** Height of the fin's top `s` metres along it. */
+export function finLevel(s) {
+  const u = clamp(s / ROCK_FIN.path.spacing, 0, finLevels.length - 1);
+  const i = Math.min(Math.floor(u), finLevels.length - 2);
+  return lerp(finLevels[i], finLevels[i + 1], u - i);
+}
+
+/** Height of the top of the fin (or of the arch, where the fin runs out onto it) at a point, or null off it. */
+export function finHeight(x, z) {
+  if (x < finBox.x0 || x > finBox.x1 || z < finBox.z0 || z > finBox.z1) return null;
+  const { path, width } = ROCK_FIN;
+  const { sample, side } = path.nearest(x, z);
+  if (Math.abs(side) > width / 2) return null;
+  // Past either end the nearest sample is the end one; only points alongside it count.
+  const along = (x - sample.x) * sample.dx + (z - sample.z) * sample.dz;
+  if ((sample.s === 0 && along < -0.5) || (sample.s >= path.length - 0.01 && along > 0.5)) return null;
+  return finLevel(sample.s + along);
+}
+
+/** How far below the top of the fin a car can be and still be driving on it rather than under it. */
+const FIN_STEP = 1.5;
+
+/**
+ * The surface the tyres rest on: a deck where there is one, otherwise the ground and any rocks
+ * or heaps on it. The road runs under the arch, so the top of the fin and the arch only count
+ * for something already up at their level (`from`, how high it was a moment ago).
+ */
+export function drivingHeight(x, z, from = -Infinity) {
   const ground = terrainHeight(x, z) + Math.max(rockHeight(x, z), heapHeight(x, z));
   const deck = bridgeHeight(x, z) ?? jettyHeight(x, z);
-  return deck === null ? ground : Math.max(ground, deck);
+  const surface = deck === null ? ground : Math.max(ground, deck);
+  if (from === -Infinity) return surface;
+  const fin = finHeight(x, z);
+  return fin !== null && from > fin - FIN_STEP ? Math.max(surface, fin) : surface;
+}
+
+/** True up on the top of the fin or the arch, for something that was at height `from` a moment ago. */
+export function onFin(x, z, from) {
+  const fin = finHeight(x, z);
+  return fin !== null && from > fin - FIN_STEP;
 }
 
 /** How deep the water is that the tyres are in: none on the planks of the bridge or the jetty. */

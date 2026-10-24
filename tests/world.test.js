@@ -262,3 +262,23 @@ test('the farmland is gentle enough for fields', () => {
     }
   }
 });
+
+test('the road runs under the arch while the fin carries the car over it', async () => {
+  const { ROCK_FIN, ROCK_GATE } = await import('../src/world/layout.js');
+  const { GATE_TOP, drivingHeight, finHeight, terrainHeight } = await import('../src/world/terrain.js');
+  const { x, z } = ROCK_GATE;
+  // On the road the car stays on the ground; already up on the arch it stays up there.
+  assert.ok(Math.abs(drivingHeight(x, z, terrainHeight(x, z)) - terrainHeight(x, z)) < 0.5);
+  assert.ok(Math.abs(drivingHeight(x, z, GATE_TOP) - GATE_TOP) < 0.2);
+  // The causeway starts level with the track up the hill, and never climbs too steeply to drive.
+  const { path } = ROCK_FIN;
+  const start = path.samples[0];
+  assert.ok(Math.abs(finHeight(start.x, start.z) - terrainHeight(start.x, start.z)) < 0.3);
+  let previous = finHeight(start.x, start.z);
+  for (let s = 1; s < path.length; s += 1) {
+    const p = path.at(s);
+    const h = finHeight(p.x, p.z);
+    assert.ok(Math.abs(h - previous) < 0.25, `steep at ${s}`);
+    previous = h;
+  }
+});

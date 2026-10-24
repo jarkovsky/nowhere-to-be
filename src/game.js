@@ -52,6 +52,7 @@ import {
   drivingHeight,
   isDriveable,
   onDeck,
+  onFin,
   snowCover,
   terrainHeight,
   wadingDepth,
@@ -88,11 +89,11 @@ function surfaceUnder(x, z) {
   return 'grass';
 }
 
-/** Rise over run along the car's heading; positive means uphill. */
-function slopeAlong(x, z, heading) {
+/** Rise over run along `heading` on the surface `height(x, z)`; positive means uphill. */
+function slopeAlong(height, x, z, heading) {
   const dx = -Math.sin(heading) * 1.5;
   const dz = -Math.cos(heading) * 1.5;
-  return (drivingHeight(x + dx, z + dz) - drivingHeight(x - dx, z - dz)) / 3;
+  return (height(x + dx, z + dz) - height(x - dx, z - dz)) / 3;
 }
 
 function createRenderer(canvas) {
@@ -205,11 +206,13 @@ export function createGame(canvas) {
   const moving = [];
   // What the traffic and the train wait for besides the car: its trailer, and friends coming along.
   const towed = [];
+  // The surface under the car: up on the top of the rock fin and the arch once it has driven onto it.
+  const surfaceHeight = (x, z) => drivingHeight(x, z, state.y);
   const world = {
     obstacles: createObstacleIndex(obstacles),
     dynamic: moving,
-    surface: surfaceUnder,
-    slope: slopeAlong,
+    surface: (x, z) => (onFin(x, z, state.y) ? 'track' : surfaceUnder(x, z)),
+    slope: (x, z, heading) => slopeAlong(surfaceHeight, x, z, heading),
     isDriveable,
     waterDepth: wadingDepth,
   };
@@ -441,7 +444,8 @@ export function createGame(canvas) {
   const body = { pitch: 0, roll: 0, lastSpeed: 0, lastHeading: state.heading };
 
   function updateCarModel(dt) {
-    const pose = chassisPose(state.x, state.z, state.heading, drivingHeight);
+    state.y = drivingHeight(state.x, state.z, state.y);
+    const pose = chassisPose(state.x, state.z, state.heading, surfaceHeight);
     car.root.position.set(state.x, pose.height, state.z);
     car.root.rotation.order = 'YXZ';
     car.root.rotation.y = state.heading;
@@ -467,7 +471,7 @@ export function createGame(canvas) {
       // In the mud hole the wheels can spin faster than the car goes.
       wheel.spin.rotation.x -= ((state.speed + mudHole.slip) * dt) / wheel.radius;
     }
-    settleWheels(car, drivingHeight);
+    settleWheels(car, surfaceHeight);
     // Sunk into the mud, wheels and all.
     car.root.position.y -= mudHole.sink;
     car.root.updateMatrixWorld();
@@ -489,7 +493,7 @@ export function createGame(canvas) {
     stepTrailer(trailer, hitch, state.heading, spec.axle);
     const sin = Math.sin(trailer.heading);
     const cos = Math.cos(trailer.heading);
-    const ground = (lx, lz) => drivingHeight(hitch.x + cos * lx + sin * lz, hitch.z - sin * lx + cos * lz);
+    const ground = (lx, lz) => surfaceHeight(hitch.x + cos * lx + sin * lz, hitch.z - sin * lx + cos * lz);
     const left = ground(-spec.track / 2, spec.axle);
     const right = ground(spec.track / 2, spec.axle);
     // Tip it until the middle axle's wheels are on the ground, and lean it with the ground beneath them.
@@ -524,8 +528,8 @@ export function createGame(canvas) {
   /** How steeply the ground climbs over the next stretch the car is heading for (negative downhill). */
   function gradeAhead() {
     const reach = 12 * (car.spec.camera ?? 1);
-    const ahead = drivingHeight(state.x - Math.sin(state.heading) * reach, state.z - Math.cos(state.heading) * reach);
-    return clamp((ahead - drivingHeight(state.x, state.z)) / reach, -0.8, 0.9);
+    const ahead = surfaceHeight(state.x - Math.sin(state.heading) * reach, state.z - Math.cos(state.heading) * reach);
+    return clamp((ahead - surfaceHeight(state.x, state.z)) / reach, -0.8, 0.9);
   }
 
   const carView = () => ({
@@ -715,7 +719,7 @@ export function createGame(canvas) {
     if (driving) wading.update(dt, state, car, car.trailer ? trailer : null);
     if (driving) {
       // Puddles lie on the trail, so the tyres find them rather than the driving surface.
-      const surface = surfaces.getState().surface === 'puddle' ? 'puddle' : surfaceUnder(state.x, state.z);
+      const surface = surfaces.getState().surface === 'puddle' ? 'puddle' : world.surface(state.x, state.z);
       dirt = stepDirt(dirt, { surface, speed: state.speed + mudHole.slip, rain: sky.rain }, dt);
     }
     car.setMud(dirt);

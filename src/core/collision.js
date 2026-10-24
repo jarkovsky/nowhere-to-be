@@ -1,5 +1,7 @@
 // Static obstacles are circles ({x, z, radius}) or capsules ({ax, az, bx, bz, radius}).
-// A uniform grid index keeps per-frame collision checks small.
+// Where things stand at different levels, as on and under the rock arch, an obstacle can
+// also have a `top` (only something lower down bumps into it) or a `base` (only something
+// up at that level does). A uniform grid index keeps per-frame collision checks small.
 import { segmentDistance } from './math.js';
 
 const CELL = 16;
@@ -21,6 +23,12 @@ function bounds(obstacle) {
   };
 }
 
+/** True if something with its wheels at height `y` can bump into the obstacle. */
+export function atLevel(obstacle, y) {
+  if (obstacle.top !== undefined && y > obstacle.top - 0.4) return false;
+  return obstacle.base === undefined || y > obstacle.base;
+}
+
 export function createObstacleIndex(obstacles) {
   const cells = new Map();
   const key = (cx, cz) => (cx * 73856093) ^ (cz * 19349663);
@@ -37,13 +45,16 @@ export function createObstacleIndex(obstacles) {
   const found = new Set();
   return {
     all: obstacles,
-    /** Obstacles whose bounds may touch a circle at (x, z). */
-    near(x, z, radius) {
+    /**
+     * Obstacles whose bounds may touch a circle at (x, z), for something whose wheels are at
+     * height `y`: on the ground, unless it says otherwise.
+     */
+    near(x, z, radius, y = -Infinity) {
       found.clear();
       for (let cx = Math.floor((x - radius) / CELL); cx <= Math.floor((x + radius) / CELL); cx++) {
         for (let cz = Math.floor((z - radius) / CELL); cz <= Math.floor((z + radius) / CELL); cz++) {
           const list = cells.get(key(cx, cz));
-          if (list) for (const obstacle of list) found.add(obstacle);
+          if (list) for (const obstacle of list) if (atLevel(obstacle, y)) found.add(obstacle);
         }
       }
       return found;
