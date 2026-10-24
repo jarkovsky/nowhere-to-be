@@ -7,7 +7,7 @@ import { stepDirt } from './core/dirt.js';
 import { createCarState, placeCar, steerAngle, stepDriving } from './core/driving.js';
 import { createJournal } from './core/journal.js';
 import { chassisPose, settleWheels } from './core/suspension.js';
-import { createTrailerState, stepTrailer } from './core/trailer.js';
+import { createTrailerState, stepTrailer, swingOf } from './core/trailer.js';
 import { createControls } from './input/controls.js';
 import { createLook } from './input/look.js';
 import { createTap } from './input/tap.js';
@@ -869,7 +869,7 @@ export function createGame(canvas) {
         input: controls.read(),
         tentOpen,
         dirt,
-        trailer: car.trailer ? { ...trailer, swing: angleDelta(state.heading, trailer.heading) } : null,
+        trailer: car.trailer ? { ...trailer, swing: swingOf(trailer, state.heading) } : null,
         calls: renderer.info.render.calls,
         triangles: renderer.info.render.triangles,
       }),

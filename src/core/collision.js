@@ -61,7 +61,6 @@ export function createObstacleIndex(obstacles) {
   }
   const found = new Set();
   return {
-    all: obstacles,
     /**
      * Obstacles whose bounds may touch a circle at (x, z), for something whose wheels are at
      * height `y`: on the ground, unless it says otherwise.
