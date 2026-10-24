@@ -32,12 +32,11 @@ export function buildPlane({ body, trim, stripe }) {
   const parts = new PartsBuilder();
   parts.box(1.1, 1.15, 3.6, body, { y: 1.35, z: -0.2 }); // cabin
   parts.box(1.0, 0.95, 1.3, body, { y: 1.3, z: -2.6 }); // engine cowling
-  // The tail cone, narrowing towards the fin.
-  parts.add(new THREE.CylinderGeometry(0.22, 0.78, 3.2, 4), body, {
-    y: 1.5,
+  // The tail cone, narrowing towards the fin: four flat sides, turned square to the cabin's.
+  parts.add(new THREE.CylinderGeometry(0.22, 0.78, 3.2, 4).rotateY(Math.PI / 4), body, {
+    y: 1.38,
     z: 3.1,
     rx: Math.PI / 2,
-    rz: Math.PI / 4,
     sx: 0.95,
   });
   parts.add(new THREE.SphereGeometry(1, 12, 8), GLASS, { y: 1.95, z: -0.6, sx: 0.5, sy: 0.48, sz: 1.15 }); // canopy
