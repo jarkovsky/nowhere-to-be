@@ -130,7 +130,6 @@ function addCampfire(scene, parts, x, z) {
   const dummy = new THREE.Object3D();
 
   return {
-    position: { x, y, z },
     update(time, night) {
       flames.forEach((flame, i) => {
         flame.scale.set(
@@ -263,7 +262,6 @@ export function buildCampsites(scene, obstacles) {
   const fire = buildCamp(scene, obstacles);
   const cabin = buildCabin(scene, obstacles);
   return {
-    fire: fire.position,
     update(time, night) {
       fire.update(time, night);
       cabin.update(time);
