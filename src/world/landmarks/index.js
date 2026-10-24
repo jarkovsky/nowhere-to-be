@@ -22,7 +22,6 @@ import { buildFjord } from './fjord.js';
 import { buildFarms } from './farms.js';
 import { buildVillage } from './village.js';
 import { buildDepot } from './depot.js';
-import { buildWaymarks } from './waymarks.js';
 import { buildHeaps } from '../heaps.js';
 import { HELIPAD, KRYSTOF } from '../layout.js';
 
@@ -53,7 +52,6 @@ export function buildLandmarks(scene, obstacles) {
   const farms = buildFarms(scene, obstacles);
   const village = buildVillage(scene, obstacles);
   const depot = buildDepot(scene, obstacles);
-  buildWaymarks(scene, obstacles);
   buildHeaps(scene);
   buildSigns(scene, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard });
 
