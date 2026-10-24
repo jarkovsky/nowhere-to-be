@@ -35,7 +35,8 @@ import {
 } from '../world/layout.js';
 
 const halt = RAILWAY.offset((HALT.from + HALT.to) / 2, HALT.side * 4);
-const fin = ROCK_FIN.path.at(ROCK_FIN.path.length / 2);
+const fin = ROCK_FIN.path.at(ROCK_FIN.arch / 2);
+const descent = ROCK_FIN.path.at((ROCK_FIN.archEnd + ROCK_FIN.path.length) / 2);
 
 export const PLACES = [
   { id: 'airfield', name: 'Airfield', landmark: 'airfield', x: 560, z: 116, radius: 130 },
@@ -88,6 +89,7 @@ export const PLACES = [
   { id: 'summit', name: 'Velká Deštná lookout tower', landmark: 'summit', ...SUMMIT, radius: 16 },
   { id: 'rockgate', name: 'Rock arch', landmark: 'rockgate', ...ROCK_GATE, radius: 45 },
   { id: 'rockgate.fin', name: 'Causeway over the fin', landmark: 'rockgate', ...fin, radius: 40 },
+  { id: 'rockgate.descent', name: 'Causeway down the far side', landmark: 'rockgate', ...descent, radius: 50 },
   { id: 'fjord', name: 'Fjord village', landmark: 'fjord', ...FJORD_VILLAGE.church, radius: 60 },
   { id: 'fjord.church', name: 'Stave church', landmark: 'fjord', ...FJORD_VILLAGE.church, radius: 14 },
   ...FJORD_VILLAGE.houses.map((house, i) => ({

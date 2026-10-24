@@ -101,7 +101,7 @@ To play on your phone from your own computer, run `npm run dev` and open the **N
 - **The outlands.** Out past the uplands, before the mountains:
   - A river with two shallow fords that the gravel road dips through.
   - A hill of bare rock with a track winding up to its top over rocks and scree, which is slow, bumpy going.
-  - A natural rock arch over the road. A fin of the same rock runs out to it from the rocky hill, and a rough causeway along its top leads from the track up the hill right out onto the arch, while the road still runs underneath.
+  - A natural rock arch over the road. A fin of the same rock runs out to it from the rocky hill and on down the other side, and a rough causeway along its top leads from the track up the hill, over the top of the arch and down across the meadow to the gravel road, while the road still runs underneath.
   - In the north-west, a fjord: deep water between steep walls with waterfalls down them. Hairpins lead down to a village at its head with grass-roofed houses, red boathouses, a stave church, a pier and a little ferry that sails out along the fjord and back. A sign at the top of the road warns of trolls.
   - A village in the west with a pond and a fire station, where the fire engine waits outside on a driveway down to the road.
   - A horse farm and a farm with goats and pigs.
