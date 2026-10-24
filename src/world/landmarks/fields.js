@@ -814,7 +814,12 @@ function nearStalks(items, geometry, range, crop) {
   const mesh = new THREE.InstancedMesh(shape, foliageMaterial('grass', range, crop), size);
   mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(size * 3), 3);
   mesh.count = 0;
-  mesh.frustumCulled = false;
+  // Round where the stalks stand, as far out as the camera fills them from, so they are only
+  // filled in while their field is in view.
+  const stand = new THREE.Box3();
+  for (let i = 0; i < count; i++) stand.expandByPoint(new THREE.Vector3().fromArray(matrices, i * 16 + 12));
+  mesh.boundingSphere = stand.getBoundingSphere(new THREE.Sphere());
+  mesh.boundingSphere.radius += range + STEP;
   // The camera is only known while drawing, so the stalks are filled for where it was last time.
   const eye = new THREE.Vector3(Infinity, 0, Infinity);
   mesh.onBeforeRender = (renderer, scene, camera) => eye.setFromMatrixPosition(camera.matrixWorld);
@@ -1334,7 +1339,6 @@ function chaffCloud(scene) {
     depthWrite: false,
   });
   const mesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.5, 0), material, CHAFF);
-  mesh.frustumCulled = false;
   scene.add(mesh);
   return mesh;
 }
@@ -1350,7 +1354,6 @@ function gullFlock(scene, count) {
     parts.box(0.22, 0.03, 0.4, '#5d625f', { x: -0.02, y: 0.24, z: side * 0.75, rx: side * -0.15 });
   }
   const mesh = new THREE.InstancedMesh(parts.geometry(), flatMaterial('#ffffff', { vertexColors: true }), count);
-  mesh.frustumCulled = false;
   scene.add(mesh);
   return mesh;
 }
@@ -1467,6 +1470,20 @@ export function buildFields(scene, obstacles) {
   shareGround(workers);
   const gulls = gullFlock(scene, 4);
   const chaff = chaffCloud(scene);
+  // Everywhere the machines take them, out to the plots' far corners and a little beyond, so
+  // neither is drawn while the fields are out of view.
+  const corners = Object.values(FIELD_PLOTS).flatMap(({ x0, x1, z0, z1 }) =>
+    [x0, x1].flatMap(lx =>
+      [z0, z1].map(lz => {
+        const p = fieldPoint(lx, lz);
+        return new THREE.Vector3(p.x, terrainHeight(p.x, p.z), p.z);
+      }),
+    ),
+  );
+  const middle = new THREE.Vector3(FIELDS.x, terrainHeight(FIELDS.x, FIELDS.z), FIELDS.z);
+  const area = new THREE.Sphere().setFromPoints(corners, middle);
+  area.radius += 15;
+  gulls.boundingSphere = chaff.boundingSphere = area;
   const dummy = new THREE.Object3D();
   const colliders = [];
   let time = 0;
