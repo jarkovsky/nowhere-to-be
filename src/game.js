@@ -152,8 +152,9 @@ export function createGame(canvas) {
   const traffic = createTraffic(scene);
   const ringTraffic = createTraffic(scene, RING);
   const outerTraffic = createTraffic(scene, OUTER);
+  const roads = [traffic, ringTraffic, outerTraffic];
   // The roads where nothing else needs to be waited for.
-  const openRoads = [ringTraffic, outerTraffic];
+  const openRoads = roads.slice(1);
   const train = createTrain(scene, { onHorn: distance => sound.trainHorn(distance) });
   const car = createCar();
   scene.add(car.root, car.towed);
@@ -223,6 +224,10 @@ export function createGame(canvas) {
   const moving = [];
   // What the traffic and the train wait for besides the car: its trailer, and friends coming along.
   const towed = [];
+  // What the traffic on the trail waits for besides the car.
+  const blockers = [];
+  // The car as the long grass and the crops see it: where it is, how it is going and its wheels.
+  const trampler = { x: 0, z: 0, y: 0, heading: 0, speed: 0, wheels: [] };
   // The surface under the car: up on the top of the rock fin and the arch once it has driven onto it.
   const surfaceHeight = (x, z) => drivingHeight(x, z, state.y);
   // The surface last worked out. The driving asks where the car is at the start of a frame,
@@ -422,7 +427,7 @@ export function createGame(canvas) {
     car.wink();
     wildlife.hearHorn(state.x, state.z);
     secrets.hearHorn(state.x, state.z);
-    for (const road of [traffic, ...openRoads]) road.answerHonk(state.x, state.z, () => sound.otherHorn());
+    for (const road of roads) road.answerHonk(state.x, state.z, () => sound.otherHorn());
     train.answerHonk(state);
     for (const helicopter of helicopters) helicopter.hearHorn(state);
     landmarks.hearHorn(state.x, state.z);
@@ -769,17 +774,19 @@ export function createGame(canvas) {
       dirt = stepDirt(dirt, { surface, speed: state.speed + mudHole.slip, rain: sky.rain }, dt);
     }
     car.setMud(dirt);
-    traffic.update(dt, {
-      player: state,
-      // The tractor from the mud hole comes out along the trail to tow, so the traffic waits for it too.
-      blockers: [...wildlife.crossingDucks(), ...landmarks.crossing.blockers(), ...towed, ...mudHole.colliders],
-      night,
-    });
+    blockers.length = 0;
+    // The tractor from the mud hole comes out along the trail to tow, so the traffic waits for it too.
+    blockers.push(...wildlife.crossingDucks(), ...landmarks.crossing.blockers(), ...towed, ...mudHole.colliders);
+    traffic.update(dt, { player: state, blockers, night });
     for (const road of openRoads) road.update(dt, { player: state, blockers: towed, night });
     // The car and the friends following it lay the long grass and the crops over where they drive through.
-    const wheels = car.wheels.map(({ pivot, radius }) => ({ x: pivot.position.x, z: pivot.position.z, radius }));
-    const player = { x: state.x, z: state.z, y: state.y, heading: state.heading, speed: state.speed, wheels };
-    updateTrample(dt, [player, ...friends.tramplers()]);
+    trampler.x = state.x;
+    trampler.z = state.z;
+    trampler.y = state.y;
+    trampler.heading = state.heading;
+    trampler.speed = state.speed;
+    trampler.wheels = car.spec.wheels;
+    updateTrample(dt, [trampler, ...friends.tramplers()]);
 
     if (mode === 'title') updateIntroShot(clock);
     chase.update(dt, carView(), cameraOptions());
@@ -800,10 +807,7 @@ export function createGame(canvas) {
       planes.engineSound(camera.position),
     ].reduce((a, b) => (b.level > a.level ? b : a));
     sound.rotor(mode === 'title' ? 0 : rotor.level, rotor.rate);
-    const siren = Math.max(
-      landmarks.sirenLevel(state.x, state.z),
-      ...[traffic, ...openRoads].map(road => road.sirenLevel(state)),
-    );
+    const siren = Math.max(landmarks.sirenLevel(state.x, state.z), ...roads.map(road => road.sirenLevel(state)));
     sound.siren(mode === 'title' ? 0 : siren);
     renderer.render(scene, camera);
     if (!UNCAPPED) adaptResolution(frameMs, dt, targetFps);
@@ -844,7 +848,7 @@ export function createGame(canvas) {
         surface: surfaces.getState(),
         traffic: traffic.getState(),
         emergency: traffic.emergency(),
-        visitors: [traffic, ...openRoads].map(road => road.visitor()),
+        visitors: roads.map(road => road.visitor()),
         train: train.getState(),
         helicopter: helicopters[0].getState(),
         krystof: helicopters[1].getState(),
@@ -875,7 +879,7 @@ export function createGame(canvas) {
         chase.snap(carView(), cameraOptions());
       },
       setSky: preset => atmosphere.setPreset(preset),
-      callOut: kind => [traffic, ...openRoads].some(road => road.callOut(state, kind)),
+      callOut: kind => roads.some(road => road.callOut(state, kind)),
       setClock: seconds => atmosphere.setTime(seconds),
       setDirt: amount => (dirt = amount),
       shot(position, target) {

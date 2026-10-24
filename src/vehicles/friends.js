@@ -826,16 +826,14 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
     },
     /** The friends coming along, with their wheels, for the long grass and the crops they drive through. */
     tramplers: () =>
-      party
-        .filter(friend => friend.copy)
-        .map(({ x, z, heading, speed, copy }) => ({
-          x,
-          z,
-          y: drivingHeight(x, z),
-          heading,
-          speed,
-          wheels: copy.car.wheels.map(({ pivot, radius }) => ({ x: pivot.position.x, z: pivot.position.z, radius })),
-        })),
+      party.map(({ x, z, heading, speed, copy }) => ({
+        x,
+        z,
+        y: drivingHeight(x, z),
+        heading,
+        speed,
+        wheels: copy.car.spec.wheels,
+      })),
     getState: () =>
       friends.map(friend => ({
         vehicle: friend.vehicle,
