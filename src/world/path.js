@@ -111,7 +111,12 @@ export function createPath(points, { closed = false, spacing = 1 } = {}) {
     return { x: p.x - p.dz * side, z: p.z + p.dx * side, dx: p.dx, dz: p.dz };
   }
 
-  return { closed, length, spacing: step, samples, at, nearest, isNear, offset, wrap };
+  /** How far apart two distances along the path are, the short way round a closed one. */
+  function apart(a, b) {
+    return closed ? Math.abs(wrap(a - b + length / 2) - length / 2) : Math.abs(a - b);
+  }
+
+  return { closed, length, spacing: step, samples, at, nearest, isNear, offset, wrap, apart };
 }
 
 /** Heading (rotation about +Y) of something facing along direction (dx, dz). */

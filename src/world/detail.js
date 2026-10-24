@@ -79,11 +79,11 @@ export const SWAY = { time: { value: 0 } };
 export function groundMaterial(options = {}) {
   const key = JSON.stringify(options);
   if (materials.has(key)) return materials.get(key);
-  detail ??= { value: detailTexture() };
+  const groundDetail = detailMap();
   const material = new THREE.MeshLambertMaterial({ vertexColors: true, name: 'ground', ...options });
   materials.set(key, material);
   material.onBeforeCompile = shader => {
-    shader.uniforms.groundDetail = detail;
+    shader.uniforms.groundDetail = groundDetail;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vGround;\nvarying vec3 vGroundNormal;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGround = position;\nvGroundNormal = normal;');
@@ -146,7 +146,7 @@ const GROUND_DETAIL = /* glsl */ `
 export function foliageMaterial(kind, range = 0, crop = null) {
   const key = `foliage|${kind}|${range}`;
   if (!crop && materials.has(key)) return materials.get(key);
-  detail ??= { value: detailTexture() };
+  const groundDetail = detailMap();
   const grass = kind === 'grass';
   const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: !grass, name: kind });
   material.defines = { [grass ? 'SWAY_GRASS' : 'SWAY_TREES']: '' };
@@ -154,7 +154,7 @@ export function foliageMaterial(kind, range = 0, crop = null) {
   if (crop) material.defines.CROP_SPAN = '';
   else materials.set(key, material);
   material.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, crop, trampleUniforms(), { groundDetail: detail, swayTime: SWAY.time });
+    Object.assign(shader.uniforms, crop, trampleUniforms(), { groundDetail, swayTime: SWAY.time });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\n${SWAY_PARS}\n${TRAMPLE_PARS}`)
       .replace('vColor.xyz *= instanceColor.xyz;', 'vColor.xyz *= mix( vec3( 1.0 ), instanceColor.xyz, tinted );')
