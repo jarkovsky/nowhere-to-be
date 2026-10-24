@@ -5,7 +5,7 @@
 // way is clear) and red-and-white half barriers.
 import * as THREE from 'three';
 import { RAILWAY, HALT, LEVEL_CROSSING, ROAD, ROAD_HALF_WIDTH } from '../layout.js';
-import { railLevel, terrainHeight } from '../terrain.js';
+import { CROSSING_REACH, railLevel, terrainHeight } from '../terrain.js';
 import { PartsBuilder } from '../build.js';
 import { LANE } from '../../vehicles/traffic.js';
 import { framer } from './frame.js';
@@ -18,14 +18,6 @@ const SLEEPER = '#6f5c4a';
 const RAIL = '#8a867e';
 const STONE = '#b3ab98';
 
-/** How far the road reaches along the railway either side of the crossing, allowing for the angle. */
-function crossingReach() {
-  const rail = RAILWAY.at(LEVEL_CROSSING.s);
-  const road = ROAD.at(LEVEL_CROSSING.roadS);
-  const sin = Math.abs(rail.dx * road.dz - rail.dz * road.dx);
-  return (ROAD_HALF_WIDTH + 0.6) / sin;
-}
-
 /** A point beside the line: `along` metres along it, `side` metres to its right, `up` above the bed. */
 function trackside(along, side = 0, up = 0) {
   const p = RAILWAY.offset(along, side);
@@ -33,8 +25,7 @@ function trackside(along, side = 0, up = 0) {
 }
 
 function buildTrack(parts) {
-  const reach = crossingReach();
-  const onRoad = s => Math.abs(s - LEVEL_CROSSING.s) < reach;
+  const onRoad = s => Math.abs(s - LEVEL_CROSSING.s) < CROSSING_REACH;
   const end = RAILWAY.length;
   for (let s = 0; s < end; s += 2) {
     if (onRoad(s + 1)) continue;
@@ -54,7 +45,7 @@ function buildTrack(parts) {
     }
   }
   // Rubber panels between and beside the rails where the trail crosses.
-  for (let s = LEVEL_CROSSING.s - reach; s < LEVEL_CROSSING.s + reach; s += 1) {
+  for (let s = LEVEL_CROSSING.s - CROSSING_REACH; s < LEVEL_CROSSING.s + CROSSING_REACH; s += 1) {
     for (const [side, width] of [
       [0, GAUGE - 0.16],
       [-GAUGE / 2 - 0.5, 0.8],
