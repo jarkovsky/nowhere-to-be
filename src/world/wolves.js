@@ -24,7 +24,7 @@ function limb(parent, x, y, z, build) {
 }
 
 /** A grey wolf facing +X, a little larger than the fox and longer in the leg. */
-function wolf(scale) {
+export function wolf(scale) {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);

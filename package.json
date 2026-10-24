@@ -12,6 +12,8 @@
     "test:browser": "node tests/smoke.browser.mjs",
     "perf": "node scripts/perf.mjs",
     "screenshots": "node scripts/screenshots.mjs",
+    "catalogue": "node scripts/catalogue.mjs",
+    "geometry": "node scripts/geometry.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

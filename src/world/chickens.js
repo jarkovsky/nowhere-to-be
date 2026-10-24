@@ -12,7 +12,7 @@ const BEAK = '#e0a942';
 const COMB = '#c8302a';
 
 /** A chicken facing +X. `feathers` colours the body; the rooster has a tall tail and a bigger comb. */
-function chickenGeometry(feathers, rooster) {
+export function chickenGeometry(feathers, rooster) {
   const s = rooster ? 1.2 : 1;
   const parts = new PartsBuilder()
     .add(new THREE.IcosahedronGeometry(0.28 * s, 0), feathers, { y: 0.42 * s, sx: 1.25, sy: 0.95, sz: 0.85 })

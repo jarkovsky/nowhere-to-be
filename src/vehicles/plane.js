@@ -27,7 +27,7 @@ const between = ([least, most]) => least + Math.random() * (most - least);
 const DRAW_DISTANCE = 450;
 
 /** A low-wing trainer, nose towards -Z, standing on its wheels at y = 0. */
-function buildPlane({ body, trim, stripe }) {
+export function buildPlane({ body, trim, stripe }) {
   const root = new THREE.Group();
   const parts = new PartsBuilder();
   parts.box(1.1, 1.15, 3.6, body, { y: 1.35, z: -0.2 }); // cabin

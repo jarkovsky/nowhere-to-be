@@ -23,7 +23,7 @@ const VERGE = LANE + 1.9;
 const DRAW_DISTANCE = 330;
 const GLASS = '#4b6a6c';
 
-function camperVan() {
+export function camperVan() {
   const parts = new PartsBuilder();
   parts.box(2.05, 1.05, 4.5, '#5c9a96', { y: 1.15 });
   parts.box(2.05, 0.95, 4.3, '#efe6cc', { y: 2.15, z: 0.1 });
@@ -36,7 +36,7 @@ function camperVan() {
   return { parts, wheelX: 0.95, wheelZ: [-1.5, 1.55], wheelRadius: 0.46, length: 4.6 };
 }
 
-function pickup() {
+export function pickup() {
   const parts = new PartsBuilder();
   const paint = '#b5533c';
   const glass = '#4b6a6c';
@@ -63,7 +63,7 @@ function pickup() {
   return { parts, wheelX: 1.0, wheelZ: [-1.55, 1.6], wheelRadius: 0.52, length: 4.9 };
 }
 
-function saloon() {
+export function saloon() {
   const parts = new PartsBuilder();
   const paint = '#e9e2cf';
   parts.box(1.76, 0.56, 4.1, paint, { y: 0.86 });
@@ -81,7 +81,7 @@ function saloon() {
 }
 
 /** A country bus, cream with an orange stripe. */
-function bus() {
+export function bus() {
   const parts = new PartsBuilder();
   const cream = '#efe6cc';
   const stripe = '#d0773b';
@@ -100,7 +100,7 @@ function bus() {
 }
 
 /** An ambulance in Czech colours: sulphur yellow with a green and yellow chequered band. */
-function ambulance() {
+export function ambulance() {
   const parts = new PartsBuilder();
   const yellow = '#f1dc3c';
   parts.box(2.1, 0.95, 1.5, yellow, { y: 1.05, z: -2.05 }); // bonnet
@@ -139,7 +139,7 @@ function ambulance() {
 }
 
 /** A red fire engine with a white stripe and a ladder on the roof. */
-function fireEngine() {
+export function fireEngine() {
   const parts = new PartsBuilder();
   const red = '#c7312a';
   parts.box(2.45, 0.5, 8, '#2f3430', { y: 0.95 }); // chassis
@@ -171,7 +171,7 @@ function fireEngine() {
 }
 
 /** A Czech police estate car: silver, with reflective blue and yellow bands and a light bar. */
-function policeCar() {
+export function policeCar() {
   const parts = new PartsBuilder();
   const silver = '#c9cdcc';
   parts.box(1.8, 0.62, 4.6, silver, { y: 0.86 });
@@ -203,7 +203,7 @@ function policeCar() {
 }
 
 /** A wide, low army off-roader in olive green, with a canvas cover over the back. */
-function armyCar() {
+export function armyCar() {
   const parts = new PartsBuilder();
   const olive = '#5d6a45';
   const dark = '#2f3529';
@@ -227,7 +227,7 @@ function armyCar() {
  * A boxy four-by-four out exploring, with a roof rack: two kayaks on it, or jerrycans and a
  * rolled-up tent.
  */
-function offRoader(paint, load) {
+export function offRoader(paint, load) {
   return () => {
     const parts = new PartsBuilder();
     const dark = '#2f3430';
@@ -265,7 +265,7 @@ function offRoader(paint, load) {
 }
 
 /** A fuel tanker for the airfield. */
-function tanker() {
+export function tanker() {
   const parts = new PartsBuilder();
   parts.box(2.3, 0.4, 8, '#2f3430', { y: 0.85 }); // chassis
   parts.box(2.35, 1.9, 1.9, '#2f6f9a', { y: 1.95, z: -3 }); // cab
@@ -278,7 +278,7 @@ function tanker() {
 }
 
 /** A little white delivery van. */
-function deliveryVan() {
+export function deliveryVan() {
   const parts = new PartsBuilder();
   const white = '#eeece4';
   parts.box(1.95, 1.9, 3.4, white, { y: 1.55, z: 0.5 }); // box body
@@ -291,7 +291,7 @@ function deliveryVan() {
   return { parts, wheelX: 0.92, wheelZ: [-1.5, 1.4], wheelRadius: 0.42, length: 4.6, lampY: 1.05 };
 }
 
-function createVehicle(model) {
+export function createVehicle(model) {
   const root = new THREE.Group();
   const body = model.parts.mesh();
   root.add(body);

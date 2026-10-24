@@ -195,24 +195,69 @@ export function prism(points) {
   return geometry;
 }
 
-/** A gable roof (two slopes and the triangular ends) over a `width` x `depth` box whose eaves sit at `eave`. */
-export function gableRoof(width, depth, eave, ridge, overhang = 0.35) {
-  const w = width / 2 + overhang;
+/**
+ * A gable roof over a `width` x `depth` box whose walls reach `eave`: two slopes rising to
+ * `ridge`, as a closed slab `thickness` thick. Its underside meets the tops of the walls, so
+ * there is no gap between them, and the slopes carry on down past the walls by `overhang`.
+ */
+export function gableRoof(width, depth, eave, ridge, overhang = 0.35, thickness = 0.15) {
+  const half = width / 2;
+  const w = half + overhang;
   const d = depth / 2 + overhang;
-  return prism([
-    [-w, eave, d],
-    [0, ridge, d],
-    [-w, eave, -d],
-    [-w, eave, -d],
-    [0, ridge, d],
-    [0, ridge, -d],
-    [w, eave, d],
-    [w, eave, -d],
-    [0, ridge, d],
-    [0, ridge, d],
-    [w, eave, -d],
-    [0, ridge, -d],
-  ]);
+  const tip = eave - ((ridge - eave) / half) * overhang;
+  const triangles = [];
+  /** A four-sided face, wound so that it faces `outward`. */
+  const face = (corners, outward) => {
+    const [a, b, c] = corners.map(p => new THREE.Vector3(...p));
+    const normal = b.clone().sub(a).cross(c.clone().sub(a));
+    const ordered = normal.dot(new THREE.Vector3(...outward)) >= 0 ? corners : [...corners].reverse();
+    triangles.push(ordered[0], ordered[1], ordered[2], ordered[0], ordered[2], ordered[3]);
+  };
+  for (const side of [-1, 1]) {
+    const x = side * w;
+    // The top of the slope, its underside and the board along the eave.
+    face(
+      [
+        [x, tip + thickness, d],
+        [x, tip + thickness, -d],
+        [0, ridge + thickness, -d],
+        [0, ridge + thickness, d],
+      ],
+      [side, 1, 0],
+    );
+    face(
+      [
+        [x, tip, d],
+        [x, tip, -d],
+        [0, ridge, -d],
+        [0, ridge, d],
+      ],
+      [-side, -1, 0],
+    );
+    face(
+      [
+        [x, tip, d],
+        [x, tip, -d],
+        [x, tip + thickness, -d],
+        [x, tip + thickness, d],
+      ],
+      [side, 0, 0],
+    );
+    // The ends of the slab over the gables.
+    for (const end of [-1, 1]) {
+      const z = end * d;
+      face(
+        [
+          [x, tip, z],
+          [x, tip + thickness, z],
+          [0, ridge + thickness, z],
+          [0, ridge, z],
+        ],
+        [0, 0, end],
+      );
+    }
+  }
+  return prism(triangles);
 }
 
 /**

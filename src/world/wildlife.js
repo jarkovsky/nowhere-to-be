@@ -25,7 +25,7 @@ function limb(parent, x, y, z, build) {
   return pivot;
 }
 
-function deer() {
+export function deer() {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -52,7 +52,7 @@ function deer() {
   return { root, body, legs };
 }
 
-function duck(scale) {
+export function duck(scale) {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -69,7 +69,7 @@ function duck(scale) {
   return { root, body, legs };
 }
 
-function sheep() {
+export function sheep() {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -89,7 +89,7 @@ function sheep() {
   return { root, body, legs: [head] };
 }
 
-function rabbit() {
+export function rabbit() {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -107,7 +107,7 @@ function rabbit() {
   return { root, body, legs: [] };
 }
 
-function cow() {
+export function cow() {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -136,7 +136,7 @@ function cow() {
   return { root, body, legs: [head] };
 }
 
-function fox() {
+export function fox() {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -198,7 +198,7 @@ function geeseFlock(scene, count) {
 }
 
 /** A golden eagle with its wings spread for soaring, as one rigid mesh. */
-function eagle() {
+export function eagle() {
   const brown = '#5e4632';
   const parts = new PartsBuilder()
     .box(1.1, 0.34, 0.42, brown)
@@ -219,7 +219,7 @@ function eagle() {
   return root;
 }
 
-function fish() {
+export function fish() {
   const root = new THREE.Group();
   root.add(
     new PartsBuilder()

@@ -37,22 +37,23 @@ function inFarm(x, z) {
 }
 
 /**
- * The hole's wet surface: dark mud with a ragged edge, smooth so that it shines softly,
- * with lumps on it that catch the light and water lying in the hollows.
+ * A patch of wet mud lying on the ground: dark mud with a ragged edge, smooth so that it
+ * shines softly, with lumps on it that catch the light and water lying in the hollows.
+ * `seed` picks the pattern, `lift` how far it lies above the ground.
  */
-function poolGeometry() {
-  const { x: cx, z: cz, radius } = MUD_HOLE;
+export function mudGeometry({ x: cx, z: cz, radius, seed = 43, lift = 0.08, colors: palette = {} }) {
   const RINGS = 7;
   const SIDES = 30;
-  const positions = [cx, terrainHeight(cx, cz) + 0.08, cz];
+  const positions = [cx, terrainHeight(cx, cz) + lift, cz];
   const colors = [];
   const color = new THREE.Color();
+  const { mud = '#3f2f22', dark: deep = '#2a2019', churned: trodden = '#5a4431' } = palette;
   const water = new THREE.Color('#6d7773');
-  const dark = new THREE.Color('#2a2019');
-  const churned = new THREE.Color('#5a4431');
+  const dark = new THREE.Color(deep);
+  const churned = new THREE.Color(trodden);
   const tint = (x, z, out) => {
-    const hollow = valueNoise(x / 1.6, z / 1.6, 43);
-    color.set('#3f2f22').lerp(dark, 0.6 * (1 - out));
+    const hollow = valueNoise(x / 1.6, z / 1.6, seed);
+    color.set(mud).lerp(dark, 0.6 * (1 - out));
     if (hollow < 0.38 && out < 0.85) color.lerp(water, (0.38 - hollow) * 3.5);
     return color.lerp(churned, Math.max(0, out - 0.75) * 3).toArray();
   };
@@ -60,13 +61,13 @@ function poolGeometry() {
   for (let ring = 1; ring <= RINGS; ring++) {
     for (let side = 0; side < SIDES; side++) {
       const a = (side / SIDES) * Math.PI * 2;
-      const edge = 0.82 + valueNoise(Math.cos(a) * 1.7 + 3, Math.sin(a) * 1.7, 41) * 0.3;
+      const edge = 0.82 + valueNoise(Math.cos(a) * 1.7 + 3, Math.sin(a) * 1.7, seed - 2) * 0.3;
       const out = ring / RINGS;
       const x = cx + Math.cos(a) * radius * out * edge;
       const z = cz + Math.sin(a) * radius * out * edge;
       // Lumps of mud stand up out of the wet, and water lies in the hollows between them.
-      const lump = ring < RINGS ? Math.max(0, valueNoise(x / 1.6, z / 1.6, 43) - 0.38) * 0.12 : 0;
-      positions.push(x, terrainHeight(x, z) + 0.08 + lump, z);
+      const lump = ring < RINGS ? Math.max(0, valueNoise(x / 1.6, z / 1.6, seed) - 0.38) * 0.12 : 0;
+      positions.push(x, terrainHeight(x, z) + lift + lump, z);
       colors.push(...tint(x, z, out));
     }
   }
@@ -89,6 +90,14 @@ function poolGeometry() {
   geometry.computeVertexNormals();
   return geometry;
 }
+
+/** Wet mud: smooth, and drawn over the ground it lies on. */
+export const wet = new THREE.MeshLambertMaterial({
+  vertexColors: true,
+  polygonOffset: true,
+  polygonOffsetFactor: -6,
+  polygonOffsetUnits: -6,
+});
 
 /** The lane's two ruts carrying on through the mud with water in them, and mud thrown out over the grass. */
 function splashGeometry() {
@@ -160,7 +169,7 @@ function axle(wheels) {
 }
 
 /** The farm's tractor: the garage's tractor in red, with a drawbar for the rope behind. */
-function buildTractor() {
+export function buildTractor() {
   const { painted, trim, spec } = vehicleParts('tractor');
   trim.box(0.2, 0.15, 1.2, '#6b706b', { y: HITCH_HEIGHT - 0.05, z: HITCH - 0.5 }); // drawbar
   trim.box(0.34, 0.2, 0.2, '#3a3f3a', { y: HITCH_HEIGHT, z: HITCH }); // the hook
@@ -211,13 +220,7 @@ export function createMudHole(scene, { obstacles, onToot }) {
     },
   });
 
-  const wet = new THREE.MeshLambertMaterial({
-    vertexColors: true,
-    polygonOffset: true,
-    polygonOffsetFactor: -6,
-    polygonOffsetUnits: -6,
-  });
-  for (const geometry of [poolGeometry(), splashGeometry()]) {
+  for (const geometry of [mudGeometry(MUD_HOLE), splashGeometry()]) {
     const mesh = new THREE.Mesh(geometry, wet);
     mesh.receiveShadow = true;
     scene.add(mesh);

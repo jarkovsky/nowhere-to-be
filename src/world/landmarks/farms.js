@@ -5,6 +5,7 @@ import { FARMS } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder, gableRoof, gableEnds, createSmoke } from '../build.js';
 import { framer } from './frame.js';
+import { mudGeometry, wet } from '../mudhole.js';
 
 const WHITE = '#eee7d3';
 const GLASS = '#4f6466';
@@ -104,15 +105,26 @@ function buildOne(scene, obstacles, farm) {
   if (farm.sty) {
     // A low fence round a muddy pen, with a little shelter at the back.
     ringFence(parts, obstacles, farm.sty, { posts: 14 });
-    parts.add(new THREE.CircleGeometry(farm.sty.radius - 0.4, 16), '#6f5a41', {
-      x: farm.sty.x,
-      y: terrainHeight(farm.sty.x, farm.sty.z) + 0.05,
-      z: farm.sty.z,
-      rx: -Math.PI / 2,
-    });
+    const mud = new THREE.Mesh(
+      mudGeometry({
+        ...farm.sty,
+        radius: farm.sty.radius - 0.7,
+        seed: 61,
+        lift: 0.05,
+        // Trodden earth, wet in the middle where the pigs lie.
+        colors: { mud: '#7a6044', dark: '#4f3b29', churned: '#8c7550' },
+      }),
+      wet,
+    );
+    mud.receiveShadow = true;
+    scene.add(mud);
+    // The shelter stands on the slope with its back wall down to the lowest corner.
     const shelter = framer({ x: farm.sty.x, z: farm.sty.z, rotation: farm.rotation });
-    parts.box(3.2, 1.4, 2, '#8a6a4a', shelter.at(0, 0.7, -3.2));
-    parts.box(3.6, 0.12, 2.6, '#5f5b54', shelter.at(0, 1.5, -3.1, { rx: 0.18 }));
+    const corners = [-1.6, 1.6].flatMap(lx => [-4.2, -2.2].map(lz => shelter.ground(lx, lz)));
+    const [low, high] = [Math.min(...corners), Math.max(...corners)];
+    const floor = shelter.ground(0, 0);
+    parts.box(3.2, 1.4 + high - low, 2, '#8a6a4a', shelter.at(0, (high + low) / 2 + 0.7 - floor, -3.2));
+    parts.box(3.6, 0.12, 2.6, '#5f5b54', shelter.at(0, high + 1.5 - floor, -3.1, { rx: 0.18 }));
   }
 
   scene.add(parts.mesh());

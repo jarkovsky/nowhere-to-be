@@ -379,7 +379,7 @@ let stalk = null;
  * greener low down, with a long ear nodding over towards +X at the top. Each side is lit as if
  * it faced a little upwards, so the stalks don't flicker light and dark as they turn.
  */
-function stalkGeometry() {
+export function stalkGeometry() {
   if (stalk) return stalk;
   const positions = [];
   const normals = [];
@@ -805,7 +805,7 @@ function addWheel(root, { x, z, radius, width = 0.4 }, steers) {
 }
 
 /** A copy of the garage's tractor in the farm's own colour, with something hitched behind. */
-function farmTractor(color, implement) {
+export function farmTractor(color, implement) {
   const { painted, trim, spec } = vehicleParts('tractor');
   const root = new THREE.Group();
   root.add(painted.mesh({ material: flatMaterial(color) }), trim.mesh());
@@ -856,7 +856,7 @@ function farmTractor(color, implement) {
  * A combine harvester, front to -Z like the tractors: a wide cutting table with a
  * turning reel, the cab up high at the front and the grain tank behind it.
  */
-function combineHarvester() {
+export function combineHarvester() {
   const root = new THREE.Group();
   const parts = new PartsBuilder();
   parts.box(2.6, 2, 5.2, COMBINE, { y: 1.9, z: 1 }); // body

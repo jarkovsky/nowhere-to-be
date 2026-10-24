@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#dce5da" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Nowhere to Be: object viewer</title>
+  </head>
+  <body>
+    <aside id="panel" class="panel">
+      <header>
+        <h1>Object viewer</h1>
+        <input id="search" type="search" placeholder="Search" aria-label="Search the objects" />
+      </header>
+      <nav id="list" class="list"></nav>
+    </aside>
+    <main class="stage">
+      <canvas id="view"></canvas>
+      <button id="toggle-panel" class="toggle-panel" aria-label="Show the list" aria-controls="panel">☰</button>
+      <div id="loading" class="loading" hidden>Building the world…</div>
+      <div class="toolbar" role="toolbar" aria-label="View options">
+        <label><input type="checkbox" data-option="issues" checked /> Problems</label>
+        <label><input type="checkbox" data-option="obstacles" /> Collisions</label>
+        <label><input type="checkbox" data-option="backfaces" /> Back faces</label>
+        <label><input type="checkbox" data-option="wireframe" /> Wireframe</label>
+        <label><input type="checkbox" data-option="surroundings" checked /> Surroundings</label>
+        <label><input type="checkbox" data-option="moving" /> Moving</label>
+        <label><input type="checkbox" data-option="night" /> Night</label>
+        <label class="cut">Cut <input type="range" data-option="cut" min="0" max="1" step="0.01" value="1" /></label>
+        <button id="place-car" type="button" aria-pressed="false">Car for scale</button>
+      </div>
+      <section id="info" class="info" aria-live="polite">
+        <h2 id="title"></h2>
+        <p id="stats"></p>
+        <ol id="issues" class="issues"></ol>
+      </section>
+    </main>
+    <script type="module" src="/src/dev/viewer.js"></script>
+  </body>
+</html>

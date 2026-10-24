@@ -782,6 +782,34 @@ export function onDeck(x, z) {
   return jettyHeight(x, z) !== null && JETTY_DECK > terrainHeight(x, z);
 }
 
+// --- The railway track ---------------------------------------------------------------
+
+// How far the road over the level crossing reaches along the line, allowing for the angle.
+const crossingReach = (() => {
+  const rail = RAILWAY.at(LEVEL_CROSSING.s);
+  const road = ROAD.at(LEVEL_CROSSING.roadS);
+  return (ROAD_HALF_WIDTH + 0.6) / Math.abs(rail.dx * road.dz - rail.dz * road.dx);
+})();
+
+/**
+ * What the tyres ride on crossing the railway, or null away from it: the sleepers between the
+ * ends of the sleepers, then the ballast's shoulders easing down to the ground (the railway
+ * builds them at these heights over the bed), and the rubber panels where the road crosses.
+ */
+function trackHeight(x, z) {
+  if (!RAILWAY.isNear(x, z, 2.4)) return null;
+  const { sample, side } = RAILWAY.nearest(x, z);
+  const off = Math.abs(side);
+  if (off > 2.1) return null;
+  const s = sample.s + (x - sample.x) * sample.dx + (z - sample.z) * sample.dz;
+  if (s < 0 || s > RAILWAY.length) return null;
+  if (Math.abs(s - LEVEL_CROSSING.s) < crossingReach) return off < 1.62 ? terrainHeight(x, z) + 0.16 : null;
+  const bed = railLevel(s);
+  if (off < 1.25) return bed + 0.28;
+  if (off < 1.6) return bed + 0.17;
+  return lerp(bed + 0.17, terrainHeight(x, z), (off - 1.6) / 0.5);
+}
+
 // --- The rocks on the tracks --------------------------------------------------------
 
 // Each rock is listed in the square cells it touches, so a point only checks the few near it.
@@ -899,7 +927,7 @@ const FIN_STEP = 1.5;
  */
 export function drivingHeight(x, z, from = -Infinity) {
   const ground = terrainHeight(x, z) + Math.max(rockHeight(x, z), heapHeight(x, z));
-  const deck = bridgeHeight(x, z) ?? jettyHeight(x, z);
+  const deck = bridgeHeight(x, z) ?? jettyHeight(x, z) ?? trackHeight(x, z);
   const surface = deck === null ? ground : Math.max(ground, deck);
   if (from === -Infinity) return surface;
   const fin = finHeight(x, z);

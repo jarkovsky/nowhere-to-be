@@ -489,7 +489,7 @@ function tierGeometry(radius, height, branches) {
 }
 
 /** Near the camera, a pine has five ragged tiers of branches; further off, three plain cones. */
-function pineGeometry(detailed) {
+export function pineGeometry(detailed) {
   const parts = new PartsBuilder();
   parts.add(new THREE.CylinderGeometry(0.17, 0.27, 3.2, 5), TRUNK, { y: 1.6 });
   if (detailed) {
@@ -512,7 +512,7 @@ function pineGeometry(detailed) {
   return tintable(parts.geometry(), [TRUNK]);
 }
 
-function roundTreeGeometry() {
+export function roundTreeGeometry() {
   const parts = new PartsBuilder();
   parts.add(new THREE.CylinderGeometry(0.2, 0.3, 3.4, 5), TRUNK, { y: 1.7 });
   parts.add(new THREE.IcosahedronGeometry(2.4, 0), LEAVES, { y: 4.6, sy: 1.15 });
@@ -521,7 +521,7 @@ function roundTreeGeometry() {
   return tintable(parts.geometry(), [TRUNK]);
 }
 
-function birchGeometry() {
+export function birchGeometry() {
   const parts = new PartsBuilder();
   parts.add(new THREE.CylinderGeometry(0.13, 0.18, 5.2, 5), BIRCH_BARK, { y: 2.6 });
   for (const [y, ry] of [
@@ -537,7 +537,7 @@ function birchGeometry() {
   return tintable(parts.geometry(), [BIRCH_BARK, BIRCH_MARKS]);
 }
 
-function bushGeometry() {
+export function bushGeometry() {
   const parts = new PartsBuilder();
   parts.add(new THREE.IcosahedronGeometry(0.9, 0), LEAVES, { y: 0.55, sy: 0.75 });
   parts.add(new THREE.IcosahedronGeometry(0.65, 0), LEAVES, { x: 0.75, y: 0.45, z: 0.2, sy: 0.8 });
@@ -545,14 +545,14 @@ function bushGeometry() {
   return tintable(parts.geometry());
 }
 
-function stumpGeometry() {
+export function stumpGeometry() {
   const parts = new PartsBuilder();
   parts.add(new THREE.CylinderGeometry(0.42, 0.55, 0.7, 7), '#80694b', { y: 0.3 });
   parts.add(new THREE.CylinderGeometry(0.4, 0.4, 0.04, 7), '#c9ad7c', { y: 0.66 });
   return parts.geometry();
 }
 
-function logGeometry() {
+export function logGeometry() {
   const parts = new PartsBuilder();
   parts.add(new THREE.CylinderGeometry(0.33, 0.38, 4.2, 7), '#7d6346', { y: 0.32, rz: Math.PI / 2 });
   for (const x of [-2.1, 2.1])
@@ -1208,8 +1208,9 @@ function buildPavedRoads(scene) {
   const dashes = s => s % 9 > 4.5;
   inPieces(RING_ROAD, outside => {
     const asphalt = ribbonGeometry(RING_ROAD, ROAD_HALF_WIDTH, ASPHALT, { lift: 0.07, skip: outside });
+    // A few centimetres above the asphalt, or the two flicker against each other far off.
     const line = ribbonGeometry(RING_ROAD, 0.1, '#eeece2', {
-      lift: 0.09,
+      lift: 0.1,
       across: 1,
       skip: s => outside(s) || dashes(s),
     });
@@ -1221,7 +1222,7 @@ function buildPavedRoads(scene) {
     scene.add(ribbon(path, ROAD_HALF_WIDTH, ASPHALT, { lift: 0.06, skip: between }));
     scene.add(
       ribbon(path, 0.1, '#eeece2', {
-        lift: 0.08,
+        lift: 0.1,
         across: 1,
         skip: s => between(s) || s > path.length - 6 || dashes(s),
       }),

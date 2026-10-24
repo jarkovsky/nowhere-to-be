@@ -955,7 +955,9 @@ export const LINKS = [
   {
     id: 'airfield',
     grade: 0.12,
-    path: createPath([ringPoint(19.5), [503, 182], [AIRFIELD.apron.x0 + 2, 188]]),
+    // The last stretch runs straight in, square to the apron, and stops at its edge (the
+    // paved roads leave out their last 3 m).
+    path: createPath([ringPoint(19.5), [500, 184], [512, 188], [AIRFIELD.apron.x0 + 3, 188]]),
   },
 ];
 

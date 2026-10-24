@@ -55,7 +55,7 @@ export const AIR_AMBULANCE = {
   every: KRYSTOF.every,
 };
 
-function buildHelicopter({ body, band, trim, skids, fenestron = false }) {
+export function buildHelicopter({ body, band, trim, skids, fenestron = false }) {
   const root = new THREE.Group();
   const parts = new PartsBuilder();
   parts.add(new RoundedBoxGeometry(2, 2, 4.2, 2, 0.6), body, { y: 1.75 });

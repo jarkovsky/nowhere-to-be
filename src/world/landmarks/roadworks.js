@@ -61,7 +61,7 @@ function keyframes(keys, length, time) {
 
 // --- Machines. Each faces local -Z. ------------------------------------------
 
-function excavator() {
+export function excavator() {
   const root = new THREE.Group();
   const base = new PartsBuilder();
   for (const x of [-1.25, 1.25]) {
@@ -121,7 +121,7 @@ function excavator() {
   };
 }
 
-function dumpTruck() {
+export function dumpTruck() {
   const parts = new PartsBuilder();
   parts.box(1.2, 0.45, 7.2, DARK, { y: 0.95 }); // chassis
   parts.box(2.45, 1.5, 1.8, ORANGE, { y: 2, z: -2.9 }); // cab
@@ -138,7 +138,7 @@ function dumpTruck() {
   return parts.mesh();
 }
 
-function roller() {
+export function roller() {
   const root = new THREE.Group();
   const parts = new PartsBuilder();
   for (const x of [-1.15, 1.15]) parts.box(0.15, 1, 1.7, YELLOW, { x, y: 0.95, z: -1.5 }); // drum frame
@@ -164,7 +164,7 @@ function roller() {
   return { root, drum, length: 4.6 };
 }
 
-function grader() {
+export function grader() {
   const parts = new PartsBuilder();
   // A long arched frame from the front axle back to the cab, with the blade slung under it.
   parts.box(0.5, 0.55, 4.6, YELLOW, { y: 1.75, z: -1.6 });
@@ -185,7 +185,7 @@ function grader() {
   return { root: parts.mesh(), length: 8.4 };
 }
 
-function skidSteer() {
+export function skidSteer() {
   const root = new THREE.Group();
   const parts = new PartsBuilder();
   parts.box(1.4, 0.9, 2.2, '#ece7da', { y: 0.85 });
@@ -220,7 +220,7 @@ function buildSurfaces(scene) {
   const line = stretch(HALF_WIDTH + 1, asphalt - 2);
   const surfaces = [
     ribbonGeometry(path, HALF_WIDTH, ASPHALT, { lift: 0.06, skip: stretch(HALF_WIDTH - 1.5, asphalt) }),
-    ribbonGeometry(path, 0.1, '#eeece2', { lift: 0.08, across: 1, skip: s => line(s) || dashes(s) }),
+    ribbonGeometry(path, 0.1, '#eeece2', { lift: 0.1, across: 1, skip: s => line(s) || dashes(s) }),
     ribbonGeometry(path, HALF_WIDTH, '#a9a395', { lift: 0.05, skip: stretch(asphalt - 1, gravel) }),
     ribbonGeometry(path, HALF_WIDTH + 0.8, '#9c8466', { lift: 0.04, skip: stretch(gravel - 1, end) }),
     junctionCorners(7),
@@ -303,7 +303,7 @@ function buildClutter(parts, obstacles) {
   add(new THREE.BoxGeometry(2.4, 2.6, 6), '#4e7fa8', cabin, { y: 1.6 });
   add(new THREE.BoxGeometry(2.5, 0.12, 6.1), '#e8e4da', cabin, { y: 2.95 });
   add(new THREE.BoxGeometry(0.06, 0.9, 1.4), GLASS, near(1.22, -1.2), { y: 1.9 });
-  add(new THREE.BoxGeometry(0.06, 1.9, 0.9), '#e8e4da', near(1.22, 1.4), { y: 1.25 });
+  add(new THREE.BoxGeometry(0.06, 1.9, 0.9), '#e8e4da', near(1.22, 1.4), { y: 1.28 });
   for (const lz of [-2.6, 2.6]) add(new THREE.BoxGeometry(2.2, 0.3, 0.4), '#8e8b80', near(0, lz), { y: 0.15 });
   const toilet = near(0, 4.2);
   add(new THREE.BoxGeometry(1.1, 2.2, 1.1), '#3d6fa8', toilet, { y: 1.1 });

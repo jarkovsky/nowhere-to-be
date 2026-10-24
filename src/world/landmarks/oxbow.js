@@ -69,12 +69,13 @@ function addReeds(parts, random) {
   const blade = new THREE.ConeGeometry(0.07, 1, 3, 1, true);
   const head = new THREE.CylinderGeometry(0.075, 0.075, 0.4, 4);
   const clump = (x, z, size) => {
-    const y = terrainHeight(x, z);
     for (let k = 7 + Math.floor(random() * 6); k > 0; k--) {
       const a = random() * Math.PI * 2;
       const r = Math.sqrt(random()) * 0.65 * size;
       const height = (1.3 + random() * 0.9) * size;
       const at = { x: x + Math.cos(a) * r, z: z + Math.sin(a) * r };
+      // Each stem grows out of the bank where it stands, which slopes.
+      const y = terrainHeight(at.x, at.z);
       if (random() < 0.3) {
         // A bulrush: a straight stalk with its brown head near the top.
         parts.add(blade, REEDS[0], { ...at, y: y + height * 0.55, sy: height * 1.15, sx: 0.6, sz: 0.6 });
@@ -129,7 +130,7 @@ function addLilies(parts, random) {
       if (OXBOW_LEVEL - terrainHeight(p.x, p.z) < 0.15 || byTheFord(p.x, p.z, 9)) continue;
       const r = 0.4 + random() * 0.35;
       const color = LILIES[Math.floor(random() * LILIES.length)];
-      parts.add(pad, color, { x: p.x, y: OXBOW_LEVEL + 0.03, z: p.z, sx: r, sz: r, ry: random() * 6.3 });
+      parts.add(pad, color, { x: p.x, y: OXBOW_LEVEL + 0.02, z: p.z, sx: r, sz: r, ry: random() * 6.3 });
       if (random() < 0.3) parts.add(flower, '#f3eee2', { x: p.x, y: OXBOW_LEVEL + 0.08, z: p.z, rx: Math.PI });
     }
   }
