@@ -225,10 +225,21 @@ export function createGame(canvas) {
   const towed = [];
   // The surface under the car: up on the top of the rock fin and the arch once it has driven onto it.
   const surfaceHeight = (x, z) => drivingHeight(x, z, state.y);
+  // The surface last worked out. The driving asks where the car is at the start of a frame,
+  // which is just where the dirt asked at the end of the frame before.
+  const lastSurface = { x: NaN, z: NaN, y: NaN, kind: 'grass' };
   const world = {
     obstacles: createObstacleIndex(obstacles),
     dynamic: moving,
-    surface: (x, z) => (onFin(x, z, state.y) ? 'track' : surfaceUnder(x, z)),
+    surface(x, z) {
+      if (x !== lastSurface.x || z !== lastSurface.z || state.y !== lastSurface.y) {
+        lastSurface.kind = onFin(x, z, state.y) ? 'track' : surfaceUnder(x, z);
+        lastSurface.x = x;
+        lastSurface.z = z;
+        lastSurface.y = state.y;
+      }
+      return lastSurface.kind;
+    },
     slope: (x, z, heading) => slopeAlong(surfaceHeight, x, z, heading),
     isDriveable,
     waterDepth: wadingDepth,
