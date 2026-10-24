@@ -50,6 +50,20 @@ try {
   assert.equal((await state(page)).mode, 'driving');
   step('pauses, and resumes from the play button or a tap on the game beside the menu');
 
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: 'Map', exact: true }).click();
+  await page.waitForFunction(() => window.__game.getState().map.ready);
+  const { map, car } = await state(page);
+  assert.ok(Math.hypot(map.camera.x - car.x, map.camera.z - car.z) < 1, 'the map opens on the car');
+  assert.ok(map.shown > 10, `the places are marked (${map.shown})`);
+  await page.keyboard.press('Escape');
+  assert.ok(await page.getByRole('button', { name: 'Map', exact: true }).isVisible(), 'Escape goes back to the menu');
+  await page.getByRole('switch', { name: 'Minimap' }).click();
+  await page.getByRole('button', { name: 'Resume' }).click();
+  assert.ok(await page.getByRole('button', { name: 'Open the map' }).isVisible());
+  assert.equal((await state(page)).journal.minimap, true);
+  step('opens the map on the car from the menu, goes back with Escape, and shows the minimap');
+
   await page.evaluate(async () => {
     const { GNOMES } = await import('/src/world/layout.js');
     window.__game.teleport(GNOMES[0].x + 1.5, GNOMES[0].z, 0);

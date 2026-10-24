@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { screenRoll, steeringFromRoll, createTiltSteering } from '../src/input/tilt.js';
+import {
+  LEAN_BACK,
+  createTiltSteering,
+  leanBackThresholds,
+  screenPitch,
+  screenRoll,
+  stepLeanBack,
+  steeringFromRoll,
+} from '../src/input/tilt.js';
 
 /** A fake window with controllable sensor readings, permission and timers. */
 function host(permission) {
@@ -167,4 +175,141 @@ test('older iOS versions report the screen angle on window.orientation', async (
   h.reading(...sampleForRoll(30, -90));
   tilt.update(0.05, true);
   assert.ok(tilt.getState().steering > 0);
+});
+
+/** Sensor angles for a device leaned back `pitch` degrees from upright and turned by `roll`. */
+function sampleForPose(pitch, roll = 0, screenAngle = 0) {
+  const p = (pitch * Math.PI) / 180;
+  const r = ((roll + screenAngle) * Math.PI) / 180;
+  const x = Math.sin(r) * Math.cos(p);
+  const y = Math.cos(r) * Math.cos(p);
+  return [(Math.asin(y) * 180) / Math.PI, (Math.atan2(-x, Math.sin(p)) * 180) / Math.PI];
+}
+
+test('leaning back reads the same in portrait and both landscape orientations, whatever the turn', () => {
+  for (const screen of [0, 90, -90, 180, 270]) {
+    for (const pitch of [0, 15, 30, 45, 60, 80]) {
+      for (const turn of [-30, 0, 30]) near(screenPitch(...sampleForPose(pitch, turn, screen)), pitch);
+    }
+  }
+  near(screenPitch(90, 0), 0); // upright portrait
+  near(screenPitch(0, -90), 0); // upright landscape
+  near(screenPitch(0, 0), 90); // lying flat
+  near(screenPitch(100, 0), -10); // tipped forward
+  assert.equal(screenPitch(null, 0), null);
+  assert.equal(screenPitch(30, NaN), null);
+});
+
+test('reversing starts a clear way back from the upright pose, short of lying flat', () => {
+  assert.deepEqual(leanBackThresholds(30), { enter: 50, exit: 42 });
+  assert.deepEqual(leanBackThresholds(-5), { enter: 15, exit: 7 });
+  // Held well back already, there is less room before the screen lies flat.
+  assert.deepEqual(leanBackThresholds(55), { enter: 68, exit: 60 });
+  assert.deepEqual(leanBackThresholds(62), { enter: 72, exit: 64 });
+  for (const upright of [-10, 0, 20, 40, 59]) {
+    const { enter, exit } = leanBackThresholds(upright);
+    assert.ok(enter - upright >= LEAN_BACK.least && exit > upright, `upright at ${upright}°`);
+  }
+});
+
+test('the screen has to stay leaned back for a moment, and coming back stops at once', () => {
+  let state = { reversing: false, held: 0 };
+  const step = (pitch, dt = 0.05, upright = 30) => (state = stepLeanBack(state, pitch, upright, dt));
+  for (let i = 0; i < 40; i++) step(45);
+  assert.equal(state.reversing, false, 'leaning back a little drives on');
+  for (let i = 0; i < 7; i++) step(52);
+  assert.equal(state.reversing, false, 'not after 0.35 s');
+  step(52, 0.1);
+  assert.equal(state.reversing, true, 'after 0.45 s');
+  step(44);
+  assert.equal(state.reversing, true, 'a wobble back towards upright keeps reversing');
+  step(41);
+  assert.equal(state.reversing, false, 'back past the band it stops');
+  step(52, 0.3);
+  step(44, 0.3);
+  step(52, 0.3);
+  assert.equal(state.reversing, false, 'the time leaned back starts again after each wobble');
+  // Laid down in one quick movement, it passes through without reversing.
+  state = { reversing: false, held: 0 };
+  for (const pitch of [35, 48, 56, 63, 70, null, null]) step(pitch, 0.08);
+  assert.equal(state.reversing, false);
+  step(55, 1, null);
+  assert.equal(state.reversing, false, 'nothing happens before the upright pose is known');
+});
+
+test('with leaning back switched on, leaning back reverses; lying flat still stops', async () => {
+  const h = host(() => Promise.resolve('granted'));
+  const tilt = createTiltSteering(h);
+  await tilt.enable();
+  tilt.setLeanBack(true);
+  h.reading(...sampleForPose(25));
+  const drive = (seconds, active = true) => {
+    for (let t = 0; t < seconds - 1e-9; t += 0.05) tilt.update(0.05, active);
+  };
+  drive(1);
+  assert.equal(tilt.getState().reversing, false);
+  h.reading(...sampleForPose(50, 10));
+  drive(0.3);
+  assert.equal(tilt.getState().reversing, false, 'not straight away');
+  drive(0.15);
+  assert.equal(tilt.getState().reversing, true);
+  assert.ok(tilt.getState().steering > 0, 'and it still steers');
+  drive(0.5, false);
+  assert.equal(tilt.getState().reversing, false, 'not while paused');
+  drive(0.45);
+  assert.equal(tilt.getState().reversing, true);
+  h.reading(...sampleForPose(34));
+  drive(0.05);
+  assert.equal(tilt.getState().reversing, false, 'upright again, it stops reversing');
+
+  // Leaned back and then laid flat: the car stops, and picking it up again doesn't reverse.
+  h.reading(...sampleForPose(50));
+  drive(0.5);
+  h.reading(0, 0);
+  drive(0.05);
+  assert.deepEqual([tilt.getState().reversing, tilt.getState().ready], [false, false]);
+  h.reading(...sampleForPose(25));
+  drive(0.05);
+  assert.equal(tilt.getState().reversing, false);
+
+  // Re-centring while held further back moves the pose it leans back from.
+  h.reading(...sampleForPose(40));
+  tilt.center();
+  h.reading(...sampleForPose(52));
+  drive(1);
+  assert.equal(tilt.getState().reversing, false);
+  h.reading(...sampleForPose(61));
+  drive(0.5);
+  assert.equal(tilt.getState().reversing, true);
+
+  tilt.setLeanBack(false);
+  assert.equal(tilt.getState().reversing, false);
+  drive(1);
+  assert.equal(tilt.getState().reversing, false, 'switched off, leaning back does nothing');
+});
+
+test('leaning back does nothing unless switched on, and steering is unchanged', async () => {
+  const h = host(() => Promise.resolve('granted'));
+  const tilt = createTiltSteering(h);
+  await tilt.enable();
+  h.reading(...sampleForPose(20));
+  h.reading(...sampleForPose(60, 20));
+  for (let i = 0; i < 40; i++) tilt.update(0.05, true);
+  assert.equal(tilt.getState().reversing, false);
+  assert.ok(tilt.getState().steering > 0.5);
+});
+
+test('a centre for leaning back is not taken while the device is still being picked up', async () => {
+  const h = host(() => Promise.resolve('granted'));
+  const tilt = createTiltSteering(h);
+  await tilt.enable();
+  tilt.setLeanBack(true);
+  h.reading(...sampleForPose(70));
+  h.reading(...sampleForPose(73));
+  for (let i = 0; i < 20; i++) tilt.update(0.05, true);
+  assert.equal(tilt.getState().reversing, false, 'nearly flat to begin with: no centre yet');
+  h.reading(...sampleForPose(30));
+  h.reading(...sampleForPose(55));
+  for (let i = 0; i < 10; i++) tilt.update(0.05, true);
+  assert.equal(tilt.getState().reversing, true, 'held up, it leans back from there');
 });

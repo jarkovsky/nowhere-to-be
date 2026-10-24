@@ -13,6 +13,7 @@
   --play-edge: #b65a23;
   --tile: #fffdf4;
   --tile-edge: #ddd6bf;
+  --map-paper: #efe9d6;
   font-family: 'DM Sans', system-ui, sans-serif;
   color: var(--ink);
   background: #dce5da;
@@ -434,6 +435,35 @@ body.playing .shade {
   }
 }
 
+/* The minimap, top left, clear of the pause button, the toasts and the pedals. A tap opens the map. */
+.corner-map {
+  position: fixed;
+  top: max(18px, env(safe-area-inset-top));
+  left: max(18px, env(safe-area-inset-left));
+  width: clamp(104px, 17vmin, 168px);
+  height: clamp(104px, 17vmin, 168px);
+  padding: 0;
+  border-radius: 50%;
+  border: 4px solid rgba(248, 245, 233, 0.94);
+  background: var(--map-paper);
+  box-shadow:
+    0 4px 0 rgba(40, 62, 53, 0.18),
+    0 8px 18px rgba(30, 50, 40, 0.12);
+  overflow: hidden;
+  touch-action: manipulation;
+  z-index: 2;
+}
+
+.corner-map canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+body.camping .corner-map {
+  display: none;
+}
+
 .wake {
   position: fixed;
   left: 50%;
@@ -531,6 +561,11 @@ body.tilting .touch-steer {
 
 /* With cruise control on, only the pedal for braking and reversing is needed. */
 body.cruising .touch-controls .gas {
+  display: none;
+}
+
+/* Leaning the screen back reverses, and laying it flat stops, so that pedal isn't needed either. */
+body.tilting.lean-reverse .touch-controls [data-control='backward'] {
   display: none;
 }
 
@@ -774,12 +809,14 @@ body.touch .keys {
   margin-bottom: 18px;
 }
 
-.garage-bar .back {
+.garage-bar .back,
+.map-bar .back {
   background: var(--tile);
   box-shadow: 0 5px 0 var(--tile-edge);
 }
 
-.garage-bar .back svg {
+.garage-bar .back svg,
+.map-bar .back svg {
   width: 28px;
   height: 28px;
 }
@@ -887,6 +924,178 @@ body.touch .keys {
 
 .swatches button[data-value='rainbow'] {
   background: conic-gradient(#d16b38, #dfbb57, #72947d, #5f97ab, #ac6075, #d16b38);
+}
+
+/* --- Map ------------------------------------------------------------------------ */
+
+/* The map fills nearly the whole screen, with a little of the game showing round its edge. */
+.menu.map-open {
+  margin: 0;
+  inset: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  border-radius: 26px;
+  background: var(--map-paper);
+  overflow: hidden;
+}
+
+.menu-page[data-page='map'] {
+  position: absolute;
+  inset: 0;
+}
+
+.map-view {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: grab;
+}
+
+.map-view.dragging {
+  cursor: grabbing;
+}
+
+.map-view canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* A place: its picture in white on a coloured badge. Badges that would crowd a more important
+   one fade out until the map is zoomed in closer. */
+.map-place {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2.5px solid #fffdf4;
+  background: var(--badge);
+  box-shadow: 0 2px 6px rgba(30, 50, 40, 0.3);
+  transition: opacity 0.2s ease;
+}
+
+.map-place svg {
+  width: 64%;
+  height: 64%;
+  fill: none;
+  stroke: #fffdf4;
+  stroke-width: 2.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-place .solid {
+  fill: #fffdf4;
+  stroke: none;
+}
+
+.map-place.tucked {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The car: an arrow pointing the way it faces, with a ring rippling out round it. */
+.map-you {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 46px;
+  height: 46px;
+  pointer-events: none;
+}
+
+.map-you::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 4px solid rgba(232, 129, 58, 0.6);
+  animation: map-ripple 1.8s ease-out infinite;
+}
+
+.map-you svg {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  fill: var(--play);
+  stroke: #fffdf4;
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+  paint-order: stroke;
+  filter: drop-shadow(0 2px 3px rgba(30, 50, 40, 0.4));
+}
+
+@keyframes map-ripple {
+  from {
+    transform: scale(0.6);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* A turning ring while the map is painted, the first time it opens. */
+.map-view.waiting::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border-radius: 50%;
+  border: 6px solid rgba(40, 62, 53, 0.15);
+  border-top-color: var(--ink);
+  animation: spin 0.9s linear infinite;
+}
+
+.map-view.waiting .map-places {
+  display: none;
+}
+
+.map-bar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+
+.map-zoom {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.map-bar > *,
+.map-zoom > * {
+  pointer-events: auto;
+}
+
+.map-zoom .round-button svg {
+  width: 24px;
+  height: 24px;
 }
 
 /* --- Error ---------------------------------------------------------------------- */

@@ -12,6 +12,9 @@ import { createControls } from './input/controls.js';
 import { createLook } from './input/look.js';
 import { createTap } from './input/tap.js';
 import { createTiltSteering } from './input/tilt.js';
+import { createMapView } from './ui/map.js';
+import { createMapPicture } from './ui/mapart.js';
+import { createMinimap } from './ui/minimap.js';
 import { createVehiclePictures } from './ui/pictures.js';
 import { createUI } from './ui/ui.js';
 import { createCar } from './vehicles/car.js';
@@ -158,6 +161,10 @@ export function createGame(canvas) {
   let pausedFrom = 'driving';
 
   const pictures = createVehiclePictures(renderer, { onReady: () => ui.showPictures() });
+  // The map's picture is only painted once the map or the minimap is first wanted.
+  const mapPicture = createMapPicture();
+  const mapView = createMapView(document.querySelector('[data-page="map"]'), mapPicture, state);
+  const minimap = createMinimap(document.getElementById('corner-map'), mapPicture, state);
   const ui = createUI({
     journal,
     gnomeCount: GNOMES.length,
@@ -171,13 +178,17 @@ export function createGame(canvas) {
       home: homeFromMenu,
       sound: toggleSound,
       cruise: toggleCruise,
+      minimap: toggleMinimap,
       tilt: () => {
         controls.clear();
         if (tilt.getState().enabled || tilt.getState().pending) tilt.disable();
         else tilt.enable();
       },
       tiltCenter: () => tilt.center(),
+      tiltReverse: toggleTiltReverse,
       showroom: setShowroom,
+      map: open => (open ? mapView.open() : mapView.close()),
+      openMap: () => pause('map'),
       choose: patch => {
         journal.save(patch);
         applyChoices();
@@ -301,10 +312,26 @@ export function createGame(canvas) {
     ui.setSwitch('cruise', controls.cruise);
   }
 
+  function toggleMinimap() {
+    const on = !journal.get().minimap;
+    journal.save({ minimap: on });
+    ui.setSwitch('minimap', on);
+    minimap.setVisible(on);
+  }
+
+  /** Leaning the screen back to reverse, while tilt steers. */
+  function toggleTiltReverse() {
+    const on = !journal.get().tiltReverse;
+    journal.save({ tiltReverse: on });
+    ui.setSwitch('tilt-reverse', on);
+    tilt.setLeanBack(on);
+  }
+
   function play() {
     sound.start();
     mode = 'driving';
     ui.startPlaying();
+    minimap.setVisible(journal.get().minimap);
     chase.setMode('chase');
     controls.clear();
   }
@@ -727,6 +754,7 @@ export function createGame(canvas) {
 
     if (mode === 'title') updateIntroShot(clock);
     chase.update(dt, carView(), cameraOptions());
+    minimap.update(now);
     // After the camera has moved, so the scenery around it is filled in for where it is now.
     scenery.update(dt, camera.position, sun, state);
 
@@ -757,6 +785,9 @@ export function createGame(canvas) {
   applyChoices();
   separateMeshKinds(scene);
   ui.setSwitch('sound', journal.get().sound);
+  ui.setSwitch('minimap', journal.get().minimap);
+  ui.setSwitch('tilt-reverse', journal.get().tiltReverse);
+  tilt.setLeanBack(journal.get().tiltReverse);
   updateCarModel(0);
   updateIntroShot(0);
   chase.snap(carView(), cameraOptions());
@@ -792,6 +823,9 @@ export function createGame(canvas) {
         friends: friends.getState(),
         fields: landmarks.fields.getState(),
         mudHole: mudHole.getState(),
+        map: mapView.getState(),
+        minimap: minimap.getState(),
+        tilt: tilt.getState(),
         gnomes: gnomes.getState(),
         wildlife: wildlife.getState(),
         cameraBlocked: chase.isBlocked(),

@@ -25,6 +25,8 @@ const DEFAULTS = {
   camp: false,
   sound: true,
   rainbow: false,
+  minimap: false,
+  tiltReverse: false,
 };
 
 /** Keeps only values we recognise, so a corrupted or edited save can't break the game. */
@@ -44,6 +46,8 @@ export function sanitise(saved) {
     camp: saved.camp === true,
     sound: saved.sound !== false,
     rainbow,
+    minimap: saved.minimap === true,
+    tiltReverse: saved.tiltReverse === true,
   };
 }
 
