@@ -23,6 +23,8 @@ const tint = new THREE.Color();
 
 /** A key for a point, so corners in the same place are found as one. */
 const keyOf = (x, y, z) => `${Math.round(x * 1e4)},${Math.round(y * 1e4)},${Math.round(z * 1e4)}`;
+/** An edge's key is the pair of its corners' ids, `a * EDGE_STRIDE + b`: more corners than any mesh has. */
+const EDGE_STRIDE = 0x200000;
 
 /**
  * The separate pieces of geometry in every mesh under `root`, in the world: each with its
@@ -61,10 +63,18 @@ function piecesOf(mesh, matrix) {
   const base = material?.color ?? new THREE.Color('#ffffff');
   const both = material?.side === THREE.DoubleSide;
 
-  // Corners in the world, and which triangles meet along each edge.
+  // Corners in the world, each welded to an id shared by corners in the same place, and
+  // which triangles meet along each edge (an edge is the pair of its corners' ids).
   const world = new Float32Array(triangles * 9);
   const colors = new Float32Array(triangles * 3);
-  const keys = new Array(triangles * 3);
+  const ids = new Int32Array(triangles * 3);
+  const points = [];
+  const welded = new Map();
+  const edgeKey = (t, c) => {
+    const a = ids[t * 3 + c];
+    const b = ids[t * 3 + ((c + 1) % 3)];
+    return a < b ? a * EDGE_STRIDE + b : b * EDGE_STRIDE + a;
+  };
   const parent = Int32Array.from({ length: triangles }, (_, t) => t);
   const find = t => {
     while (parent[t] !== t) t = parent[t] = parent[parent[t]];
@@ -76,18 +86,29 @@ function piecesOf(mesh, matrix) {
     for (let c = 0; c < 3; c++) {
       const v = vertexAt(t * 3 + c);
       corner.fromBufferAttribute(position, v).applyMatrix4(matrix);
-      world.set([corner.x, corner.y, corner.z], t * 9 + c * 3);
-      keys[t * 3 + c] = keyOf(corner.x, corner.y, corner.z);
+      const o = t * 9 + c * 3;
+      world[o] = corner.x;
+      world[o + 1] = corner.y;
+      world[o + 2] = corner.z;
+      const key = keyOf(corner.x, corner.y, corner.z);
+      let id = welded.get(key);
+      if (id === undefined) {
+        id = points.length;
+        welded.set(key, id);
+        points.push(key);
+      }
+      ids[t * 3 + c] = id;
       if (color) tint.r += color.getX(v) / 3;
       if (color) tint.g += color.getY(v) / 3;
       if (color) tint.b += color.getZ(v) / 3;
     }
     if (!color) tint.setRGB(1, 1, 1);
-    colors.set([tint.r * base.r, tint.g * base.g, tint.b * base.b], t * 3);
+    colors[t * 3] = tint.r * base.r;
+    colors[t * 3 + 1] = tint.g * base.g;
+    colors[t * 3 + 2] = tint.b * base.b;
     // Triangles sharing an edge belong to the same piece; parts that only touch at a corner don't.
     for (let c = 0; c < 3; c++) {
-      const [a, b] = [keys[t * 3 + c], keys[t * 3 + ((c + 1) % 3)]];
-      const edge = a < b ? `${a}|${b}` : `${b}|${a}`;
+      const edge = edgeKey(t, c);
       const other = owner.get(edge);
       if (other === undefined) owner.set(edge, t);
       else parent[find(t)] = find(other);
@@ -111,15 +132,18 @@ function piecesOf(mesh, matrix) {
       shades.set(colors.subarray(t * 3, t * 3 + 3), n * 3);
       for (let c = 0; c < 3; c++) {
         box.expandByPoint(corner.fromArray(world, t * 9 + c * 3));
-        const [a, b] = [keys[t * 3 + c], keys[t * 3 + ((c + 1) % 3)]];
-        const edge = a < b ? `${a}|${b}` : `${b}|${a}`;
+        const edge = edgeKey(t, c);
         edges.set(edge, (edges.get(edge) ?? 0) + 1);
       }
     });
     // The edges used by only one triangle, as the two ends of each.
     const openEdges = [];
     for (const [edge, uses] of edges) {
-      if (uses === 1) openEdges.push(edge.split('|').map(key => key.split(',').map(n => Number(n) / 1e4)));
+      if (uses === 1) {
+        const a = Math.floor(edge / EDGE_STRIDE);
+        const b = edge - a * EDGE_STRIDE;
+        openEdges.push([points[a], points[b]].map(key => key.split(',').map(n => Number(n) / 1e4)));
+      }
     }
     pieces.push({
       mesh,
@@ -185,10 +209,10 @@ function floating(parts, ground, anchored) {
     group.parts.push(part);
     group.size += part.triangles;
     group.box.union(part.box);
-    if (ground && part.box.min.y <= groundUnder(part.box, ground).high + TOUCH) group.held = true;
+    if (part.box.min.y <= groundUnder(part.box, ground).high + TOUCH) group.held = true;
   });
   const list = [...groups.values()];
-  if (anchored || !ground) list.reduce((a, b) => (b.size > a.size ? b : a)).held = true;
+  if (anchored) list.reduce((a, b) => (b.size > a.size ? b : a)).held = true;
   return list
     .filter(group => !group.held)
     .map(group => ({

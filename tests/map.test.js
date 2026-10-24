@@ -3,12 +3,9 @@ import assert from 'node:assert/strict';
 import { PLACES, VALLEY_RADIUS } from '../src/world/layout.js';
 import { MAP_EXTENT, MAP_PLACES, PLACE_ICONS } from '../src/ui/mapart.js';
 
-test('the map marks every place with a picture, but not the lookout or the viewpoints', () => {
+test('the map marks every place with a picture', () => {
   const marked = new Set(MAP_PLACES.map(place => place.id));
-  for (const place of PLACES) {
-    const left = place.id === 'lookout' || place.id.startsWith('view-');
-    assert.equal(marked.has(place.id), !left, place.id);
-  }
+  for (const place of PLACES) assert.ok(marked.has(place.id), place.id);
   for (const place of MAP_PLACES) {
     assert.ok(place.name && place.color && (place.d || place.solid), place.id);
     assert.ok(Math.hypot(place.x, place.z) < VALLEY_RADIUS, `${place.id} is inside the fence`);

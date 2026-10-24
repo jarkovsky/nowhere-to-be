@@ -109,7 +109,7 @@ const traffic = model => () => createVehicle(model).root;
 
 /**
  * The models, as { id, name, group, create }: `create()` returns a new Object3D standing on
- * y = 0. `size` is roughly how big it is across, for framing.
+ * y = 0.
  */
 export const MODELS = [
   ...VEHICLES.flatMap(vehicle =>
@@ -117,7 +117,6 @@ export const MODELS = [
       id: `garage.${vehicle}.${color}`,
       name: `${NAMES[vehicle] ?? vehicle} (${color})`,
       group: 'Garage',
-      size: vehicle === 'lorry' ? 18 : 5,
       create: () => garageVehicle(vehicle, color),
     })),
   ),
@@ -125,7 +124,6 @@ export const MODELS = [
     id: 'garage.offroader.tent',
     name: 'Off-roader with the roof tent, flag, teddy and gnome',
     group: 'Garage',
-    size: 5,
     create: () => garageVehicle('offroader', 'orange', ['tent', 'flag', 'teddy', 'gnome']),
   },
   {
@@ -150,7 +148,6 @@ export const MODELS = [
     id: `traffic.${id}`,
     name,
     group: 'Traffic',
-    size: 8,
     create: traffic(model()),
   })),
   ...[
@@ -160,69 +157,61 @@ export const MODELS = [
     id: `traffic.convoy.${load}`,
     name: `Convoy off-roader (${load})`,
     group: 'Traffic',
-    size: 6,
     create: traffic(offRoader(paint, load)()),
   })),
   {
     id: 'air.plane',
     name: 'Plane (white)',
     group: 'Aircraft and trains',
-    size: 12,
     create: () => buildPlane({ body: '#f4f2ea', trim: '#c8402f', stripe: '#2f5d8a' }).root,
   },
   {
     id: 'air.plane.yellow',
     name: 'Plane (yellow)',
     group: 'Aircraft and trains',
-    size: 12,
     create: () => buildPlane({ body: '#f2d64b', trim: '#2f5d8a', stripe: '#2f5d8a' }).root,
   },
   {
     id: 'air.helicopter',
     name: 'Rescue helicopter',
     group: 'Aircraft and trains',
-    size: 12,
     create: () => buildHelicopter(VALLEY_RESCUE.livery).root,
   },
   {
     id: 'air.krystof',
     name: 'Kryštof air ambulance',
     group: 'Aircraft and trains',
-    size: 12,
     create: () => buildHelicopter(AIR_AMBULANCE.livery).root,
   },
-  { id: 'rail.railbus', name: 'Railbus', group: 'Aircraft and trains', size: 16, create: () => railbus() },
+  { id: 'rail.railbus', name: 'Railbus', group: 'Aircraft and trains', create: () => railbus() },
   {
     id: 'farm.plough',
     name: 'Tractor with plough',
     group: 'Machines',
-    size: 8,
     create: () => farmTractor('#b5402f', 'plough').root,
   },
   {
     id: 'farm.mower',
     name: 'Tractor with mower',
     group: 'Machines',
-    size: 8,
     create: () => farmTractor('#4f8a4b', 'mower').root,
   },
-  { id: 'farm.combine', name: 'Combine harvester', group: 'Machines', size: 10, create: () => combineHarvester().root },
-  { id: 'farm.tow', name: 'Tractor from the mud hole', group: 'Machines', size: 6, create: () => buildTractor().root },
+  { id: 'farm.combine', name: 'Combine harvester', group: 'Machines', create: () => combineHarvester().root },
+  { id: 'farm.tow', name: 'Tractor from the mud hole', group: 'Machines', create: () => buildTractor().root },
   {
     id: 'works.excavator',
     name: 'Excavator',
     group: 'Machines',
-    size: 10,
     create: () => {
       const digger = excavator();
       digger.update?.(0);
       return digger.root;
     },
   },
-  { id: 'works.truck', name: 'Dump truck', group: 'Machines', size: 9, create: () => dumpTruck() },
-  { id: 'works.roller', name: 'Road roller', group: 'Machines', size: 6, create: () => roller().root },
-  { id: 'works.grader', name: 'Grader', group: 'Machines', size: 9, create: () => grader().root },
-  { id: 'works.loader', name: 'Skid steer loader', group: 'Machines', size: 5, create: () => skidSteer().root },
+  { id: 'works.truck', name: 'Dump truck', group: 'Machines', create: () => dumpTruck() },
+  { id: 'works.roller', name: 'Road roller', group: 'Machines', create: () => roller().root },
+  { id: 'works.grader', name: 'Grader', group: 'Machines', create: () => grader().root },
+  { id: 'works.loader', name: 'Skid steer loader', group: 'Machines', create: () => skidSteer().root },
   ...[
     ['deer', 'Deer', () => turned(deer().root)],
     ['sheep', 'Sheep', () => turned(sheep().root)],
@@ -236,7 +225,7 @@ export const MODELS = [
     ['hen', 'Hen', () => turned(new THREE.Mesh(chickenGeometry('#f1ece0', false), vertexColorMaterial))],
     ['rooster', 'Rooster', () => turned(new THREE.Mesh(chickenGeometry('#b5653a', true), vertexColorMaterial))],
     ...Object.keys(KINDS).map(kind => [kind, kind[0].toUpperCase() + kind.slice(1), () => herdAnimal(kind)]),
-  ].map(([id, name, create]) => ({ id: `animal.${id}`, name, group: 'Animals', size: 3, create })),
+  ].map(([id, name, create]) => ({ id: `animal.${id}`, name, group: 'Animals', create })),
   ...[
     ['pine', 'Spruce', () => plant(pineGeometry(true), '#4d6b42')],
     ['pine.far', 'Spruce (far off)', () => plant(pineGeometry(false), '#4d6b42')],
@@ -251,7 +240,6 @@ export const MODELS = [
     id: `nature.${id}`,
     name,
     group: 'Nature',
-    size: id === 'stalk' ? 1.2 : 6,
     create,
   })),
 ];
