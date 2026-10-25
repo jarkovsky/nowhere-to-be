@@ -32,7 +32,7 @@ export function camperVan() {
   parts.box(1.9, 0.18, 3.6, '#e2d7b8', { y: 2.72, z: 0.3 }); // pop-top roof
   parts.box(2.12, 0.2, 0.25, '#e7dfc8', { y: 0.72, z: -2.3 });
   parts.box(2.12, 0.2, 0.25, '#e7dfc8', { y: 0.72, z: 2.3 });
-  parts.add(new THREE.CircleGeometry(0.28, 10), '#efe6cc', { y: 1.45, z: -2.26, ry: Math.PI }); // badge
+  parts.add(new THREE.CylinderGeometry(0.28, 0.28, 0.02, 10), '#efe6cc', { y: 1.45, z: -2.26, rx: Math.PI / 2 }); // badge
   return { parts, wheelX: 0.95, wheelZ: [-1.5, 1.55], wheelRadius: 0.46, length: 4.6 };
 }
 
@@ -45,11 +45,11 @@ export function pickup() {
   parts.box(1.9, 0.35, 1.8, paint, { y: 1.57, z: -0.6 });
   parts.box(1.84, 0.62, 1.74, glass, { y: 2.06, z: -0.6 });
   for (const x of [-0.93, 0.93]) {
-    for (const z of [-1.46, 0.26]) parts.box(0.1, 0.64, 0.12, paint, { x, y: 2.06, z });
+    for (const z of [-1.46, 0.25]) parts.box(0.1, 0.64, 0.12, paint, { x, y: 2.06, z });
   }
   parts.box(1.96, 0.12, 1.86, paint, { y: 2.42, z: -0.6 }); // roof
   parts.box(1.95, 0.45, 0.1, '#8e3f2e', { y: 1.6, z: 0.95 });
-  for (const x of [-0.95, 0.95]) parts.box(0.1, 0.5, 2.2, '#8e3f2e', { x, y: 1.6, z: 1.3 }); // bed sides
+  for (const x of [-0.95, 0.95]) parts.box(0.1, 0.45, 2.2, '#8e3f2e', { x, y: 1.625, z: 1.3 }); // bed sides
   parts.box(1.95, 0.5, 0.1, '#8e3f2e', { y: 1.6, z: 2.37 }); // tailgate
   parts.box(2.1, 0.2, 0.25, '#e7dfc8', { y: 0.75, z: -2.45 });
   parts.box(2.1, 0.2, 0.25, '#e7dfc8', { y: 0.75, z: 2.45 });
@@ -120,7 +120,7 @@ export function ambulance() {
   parts.box(2.32, 0.8, 0.04, GLASS, { y: 2.1, z: 2.91 }); // rear windows
   parts.box(0.06, 1.8, 0.05, '#c9cdc6', { y: 1.65, z: 2.93 }); // rear door split
   parts.box(2.2, 0.2, 0.25, '#d8d4c6', { y: 0.62, z: -2.82 }); // bumpers
-  parts.box(2.3, 0.2, 0.25, '#d8d4c6', { y: 0.62, z: 2.95 });
+  parts.box(2.34, 0.2, 0.25, '#d8d4c6', { y: 0.62, z: 2.95 });
   parts.box(1.5, 0.12, 0.34, '#d8d4c6', { y: 2.37, z: -1.75 }); // light bar
   return {
     parts,
@@ -143,7 +143,7 @@ export function fireEngine() {
   const parts = new PartsBuilder();
   const red = '#c7312a';
   parts.box(2.45, 0.5, 8, '#2f3430', { y: 0.95 }); // chassis
-  parts.box(2.45, 1.9, 2.1, red, { y: 2.05, z: -2.9 }); // cab
+  parts.box(2.45, 1.8, 2.1, red, { y: 2.1, z: -2.9 }); // cab
   parts.box(2.2, 0.85, 0.08, GLASS, { y: 2.45, z: -3.96 }); // windscreen
   parts.box(2.47, 0.65, 1.6, GLASS, { y: 2.45, z: -2.95 }); // cab windows
   parts.box(2.5, 2.1, 5.3, red, { y: 2.15, z: 1.25 }); // the body, with lockers along the sides
@@ -212,7 +212,7 @@ export function armyCar() {
   parts.box(1.4, 0.3, 0.06, dark, { y: 1.15, z: -2.37 }); // grille
   parts.box(2.1, 0.62, 1.7, olive, { y: 1.98, z: 0.1 }); // cab
   parts.box(1.9, 0.42, 0.06, GLASS, { y: 2.02, z: -0.77 }); // windscreen
-  parts.box(0.06, 0.42, 0.06, olive, { y: 2.02, z: -0.79 });
+  parts.box(0.06, 0.44, 0.06, olive, { y: 2.02, z: -0.79 });
   for (const x of [-1.06, 1.06]) parts.box(0.03, 0.36, 1.2, GLASS, { x, y: 2.05, z: 0.1 });
   parts.box(2.04, 0.8, 1.55, '#7d7652', { y: 1.8, z: 1.75 }); // canvas cover
   for (const z of [1.1, 1.75, 2.4]) parts.box(2.08, 0.06, 0.08, '#6c6646', { y: 2.2, z });

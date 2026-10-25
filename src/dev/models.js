@@ -21,6 +21,8 @@ import {
 import { buildPlane } from '../vehicles/plane.js';
 import { AIR_AMBULANCE, VALLEY_RESCUE, buildHelicopter } from '../vehicles/helicopter.js';
 import { railbus } from '../vehicles/train.js';
+import { RAMP_UP } from '../core/ferry.js';
+import { ferryModel } from '../world/ferry.js';
 import { combineHarvester, farmTractor, stalkGeometry } from '../world/landmarks/fields.js';
 import { dumpTruck, excavator, grader, roller, skidSteer } from '../world/landmarks/roadworks.js';
 import { buildTractor } from '../world/mudhole.js';
@@ -191,6 +193,17 @@ export const MODELS = [
     create: () => buildHelicopter(AIR_AMBULANCE.livery).root,
   },
   { id: 'rail.railbus', name: 'Railbus', group: 'Aircraft and trains', create: () => railbus() },
+  {
+    id: 'boat.ferry',
+    name: 'Car ferry, its back ramp down',
+    group: 'Aircraft and trains',
+    create: () => {
+      const ferry = ferryModel();
+      ferry.ramps[1].rotation.x = 0.05;
+      ferry.ramps[0].rotation.x = RAMP_UP;
+      return ferry.root;
+    },
+  },
   {
     id: 'farm.plough',
     name: 'Tractor with plough',

@@ -43,7 +43,8 @@ function fireStation(parts, obstacles, frame) {
     for (let k = 1; k < 4; k++) parts.box(3.36, 0.05, 0.14, '#9e2620', at(lx, 0.1 + k * 0.85, 1.04));
   }
   const apron = FORECOURTS.find(court => court.id === 'fire station');
-  parts.box(apron.x1 - apron.x0, 0.12, apron.z1 - apron.z0, '#b9b6ab', at(0, 0.02, (apron.z0 + apron.z1) / 2)); // concrete apron
+  // A concrete apron, thick enough to reach the ground where it falls away.
+  parts.box(apron.x1 - apron.x0, 0.4, apron.z1 - apron.z0, '#b9b6ab', at(0, -0.12, (apron.z0 + apron.z1) / 2));
   // The hose tower, with slatted openings near the top, a pyramid roof and the siren above.
   const tower = { x: 7.2, z: -5 };
   // The walls go up to where the roof, hanging out past them from its eaves at 13 m, crosses them.
@@ -126,7 +127,8 @@ function pond(scene, parts, obstacles) {
   const bench = framer({ x: x + radius + 4, z, rotation: -Math.PI / 2 });
   parts.box(1.8, 0.1, 0.45, '#8a6446', bench.at(0, 0.5, 0));
   for (const lx of [-0.7, 0.7]) parts.box(0.1, 0.45, 0.4, '#5f4532', bench.at(lx, 0.25, 0));
-  obstacles.push({ x, z, radius: radius + 0.4 });
+  const [left, right] = [bench.local(-0.8, 0), bench.local(0.8, 0)];
+  obstacles.push({ x, z, radius: radius + 0.4 }, { ax: left.x, az: left.z, bx: right.x, bz: right.z, radius: 0.3 });
 }
 
 export function buildVillage(scene, obstacles) {

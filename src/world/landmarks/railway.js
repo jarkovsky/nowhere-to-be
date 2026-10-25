@@ -45,14 +45,16 @@ function buildTrack(parts) {
     }
   }
   // Rubber panels between and beside the rails where the trail crosses.
-  for (let s = LEVEL_CROSSING.s - CROSSING_REACH; s < LEVEL_CROSSING.s + CROSSING_REACH; s += 1) {
+  const past = LEVEL_CROSSING.s + CROSSING_REACH;
+  for (let s = LEVEL_CROSSING.s - CROSSING_REACH; s < past; s += 1) {
     for (const [side, width] of [
       [0, GAUGE - 0.16],
       [-GAUGE / 2 - 0.5, 0.8],
       [GAUGE / 2 + 0.5, 0.8],
     ]) {
       const a = trackside(s, side);
-      const b = trackside(s + 1, side);
+      // The last stops where the crossing does, not past it where the trail is lower.
+      const b = trackside(Math.min(s + 1, past), side);
       a.y = terrainHeight(a.x, a.z) + 0.1;
       b.y = terrainHeight(b.x, b.z) + 0.1;
       parts.beam(a, b, width, '#4c4f4a', 0.12);
@@ -135,7 +137,7 @@ function buildPortal(parts, obstacles) {
   }
   for (const side of [-1, 1]) parts.box(0.6, 4.6, 0.4, '#8f877a', at(side * (span + 0.2), 2, -0.1));
   parts.box(span * 2 + 10.6, 0.5, 1.2, '#8f877a', at(0, 10.7, 0.4)); // coping
-  parts.box(span * 2 + 10, 0.3, depth - 1, '#a3ad80', at(0, 10.6, depth / 2 + 0.5)); // turf on top
+  parts.box(span * 2 + 10, 0.3, depth - 1, '#a3ad80', at(0, 10.65, depth / 2 + 0.5)); // turf on top
   // Inside: dark walls and roof, and darkness just inside the headwall. The train runs on into it.
   const dark = 5;
   for (const side of [-1, 1]) parts.box(0.3, 7, dark, '#2a2d2a', at(side * (span - 0.1), 3.3, dark / 2));

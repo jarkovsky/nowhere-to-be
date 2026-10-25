@@ -28,6 +28,7 @@ import { createAtmosphere } from './world/atmosphere.js';
 import { separateMeshKinds } from './world/build.js';
 import { createGnomes } from './world/collectibles.js';
 import { buildLandmarks, insideTunnel } from './world/landmarks/index.js';
+import { OUTLINE, createFerry } from './world/ferry.js';
 import { createMudHole } from './world/mudhole.js';
 import {
   CAMP,
@@ -253,6 +254,7 @@ export function createGame(canvas) {
     waterDepth: wadingDepth,
   };
   const mudHole = createMudHole(scene, { obstacles: world.obstacles, onToot: () => sound.otherHorn() });
+  const ferry = createFerry(scene, { onHorn: (distance, blasts) => sound.shipHorn(distance, blasts) });
 
   // Friends wait at the depot to come along for the ride.
   const friends = createFriends(scene, {
@@ -434,6 +436,7 @@ export function createGame(canvas) {
     train.answerHonk(state);
     for (const helicopter of helicopters) helicopter.hearHorn(state);
     landmarks.hearHorn(state.x, state.z);
+    ferry.hearHorn(state.x, state.z);
     planes.hearHorn(state);
     friends.hearHorn();
   }
@@ -572,6 +575,25 @@ export function createGame(canvas) {
     );
   }
 
+  /** The corners of the car's outline and its trailer's, for the ferry to tell when it is all aboard. */
+  const corners = Array.from({ length: 8 }, () => ({ x: 0, z: 0 }));
+  function footprint() {
+    const { front, back, half } = car.size;
+    const sin = Math.sin(state.heading);
+    const cos = Math.cos(state.heading);
+    let n = 0;
+    const put = (x, z, along, side, s, c) =>
+      Object.assign(corners[n++], { x: x - s * along + c * side, z: z - c * along - s * side });
+    for (const along of [front, -back]) for (const side of [-half, half]) put(state.x, state.z, along, side, sin, cos);
+    if (car.trailer && trailer.ready) {
+      // The back of the trailer, behind its hitch.
+      const ts = Math.sin(trailer.heading);
+      const tc = Math.cos(trailer.heading);
+      for (const side of [-1.27, 1.27]) put(trailer.x, trailer.z, -8.8, side, ts, tc);
+    }
+    return corners.slice(0, n);
+  }
+
   /** Points along the trailer, for the other traffic and the train to stop short of. */
   function trailerPoints() {
     if (!car.trailer) return [];
@@ -596,7 +618,7 @@ export function createGame(canvas) {
     speed: state.speed,
     grade: gradeAhead(),
     scale: car.spec.camera ?? 1,
-    turn: friends.lookBack(),
+    turn: ferry.holding() ? 0 : friends.lookBack(),
   });
   const compactScreen = () => innerWidth < 700 || innerHeight > innerWidth;
   const cameraOptions = () => ({
@@ -604,7 +626,7 @@ export function createGame(canvas) {
     intro: introShot,
     camp: campShot,
     shot: debugShot,
-    watch: mudHole.watch(),
+    watch: mudHole.watch() ?? ferry.watch(state),
   });
 
   // --- Camera framing for the title screen and the night at camp -----------------------
@@ -726,6 +748,18 @@ export function createGame(canvas) {
     clock += dt;
     const driving = mode === 'driving';
     tilt.update(dt, driving);
+    // The ferry sails before the car is driven, so a car aboard goes along with it this frame.
+    ferry.update(dt, {
+      player: driving ? state : null,
+      corners: driving ? footprint() : [],
+      others: driving ? friends.outlines(OUTLINE) : [],
+      blockers: towed,
+      listener: camera.position,
+    });
+    if (driving && ferry.holding()) {
+      if (car.trailer && trailer.ready) ferry.carry(trailer);
+      friends.carry(ferry.carry, ferry.onDeck);
+    }
 
     if (driving) {
       const input = controls.read();
@@ -739,6 +773,7 @@ export function createGame(canvas) {
         ...landmarks.crossing.colliders(),
         ...landmarks.machines,
         ...mudHole.colliders,
+        ...ferry.colliders,
         ...friends.colliders,
       );
       // The driving goes on in steps of a fixed length, the car drawn between the last two.
@@ -747,8 +782,8 @@ export function createGame(canvas) {
         Object.assign(before, { x: state.x, z: state.z, heading: state.heading, speed: state.speed });
         // A paddock fence driven into fast enough goes over.
         if (landmarks.knockFences(state, step)) sound.knock();
-        // On the tractor's rope, the car goes where it is pulled.
-        if (!mudHole.holding()) stepDriving(state, input, step, world);
+        // On the tractor's rope, the car goes where it is pulled, and on the ferry where it is taken.
+        if (!mudHole.holding() && !ferry.holding()) stepDriving(state, input, step, world);
         Object.assign(after, { x: state.x, z: state.z, heading: state.heading, speed: state.speed });
         impact = Math.max(impact, state.impact);
       });
@@ -757,7 +792,7 @@ export function createGame(canvas) {
       if (state.impact > 2.5) sound.bump(state.impact);
       updateCarModel(dt);
       wasBraking = input.brake || (input.backward && state.speed > 0.5) || (input.forward && state.speed < -0.5);
-      throttle = !input.brake && (input.forward || input.backward || input.cruise) ? 1 : 0;
+      throttle = !input.brake && !ferry.holding() && (input.forward || input.backward || input.cruise) ? 1 : 0;
       parkedFor = Math.abs(state.speed) < 0.3 && !throttle ? parkedFor + dt : 0;
     }
 
@@ -768,9 +803,18 @@ export function createGame(canvas) {
     car.animate(clock);
     updateTent(dt, night);
     const tail = trailerPoints();
-    friends.update(dt, { state, tail, driving, night, camera, dynamic: moving });
+    friends.update(dt, {
+      state,
+      tail,
+      driving,
+      night,
+      camera,
+      dynamic: moving,
+      close: driving && ferry.aboard(),
+      crowded: driving ? ferry.crowded() : null,
+    });
     towed.length = 0;
-    towed.push(...tail, ...friends.points);
+    towed.push(...tail, ...friends.points, ...ferry.points);
     train.update(dt, { player: state, towed });
     for (const helicopter of helicopters) helicopter.update(dt);
     planes.update(dt, { player: state });
@@ -873,6 +917,7 @@ export function createGame(canvas) {
         friends: friends.getState(),
         fields: landmarks.fields.getState(),
         mudHole: mudHole.getState(),
+        ferry: ferry.getState(),
         map: mapView.getState(),
         minimap: minimap.getState(),
         tilt: tilt.getState(),
@@ -906,6 +951,9 @@ export function createGame(canvas) {
         chase.snap(carView(), cameraOptions());
       },
       followCar: () => chase.setMode('chase'),
+      /** Ties the ferry up at the quay at once, empty and waiting; or brings it in now with cars aboard. */
+      dockFerry: () => ferry.dock(),
+      callFerry: () => ferry.callIn(),
       /** Puts the car in the depot's yard, `lx` along the doors and `lz` out from them, facing them. */
       toDepot(lx, lz) {
         const cos = Math.cos(DEPOT.rotation);

@@ -57,7 +57,7 @@ export function railbus() {
   // The cabs: a yellow nose, two big windscreens in a white frame, lamps and buffers.
   for (const end of [-1, 1]) {
     const z = end * (half + 0.03);
-    parts.box(2.9, 1.35, 0.08, YELLOW, { y: 1.65, z });
+    parts.box(2.9, 1.25, 0.08, YELLOW, { y: 1.7, z });
     parts.box(2.9, 0.25, 0.08, BLUE, { y: 0.95, z });
     for (const x of [-0.7, 0.7]) parts.box(1.25, 1, 0.1, GLASS, { x, y: 2.85, z: z + end * 0.01 });
     for (const x of [-1.05, -0.75, 0.75, 1.05]) {

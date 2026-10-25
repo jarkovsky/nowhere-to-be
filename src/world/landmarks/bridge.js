@@ -25,12 +25,14 @@ export function buildBridge(scene, obstacles) {
   const halfWidth = BRIDGE.width / 2;
   const slope = along => (deckHeight(along + 0.1) - deckHeight(along - 0.1)) / 0.2;
 
-  // Deck planks, laid across the direction of travel with a little irregularity.
-  for (let along = -half + 0.25; along < half; along += 0.56) {
+  // Deck planks, laid across the direction of travel with a little irregularity. Planks skewed
+  // towards each other cross at their ends, so every other one stands a little higher, or
+  // their faces would flicker there.
+  for (let along = -half + 0.25, k = 0; along < half; along += 0.56, k++) {
     const p = local(along, (random() - 0.5) * 0.25);
     parts.box(BRIDGE.width + 0.3 + random() * 0.3, 0.14, 0.5, PLANK_COLORS[Math.floor(random() * 4)], {
       x: p.x,
-      y: deckHeight(along) - 0.07,
+      y: deckHeight(along) - 0.07 + (k % 2) * 0.005,
       z: p.z,
       ry: yaw + (random() - 0.5) * 0.03,
       rx: -Math.atan(slope(along)),

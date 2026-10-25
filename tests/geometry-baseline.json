@@ -1,71 +1,35 @@
 {
   "landmark.bridge": {
-    "gap-under at 183.8, 1.9, -63.6": "",
+    "gap-under at 183.8, 1.9, -63.6": "The deck's first plank, where the bridge meets the bank: the bank slopes across the trail, and the plank's far end reaches out over it from the stringers, as on a real bridge.",
     "roof-gap at 180.2, 1.6, -44.5": "The planks rest on stringers that rest on the abutment: between the stringers there is room under the planks, as on a real bridge."
   },
-  "landmark.tunnel": {
-    "one-sided at -133.3, 33.7, -83.5": "",
-    "one-sided at -132.7, 23.5, -83.0": ""
-  },
-  "landmark.waterfall": {
-    "one-sided at 230.3, 19.3, -59.9": ""
-  },
   "landmark.camp": {
-    "gap-under at 37.2, -1.0, -27.0": "",
-    "one-sided at 33.0, -0.5, -22.2": ""
+    "gap-under at 37.2, -1.0, -27.0": "The logs on the campfire are propped up across each other, each with one end on the ground and the other leaning up over the fire.",
+    "one-sided at 33.0, -0.5, -22.2": "The dark doorway, laid 2 cm in front of the tent's closed end: from behind it, the tent shows."
   },
   "landmark.farm": {
-    "gap-under at -83.0, 7.9, 38.5": "",
-    "one-sided at -66.4, 18.9, -1.7": ""
-  },
-  "landmark.windmill": {
-    "flicker at -259.1, 53.5, 25.1": ""
+    "one-sided at -66.4, 18.9, -1.7": "The silo's dome is open underneath, where it sits on the closed top of the silo."
   },
   "landmark.jetty": {
-    "gap-under at 84.0, -1.4, -22.0": "",
-    "gap-under at 74.0, -0.8, 1.0": "",
-    "gap-under at 86.6, -1.7, -18.8": "",
-    "sinks at 87.6, -2.1, -19.0": "",
-    "sinks at 87.6, -2.1, -20.7": "",
-    "sinks at 87.6, -1.9, -19.0": "",
-    "sinks at 87.6, -1.8, -18.8": "",
-    "sinks at 87.6, -1.8, -19.0": ""
+    "gap-under at 84.0, -1.4, -22.0": "A deck plank where the beach drops into the lake: its ends reach out past the joists it lies on, as on a real jetty.",
+    "sinks at 87.6, -2.1, -19.0": "The rowing boat tied up at the end of the jetty floats on deep water, where the car can't go.",
+    "sinks at 87.6, -2.1, -20.7": "The rowing boat tied up at the end of the jetty floats on deep water, where the car can't go.",
+    "sinks at 87.6, -1.9, -19.0": "The rowing boat tied up at the end of the jetty floats on deep water, where the car can't go.",
+    "sinks at 87.6, -1.8, -18.8": "The rowing boat tied up at the end of the jetty floats on deep water, where the car can't go.",
+    "sinks at 87.6, -1.8, -19.0": "The rowing boat tied up at the end of the jetty floats on deep water, where the car can't go."
   },
   "landmark.oxbow": {
-    "gap-under at 44.2, -5.7, 160.7": "",
-    "flicker at 31.4, -6.2, 158.4": "",
-    "flicker at 25.3, -6.2, 164.5": "",
-    "flicker at 24.9, -6.2, 164.5": "",
-    "flicker at 24.7, -6.2, 164.2": "",
-    "sinks at 54.4, -5.9, 152.5": "",
-    "sinks at 41.3, -5.7, 163.5": ""
-  },
-  "landmark.hut": {
-    "one-sided at 122.6, 33.9, -197.9": "",
-    "one-sided at 122.6, 33.9, -198.0": "",
-    "sinks at 138.5, 26.9, -189.0": ""
+    "gap-under at 44.2, -5.7, 160.7": "The footbridge's last plank, on the bank: it lies on the bridge's beams, and the bank falls away a little under one corner."
   },
   "landmark.railway": {
-    "gap-under at -17.8, 11.7, -46.4": "",
-    "gap-under at -28.7, 9.6, -119.5": "",
-    "gap-under at -67.3, 13.2, -219.0": "",
-    "gap-under at -16.3, 11.7, -46.6": "",
-    "gap-under at -27.3, 9.6, -119.8": "",
-    "gap-under at -65.8, 13.1, -219.2": "",
-    "gap-under at -69.9, 23.4, -225.8": "",
-    "flicker at -69.7, 17.7, -225.4": "",
-    "sinks at -31.7, 10.0, -130.2": "",
+    "gap-under at -28.7, 9.6, -119.5": "A rail running through the level crossing between its rubber panels: the gap under it is the slot the wheels run in, too narrow to see into.",
+    "gap-under at -27.3, 9.6, -119.8": "A rail running through the level crossing between its rubber panels: the gap under it is the slot the wheels run in, too narrow to see into.",
     "drive-in at -69.7, 17.6, -225.4": "Inside the tunnel mouth, which the car cannot get into.",
     "drive-in at -69.2, 16.1, -224.5": "Inside the tunnel mouth, which the car cannot get into."
   },
-  "landmark.roadworks": {
-    "gap-under at -510.3, 67.7, 172.2": "",
-    "gap-under at -510.1, 67.7, 173.3": "",
-    "flicker at -510.2, 68.7, 172.8": ""
-  },
   "landmark.chapel": {
-    "one-sided at 247.3, 35.5, 145.2": "",
-    "one-sided at 247.3, 37.8, 145.2": ""
+    "one-sided at 247.3, 35.5, 145.2": "The apse is half a round tower, open on its flat side, which stands against the chapel's back wall.",
+    "one-sided at 247.3, 37.8, 145.2": "The roof over the apse is half a cone, open on its flat side, which stands against the back gable."
   },
   "landmark.fields": {
     "sinks at 294.2, 41.2, 329.8": "A bed of crops: the car drives into it and lays the crop down.",
@@ -79,231 +43,11 @@
     "drive-in at 514.0, 73.3, 160.0": "The hangar is open at the front, for the car to drive into."
   },
   "landmark.rockgate": {
-    "gap-under at 840.4, 87.2, -250.3": "",
-    "one-sided at 712.2, 63.8, -243.5": "",
-    "sinks at 712.2, 63.8, -243.5": ""
-  },
-  "landmark.fjord": {
-    "gap-under at -580.4, 34.7, -605.5": "",
-    "gap-under at -523.8, 38.7, -673.4": "",
-    "gap-under at -527.7, 38.3, -670.8": ""
-  },
-  "landmark.village": {
-    "gap-under at -835.7, 64.7, 84.0": "",
-    "gap-under at -809.6, 52.8, 3.4": "",
-    "flicker at -810.2, 54.6, 0.8": "",
-    "flicker at -807.5, 53.4, 2.0": "",
-    "flicker at -813.0, 53.4, -0.4": "",
-    "flicker at -808.8, 53.4, -0.2": "",
-    "flicker at -807.4, 53.4, -0.2": "",
-    "flicker at -813.1, 53.4, 1.8": "",
-    "flicker at -808.9, 53.4, 1.9": "",
-    "sinks at -839.5, 54.2, 29.0": ""
+    "gap-under at 840.4, 87.2, -250.3": "A boulder on the rim of the causeway, perched over the drop: the rim keeps the car from going over the edge.",
+    "one-sided at 712.2, 63.8, -243.5": "Over the arch, the fin's sides go down into the back of the arch and stop inside it, leaving the opening under it clear."
   },
   "landmark.depot": {
-    "one-sided at 26.0, 7.8, 84.2": ""
-  },
-  "landmark.desert": {
-    "one-sided at -54.5, 69.6, 842.9": ""
-  },
-  "model.garage.offroader.orange": {
-    "flicker at 0.0, 2.7, -0.2": ""
-  },
-  "model.garage.offroader.sage": {
-    "flicker at 0.0, 2.7, -0.2": ""
-  },
-  "model.garage.offroader.blue": {
-    "flicker at 0.0, 2.7, -0.2": ""
-  },
-  "model.garage.offroader.berry": {
-    "flicker at 0.0, 2.7, -0.2": ""
-  },
-  "model.garage.offroader.yellow": {
-    "flicker at 0.0, 2.7, -0.2": ""
-  },
-  "model.garage.van.orange": {
-    "flicker at 0.0, 1.5, 0.0": ""
-  },
-  "model.garage.van.sage": {
-    "flicker at 0.0, 1.5, 0.0": ""
-  },
-  "model.garage.van.blue": {
-    "flicker at 0.0, 1.5, 0.0": ""
-  },
-  "model.garage.van.berry": {
-    "flicker at 0.0, 1.5, 0.0": ""
-  },
-  "model.garage.van.yellow": {
-    "flicker at 0.0, 1.5, 0.0": ""
-  },
-  "model.garage.saloon.orange": {
-    "flicker at 0.9, 1.4, 0.3": "",
-    "flicker at -0.9, 1.4, 0.3": ""
-  },
-  "model.garage.saloon.sage": {
-    "flicker at 0.9, 1.4, 0.3": "",
-    "flicker at -0.9, 1.4, 0.3": ""
-  },
-  "model.garage.saloon.blue": {
-    "flicker at 0.9, 1.4, 0.3": "",
-    "flicker at -0.9, 1.4, 0.3": ""
-  },
-  "model.garage.saloon.berry": {
-    "flicker at 0.9, 1.4, 0.3": "",
-    "flicker at -0.9, 1.4, 0.3": ""
-  },
-  "model.garage.saloon.yellow": {
-    "flicker at 0.9, 1.4, 0.3": "",
-    "flicker at -0.9, 1.4, 0.3": ""
-  },
-  "model.garage.lorry.orange": {
-    "flicker at 0.0, 0.7, 10.5": ""
-  },
-  "model.garage.lorry.sage": {
-    "flicker at 0.0, 0.7, 10.5": ""
-  },
-  "model.garage.lorry.blue": {
-    "flicker at 0.0, 0.7, 10.5": ""
-  },
-  "model.garage.lorry.berry": {
-    "flicker at 0.0, 0.7, 10.5": ""
-  },
-  "model.garage.lorry.yellow": {
-    "flicker at 0.0, 0.7, 10.5": ""
-  },
-  "model.garage.hyundai.orange": {
-    "flicker at -0.9, 0.6, 1.3": "",
-    "flicker at 0.0, 1.2, 0.9": "",
-    "flicker at -0.9, 0.5, 0.0": "",
-    "flicker at -0.9, 0.7, 0.0": "",
-    "flicker at 0.9, 0.5, 0.0": "",
-    "flicker at 0.9, 0.7, 0.0": ""
-  },
-  "model.garage.hyundai.sage": {
-    "flicker at -0.9, 0.6, 1.3": "",
-    "flicker at 0.0, 1.2, 0.9": "",
-    "flicker at -0.9, 0.5, 0.0": "",
-    "flicker at -0.9, 0.7, 0.0": "",
-    "flicker at 0.9, 0.5, 0.0": "",
-    "flicker at 0.9, 0.7, 0.0": ""
-  },
-  "model.garage.hyundai.blue": {
-    "flicker at -0.9, 0.6, 1.3": "",
-    "flicker at 0.0, 1.2, 0.9": "",
-    "flicker at -0.9, 0.5, 0.0": "",
-    "flicker at -0.9, 0.7, 0.0": "",
-    "flicker at 0.9, 0.5, 0.0": "",
-    "flicker at 0.9, 0.7, 0.0": ""
-  },
-  "model.garage.hyundai.berry": {
-    "flicker at -0.9, 0.6, 1.3": "",
-    "flicker at 0.0, 1.2, 0.9": "",
-    "flicker at -0.9, 0.5, 0.0": "",
-    "flicker at -0.9, 0.7, 0.0": "",
-    "flicker at 0.9, 0.5, 0.0": "",
-    "flicker at 0.9, 0.7, 0.0": ""
-  },
-  "model.garage.hyundai.yellow": {
-    "flicker at -0.9, 0.6, 1.3": "",
-    "flicker at 0.0, 1.2, 0.9": "",
-    "flicker at -0.9, 0.5, 0.0": "",
-    "flicker at -0.9, 0.7, 0.0": "",
-    "flicker at 0.9, 0.5, 0.0": "",
-    "flicker at 0.9, 0.7, 0.0": ""
-  },
-  "model.garage.mercedes.orange": {
-    "one-sided at -1.1, 0.3, 0.6": "",
-    "one-sided at -1.1, 0.3, 0.8": "",
-    "one-sided at 1.1, 0.3, 0.6": "",
-    "one-sided at 1.1, 0.3, 0.8": ""
-  },
-  "model.garage.mercedes.sage": {
-    "one-sided at -1.1, 0.3, 0.6": "",
-    "one-sided at -1.1, 0.3, 0.8": "",
-    "one-sided at 1.1, 0.3, 0.6": "",
-    "one-sided at 1.1, 0.3, 0.8": ""
-  },
-  "model.garage.mercedes.blue": {
-    "one-sided at -1.1, 0.3, 0.6": "",
-    "one-sided at -1.1, 0.3, 0.8": "",
-    "one-sided at 1.1, 0.3, 0.6": "",
-    "one-sided at 1.1, 0.3, 0.8": ""
-  },
-  "model.garage.mercedes.berry": {
-    "one-sided at -1.1, 0.3, 0.6": "",
-    "one-sided at -1.1, 0.3, 0.8": "",
-    "one-sided at 1.1, 0.3, 0.6": "",
-    "one-sided at 1.1, 0.3, 0.8": ""
-  },
-  "model.garage.mercedes.yellow": {
-    "one-sided at -1.1, 0.3, 0.6": "",
-    "one-sided at -1.1, 0.3, 0.8": "",
-    "one-sided at 1.1, 0.3, 0.6": "",
-    "one-sided at 1.1, 0.3, 0.8": ""
-  },
-  "model.traffic.camper": {
-    "one-sided at 0.0, 1.4, -2.3": ""
-  },
-  "model.traffic.pickup": {
-    "flicker at 0.0, 1.3, 0.0": "",
-    "flicker at 0.9, 1.9, 1.3": ""
-  },
-  "model.traffic.bus": {
-    "flicker at 0.0, 0.9, 0.0": ""
-  },
-  "model.traffic.ambulance": {
-    "flicker at 0.0, 1.7, 1.1": ""
-  },
-  "model.traffic.fire": {
-    "flicker at 0.0, 1.8, 0.0": ""
-  },
-  "model.traffic.army": {
-    "flicker at 0.0, 2.0, -0.8": ""
-  },
-  "model.air.plane": {
-    "flicker at 0.0, 1.3, -3.3": ""
-  },
-  "model.air.plane.yellow": {
-    "flicker at 0.0, 1.3, -3.3": ""
-  },
-  "model.rail.railbus": {
-    "flicker at 0.0, 1.6, -6.7": "",
-    "flicker at 0.0, 1.6, 6.7": ""
-  },
-  "model.farm.combine": {
-    "flicker at 0.0, 2.0, 0.8": "",
-    "flicker at 0.0, 3.4, 0.0": "",
-    "flicker at 0.0, 4.4, -1.2": ""
-  },
-  "model.farm.tow": {
-    "flicker at 0.0, 0.8, 2.6": ""
-  },
-  "model.works.excavator": {
-    "flicker at 0.0, 1.7, 0.6": ""
-  },
-  "model.animal.deer": {
-    "flicker at 0.0, 2.6, -1.2": "",
-    "flicker at -0.2, 0.7, 0.7": "",
-    "flicker at -0.2, 0.7, -0.7": "",
-    "flicker at 0.2, 0.7, 0.7": "",
-    "flicker at 0.2, 0.7, -0.7": ""
-  },
-  "model.animal.cow": {
-    "flicker at 0.0, 1.8, -1.5": ""
-  },
-  "model.animal.wolf": {
-    "flicker at 0.0, 1.4, -0.9": "",
-    "flicker at 0.0, 1.3, -1.3": ""
-  },
-  "model.animal.herd.goat": {
-    "flicker at -0.1, 0.3, 0.4": "",
-    "flicker at 0.1, 0.3, 0.4": "",
-    "flicker at -0.1, 0.3, -0.4": "",
-    "flicker at 0.1, 0.3, -0.4": ""
-  },
-  "model.animal.herd.mouflon": {
-    "one-sided at -0.2, 1.2, -0.5": "",
-    "one-sided at 0.2, 1.2, -0.5": ""
+    "one-sided at 26.0, 7.8, 84.2": "The painted face of the board over the doors, laid just in front of the board itself: from behind, the board shows."
   },
   "model.nature.pine.far": {
     "floating at 0.0, 4.0, 0.0": "The spruce as it is drawn far off: three cones and no trunk, never seen up close.",

@@ -5,6 +5,7 @@ import {
   createRoute,
   layCrumbs,
   leaderAlong,
+  moveRoute,
   poseAt,
   startRoute,
   stepFollower,
@@ -106,4 +107,27 @@ test('on a winding trail it drives where the leader drove', () => {
     );
   }
   assert.ok(least(steps) >= OPTIONS.least);
+});
+
+test('a route moved along with a ferry keeps the way along its deck and forgets the way there', () => {
+  // Breadcrumbs every 5 m from z = -15 to 30, the oldest forgotten, so the route starts part
+  // way round its ring, at z = 5.
+  const route = createRoute(6);
+  startRoute(
+    route,
+    Array.from({ length: 10 }, (_, i) => [0, -15 + i * 5]),
+  );
+  const s = leaderAlong(route, 0, 30);
+  // The deck is from z = 10 on, and it has moved 100 m east.
+  moveRoute(
+    route,
+    (x, z) => z >= 10,
+    p => (p.x += 100),
+  );
+  const pose = { x: 0, z: 0 };
+  poseAt(route, s - 10, 0, pose);
+  assert.deepEqual(pose, { x: 100, z: 20 });
+  assert.equal(leaderAlong(route, 100, 30), s, 'the way along it is as long as it was');
+  poseAt(route, s - 40, 0, pose);
+  assert.deepEqual(pose, { x: 100, z: 10 }, 'it starts where the deck does');
 });

@@ -209,6 +209,28 @@ try {
   assert.ok(Math.hypot(home.car.x - camp.x, home.car.z - camp.z) < 1, 'back at the start');
   step('the home button in the menu takes the car back to the start');
 
+  // Down the quay onto the ferry on cruise, lorry, trailer and all: it takes them out with it.
+  await page.evaluate(async () => {
+    const { FERRY_QUAY: quay } = await import('/src/world/layout.js');
+    window.__game.dockFerry();
+    const back = -8;
+    window.__game.teleport(
+      quay.x + Math.sin(quay.rotation) * back,
+      quay.z + Math.cos(quay.rotation) * back,
+      quay.dock.heading,
+    );
+  });
+  await page.keyboard.press('KeyE');
+  await page.waitForFunction(() => window.__game.getState().ferry.carrying, null, { timeout: 20000 });
+  const taken = await state(page);
+  await page.waitForTimeout(6000);
+  const sailing = await state(page);
+  assert.equal(sailing.ferry.phase, 'sailing');
+  assert.ok(sailing.ferry.carrying);
+  assert.ok(Math.hypot(sailing.car.x - taken.car.x, sailing.car.z - taken.car.z) > 3, 'carried out with the ferry');
+  await page.keyboard.press('KeyE');
+  step('drives aboard the ferry at the fjord and is taken out with it');
+
   await page.evaluate(() => window.__game.toDepot(-5, 15));
   await page.waitForTimeout(300);
   await page.keyboard.press('KeyF');

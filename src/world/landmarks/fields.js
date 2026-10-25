@@ -1234,14 +1234,14 @@ export function combineHarvester() {
   for (const x of [-1.55, 1.55]) parts.box(0.75, 0.1, 1.9, COMBINE, { x, y: 1.85, z: -0.9 }); // mudguards
 
   // The cab, on a platform at the front, with a ladder up the left side.
-  parts.box(2.6, 0.2, 1.9, DARK, { y: 2.95, z: -1.15 });
+  parts.box(2.64, 0.2, 1.9, DARK, { y: 2.95, z: -1.15 });
   for (const x of [-0.85, 0.85]) {
     for (const z of [-1.95, -0.35]) parts.box(0.08, 1.35, 0.08, DARK, { x, y: 3.7, z });
   }
   parts.box(1.66, 1.3, 1.5, GLASS, { y: 3.7, z: -1.15 });
   parts.box(2, 0.14, 1.9, WHITE, { y: 4.42, z: -1.15 });
   parts.box(0.22, 0.2, 0.22, '#f0a03a', { x: 0.6, y: 4.59, z: -0.5 }); // beacon
-  for (const x of [-0.5, 0.5]) parts.box(0.24, 0.14, 0.08, '#fff6d8', { x, y: 4.42, z: -2.12 }); // work lights
+  for (const x of [-0.5, 0.5]) parts.box(0.24, 0.12, 0.08, '#fff6d8', { x, y: 4.42, z: -2.12 }); // work lights
   for (const z of [-2.28, -1.98]) parts.box(0.05, 2.75, 0.05, '#b8beb7', { x: -1.2, y: 1.5, z });
   for (let k = 0; k < 6; k++) parts.box(0.05, 0.04, 0.3, '#b8beb7', { x: -1.2, y: 0.4 + k * 0.45, z: -2.13 });
 

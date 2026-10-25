@@ -230,7 +230,7 @@ const VEHICLE_BUILDERS = {
     for (const z of [-0.55, 1.22]) trim.box(1.58, 0.13, 0.06, RUBBER, { y: 2.64, z });
     cargo.box(1.15, 0.4, 0.8, '#758676', { x: -0.12, y: 2.85, z: 0.65 });
     cargo.box(1.19, 0.045, 0.1, CREAM, { x: -0.12, y: 2.9, z: 0.65 });
-    cargo.box(0.6, 0.25, 0.7, CREAM, { x: 0.35, y: 2.78, z: -0.23 });
+    cargo.box(0.6, 0.25, 0.7, CREAM, { x: 0.35, y: 2.78, z: -0.22 });
     // Spare wheel on the tailgate.
     trim.add(new THREE.CylinderGeometry(0.54, 0.54, 0.3, 12), RUBBER, { y: 1.58, z: 2.07, rx: Math.PI / 2 });
     trim.add(new THREE.CylinderGeometry(0.29, 0.29, 0.32, 10), CREAM, { y: 1.58, z: 2.07, rx: Math.PI / 2 });
@@ -309,7 +309,7 @@ const VEHICLE_BUILDERS = {
       '#ffffff',
     );
     wheelWells(trim, wheels, arch, sill, 0.76);
-    trim.box(2.05, 0.95, 4.1, CREAM, { y: 2.08, z: 0.1 });
+    trim.box(2.05, 0.94, 4.1, CREAM, { y: 2.09, z: 0.1 });
     trim.box(2.07, 0.58, 3, GLASS, { y: 2.14, z: 0.5 }); // side windows
     trim.box(1.8, 0.6, 0.08, GLASS, { y: 2.12, z: -1.97, rx: -0.1 }); // windscreen
     trim.box(1.9, 0.2, 3.5, '#e2d7b8', { y: 2.64, z: 0.25 }); // pop-top
@@ -664,7 +664,7 @@ const VEHICLE_BUILDERS = {
       ),
       GLASS,
     );
-    trim.box(1.54, 0.06, 1.54, navy, { y: 1.47, z: 0.65 }); // roof
+    trim.box(1.56, 0.06, 1.54, navy, { y: 1.47, z: 0.65 }); // roof
     for (const side of [-1, 1]) {
       painted.add(wall, '#ffffff', { x: side * 0.66 });
       painted.add(flank, '#ffffff', { x: side * 0.8 });
@@ -690,7 +690,7 @@ const VEHICLE_BUILDERS = {
       // Side skirts, red and orange stripes sweeping back along the doors, and the race number.
       trim.box(0.08, 0.1, 1.48, DARK, { x: side * 0.95, y: 0.35 });
       trim.box(0.02, 0.22, 1.5, navy, { x: side * 0.925, y: 0.44 });
-      trim.box(0.02, 0.07, 1.48, red, { x: side * 0.925, y: 0.62, rx: -0.12 });
+      trim.box(0.02, 0.07, 1.48, red, { x: side * 0.928, y: 0.62, rx: -0.12 });
       trim.box(0.02, 0.04, 0.8, '#e58a3a', { x: side * 0.925, y: 0.7, z: -0.3, rx: -0.12 });
       raceNumber(trim, side, { x: side * 0.935, y: 0.82, z: 0.36 });
       // Mud flaps behind the wheels, and two little wings on each corner of the front bumper.
@@ -826,7 +826,12 @@ const VEHICLE_BUILDERS = {
       trim.box(0.08, 0.1, 1.64, DARK, { x: side * 0.98, y: 0.31, z: -0.04 });
       for (const z of [0.62, 0.75]) {
         trim.add(new THREE.CylinderGeometry(0.05, 0.05, 0.12, 6), METAL, { x: side, y: 0.32, z, rz: Math.PI / 2 });
-        trim.add(new THREE.CircleGeometry(0.032, 6), DARK, { x: side * 1.061, y: 0.32, z, ry: side * (Math.PI / 2) });
+        trim.add(new THREE.CylinderGeometry(0.032, 0.032, 0.002, 6), DARK, {
+          x: side * 1.061,
+          y: 0.32,
+          z,
+          rz: Math.PI / 2,
+        });
       }
       // Vents: behind the front wheels, on top of the front wings and in the bonnet.
       trim.box(0.02, 0.24, 0.24, DARK, { x: side * 0.965, y: 0.66, z: -0.8 });
@@ -1416,7 +1421,7 @@ function createTrailer(spec, paint, brakeMaterial) {
   const root = new THREE.Group();
   root.add(spec.painted.mesh({ material: paint }), spec.parts.mesh());
   const lamps = new PartsBuilder();
-  for (const [x, y, z] of spec.lamps) lamps.box(0.3, 0.16, 0.05, '#ffffff', { x, y, z });
+  for (const [x, y, z] of spec.lamps) lamps.box(0.3, 0.14, 0.05, '#ffffff', { x, y, z });
   root.add(lamps.mesh({ material: brakeMaterial, castShadow: false }));
   // Each axle's pair of wheels turns as one.
   const { radius, width, hub } = spec.wheel;

@@ -696,7 +696,27 @@ function footprint(part) {
   return corners.filter(p => p.y < part.box.min.y + 1);
 }
 
-/** Parts standing on the ground with a gap under one end, where the ground falls away. */
+/** How big a gap under a corner has to be to see. */
+const GAP = 0.12;
+
+/**
+ * True if something among `others` holds up a corner of `part`: a surface just under it, or the
+ * corner set inside it. Looked for a centimetre in from the corner, in case it stands right at
+ * the edge of what holds it up.
+ */
+function heldUp(part, others, point) {
+  const middle = part.box.getCenter(closest);
+  const corner = point.clone();
+  corner.x += Math.sign(middle.x - corner.x) * 0.01;
+  corner.z += Math.sign(middle.z - corner.z) * 0.01;
+  if (above(others, corner.x, corner.y - GAP, corner.z, GAP + TOUCH).part) return true;
+  return others.some(other => other.open === 0 && other.box.containsPoint(corner) && enclosed(corner, other));
+}
+
+/**
+ * Parts standing on the ground with a gap under one end, where the ground falls away and nothing
+ * else holds that end up (sleepers lie on the ballast, walls stand in their footing).
+ */
 function gapsUnder(parts, ground) {
   const issues = [];
   for (const part of parts) {
@@ -709,10 +729,16 @@ function gapsUnder(parts, ground) {
     if (!corners.length) continue;
     // How high each corner of its underside is above the ground there.
     const heights = corners.map(p => p.y - ground(p.x, p.z));
-    const [rest, gap] = [Math.min(...heights), Math.max(...heights)];
     // Only parts that rest on the ground somewhere, not ones raised up on something else.
-    if (rest > TOUCH) continue;
-    if (gap > 0.12) {
+    if (Math.min(...heights) > TOUCH) continue;
+    let gap = 0;
+    let others = null;
+    corners.forEach((corner, i) => {
+      if (heights[i] <= Math.max(gap, GAP)) return;
+      others ??= parts.filter(other => other !== part);
+      if (!heldUp(part, others, corner)) gap = heights[i];
+    });
+    if (gap > GAP) {
       issues.push({
         kind: 'gap-under',
         message: `a gap of ${gap.toFixed(2)} m under a corner (${describe(box)})`,
@@ -728,8 +754,15 @@ function gapsUnder(parts, ground) {
 function oneSided(parts, ground) {
   // Open along the bottom where it stands in the ground is fine: nobody sees in from there.
   const showing = ([x, y, z]) => y > ground(x, z) + 0.15;
+  // So is an edge another part is open along too: one surface built in two meshes, a mountain
+  // and the lining of the tunnel through it, closed where they meet.
+  const nameOf = ([a, b]) => [a.join(','), b.join(',')].sort().join('|');
+  const seams = new Map();
+  for (const part of parts)
+    for (const edge of part.openEdges) seams.set(nameOf(edge), (seams.get(nameOf(edge)) ?? 0) + 1);
+  const open = edge => seams.get(nameOf(edge)) === 1;
   return parts
-    .filter(part => !part.both && part.openEdges.some(([a, b]) => showing(a) || showing(b)))
+    .filter(part => !part.both && part.openEdges.some(edge => open(edge) && (showing(edge[0]) || showing(edge[1]))))
     .map(part => ({
       kind: 'one-sided',
       message: `an open surface with only one face, see-through from behind (${describe(part.box)})`,
@@ -785,6 +818,15 @@ function hidden(parts, part, face) {
   );
 }
 
+/**
+ * How near the same plane two faces must lie to flicker. Further apart than this, the depth
+ * buffer (24 bits, the camera's near plane 0.5 m off) tells them apart until the camera is 130 m
+ * away, and by then they are too small to see.
+ */
+const SAME_PLANE = 0.002;
+/** How far apart, measured from the origin, faces in the same plane can seem to be. */
+const NEARBY = 0.1;
+
 /** Faces of different colours from different parts lying in the same plane, facing the same way: they flicker. */
 function flicker(parts, ground) {
   const planes = new Map();
@@ -804,19 +846,27 @@ function flicker(parts, ground) {
         (a3.y + b3.y + c3.y) / 3 < ground((a3.x + b3.x + c3.x) / 3, (a3.z + b3.z + c3.z) / 3) + 1.2
       )
         continue;
-      const d = normal.dot(a3);
-      const key = `${Math.round(normal.x * 200)},${Math.round(normal.y * 200)},${Math.round(normal.z * 200)},${Math.round(d * 100)}`;
+      const middle = new THREE.Vector3().add(a3).add(b3).add(c3).divideScalar(3);
+      // Faces turned the same way.
+      const key = `${Math.round(normal.x * 200)},${Math.round(normal.y * 200)},${Math.round(normal.z * 200)}`;
       if (!planes.has(key)) planes.set(key, []);
-      planes.get(key).push({ p, t, n: normal.clone() });
+      planes.get(key).push({ p, t, n: normal.clone(), middle });
     }
   });
   const found = new Map();
-  for (const list of planes.values()) {
+  for (const [key, list] of planes) {
     if (list.length < 2 || new Set(list.map(f => f.p)).size < 2) continue;
+    // In order of how far out they lie along the way they face. That is measured from the
+    // origin, and far from it the slight errors in each face's turn add up, so it only picks
+    // the faces worth comparing: each pair is then measured from one face to the other.
+    const along = new THREE.Vector3(...key.split(',').map(Number)).normalize();
+    for (const face of list) face.d = along.dot(face.middle);
+    list.sort((f, g) => f.d - g.d);
     for (let i = 0; i < list.length; i++) {
-      for (let j = i + 1; j < list.length; j++) {
+      for (let j = i + 1; j < list.length && list[j].d - list[i].d < NEARBY; j++) {
         const [f, g] = [list[i], list[j]];
         if (f.p === g.p) continue;
+        if (Math.abs(f.n.dot(edgeA.subVectors(g.middle, f.middle))) > SAME_PLANE) continue;
         const pair = f.p < g.p ? `${f.p}|${g.p}` : `${g.p}|${f.p}`;
         if (found.has(pair)) continue;
         const [pa, pb] = [parts[f.p], parts[g.p]];

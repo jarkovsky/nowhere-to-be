@@ -83,10 +83,10 @@ export function buildJetty(scene, obstacles) {
   parts.box(1, 2, 0.1, '#5b6f62', at(0, 1.1, 3.02)); // door to the shore
   parts.box(0.9, 0.8, 0.1, '#e8cf8a', at(-1.5, 1.8, 3.02));
   for (const [lx, lz] of [
-    [-2.3, -3],
-    [2.3, -3],
-    [-2.3, 0],
-    [2.3, 0],
+    [-2.37, -3.12],
+    [2.37, -3.12],
+    [-2.37, 0],
+    [2.37, 0],
   ]) {
     const p = local(-10 + lx, -1 + lz);
     const bottom = terrainHeight(p.x, p.z) - 0.4;

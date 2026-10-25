@@ -49,6 +49,7 @@ import {
   ROCK_GATE,
   ROCK_FIN,
   FJORD,
+  FERRY_QUAY,
   inFjord,
   PONDS,
   DESERT,
@@ -879,9 +880,43 @@ export function jettyHeight(x, z) {
   return JETTY_DECK;
 }
 
-/** True where the tyres are on planks rather than ground: the bridge, or the part of the jetty above the beach. */
+// --- The ferry quay, and decks that move ---------------------------------------------------
+
+/** Top of the steel ramp out from the ferry quay at a point, or null off it. */
+export function quayHeight(x, z) {
+  const { x: qx, z: qz, rotation, from, to, width, low, high } = FERRY_QUAY;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const dx = x - qx;
+  const dz = z - qz;
+  const lz = dx * sin + dz * cos;
+  if (lz < from || lz > to || Math.abs(dx * cos - dz * sin) > width / 2) return null;
+  return lerp(low, high, (lz - from) / (to - from));
+}
+
+/** Decks that move about, like the ferry's: each { height(x, z) } says how high it is at a point, or null off it. */
+const floating = [];
+
+/** Adds a deck that moves about to what can be driven on. Returns a function that takes it away again. */
+export function addFloatingDeck(deck) {
+  floating.push(deck);
+  return () => floating.splice(floating.indexOf(deck), 1);
+}
+
+function floatingHeight(x, z) {
+  for (const deck of floating) {
+    const height = deck.height(x, z);
+    if (height !== null) return height;
+  }
+  return null;
+}
+
+/**
+ * True where the tyres are on planks or steel rather than ground: the bridge, the part of the
+ * jetty above the beach, the quay's ramp and the ferry.
+ */
 export function onDeck(x, z) {
-  if (bridgeHeight(x, z) !== null) return true;
+  if (bridgeHeight(x, z) !== null || quayHeight(x, z) !== null || floatingHeight(x, z) !== null) return true;
   return jettyHeight(x, z) !== null && JETTY_DECK > terrainHeight(x, z);
 }
 
@@ -1038,7 +1073,7 @@ const FIN_STEP = 1.5;
  */
 export function drivingHeight(x, z, from = -Infinity) {
   const ground = terrainHeight(x, z) + Math.max(rockHeight(x, z), heapHeight(x, z));
-  const deck = bridgeHeight(x, z) ?? jettyHeight(x, z) ?? trackHeight(x, z);
+  const deck = bridgeHeight(x, z) ?? jettyHeight(x, z) ?? quayHeight(x, z) ?? floatingHeight(x, z) ?? trackHeight(x, z);
   const surface = deck === null ? ground : Math.max(ground, deck);
   if (from === -Infinity) return surface;
   const fin = finHeight(x, z);
@@ -1060,5 +1095,6 @@ export function wadingDepth(x, z) {
 export function isDriveable(x, z) {
   if (Math.hypot(x, z) > VALLEY_RADIUS) return false;
   if (bridgeHeight(x, z) !== null || jettyHeight(x, z) !== null) return true;
+  if (quayHeight(x, z) !== null || floatingHeight(x, z) !== null) return true;
   return waterDepth(x, z) < 0.95;
 }

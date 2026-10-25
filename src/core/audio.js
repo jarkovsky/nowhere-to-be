@@ -330,6 +330,17 @@ export function createAudio() {
       }
     },
 
+    /** The ferry's deep horn: `blasts` long low notes, quieter the further away it is. */
+    shipHorn(distance, blasts = 1) {
+      const level = Math.max(0, 1 - distance / 400);
+      if (!playable() || level <= 0) return;
+      const now = context.currentTime;
+      for (let k = 0; k < blasts; k++) {
+        tone(110, now + k * 1.6, 1.2, { type: 'sawtooth', volume: 0.05 * level });
+        tone(165, now + k * 1.6, 1.2, { type: 'sawtooth', volume: 0.025 * level });
+      }
+    },
+
     /** The helicopter's rotor: `level` 0 to 1 for how loud, `rate` for how fast the blades beat. */
     rotor(level, rate) {
       if (!context) return;

@@ -76,7 +76,7 @@ export function excavator() {
   root.add(upper);
   const body = new PartsBuilder();
   body.box(2.7, 1.1, 3, YELLOW, { y: 0.55, z: 0.4 });
-  body.box(2.7, 0.9, 0.8, '#c99a2e', { y: 0.65, z: 1.95 }); // counterweight
+  body.box(2.7, 0.9, 0.45, '#c99a2e', { y: 0.65, z: 2.125 }); // counterweight, on the back
   body.box(1, 1.6, 1.3, YELLOW, { x: -0.8, y: 1.85, z: -0.55 }); // cab
   body.box(1.02, 1, 1.1, GLASS, { x: -0.8, y: 1.95, z: -0.55 });
   body.box(0.9, 0.95, 0.06, GLASS, { x: -0.8, y: 1.95, z: -1.22 });
@@ -317,12 +317,12 @@ function buildClutter(parts, obstacles) {
   add(new THREE.BoxGeometry(1.2, 0.1, 1.2), '#e8e4da', toilet, { y: 2.25 });
   obstacles.push({ ...near(0, -0.5), radius: 2.4 }, { ...near(0, 2), radius: 2 }, { ...toilet, radius: 0.8 });
 
-  // Concrete pipes, stacked.
+  // Concrete pipes, stacked, a little into the ground so they lie on it along the slope.
   const pipes = roadside((asphalt + gravel) / 2, -8);
   for (const [lx, ly] of [
-    [-0.6, 0.55],
-    [0.6, 0.55],
-    [0, 1.5],
+    [-0.6, 0.45],
+    [0.6, 0.45],
+    [0, 1.4],
   ]) {
     const spot = { ...pipes, x: pipes.x + lx * Math.cos(pipes.heading), z: pipes.z - lx * Math.sin(pipes.heading) };
     add(new THREE.CylinderGeometry(0.55, 0.55, 2.2, 10), '#b9b6ad', spot, { y: ly, t: { rx: Math.PI / 2 } });

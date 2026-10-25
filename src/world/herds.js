@@ -175,7 +175,7 @@ export const KINDS = {
       p.box(0.42, 0.28, 0.26, '#8b5a36', { x: 0.16, y: 0.08 }).box(0.14, 0.14, 0.2, '#e8dfcc', { x: 0.36, y: 0.02 });
       // Horns curling round in a ring beside each ear.
       for (const side of [-1, 1])
-        p.add(new THREE.TorusGeometry(0.17, 0.05, 4, 8, Math.PI * 1.5), '#a08e6e', { x: 0, y: 0.18, z: side * 0.17 });
+        p.add(new THREE.TorusGeometry(0.17, 0.05, 4, 8), '#a08e6e', { x: 0, y: 0.18, z: side * 0.17 });
       return p;
     },
     leg: p => p.box(0.1, 0.62, 0.1, '#e8dfcc', { y: -0.31 }),

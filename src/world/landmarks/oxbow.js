@@ -156,9 +156,11 @@ function addLilies(parts, random) {
       if (OXBOW_LEVEL - terrainHeight(p.x, p.z) < 0.15 || byTheFord(p.x, p.z, 9)) continue;
       const r = 0.4 + random() * 0.35;
       const color = LILIES[Math.floor(random() * LILIES.length)];
-      parts.add(pad, color, { x: p.x, y: OXBOW_LEVEL + 0.02, z: p.z, sx: r, sz: r, ry: random() * 6.3 });
+      // Each pad in a patch a little higher than the next, so where they overlap they don't flicker.
+      const y = OXBOW_LEVEL + 0.008 + k * 0.0025;
+      parts.add(pad, color, { x: p.x, y, z: p.z, sx: r, sz: r, ry: random() * 6.3 });
       if (random() < 0.3) {
-        const at = { x: p.x, y: OXBOW_LEVEL + 0.04, z: p.z, ry: r * 9 };
+        const at = { x: p.x, y: y + 0.02, z: p.z, ry: r * 9 };
         parts.add(flower.petals, '#f3eee2', at).add(flower.middle, '#e8c24a', at);
       }
     }
@@ -201,7 +203,7 @@ function stones(obstacles, random) {
   ]) {
     const p = OXBOW.path.offset(s, side);
     stone(p.x, p.z, size);
-    if (size > 0.6) obstacles.push({ x: p.x, z: p.z, radius: size * 0.9 });
+    if (size >= 0.5) obstacles.push({ x: p.x, z: p.z, radius: size * 0.9 });
   }
   return parts;
 }
