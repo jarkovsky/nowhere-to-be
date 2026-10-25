@@ -1,11 +1,12 @@
 // The fjord in the north-west: still, deep water between walls of rock with waterfalls
 // down them, and at its head a small village of wooden houses with grass growing on their
-// roofs, red boathouses at the water's edge, a stave church up the slope, and a pier where
-// a little ferry ties up between its trips out along the fjord. At the top of the road
-// down, a sign warns of trolls.
+// roofs, red boathouses at the water's edge, a stave church up the slope, and the quay where
+// the car ferry ties up (the ferry itself is in ../ferry.js). At the top of the road down, a
+// sign warns of trolls.
 import * as THREE from 'three';
-import { smoothstep } from '../../core/math.js';
-import { FJORD, FJORD_VILLAGE, TRACKS } from '../layout.js';
+import { lerp } from '../../core/math.js';
+import { HULL } from '../../core/ferry.js';
+import { FERRY_QUAY, FJORD, FJORD_VILLAGE, TRACKS } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder, hipRoof, createSmoke, flatMaterial, prism } from '../build.js';
 import { gabledHouse } from './house.js';
@@ -18,6 +19,11 @@ const TAR = '#4a3526';
 const SHINGLE = '#3b2b21';
 const GLASS = '#3f5559';
 const STONE = '#8e8f86';
+const CONCRETE = '#a7a59b';
+const STEEL = '#5e676b';
+const DECK = '#7d817d';
+const RAIL = '#d8b23c';
+const PILE = '#5d4a39';
 
 /** A window with a white frame, in a wall facing +Z. */
 function framedWindow(parts, at, lx, ly, lz, extra) {
@@ -138,16 +144,95 @@ function staveChurch(parts, obstacles, spot) {
   obstacles.push({ ...local(0, 0), halfX: 4, halfZ: 5, rotation: spot.rotation, radius: 0 });
 }
 
-/** A plank pier on posts from the shore out over the water. */
-function pier(parts, spot, length) {
-  const { at } = framer(spot, FJORD.level + 1);
-  parts.box(3, 0.2, length, '#8b7357', at(0, 0, length / 2 - 2));
-  for (let lz = 0; lz <= length - 2; lz += 3) {
-    for (const lx of [-1.3, 1.3]) parts.box(0.24, 4, 0.24, '#5d4a39', at(lx, -1.9, lz));
+/**
+ * The ferry quay at the end of the road: a concrete abutment, and from it a steel ramp out over
+ * the water to where the ferry ties up, hung at its far end from a gantry on two towers, with
+ * timber piles either side of the berth to guide the ferry in.
+ */
+function quay(parts, obstacles) {
+  const { at, local } = framer(FERRY_QUAY, 0);
+  const { from, to, width, low, high } = FERRY_QUAY;
+  const point = (lx, y, lz) => ({ ...local(lx, lz), y });
+  const bed = FJORD.level - 3;
+  const top = FJORD.level + 7.5;
+  // The ramp's land end rests on the abutment.
+  parts.box(width + 1.6, low - 0.12 - bed, 3, CONCRETE, at(0, (low - 0.12 + bed) / 2, from - 1));
+  parts.beam(point(0, low - 0.06, from), point(0, high - 0.06, to), width, DECK, 0.12);
+  for (const side of [-1, 1]) {
+    // A girder along each side of the ramp, with a rail along it.
+    const x = side * (width / 2 + 0.15);
+    parts.beam(point(x, low - 0.05, from), point(x, high - 0.05, to), 0.3, STEEL, 0.7);
+    for (let k = 0; k <= 4; k++) {
+      parts.box(0.08, 0.95, 0.08, RAIL, at(x, lerp(low, high, k / 4) + 0.75, lerp(from, to, k / 4)));
+    }
+    parts.beam(point(x, low + 1.2, from), point(x, high + 1.2, to), 0.1, RAIL);
+    const [a, b] = [local(x, from - 0.4), local(x, to)];
+    obstacles.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, radius: 0.25 });
+    // The towers of the gantry, standing in the water, and the ropes from it down to the girders
+    // at the end of the ramp, which hold it up.
+    const tower = side * (width / 2 + 1.2);
+    parts.box(0.9, top - bed, 0.9, STEEL, at(tower, (top + bed) / 2, to - 0.4));
+    obstacles.push({ ...local(tower, to - 0.4), radius: 0.7 });
+    const girder = high + 0.25;
+    parts.box(0.06, top - girder + 0.1, 0.06, '#2f3430', at(x, (top + girder) / 2, to - 0.4));
+    // Piles along the berth, with a timber along their tops, a little out from the ferry's side.
+    const pile = side * (HULL.halfBeam + 0.65);
+    for (let lz = to + 1.5; lz <= to + 10; lz += 2.8)
+      parts.box(0.42, top - 5 - bed, 0.42, PILE, at(pile, (top - 5 + bed) / 2, lz));
+    parts.box(0.3, 0.4, 9.2, PILE, at(pile - side * 0.36, top - 5.6, to + 5.7));
   }
-  for (const lx of [-1.45, 1.45]) parts.box(0.1, 0.6, length - 2, '#8b7357', at(lx, 0.4, length / 2 - 1));
-  // Where the ferry ties up: alongside the end of the pier.
-  return at(4.2, 0, length - 7);
+  parts.box(width + 3.3, 0.8, 1.1, STEEL, at(0, top + 0.4, to - 0.4));
+  // The end of the ramp rests on a beam between the towers.
+  parts.box(width + 2.4, 0.4, 0.8, STEEL, at(0, high - 0.32, to - 0.3));
+  parts.box(1.6, 1.2, 1.4, '#e3dfd2', at(width / 2 - 0.4, top + 1.4, to - 0.4)); // the winch house
+}
+
+/** A blue sign with a white ferry on it, where the road comes down to the quay. */
+function ferrySign(scene, parts) {
+  const { path } = TRACKS.find(track => track.id === 'fjord');
+  const p = path.offset(path.length - 22, 3.2);
+  const y = terrainHeight(p.x, p.z);
+  parts.box(0.12, 2.5, 0.12, '#8a8d88', { x: p.x, y: y + 1.25, z: p.z });
+  const texture = canvasTexture(256, 256, ctx => {
+    ctx.fillStyle = '#f5f1e6';
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.fillStyle = '#2b5fa8';
+    ctx.fillRect(10, 10, 236, 236);
+    ctx.fillStyle = '#f5f1e6';
+    // The hull, the cabin and the funnel, over two waves.
+    ctx.beginPath();
+    ctx.moveTo(40, 132);
+    ctx.lineTo(216, 132);
+    ctx.lineTo(194, 168);
+    ctx.lineTo(62, 168);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillRect(84, 100, 72, 32);
+    ctx.fillRect(166, 92, 16, 40);
+    ctx.lineWidth = 9;
+    ctx.strokeStyle = '#f5f1e6';
+    for (const wy of [192, 216]) {
+      ctx.beginPath();
+      ctx.moveTo(40, wy);
+      for (let k = 0; k < 4; k++) ctx.quadraticCurveTo(62 + k * 44, wy + (k % 2 ? 10 : -10), 84 + k * 44, wy);
+      ctx.stroke();
+    }
+  });
+  // Facing the way down, with a board behind it.
+  const yaw = Math.atan2(p.dx, p.dz) + Math.PI;
+  const sign = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.1, 1.1),
+    new THREE.MeshLambertMaterial({ map: texture, side: THREE.DoubleSide }),
+  );
+  sign.position.set(p.x + Math.sin(yaw) * 0.13, y + 2.15, p.z + Math.cos(yaw) * 0.13);
+  sign.rotation.y = yaw;
+  scene.add(sign);
+  parts.box(1.14, 1.14, 0.05, '#8a8d88', {
+    x: p.x + Math.sin(yaw) * 0.085,
+    y: y + 2.15,
+    z: p.z + Math.cos(yaw) * 0.085,
+    ry: yaw,
+  });
 }
 
 /** The water: a strip down the fjord, wider than the water itself so the walls hide its edges, and a disc at the head. */
@@ -264,61 +349,6 @@ function waterfalls(scene) {
   };
 }
 
-/** A little car ferry: a white hull, a wheelhouse to one side and two cars on deck. */
-function ferryModel() {
-  const parts = new PartsBuilder();
-  parts.box(5, 1.2, 15, '#2f3a40', { y: 0.2 });
-  parts.box(5.1, 0.9, 15.1, '#f2efe6', { y: 1.15 });
-  parts.box(5.12, 0.25, 15.12, '#b8352a', { y: 1.5 });
-  parts.box(4.6, 0.12, 14, '#7c7d77', { y: 1.66 }); // car deck
-  parts.box(1.3, 2.4, 4, '#f2efe6', { x: 1.75, y: 2.9, z: 1 }); // wheelhouse
-  parts.box(1.34, 0.6, 3.6, GLASS, { x: 1.75, y: 3.6, z: 1 });
-  parts.box(1.5, 0.2, 4.3, '#b8352a', { x: 1.75, y: 4.2, z: 1 });
-  for (const end of [-1, 1]) parts.box(4.4, 0.3, 1.6, '#5e605a', { y: 1.9, z: end * 7.6, rx: end * 0.35 }); // ramps
-  for (const [lz, paint] of [
-    [-3.5, '#3f6e9c'],
-    [2.8, '#c9a13e'],
-  ]) {
-    parts.box(1.7, 0.75, 3.8, paint, { x: -0.9, y: 2.15, z: lz });
-    parts.box(1.5, 0.6, 2, GLASS, { x: -0.9, y: 2.75, z: lz + 0.2 });
-  }
-  return parts.mesh();
-}
-
-/**
- * The ferry ties up at the pier, then sails out along the fjord and back again. `dock` is
- * where it ties up. Its trips out run along the middle of the fjord.
- */
-function ferry(scene, dock) {
-  const boat = ferryModel();
-  scene.add(boat);
-  const route = [new THREE.Vector3(dock.x, 0, dock.z)];
-  for (let s = 24; s <= 440; s += 8) {
-    const p = FJORD.path.at(s);
-    route.push(new THREE.Vector3(p.x, 0, p.z));
-  }
-  const course = new THREE.CatmullRomCurve3(route, false, 'centripetal');
-  const length = course.getLength();
-  const SPEED = 5;
-  const WAIT = 40;
-  const trip = length / SPEED;
-  const point = new THREE.Vector3();
-  const tangent = new THREE.Vector3();
-  return time => {
-    // Tied up, out, waiting far off, and back again.
-    const cycle = (time + WAIT * 0.5) % (2 * (WAIT + trip));
-    const out = cycle < WAIT + trip;
-    const t = out ? cycle - WAIT : cycle - 2 * WAIT - trip;
-    const u = smoothstep(Math.max(0, t), 0, trip);
-    const along = out ? u : 1 - u;
-    course.getPointAt(along, point);
-    course.getTangentAt(along, tangent);
-    boat.position.set(point.x, FJORD.level - 0.3 + Math.sin(time * 0.8) * 0.05, point.z);
-    boat.rotation.set(0, Math.atan2(tangent.x, tangent.z), Math.sin(time * 0.6) * 0.015);
-    boat.visible = along < 0.97;
-  };
-}
-
 /** A red-bordered warning sign with a troll on it, as at the top of the famous mountain roads. */
 function trollSign(scene, parts) {
   const { path } = TRACKS.find(track => track.id === 'fjord');
@@ -381,19 +411,18 @@ export function buildFjord(scene, obstacles) {
   const chimneys = FJORD_VILLAGE.houses.map(spot => house(parts, obstacles, spot));
   for (const spot of FJORD_VILLAGE.boathouses) boathouse(parts, obstacles, spot);
   staveChurch(parts, obstacles, FJORD_VILLAGE.church);
-  const dock = pier(parts, FJORD_VILLAGE.pier, 20);
+  quay(parts, obstacles);
   trollSign(scene, parts);
+  ferrySign(scene, parts);
   scene.add(parts.mesh());
   const smoke = createSmoke(scene, chimneys[1], { rise: 7, size: 0.45 });
   const spray = waterfalls(scene);
-  const sail = ferry(scene, dock);
   let time = 0;
   return {
     update(dt) {
       time += dt;
       smoke.update(time);
       spray(time);
-      sail(time);
     },
   };
 }

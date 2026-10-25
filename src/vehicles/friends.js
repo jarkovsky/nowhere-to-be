@@ -23,6 +23,7 @@ import {
   joinRoute,
   layCrumbs,
   leaderAlong,
+  moveRoute,
   nearestCrumb,
   poseAt,
   routeEnd,
@@ -180,6 +181,9 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
       starting: false,
       lost: false,
       lostAt: -Infinity,
+      /** Partly on a ferry with no room for the rest of it, and backing off it. */
+      crowded: false,
+      backOff: false,
       since: 0,
       retry: 0,
       away: false,
@@ -296,12 +300,13 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
   /**
    * The gap a friend keeps behind its leader, more when a lorry is involved. The first in line
    * keeps back behind the camera, so it never fills the view from close up, except when it has
-   * just been asked along: then it rolls straight out of its bay, to show it is coming.
+   * just been asked along: then it rolls straight out of its bay, to show it is coming; and
+   * when the player is aboard a ferry, where they all close up to fit on.
    */
   function gapBehind(friend, leader) {
     if (friend.follower.s < 5 && friend.mode === 'following' && !friend.lost) return LEAST + 1.5;
     const gap = friend.size.lorry || leader.size.lorry ? LORRY_GAP : GAP;
-    return leader === player && chasing ? Math.max(gap, cameraBack + 2 - leader.size.back) : gap;
+    return leader === player && chasing && !closeUp ? Math.max(gap, cameraBack + 2 - leader.size.back) : gap;
   }
 
   /**
@@ -396,6 +401,14 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
   function follow(friend, dt) {
     const leader = leaderOf(friend);
     const { route, follower, size } = friend;
+    // Backing off a ferry with no room left on it, the way it came, and waiting once it is clear.
+    if (friend.backOff) {
+      follower.speed = damp(follower.speed, friend.crowded ? -2 : 0, 3, dt);
+      follower.s = Math.max(routeStart(route), follower.s + follower.speed * dt);
+      poseAt(route, follower.s, size.wheelbase, friend);
+      friend.speed = follower.speed;
+      return;
+    }
     // One asked along behind another that has only just pulled out waits in its bay until all
     // of that one, a lorry's trailer too, is clear of the bays, rather than cutting across in
     // front of the others.
@@ -581,11 +594,23 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
   /** How far behind the player the camera is, easing back down slowly when it closes in. */
   let cameraBack = 0;
   let chasing = false;
+  let closeUp = false;
 
-  function update(dt, { state, tail = [], driving, night, camera, dynamic = [] }) {
+  /**
+   * `close` says the player is aboard a ferry, where the friends close up, and `crowded(circles)`,
+   * while the player stands aboard, says a friend is partly on the ferry: one that has stopped
+   * there with no room for all of it backs off again, and is left ashore.
+   */
+  function update(dt, { state, tail = [], driving, night, camera, dynamic = [], close = false, crowded = null }) {
     time += dt;
     moving = dynamic;
     chasing = driving;
+    closeUp = close;
+    for (const friend of party) {
+      friend.crowded = crowded?.(friend.circles.slice(0, friend.used)) ?? false;
+      if (!close) friend.backOff = false;
+      else if (friend.crowded && Math.abs(friend.speed) < 0.2) friend.backOff = true;
+    }
     const back = Math.hypot(camera.position.x - state.x, camera.position.z - state.z);
     cameraBack = Math.max(back, damp(cameraBack, back, 0.3, dt));
     viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -758,6 +783,26 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
       // off); on the move it just honks back.
       else if (Math.abs(state.speed) < 1.5 && time - friend.since > 4) stay(friend);
       else honk(friend, 0.1);
+    },
+    /** The friends coming along, each as the circles round it, for the ferry to tell which are aboard. */
+    outlines: margin => party.map(friend => ({ points: friend.circles.slice(0, friend.used), margin })),
+    /**
+     * While a ferry takes the player across, the friends on its deck go too: `move` moves a
+     * { x, z, heading } the way the ferry moved, and `onDeck(x, z)` says what is on its deck.
+     * They keep the way they follow along the deck, and the ones left ashore lose whoever they
+     * were following and catch up later, as after a jump.
+     */
+    carry(move, onDeck) {
+      for (const friend of party) {
+        if (!friend.circles.slice(0, friend.used).every(c => onDeck(c.x, c.z))) {
+          if (!friend.lost) Object.assign(friend, { lost: true, lostAt: time, retry: 0 });
+          continue;
+        }
+        move(friend);
+        if (friend.copy?.trailer.ready) move(friend.copy.trailer);
+        moveRoute(friend.route, onDeck, move);
+      }
+      moveRoute(trail, onDeck, move);
     },
     /** The keyboard's way to ask along the nearest friend that can come. */
     inviteNearest() {

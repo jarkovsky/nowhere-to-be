@@ -188,6 +188,27 @@ export function nearestCrumb(route, x, z) {
   return closest;
 }
 
+/**
+ * Moves the breadcrumbs from the first one that `keep(x, z)` on, each with `move` ({ x, z }), and
+ * forgets the ones before it: the way along the deck of a ferry that has sailed, and not the way
+ * there over the land it has left.
+ */
+export function moveRoute(route, keep, move) {
+  while (route.count > 1 && !keep(route.x[route.first], route.z[route.first])) {
+    route.first = (route.first + 1) % route.capacity;
+    route.count--;
+  }
+  const crumb = { x: 0, z: 0 };
+  for (let i = 0; i < route.count; i++) {
+    const k = slot(route, i);
+    crumb.x = route.x[k];
+    crumb.z = route.z[k];
+    move(crumb);
+    route.x[k] = crumb.x;
+    route.z[k] = crumb.z;
+  }
+}
+
 /** Forgets the breadcrumbs more than HISTORY metres behind `s`. */
 export function forgetBehind(route, s) {
   while (route.count > 2 && route.s[slot(route, 1)] < s - HISTORY) {

@@ -1,6 +1,7 @@
 // Where everything in the valley is. Pure data, so tests and the renderer
 // agree on the same coordinates. +X is east, +Z is south, heights are metres.
 import { createRandom, lerp, smoothstep, valueNoise } from '../core/math.js';
+import { HULL, RAMP } from '../core/ferry.js';
 import { createPath, headingOf } from './path.js';
 import { localFrame } from './build.js';
 
@@ -380,7 +381,8 @@ export const FJORD_VILLAGE = (() => {
     // Boathouses stand with their doors to the water, at its edge along each side.
     boathouses: [place(-114, 33, 0.9, { paint: '#a5382b' }), place(114, 33, 0.9, { paint: '#a5382b' })],
     church: place(70, 62, 7.2, {}),
-    pier: place(-6, 30, 1.2, {}),
+    /** Where the road comes down to the water, and the ferry ties up. */
+    quay: place(-6, 30, 0, {}),
     /** Where the sheep graze, up the slope beyond the church. */
     pasture: place(96, 80, 0),
     road: hairpins(place, [
@@ -389,6 +391,23 @@ export const FJORD_VILLAGE = (() => {
       [-24, 34, -4, 32],
     ]),
   };
+})();
+
+/**
+ * The ferry quay at the end of the road down to the fjord. In its own frame, with +Z out over the
+ * water, a steel ramp runs out from the shore at `from` to `to`, `width` wide, rising from `low`
+ * to `high`, a little below the ferry's deck. The ferry ties up end on just beyond it, its own
+ * ramp resting on the end of the quay's, with its middle `berth` metres out at `dock`, facing out
+ * over the water.
+ */
+export const FERRY_QUAY = (() => {
+  const { x, z, rotation } = FJORD_VILLAGE.quay;
+  const [from, to] = [1.5, 9];
+  // The ferry's ramp, when it is down, lies over the last 0.4 m of the quay's.
+  const berth = to + RAMP - 0.4 + HULL.halfLength;
+  const dock = { ...localFrame(x, z, rotation)(0, berth), heading: rotation + Math.PI };
+  const [low, high] = [FJORD.level + 0.35, FJORD.level + HULL.deck - 0.12];
+  return { x, z, rotation, from, to, width: 7, low, high, berth, dock };
 })();
 
 /**
@@ -1238,7 +1257,7 @@ export const PLACES = [
   { id: 'fields', x: FARMSTEAD.x, z: FARMSTEAD.z },
   { id: 'airfield', x: AIRFIELD.x - 30, z: (AIRFIELD.z0 + AIRFIELD.z1) / 2 },
   { id: 'rockhill', x: ROCK_HILL.x, z: ROCK_HILL.z },
-  { id: 'fjord', x: FJORD_VILLAGE.pier.x, z: FJORD_VILLAGE.pier.z },
+  { id: 'fjord', x: FJORD_VILLAGE.quay.x, z: FJORD_VILLAGE.quay.z },
   { id: 'village', x: VILLAGE.fireStation.x, z: VILLAGE.fireStation.z },
   ...FARMS.map(({ id, x, z }) => ({ id, x, z })),
   { id: 'desert', x: DESERT.oasis.x, z: DESERT.oasis.z },

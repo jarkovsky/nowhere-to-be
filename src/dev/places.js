@@ -95,6 +95,7 @@ export const PLACES = [
   { id: 'rockgate.descent', name: 'Causeway down the far side', landmark: 'rockgate', ...descent, radius: 50 },
   { id: 'fjord', name: 'Fjord village', landmark: 'fjord', ...FJORD_VILLAGE.church, radius: 60 },
   { id: 'fjord.church', name: 'Stave church', landmark: 'fjord', ...FJORD_VILLAGE.church, radius: 14 },
+  { id: 'fjord.quay', name: 'Ferry quay', landmark: 'fjord', ...FJORD_VILLAGE.quay, radius: 16 },
   ...FJORD_VILLAGE.houses.map((house, i) => ({
     id: `fjord.house.${i}`,
     name: `Grass-roofed house ${i + 1}`,
