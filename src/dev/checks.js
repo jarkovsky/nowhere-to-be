@@ -17,7 +17,8 @@ export function checkLandmark(name) {
   LANDMARKS[name](group, obstacles);
   return inspect(group, {
     ground: standing,
-    drivable: drivingHeight,
+    // The highest the car can be driving there, up on the rock fin too.
+    drivable: (x, z) => drivingHeight(x, z, Infinity),
     obstacles: createObstacleIndex(obstacles),
   });
 }

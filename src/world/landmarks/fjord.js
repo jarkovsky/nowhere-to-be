@@ -46,15 +46,22 @@ function tuft() {
   return tufted;
 }
 
+/**
+ * A stone footing `width` by `depth` round the middle of the frame, from 0.3 m up down to the
+ * ground at the lowest corner, where the slope falls away.
+ */
+function footing(parts, { at, ground }, width, depth) {
+  const corners = [-1, 1].flatMap(sx => [-1, 1].map(sz => ground((sx * width) / 2, (sz * depth) / 2)));
+  const drop = ground(0, 0) - Math.min(...corners);
+  parts.box(width, 0.6 + drop, depth, STONE, at(0, -drop / 2, 0));
+}
+
 /** A wooden house with its long side to the water, white trim and a grass roof. */
 function house(parts, obstacles, spot) {
   const frame = framer(spot);
-  const { at, ground } = frame;
+  const { at } = frame;
   const [width, depth, eave, ridge] = [7.5, 5.6, 3.3, 5.6];
-  // The stone footing goes down to the ground at the lowest corner, where the slope falls away.
-  const corners = [-1, 1].flatMap(sx => [-1, 1].map(sz => ground((sx * (width + 0.4)) / 2, (sz * (depth + 0.4)) / 2)));
-  const drop = ground(0, 0) - Math.min(...corners);
-  parts.box(width + 0.4, 0.6 + drop, depth + 0.4, STONE, at(0, -drop / 2, 0));
+  footing(parts, frame, width + 0.4, depth + 0.4);
   obstacles.push(
     gabledHouse(parts, frame, {
       width,
@@ -109,7 +116,8 @@ function staveChurch(parts, obstacles, spot) {
   const { at, local } = frame;
   // A low covered gallery all round, under a skirt roof that rises as steeply as it runs in: from
   // its eaves 0.7 m out from the gallery's walls, it meets them 0.7 m up and goes on up to the
-  // walls of the tall nave inside.
+  // walls of the tall nave inside. All on a stone footing.
+  footing(parts, frame, 7.8, 9.8);
   parts.box(7.4, 2.9, 9.4, TAR, at(0, 1.45, 0));
   parts.add(hipRoof(8.8, 10.8, 2.2, 5.6, 7.6, 3.8), SHINGLE, at(0, 0, 0));
   gabledHouse(parts, frame, { width: 5.6, depth: 7.6, base: 1, eave: 5.8, ridge: 9.25, walls: TAR, roof: SHINGLE });
@@ -126,7 +134,7 @@ function staveChurch(parts, obstacles, spot) {
     parts.box(0.22, 0.22, 1.5, TAR, at(0, 9.6, end * 4.4, { rx: end * -0.6 }));
     parts.box(0.26, 0.4, 0.4, TAR, at(0, 10.3, end * 5, { rx: end * -0.2 }));
   }
-  parts.box(1.4, 2.2, 0.12, '#6b3a24', at(0, 1.1, 4.72)); // door, under the gallery roof
+  parts.box(1.4, 2.2, 0.12, '#6b3a24', at(0, 1.4, 4.72)); // door, under the gallery roof
   obstacles.push({ ...local(0, 0), halfX: 4, halfZ: 5, rotation: spot.rotation, radius: 0 });
 }
 

@@ -61,15 +61,18 @@ function czechFlag(parts, x, y, z, rotation) {
   }
   const wedge = new THREE.BufferGeometry();
   const t = 0.02;
-  // A triangular prism: hoist edge to the middle of the flag, on both faces.
-  const tri = [
+  // A triangular prism: hoist edge to the middle of the flag, on both faces, closed round its edges.
+  const [a, b, c] = [
     [0, height / 2, t],
     [0, -height / 2, t],
     [width / 2, 0, t],
+  ];
+  const [d, e, f] = [
     [0, -height / 2, -t],
     [0, height / 2, -t],
     [width / 2, 0, -t],
   ];
+  const tri = [a, b, c, d, e, f, a, e, b, e, d, b, a, c, e, c, f, e, b, d, c, d, f, c];
   wedge.setAttribute('position', new THREE.Float32BufferAttribute(tri.flat(), 3));
   wedge.computeVertexNormals();
   const hoist = local(0, 0);
@@ -191,6 +194,8 @@ export function buildHut(scene, obstacles) {
   obstacles.push(
     { ...local(0, 0), halfX: ground.length / 2 + 0.3, halfZ: ground.depth / 2 + 0.3, rotation, radius: 0 },
     { ...local(wing.x, -0.5), halfX: wing.length / 2 + 0.2, halfZ: wing.depth / 2 + 0.2, rotation, radius: 0 },
+    // The step stands up out of the slope in front of the door.
+    { ...local(5.6, door + 1.1), halfX: 1.6, halfZ: 1.1, rotation, radius: 0 },
   );
   obstacles.push({ ...local(bust.lx, bust.lz), radius: 0.8 }, { ...pole, radius: 0.3 });
   for (const lx of [-1, 4.6]) obstacles.push({ ...local(lx, door + 5.1), radius: 1.3 });

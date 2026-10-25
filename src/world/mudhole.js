@@ -171,7 +171,7 @@ function axle(wheels) {
 /** The farm's tractor: the garage's tractor in red, with a drawbar for the rope behind. */
 export function buildTractor() {
   const { painted, trim, spec } = vehicleParts('tractor');
-  trim.box(0.2, 0.15, 1.2, '#6b706b', { y: HITCH_HEIGHT - 0.05, z: HITCH - 0.5 }); // drawbar
+  trim.box(0.2, 0.15, 1.18, '#6b706b', { y: HITCH_HEIGHT - 0.05, z: HITCH - 0.51 }); // drawbar, its end in the hook
   trim.box(0.34, 0.2, 0.2, '#3a3f3a', { y: HITCH_HEIGHT, z: HITCH }); // the hook
   const root = new THREE.Group();
   root.add(painted.mesh({ material: flatMaterial(PAINT) }), trim.mesh());

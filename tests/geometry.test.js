@@ -64,6 +64,60 @@ test('the checks find a floating part, an open plane, two faces that flicker and
   );
 });
 
+test('faces flicker only where they lie within 2 mm of each other, however the planes fall', async () => {
+  const { inspect } = await import('../src/dev/inspect.js');
+  const { PartsBuilder } = await import('../src/world/build.js');
+  // A red plate on the front of a white box, its face `out` in front of the box's.
+  const kinds = (front, out) =>
+    inspect(
+      new PartsBuilder()
+        .box(1, 1, 1, '#fff', { y: 0.5, z: front - 0.5 })
+        .box(0.5, 0.5, 0.1, '#f00', { y: 0.5, z: front + out - 0.05 })
+        .mesh(),
+      { ground: () => 0 },
+    ).map(i => i.kind);
+  assert.deepEqual(kinds(0.3, 0), ['flicker']);
+  // Half a millimetre apart, either side of the middle of a centimetre, and 4 mm apart.
+  assert.deepEqual(kinds(0.0048, 0.0005), ['flicker']);
+  assert.deepEqual(kinds(0.3, 0.004), []);
+});
+
+test('a gap under a corner counts only where nothing else holds that corner up', async () => {
+  const { inspect } = await import('../src/dev/inspect.js');
+  const { PartsBuilder } = await import('../src/world/build.js');
+  // Ground sloping down to the left, and a level plank resting on it at its right end.
+  const ground = x => x * 0.2;
+  const kinds = build => inspect(build(new PartsBuilder()).mesh(), { ground }).map(i => i.kind);
+  const plank = p => p.box(2, 0.1, 0.5, '#fff', { y: 0.25 });
+  assert.deepEqual(kinds(plank), ['gap-under']);
+  // A block under its left end, standing on the ground.
+  assert.deepEqual(
+    kinds(p => plank(p).box(0.4, 0.4, 0.5, '#888', { x: -0.9 })),
+    [],
+  );
+});
+
+test('a surface built in two meshes that meet along their open edges is closed', async () => {
+  const THREE = await import('three');
+  const { inspect } = await import('../src/dev/inspect.js');
+  const { PartsBuilder } = await import('../src/world/build.js');
+  // A box's faces, three in each half.
+  const corners = new THREE.BoxGeometry(1, 1, 1).toNonIndexed().attributes.position.array;
+  const half = (from, to, color) => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(corners.slice(from, to), 3));
+    return new PartsBuilder().add(geometry, color, { y: 0.5 }).mesh();
+  };
+  const root = new THREE.Group();
+  root.add(half(0, 54, '#fff'));
+  assert.deepEqual(
+    inspect(root, { ground: () => 0 }).map(i => i.kind),
+    ['one-sided'],
+  );
+  root.add(half(54, 108, '#888'));
+  assert.deepEqual(inspect(root, { ground: () => 0 }), []);
+});
+
 test('a part only counts as held up where its surface meets another, not where their boxes overlap', async () => {
   const { inspect } = await import('../src/dev/inspect.js');
   const { PartsBuilder } = await import('../src/world/build.js');

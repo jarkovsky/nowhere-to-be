@@ -65,15 +65,16 @@ export function buildWaterfall(scene, obstacles) {
       triangle(c, b, d);
     }
   }
-  // Close both ends of the horseshoe.
+  // Close both ends of the horseshoe, all the way round, under the ground between its feet too.
   for (const [ring, flip] of [
     [rings[0], false],
     [rings[STEPS], true],
   ]) {
     const centre = ring.reduce((sum, p) => sum.map((v, j) => v + p[j] / ring.length), [0, 0, 0]);
-    for (let k = 0; k < ring.length - 1; k++) {
-      if (flip) triangle(ring[k + 1], ring[k], centre);
-      else triangle(ring[k], ring[k + 1], centre);
+    for (let k = 0; k < ring.length; k++) {
+      const [p, q] = [ring[k], ring[(k + 1) % ring.length]];
+      if (flip) triangle(q, p, centre);
+      else triangle(p, q, centre);
     }
   }
   const cliff = new THREE.Mesh(triangleGeometry(positions, colors), vertexColorMaterial);
