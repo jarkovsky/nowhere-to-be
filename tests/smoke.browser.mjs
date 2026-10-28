@@ -102,8 +102,16 @@ try {
   assert.equal((await state(page)).cameraMode, 'chase');
   step('shows the car in the garage with a flag, a teddy and the roof tent, which opens and stays open');
 
+  // A faster cruise speed lasts for the visit and is not kept: a reload starts at 6 m/s again.
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: 'Cruise speed: slow' }).click();
+  await page.getByRole('button', { name: 'Cruise speed: medium' }).click();
+  assert.equal((await state(page)).input.cruiseSpeed, 12);
+  await page.getByRole('button', { name: 'Resume' }).click();
+
   await page.reload();
   await page.getByRole('button', { name: 'Play' }).click();
+  assert.equal((await state(page)).input.cruiseSpeed, 6);
   const reloaded = await state(page);
   assert.equal(reloaded.journal.color, 'blue');
   assert.deepEqual(reloaded.journal.decorations, ['flag', 'teddy', 'tent']);
@@ -254,6 +262,27 @@ try {
   await phone.getByRole('button', { name: 'Pause' }).tap();
   assert.equal(await phone.getByRole('switch', { name: 'Cruise control' }).getAttribute('aria-checked'), 'true');
   step('on a phone, cruise control and tilt steering are on from the start');
+
+  // The speed tile steps cruise through slow, medium, fast and round again, and the car follows at once.
+  const speedTile = name => phone.getByRole('button', { name });
+  const cruiseSpeedNow = async () => {
+    await phone.getByRole('button', { name: 'Resume' }).tap();
+    await phone.waitForTimeout(5000);
+    const speed = (await state(phone)).car.speed;
+    await phone.getByRole('button', { name: 'Pause' }).tap();
+    return speed;
+  };
+  assert.ok(Math.abs((await state(phone)).input.cruiseSpeed - 6) < 1e-9, 'starts at 6 m/s');
+  const slow = await cruiseSpeedNow();
+  assert.ok(Math.abs(slow - 6) < 0.5, `slow ${slow}`);
+  await speedTile('Cruise speed: slow').tap();
+  assert.ok(await speedTile('Cruise speed: medium').isVisible());
+  await speedTile('Cruise speed: medium').tap();
+  const fast = await cruiseSpeedNow();
+  assert.ok(fast > 11, `fast ${fast}`);
+  await speedTile('Cruise speed: fast').tap();
+  assert.ok(await speedTile('Cruise speed: slow').isVisible(), 'and round to slow again');
+  step('the speed tile steps cruise through slow, medium and fast, and the car drives faster');
 
   // Cruise control off, the pedals drive it.
   await phone.getByRole('switch', { name: 'Cruise control' }).tap();

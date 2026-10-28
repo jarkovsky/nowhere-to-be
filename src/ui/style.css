@@ -626,6 +626,18 @@ body.camping .touch-controls {
   box-shadow: 0 5px 0 #3f6a4a;
 }
 
+/* Chevrons, lit one, two or three: the cruise speed. The unlit ones stay faintly there. */
+#cruise-speed path {
+  opacity: 0.25;
+}
+
+#cruise-speed[data-step='1'] .step-1,
+#cruise-speed[data-step='2'] .step-1,
+#cruise-speed[data-step='2'] .step-2,
+#cruise-speed[data-step='3'] path {
+  opacity: 1;
+}
+
 .tile .when-off,
 .tile[aria-checked='false'] .when-on {
   display: none;

@@ -2,6 +2,7 @@
 // for a small child who can't read yet, so everything is a picture to tap; the words
 // are labels for screen readers. It knows nothing about Three.js; the game talks to
 // it through callbacks.
+import { CRUISE_SPEED_NAMES } from '../core/driving.js';
 import { CAR_COLORS } from '../vehicles/car.js';
 import { COLORS, DECORATIONS, VEHICLES } from '../core/journal.js';
 import { roofArt } from './art.js';
@@ -107,6 +108,7 @@ export function createUI({ journal, pictures, on }) {
 
   $('sound').addEventListener('click', () => on.sound());
   $('cruise').addEventListener('click', () => on.cruise());
+  $('cruise-speed').addEventListener('click', () => on.cruiseSpeed());
   $('minimap').addEventListener('click', () => on.minimap());
   $('tilt').addEventListener('click', () => on.tilt());
   $('tilt-center').addEventListener('click', () => on.tiltCenter());
@@ -250,6 +252,12 @@ export function createUI({ journal, pictures, on }) {
       if (id === 'cruise') document.body.classList.toggle('cruising', on);
       // Leaning the screen back reverses while tilt steers: the reverse pedal isn't needed then.
       if (id === 'tilt-reverse') document.body.classList.toggle('lean-reverse', on);
+    },
+    /** Shows which step of the cruise speed is chosen (0 slow, 1 medium, 2 fast). */
+    setCruiseSpeed(step) {
+      const button = $('cruise-speed');
+      button.dataset.step = String(step + 1);
+      button.setAttribute('aria-label', `Cruise speed: ${CRUISE_SPEED_NAMES[step]}`);
     },
     setTilt(state) {
       $('tilt').setAttribute('aria-checked', String(state.enabled || state.pending));

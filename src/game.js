@@ -5,7 +5,7 @@ import { createAudio } from './core/audio.js';
 import { createChaseCamera } from './core/camera.js';
 import { createObstacleIndex } from './core/collision.js';
 import { stepDirt } from './core/dirt.js';
-import { bodyOf, createCarState, placeCar, steerAngle, stepDriving } from './core/driving.js';
+import { CRUISE_SPEEDS, bodyOf, createCarState, placeCar, steerAngle, stepDriving } from './core/driving.js';
 import { createJournal } from './core/journal.js';
 import { chassisPose, layoutOf, settleWheels } from './core/suspension.js';
 import { createTrailerState, hangTrailer, swingOf } from './core/trailer.js';
@@ -188,6 +188,7 @@ export function createGame(canvas) {
       home: homeFromMenu,
       sound: toggleSound,
       cruise: toggleCruise,
+      cruiseSpeed: cycleCruiseSpeed,
       minimap: toggleMinimap,
       tilt: () => {
         controls.clear();
@@ -327,6 +328,16 @@ export function createGame(canvas) {
   function toggleCruise() {
     controls.cruise = !controls.cruise;
     ui.setSwitch('cruise', controls.cruise);
+  }
+
+  /**
+   * Slow, medium, fast, and round again. It isn't saved: every visit starts slow, so a faster
+   * speed left over from one player's game never carries into the next one's.
+   */
+  function cycleCruiseSpeed() {
+    const at = CRUISE_SPEEDS.indexOf(controls.cruiseSpeed);
+    controls.cruiseSpeed = CRUISE_SPEEDS[(at + 1) % CRUISE_SPEEDS.length];
+    ui.setCruiseSpeed(CRUISE_SPEEDS.indexOf(controls.cruiseSpeed));
   }
 
   function toggleMinimap() {
