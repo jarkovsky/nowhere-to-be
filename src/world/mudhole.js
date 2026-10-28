@@ -379,6 +379,8 @@ export function createMudHole(scene, { obstacles, onToot }) {
     },
     /** True while the car is on the rope, when the controls do nothing. */
     holding: () => isTowed(tow),
+    /** True from when the car bogs down in the hole until the tractor lets it go. */
+    gripping: () => tow.phase !== 'free',
     /** Where the tractor is while it is out to help, for the camera to keep in view. */
     watch: () => helping(tow),
     getState: () => ({

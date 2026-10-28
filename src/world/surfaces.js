@@ -229,12 +229,15 @@ export function createSurfaces(scene, sound) {
       sandTracks: trails.sand.mesh.count,
       particles: particles.filter(p => p.life > 0).length,
     }),
-    /** `spin` is how much faster than the car its wheels are turning, when they spin in the mud. */
-    update(dt, car, running, spin = 0) {
+    /**
+     * `spin` is how much faster than the car its wheels are turning, when they spin in the mud.
+     * `quiet` keeps the tyres silent.
+     */
+    update(dt, car, running, spin = 0, quiet = false) {
       if (!running) return;
       time += dt;
       current = effectAt(car.x, car.z, puddles);
-      sound.surface(current, Math.abs(car.speed) + Math.abs(spin));
+      sound.surface(current, quiet ? 0 : Math.abs(car.speed) + Math.abs(spin));
       const sin = Math.sin(car.heading);
       const cos = Math.cos(car.heading);
       const spinning = Math.abs(spin) > 1;

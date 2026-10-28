@@ -1,4 +1,5 @@
-// Everything you hear is synthesised with Web Audio: no sound files.
+// Everything you hear apart from the music is synthesised with Web Audio: no sound files.
+import { createMusic } from './music.js';
 
 /**
  * Engine speed for a road speed in m/s: a four-speed gearbox that shifts up
@@ -21,9 +22,9 @@ const SURFACE_BEDS = {
   water: { cutoff: 700, gain: 0.035, bubbles: 1 },
   puddle: { cutoff: 900, gain: 0.02, bubbles: 0.5 },
   mud: { cutoff: 420, gain: 0.03, bubbles: 0.8 },
-  snow: { cutoff: 1600, gain: 0.01, bubbles: 0 },
-  leaves: { cutoff: 2400, gain: 0.008, bubbles: 0 },
-  sand: { cutoff: 1900, gain: 0.012, bubbles: 0 },
+  snow: { cutoff: 1200, gain: 0.005, bubbles: 0 },
+  leaves: { cutoff: 2400, gain: 0.004, bubbles: 0 },
+  sand: { cutoff: 1400, gain: 0.005, bubbles: 0 },
 };
 
 export function createAudio() {
@@ -35,7 +36,7 @@ export function createAudio() {
   let rainGain;
   let bed;
   let rotor;
-  let siren;
+  let music;
   let noise;
   let enabled = true;
   let enginePitch = 1;
@@ -177,28 +178,9 @@ export function createAudio() {
     beat.start();
     rotor = { beat, gain: rotorGain };
 
-    // The siren: two notes in turn, soft and a little muffled.
-    const sirenTone = context.createOscillator();
-    sirenTone.type = 'triangle';
-    sirenTone.frequency.value = 510;
-    const sirenStep = context.createOscillator();
-    sirenStep.type = 'square';
-    sirenStep.frequency.value = 0.8;
-    const sirenSwing = context.createGain();
-    sirenSwing.gain.value = 75;
-    sirenStep.connect(sirenSwing).connect(sirenTone.frequency);
-    const sirenFilter = context.createBiquadFilter();
-    sirenFilter.type = 'lowpass';
-    sirenFilter.frequency.value = 1800;
-    const sirenGain = context.createGain();
-    sirenGain.gain.value = 0;
-    sirenTone.connect(sirenFilter).connect(sirenGain).connect(master);
-    sirenTone.start();
-    sirenStep.start();
-    siren = { gain: sirenGain };
-
-    windGain = noiseSource('lowpass', 260, 0.012);
+    windGain = noiseSource('lowpass', 260, 0);
     rainGain = noiseSource('highpass', 2400, 0);
+    music = createMusic(context, master);
   }
 
   async function ready() {
@@ -276,6 +258,10 @@ export function createAudio() {
     /** Call from a user gesture (the Play button) so the browser allows audio. */
     async start() {
       try {
+        // Before waiting for anything, while the click still counts: the music element only
+        // gets leave to play from a click.
+        if (!context) initialise();
+        music.start();
         await ready();
       } catch {
         enabled = false;
@@ -346,22 +332,7 @@ export function createAudio() {
       if (!context) return;
       const now = context.currentTime;
       glide(rotor.beat.frequency, rate, now, 0.3);
-      glide(rotor.gain.gain, level * 0.5, now, 0.2);
-    },
-
-    /** An emergency vehicle's siren: `level` 0 to 1 for how near it is. */
-    siren(level) {
-      if (!context) return;
-      glide(siren.gain.gain, level ** 1.5 * 0.045, context.currentTime, 0.3);
-    },
-
-    /** One strike of the level crossing's bell. */
-    crossingBell(distance) {
-      const level = Math.max(0, 1 - distance / 140);
-      if (!playable() || level <= 0) return;
-      const now = context.currentTime;
-      tone(1180, now, 0.3, { type: 'triangle', volume: 0.05 * level });
-      tone(2360, now, 0.12, { volume: 0.015 * level });
+      glide(rotor.gain.gain, level * 0.32, now, 0.2);
     },
 
     animal(kind) {
@@ -444,21 +415,25 @@ export function createAudio() {
       if (!context) return;
       const now = context.currentTime;
       glide(master.gain, enabled && active ? 0.6 : 0, now, 0.15);
+      music.update(enabled && active);
 
       const rpm = engineRpm(speed, throttle);
       const firing = (rpm / 30) * enginePitch; // four cylinders, two firings per turn
       glide(engine.pulses.frequency, firing, now, 0.08);
       glide(engine.body.frequency, firing, now, 0.08);
       glide(engine.exhaust.frequency, (220 + rpm * 0.09 + throttle * 200) * enginePitch, now, 0.1);
-      const loudness = 0.05 + throttle * 0.035 + (rpm / 4000) * 0.03;
+      // A little under the music.
+      const loudness = 0.045 + throttle * 0.032 + (rpm / 4000) * 0.027;
       glide(engine.volume.gain, engineOn ? loudness : 0, now, engineOn ? 0.15 : 0.4);
 
       const profile = SURFACE_BEDS[surface];
       const pace = engineOn ? surfacePace : 0;
       glide(bed.gain.gain, profile ? profile.gain * pace : 0, now, 0.2);
       if (profile) glide(bed.filter.frequency, profile.cutoff, now, 0.1);
-      glide(windGain.gain, 0.012 + Math.abs(speed) * 0.0015, now, 0.3);
-      glide(rainGain.gain, rain * 0.05, now, 0.5);
+      // A breeze that comes and goes on its own, rather than a rush that follows the speed.
+      const gust = (0.5 + 0.5 * Math.sin(now * 0.11) * Math.sin(now * 0.047 + 1.3)) ** 2;
+      glide(windGain.gain, 0.003 + gust * 0.007 + Math.min(8, Math.abs(speed)) * 0.0003, now, 0.8);
+      glide(rainGain.gain, rain * 0.028, now, 0.5);
     },
   };
 }
