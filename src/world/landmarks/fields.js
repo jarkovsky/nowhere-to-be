@@ -44,8 +44,6 @@ const CORNER = 1.4;
 const INSET = 0.3;
 /** Furrows the plough turns over in each pass. */
 const FURROWS = 7;
-/** How much the corners of the boxes that keep the car out of a crop are rounded. */
-const ROUND = 0.3;
 
 /** Ground colours: [base, stripe] for each crop. */
 const CROPS = {
@@ -286,24 +284,6 @@ function rows(plot, [base, stripe], lane = LANE) {
     }
   }
   return quads;
-}
-
-/**
- * A box obstacle (see collision.js) over the part of a plot from `x0` to `x1` across it and `za`
- * to `zb` along it, in the frame `point` maps from: a crop, which stops the car without a bump,
- * as it would brush up against the stalks. Reshapes `box` if one is given.
- */
-export function cropBox(point, x0, x1, za, zb, box = { soft: true }) {
-  const [origin, up] = [point(0, 0), point(0, 1)];
-  const middle = point((x0 + x1) / 2, (za + zb) / 2);
-  return Object.assign(box, {
-    x: middle.x,
-    z: middle.z,
-    halfX: Math.max(0, (x1 - x0) / 2 - ROUND),
-    halfZ: Math.max(0, (zb - za) / 2 - ROUND),
-    rotation: Math.atan2(up.x - origin.x, up.z - origin.z),
-    radius: ROUND,
-  });
 }
 
 /**
@@ -589,7 +569,7 @@ const CROP_VERTEX = /* glsl */ `
   // drawn near the camera so they show lying on it, and forward a little. Lying down, the
   // rows it grew in no longer show in the light.
   if ( sway > 0.0 ) {
-    vec3 lay = trampled( transformed );
+    vec3 lay = trampled( transformed, 1.0 );
     float fall = pow( lay.x, 0.8 ) * 1.45;
     float tall = sway * cropHeight;
     transformed.y -= tall * ( 1.0 - cos( min( fall * 1.15, 1.4 ) ) );
@@ -1144,27 +1124,28 @@ function standingCrop(plot, point, route, stand) {
   for (const list of Object.values(items)) list.length = 0;
   const group = new THREE.Group();
   group.add(mesh, stalks.mesh);
-  // The car can't drive into the crop: a box down each lane, from where it has been cut to the
-  // end the machine has yet to reach. They only ever shrink from where they start, so they stay
-  // inside the room they take in the obstacles' grid, until the crop grows back.
-  const laneSides = i => [plot.x0 + i * lanes.width, plot.x0 + (i + 1) * lanes.width];
-  const blocks = Array.from({ length: lanes.lanes }, (_, i) => cropBox(point, ...laneSides(i), plot.z0, plot.z1));
+  // Where it still stands: in a lane of the plot, and not cut yet there.
+  const [corner, sideways, onwards] = [point(0, 0), point(1, 0), point(0, 1)];
+  let cutTo = -1e6;
   return {
     mesh: group,
-    /** Boxes that keep the car out of what is still standing. */
-    obstacles: blocks,
+    /** True if the crop still stands at (x, z) in the world. */
+    stands(x, z) {
+      const [dx, dz] = [x - corner.x, z - corner.z];
+      const lx = dx * (sideways.x - corner.x) + dz * (sideways.z - corner.z);
+      const lz = dx * (onwards.x - corner.x) + dz * (onwards.z - corner.z);
+      const i = Math.floor((lx - plot.x0) / lanes.width);
+      if (i < 0 || i >= lanes.lanes || lz < plot.z0 || lz > plot.z1) return false;
+      const done = cutTo - i * lanes.length;
+      return lanes.way(i) > 0 ? lz - plot.z0 > done : plot.z1 - lz > done;
+    },
     /** Hides the crop cut so far, `metres` along the lanes, and fills in the stalks near the camera. */
     show(metres = -1e6) {
+      cutTo = metres;
       if (metres !== uniforms.cropFrom.value) {
         uniforms.cropFrom.value = cut.cropCut.value = metres;
         const start = starts[Math.min(starts.length - 1, cellsDone(lanes, metres, CROP_CELL))];
         mesh.geometry.setDrawRange(start, starts.at(-1) - start);
-        blocks.forEach((box, i) => {
-          const done = clamp(metres - i * lanes.length, 0, lanes.length);
-          const [za, zb] = lanes.way(i) > 0 ? [plot.z0 + done, plot.z1] : [plot.z0, plot.z1 - done];
-          cropBox(point, ...laneSides(i), za, zb, box);
-          box.off = done > lanes.length - ROUND * 2;
-        });
       }
       stalks.update(metres);
     },
@@ -1509,13 +1490,6 @@ export function buildFields(scene, obstacles) {
   plougher.ground = ploughedGround(plough, plougher.route);
   mower.ground = swaths(mow, mower.route, HAY, 1.3, 0.2);
   harvester.ground = swaths(wheat, harvester.route, STRAW, 1, 0.26);
-  // The car keeps out of the crops: the meadow and the wheat while they stand, the rapeseed and
-  // the young crop always. The stubble, the ploughed ground and the mown grass are open.
-  obstacles.push(
-    ...mower.standing.obstacles,
-    ...harvester.standing.obstacles,
-    ...[rapeseed, young].map(({ x0, x1, z0, z1 }) => cropBox(fieldPoint, x0, x1, z0, z1)),
-  );
   for (const worker of workers) {
     scene.add(worker.machine.root, worker.ground.mesh);
     if (worker.standing) scene.add(worker.standing.mesh);
@@ -1550,6 +1524,10 @@ export function buildFields(scene, obstacles) {
   return {
     /** Circles round the machines and what they pull, for collisions, each with the `kind` of machine. */
     colliders,
+    /** True if the wheat or the long grass of the meadow stands at (x, z), not yet cut. */
+    cropAt: (x, z) =>
+      Math.hypot(x - FIELDS.x, z - FIELDS.z) < FIELDS.radius &&
+      (harvester.standing.stands(x, z) || mower.standing.stands(x, z)),
     getState: () =>
       workers.map(w => ({
         kind: w.machine.kind,
@@ -1618,7 +1596,7 @@ export function buildFields(scene, obstacles) {
             z: pivot.position.z,
             radius,
           }));
-          pressTrample({ x: p.x, z: p.z, heading, speed: worker.speed, wheels });
+          pressTrample({ x: p.x, z: p.z, heading, speed: worker.speed, wheels }, true);
         }
         for (const [right, behind, radius] of machine.hits) {
           colliders.push({

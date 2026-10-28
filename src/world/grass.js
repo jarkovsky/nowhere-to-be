@@ -139,7 +139,7 @@ const GRASS_VERTEX = /* glsl */ `
     across.y * position.x * width * ( 1.0 - 0.6 * along ) + lean.y * height * along * along
   );
   // Laid over where a car has driven through, or bent ahead of one pushing through.
-  vec3 lay = trampled( vec3( root.x, groundY, root.y ) );
+  vec3 lay = trampled( vec3( root.x, groundY, root.y ), 0.7 );
   float fall = pow( lay.x, 0.8 ) * 1.4;
   rel.xz = rel.xz * ( 1.0 - 0.5 * fall / 1.4 ) + lay.yz * rel.y * sin( fall );
   rel.y *= cos( fall );

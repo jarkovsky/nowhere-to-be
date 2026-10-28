@@ -120,7 +120,6 @@ export function buildFarm(scene, obstacles) {
   // A field of wheat beyond the barn.
   const wheat = wheatField(FARM.wheat, local);
   scene.add(wheat.mesh);
-  obstacles.push(...wheat.obstacles);
 
   scene.add(parts.mesh());
   // The walls, and the porch in front of the door, which a car would sink into.
@@ -137,6 +136,8 @@ export function buildFarm(scene, obstacles) {
   // Wood smoke from the farmhouse chimney.
   const smoke = createSmoke(scene, at(house.x + 2, 6.6, house.z - 1.2), { rise: 8, size: 0.5 });
   return {
+    /** True if the wheat stands at (x, z). */
+    cropAt: (x, z) => wheat.stands(x, z),
     update(time) {
       smoke.update(time);
       wheat.show();

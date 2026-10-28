@@ -222,7 +222,7 @@ const SWAY_VERTEX = /* glsl */ `
     mvPosition.xz += vec2( sin( phase * 1.7 ), cos( phase * 1.3 ) ) * position.y * 0.06;
     // Laid over where a car has driven through, or bent ahead of one pushing through: every
     // blade goes over from its root the way the stalks there lie, whichever way it leant before.
-    vec3 lay = trampled( root );
+    vec3 lay = trampled( root, 1.0 );
     float fall = pow( lay.x, 0.8 ) * 1.45;
     vec3 rel = mvPosition.xyz - root;
     rel.xz = rel.xz * ( 1.0 - 0.5 * fall / 1.45 ) + lay.yz * rel.y * sin( fall );

@@ -39,6 +39,18 @@ test('the stalks lie flat where the wheels went, lean a little under the car, an
   }
 });
 
+test('in a crop the car pushes the stalks well over between and beside the wheels, leaving a lane through it', () => {
+  const crop = x => x > 3;
+  for (let z = 0; z > -30; z -= 7 / 60) updateTrample(1 / 60, [car(6, z)], crop);
+  updateTrample(1 / 60, [car(6, -30, 0)], crop);
+  for (const z of [-8, -14, -20]) {
+    assert.ok(trampledAt(6 + 1.08, z) > 0.95 && trampledAt(6 - 1.08, z) > 0.95, `under the wheels at ${z}`);
+    const between = trampledAt(6, z);
+    assert.ok(between > 0.7 && between < 0.9, `between the wheels at ${z}: ${between}`);
+    assert.equal(trampledAt(9.5, z), 0, `beside the car at ${z}`);
+  }
+});
+
 test('they stand up again over a couple of minutes, and at once where the crop is cut', () => {
   const flat = trampledAt(1.08, -14);
   wait(45, 0, -30);

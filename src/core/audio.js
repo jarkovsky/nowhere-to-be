@@ -25,6 +25,8 @@ const SURFACE_BEDS = {
   snow: { cutoff: 1200, gain: 0.005, bubbles: 0 },
   leaves: { cutoff: 2400, gain: 0.004, bubbles: 0 },
   sand: { cutoff: 1400, gain: 0.005, bubbles: 0 },
+  // Stalks brushing along the car.
+  crop: { cutoff: 3400, gain: 0.014, bubbles: 0 },
 };
 
 export function createAudio() {
@@ -385,8 +387,9 @@ export function createAudio() {
         bubble(0.012 + 0.012 * surfacePace);
         nextBubble = now + (0.05 + Math.random() * 0.2) / (profile.bubbles * (0.4 + surfacePace));
       }
-      if ((kind === 'leaves' || kind === 'snow') && now > nextCrackle) {
+      if ((kind === 'leaves' || kind === 'snow' || kind === 'crop') && now > nextCrackle) {
         if (kind === 'leaves') burst('highpass', 3200, 0.04, 0.02 * surfacePace);
+        else if (kind === 'crop') burst('highpass', 2200, 0.16, 0.012 * surfacePace);
         else burst('lowpass', 1100, 0.07, 0.02 * surfacePace);
         nextCrackle = now + (0.14 + Math.random() * 0.25) / (0.4 + surfacePace);
       }

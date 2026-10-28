@@ -19,7 +19,8 @@ export const CAR = {
 /**
  * How each surface changes top speed and grip. Leaves and snow lie on the
  * trail itself, so they only make the car slide; rough ground, rock, mud and water slow it.
- * Loose sand slows it a little more than grass and lets it slide a little.
+ * Loose sand slows it a little more than grass and lets it slide a little. Standing wheat or
+ * long meadow grass holds it back to a walk, pushing through the stalks.
  */
 const SURFACE_HANDLING = {
   road: { speed: 1, grip: 1 },
@@ -31,6 +32,7 @@ const SURFACE_HANDLING = {
   snow: { speed: 1, grip: 0.38 },
   mud: { speed: 0.7, grip: 0.7 },
   water: { speed: 0.42, grip: 0.7 },
+  crop: { speed: 0.3, grip: 0.8 },
 };
 
 /**
@@ -209,8 +211,7 @@ export function stepDriving(state, input, dt, world) {
     cz += hit.nz * hit.depth;
     const into = state.vx * hit.nx + state.vz * hit.nz;
     if (into < 0) {
-      // A crop only brushes against the car.
-      if (!obstacle.soft) state.impact = Math.max(state.impact, -into);
+      state.impact = Math.max(state.impact, -into);
       const speed = Math.hypot(state.vx, state.vz);
       const glancing = speed > 0.5 && -into / speed < 0.7;
       // Cancel the velocity into the obstacle. Glancing contact slides
