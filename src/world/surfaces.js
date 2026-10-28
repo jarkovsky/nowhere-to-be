@@ -18,10 +18,14 @@ function inPuddle(puddles, x, z) {
   });
 }
 
-/** Which effect the tyres make at a point. Puddles only count where there is water in them. */
-function effectAt(x, z, puddles) {
+/**
+ * Which effect the tyres make at a point. Puddles only count where there is water in them;
+ * `cropAt` says where wheat or long meadow grass stands.
+ */
+function effectAt(x, z, puddles, cropAt) {
   if (onDeck(x, z)) return 'grass'; // planks: no splashes, no tracks
   if (waterDepth(x, z) > 0.12) return 'water';
+  if (cropAt(x, z)) return 'crop';
   if (snowCover(x, z) > 0.5) return 'snow';
   const patch = surfaceAt(x, z);
   if (patch === 'puddle') return inPuddle(puddles, x, z) ? 'puddle' : 'grass';
@@ -84,7 +88,7 @@ function mudGeometry(patch, seed) {
   return geometry;
 }
 
-export function createSurfaces(scene, sound) {
+export function createSurfaces(scene, sound, { cropAt = () => false } = {}) {
   const random = createRandom(441);
   const dummy = new THREE.Object3D();
 
@@ -189,7 +193,12 @@ export function createSurfaces(scene, sound) {
     mud: new THREE.MeshLambertMaterial({ color: '#5e4630' }),
     snow: new THREE.MeshBasicMaterial({ color: '#faffff' }),
     sand: new THREE.MeshLambertMaterial({ color: '#e6cb94' }),
+    // Chaff and bits of straw knocked off the stalks.
+    crop: new THREE.MeshLambertMaterial({ color: '#ead58e' }),
   };
+  /** How big a particle of each kind is, if not the usual size, and how often a pair is thrown up (s). */
+  const PARTICLE_SIZE = { crop: 0.5 };
+  const PARTICLE_RATE = { water: 0.03, crop: 0.11 };
   // One instanced mesh for each kind, so all the particles of a kind are drawn at once.
   const PARTICLE_COUNT = 72;
   const particleMeshes = {};
@@ -236,7 +245,7 @@ export function createSurfaces(scene, sound) {
     update(dt, car, running, spin = 0, quiet = false) {
       if (!running) return;
       time += dt;
-      current = effectAt(car.x, car.z, puddles);
+      current = effectAt(car.x, car.z, puddles, cropAt);
       sound.surface(current, quiet ? 0 : Math.abs(car.speed) + Math.abs(spin));
       const sin = Math.sin(car.heading);
       const cos = Math.cos(car.heading);
@@ -244,7 +253,7 @@ export function createSurfaces(scene, sound) {
       const moving = Math.abs(car.speed) > 0.6 || spinning;
 
       if (moving && current !== 'grass') {
-        const rate = current === 'water' || spinning ? 0.03 : 0.045;
+        const rate = spinning ? 0.03 : (PARTICLE_RATE[current] ?? 0.045);
         if (time - lastParticle > rate) {
           lastParticle = time;
           for (const side of [-1, 1]) {
@@ -253,7 +262,7 @@ export function createSurfaces(scene, sound) {
             const z = car.z - sin * side * 1.15 + cos * 1.2;
             p.kind = current;
             p.x = x;
-            p.y = terrainHeight(x, z) + (current === 'water' ? 0.6 : 0.4);
+            p.y = terrainHeight(x, z) + (current === 'water' || current === 'crop' ? 0.6 : 0.4);
             p.z = z;
             p.life = 0.65;
             const spread = current === 'water' ? 3 : 2;
@@ -269,7 +278,7 @@ export function createSurfaces(scene, sound) {
           for (const side of [-1, 1]) {
             const x = car.x + cos * side * 1.08;
             const z = car.z - sin * side * 1.08;
-            if (effectAt(x, z, puddles) !== current) continue;
+            if (effectAt(x, z, puddles, cropAt) !== current) continue;
             layOnGround(dummy, x, z, car.heading);
             dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
@@ -294,7 +303,7 @@ export function createSurfaces(scene, sound) {
         if (p.life <= 0 || p.y <= terrainHeight(p.x, p.z) - 0.3) continue;
         dummy.position.set(p.x, p.y, p.z);
         dummy.rotation.set(p.rx, 0, 0);
-        dummy.scale.set(1, 1, 1);
+        dummy.scale.setScalar(PARTICLE_SIZE[p.kind] ?? 1);
         dummy.updateMatrix();
         const mesh = particleMeshes[p.kind];
         mesh.setMatrixAt(mesh.count++, dummy.matrix);

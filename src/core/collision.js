@@ -3,8 +3,7 @@
 // middle, turned by `rotation` like a localFrame, its edges rounded out by `radius`, which
 // fits a building's walls. Where things stand at different levels, as on and under the rock arch, an obstacle can
 // also have a `top` (only something lower down bumps into it) or a `base` (only something
-// up at that level does). One that is `soft` (a crop) stops the car without a bump. A uniform
-// grid index keeps per-frame collision checks small.
+// up at that level does). A uniform grid index keeps per-frame collision checks small.
 import { clamp, segmentDistance } from './math.js';
 
 const CELL = 16;

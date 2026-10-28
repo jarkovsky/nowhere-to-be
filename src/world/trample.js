@@ -1,6 +1,7 @@
-// Where a car drives through long grass or a crop, the stalks lie down the way it went: flat in
-// a track under each wheel, and only leaning a little between and beside them, where the car's
-// body has passed over them without pressing them down. They stand up
+// Where a car drives through grass or a crop, the stalks lie down the way it went: flat in a
+// track under each wheel. Grass between and beside the wheels only leans a little, as the car's
+// body passes over it, but standing wheat or long meadow grass is tall enough for the front of
+// the car to push it well over, so the car leaves a lane through it the width of the car. They stand up
 // again over a couple of minutes, and at once where the crop is cut. It is all kept in one small
 // texture that moves along with the car, so it costs the same wherever the car goes: each texel
 // holds how far the stalks there are laid over (R) and which way they lie (G, B). The texture
@@ -17,10 +18,13 @@ const SPAN = SIZE * TEXEL;
 const SLACK = SPAN / 4;
 /** How far the stalks rise again each second, out of 255: a flat track stands up in about two minutes. */
 const RISE = 2;
-/** How far over the stalks are laid: flat under the wheels, leaning a little under the car and beside it. */
+/**
+ * How far over the stalks are laid: flat under the wheels; under the car and beside it, leaning
+ * a little in grass, and well over in a crop.
+ */
 const WHEEL = 1;
-const BODY = 0.22;
-const BRUSH = 0.12;
+const BODY = { grass: 0.22, crop: 0.8 };
+const BRUSH = { grass: 0.12, crop: 0.35 };
 /** Room beside the car where it brushes the stalks aside. */
 const BRUSH_WIDTH = 0.35;
 /** Cars that bend the stalks as they push through: the player's and the friends following it. */
@@ -189,18 +193,19 @@ export function cutTrample(x, z, fx, fz, ahead, behind, half) {
 
 /**
  * Lays the stalks over under a car going `speed` (negative in reverse) where it is, if anything
- * grows tall enough there. A car is { x, z, heading, speed, wheels }, its wheels { x, z, radius }
- * in its own frame (front to -z).
+ * grows tall enough there; more so if it is in a `crop`. A car is { x, z, heading, speed, wheels },
+ * its wheels { x, z, radius } in its own frame (front to -z).
  */
-export function pressTrample({ x, z, heading, speed, wheels }) {
+export function pressTrample({ x, z, heading, speed, wheels }, crop = false) {
   if (Math.abs(speed) < 0.2 || !tall[cellOf(x, z)] || !Number.isFinite(middle.x)) return;
   const sin = Math.sin(heading);
   const cos = Math.cos(heading);
   const way = Math.sign(speed);
   const [front, back, half] = extent(wheels);
   // Facing the way the car faces, laid the way it goes.
-  press(x, z, -sin, -cos, front + BRUSH_WIDTH, back, half + BRUSH_WIDTH, BRUSH, -sin * way, -cos * way);
-  press(x, z, -sin, -cos, front, back, half, BODY, -sin * way, -cos * way);
+  const kind = crop ? 'crop' : 'grass';
+  press(x, z, -sin, -cos, front + BRUSH_WIDTH, back, half + BRUSH_WIDTH, BRUSH[kind], -sin * way, -cos * way);
+  press(x, z, -sin, -cos, front, back, half, BODY[kind], -sin * way, -cos * way);
   for (const wheel of wheels) {
     const wx = x + wheel.x * cos + wheel.z * sin;
     const wz = z - wheel.x * sin + wheel.z * cos;
@@ -228,9 +233,9 @@ export function trampledAt(x, z) {
 /**
  * Presses the stalks down under the cars (see `pressTrample`), the first of them the player's,
  * which the window follows, and lets them rise again. Each car also has its height `y`, for
- * the shaders to bend the stalks ahead of it.
+ * the shaders to bend the stalks ahead of it. `cropAt(x, z)` says where a crop stands.
  */
-export function updateTrample(dt, cars) {
+export function updateTrample(dt, cars, cropAt = () => false) {
   if (cars[0]) follow(cars[0].x, cars[0].z);
   rise(dt);
   for (let n = 0; n < TRAMPLERS; n++) {
@@ -246,7 +251,7 @@ export function updateTrample(dt, cars) {
     const [front, back, half] = extent(car.wheels);
     where.set(car.x, car.z, -sin * way, -cos * way);
     size.set(way > 0 ? front : back, way > 0 ? back : front, half, car.y);
-    pressTrample(car);
+    pressTrample(car, cropAt(car.x, car.z));
   }
   // Sent a little behind the car is enough, and right away once the window has moved.
   sent += dt;
@@ -259,9 +264,10 @@ export function updateTrample(dt, cars) {
 
 /**
  * For the shaders: `trampledMap(p)` is how far the stalks at p (in the world, along the
- * ground) are laid over and which way, as ( amount, way x, way z ); `trampled(p)` adds the cars
- * pushing through them now, bent forward ahead of each car's leading end and aside along its
- * sides, for stalks standing at p (a point in the world).
+ * ground) are laid over and which way, as ( amount, way x, way z ); `trampled(p, push)` adds the
+ * cars pushing through them now, bent forward ahead of each car's leading end and aside along
+ * its sides, for stalks standing at p (a point in the world): `push` is how far, from 1 for
+ * stalks tall enough for the front of the car to push over to less for short grass.
  */
 export const TRAMPLE_PARS = /* glsl */ `
   uniform sampler2D trampleMap;
@@ -273,7 +279,7 @@ export const TRAMPLE_PARS = /* glsl */ `
     vec2 way = map.gb * 2.0 - 1.0;
     return vec3( map.r * ( 1.0 - smoothstep( 0.86, 0.98, max( off.x, off.y ) ) ), way / max( length( way ), 0.01 ) );
   }
-  vec3 trampled( vec3 p ) {
+  vec3 trampled( vec3 p, float push ) {
     vec3 lay = trampledMap( p.xz );
     for ( int i = 0; i < ${TRAMPLERS}; i++ ) {
       vec4 car = trampleCars[ i * 2 ];
@@ -284,7 +290,7 @@ export const TRAMPLE_PARS = /* glsl */ `
       float reach = step( abs( p.y - size.w ), 3.0 ) * step( -size.y, u );
       float ahead = 1.0 - smoothstep( size.x, size.x + 1.4, u );
       float aside = smoothstep( size.z - 0.4, size.z + 0.2, abs( v ) );
-      float bend = reach * ahead * ( 1.0 - smoothstep( size.z, size.z + 0.7, abs( v ) ) ) * mix( 0.5, 0.35, aside );
+      float bend = reach * ahead * ( 1.0 - smoothstep( size.z, size.z + 0.7, abs( v ) ) ) * mix( 0.7, 0.45, aside ) * push;
       if ( bend > lay.x ) {
         // Forward ahead of the car, and outward along its sides.
         vec2 way = car.zw * ( 1.0 - aside * step( u, size.x ) ) + vec2( car.w, -car.z ) * sign( v ) * ( 0.35 + aside );

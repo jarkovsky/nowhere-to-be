@@ -87,6 +87,8 @@ export function buildLandmarks(scene, obstacles) {
     ],
     /** The level crossing: where traffic waits, and the barriers while they are down. */
     crossing,
+    /** True if a standing crop, the wheat or the meadow's long grass, grows at (x, z). */
+    cropAt: (x, z) => farm.cropAt(x, z) || fields.cropAt(x, z),
     /** The roadworks machines and the tractors in the fields, for collisions. */
     machines,
     fields,

@@ -147,7 +147,7 @@ export function createGame(canvas) {
   const obstacles = [...scenery.obstacles];
   const landmarks = buildLandmarks(scene, obstacles);
   const atmosphere = createAtmosphere(scene, sun, ambient);
-  const surfaces = createSurfaces(scene, sound);
+  const surfaces = createSurfaces(scene, sound, { cropAt: landmarks.cropAt });
   const wading = createWake(scene);
   obstacles.push(...surfaces.obstacles);
   const traffic = createTraffic(scene);
@@ -229,7 +229,7 @@ export function createGame(canvas) {
     dynamic: moving,
     surface(x, z) {
       if (x !== lastSurface.x || z !== lastSurface.z || state.y !== lastSurface.y) {
-        lastSurface.kind = onFin(x, z, state.y) ? 'track' : surfaceUnder(x, z);
+        lastSurface.kind = onFin(x, z, state.y) ? 'track' : landmarks.cropAt(x, z) ? 'crop' : surfaceUnder(x, z);
         lastSurface.x = x;
         lastSurface.z = z;
         lastSurface.y = state.y;
@@ -830,7 +830,7 @@ export function createGame(canvas) {
     trampler.heading = state.heading;
     trampler.speed = state.speed;
     trampler.wheels = car.spec.wheels;
-    updateTrample(dt, [trampler, ...friends.tramplers()]);
+    updateTrample(dt, [trampler, ...friends.tramplers()], landmarks.cropAt);
 
     if (mode === 'title') updateIntroShot(clock);
     chase.update(dt, carView(), cameraOptions());
