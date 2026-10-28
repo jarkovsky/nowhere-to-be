@@ -128,7 +128,7 @@ Progress is saved in your browser.
 
 ## How it's made
 
-Everything is generated in code with [Three.js](https://threejs.org) and Web Audio. There are no model, texture or sound files.
+Everything you see is generated in code with [Three.js](https://threejs.org), and every sound apart from the music is made with Web Audio. There are no model or texture files.
 
 - **Terrain:** a height field built from layered noise and a few hand-placed landforms: knolls, a flat-topped hill, rocky ridges, a summit, flattened farmland and a ledge for the waterfall. Grass gives way to stony ground and then snow with height. It is fine everywhere you can drive and coarse under the distant peaks. The trails are levelled across their width, the paved and gravel roads climb no steeper than a set grade through cuttings and on banks, the railway climbs at an even grade on embankments and through a cutting, the creek, the river and the fjord are carved into the ground, and buildings sit on flattened pads, so nothing floats or sinks. Wherever a road crosses a river, it dips into the water at a ford on its own grade. Rivers, rocky ground, farms, herds and ponds are each kept in a list, so adding another is a matter of adding an entry. A test checks there are no cliffs on the valley floor.
 - **Driving:** an arcade model with real velocity, tyre grip per surface, slowdown on hills and in deep water, and soft collisions. It runs in fixed steps of a sixtieth of a second, so the car drives the same at any frame rate, and is drawn between its last two steps. Each vehicle bumps into things with a row of circles from its nose to its tail, as wide as it is. Obstacles are circles, capsules and turned boxes, the boxes for buildings, so a wall stops the car where the wall is. The ferry's deck is a surface that moves: the car drives onto it like any other, and while it is parked aboard on a trip, it is carried along with the deck instead of being driven. Each tyre is settled onto the terrain triangle beneath it, within the travel its suspension allows. Tests drive the car at random among obstacles and check it never ends a step inside one, never speeds up past its top speed and never passes through a thin fence.
@@ -145,6 +145,10 @@ src/
   vehicles/   the player's vehicles, the friends, the other travellers, the train, the helicopters and the planes
   ui/         title screen, pause menu, garage, styles
 ```
+
+## Music
+
+The music is six lo-fi tracks by HoliznaCC0, who released them into the public domain under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/): "Autumn", "Dream Pop" and "Old Age" from [Chill Beats](https://opengameart.org/content/chill-beats-collection), and "Clouds", "Letting Go Of The Past" and "Poor, But Happy" from [Happy Lo-Fi](https://opengameart.org/content/happy-lo-fi-lofi-collection). They play in a shuffled order with a quiet spell between them. The copies in `public/music/` are re-encoded to the same loudness, with a short fade in and out.
 
 ## Development
 
