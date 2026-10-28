@@ -5,6 +5,9 @@ import { FARM, FARMS, FIELDS, FIELD_PLOTS, HERDS, VILLAGE, fieldPoint, inCrop } 
 import { buildFields } from '../src/world/landmarks/fields.js';
 import { buildScenery } from '../src/world/scenery.js';
 import { localFrame } from '../src/world/build.js';
+import { createCarState, stepDriving } from '../src/core/driving.js';
+import { headingOf } from '../src/world/path.js';
+import { flatWorld } from './helpers.js';
 
 const run = (fields, seconds, player) => {
   for (let t = 0; t < seconds; t += 1 / 30) fields.update(1 / 30, player);
@@ -38,6 +41,46 @@ test('the tractors and the combine work their fields and stop for the car', () =
   assert.ok(waitsFor(0, plough, ploughBody), 'the plough waits for the car');
   const [header, , , combineBody] = fields.colliders.slice(6);
   assert.ok(waitsFor(2, header, combineBody), 'the combine waits for the car');
+});
+
+/**
+ * Cruises the car for `seconds` from (lx, lz) in the farmland's frame, the way (dx, dz) goes in
+ * it, among `obstacles`. Where it ends up, in the farmland's frame, and the hardest it bumped into anything.
+ */
+function cruise(obstacles, [lx, lz], [dx, dz], seconds) {
+  const start = fieldPoint(lx, lz);
+  const [origin, way] = [fieldPoint(0, 0), fieldPoint(dx, dz)];
+  const car = createCarState({ x: start.x, z: start.z, heading: headingOf(way.x - origin.x, way.z - origin.z) });
+  const world = flatWorld({ obstacles });
+  let bump = 0;
+  for (let t = 0; t < seconds; t += 1 / 60) {
+    stepDriving(car, { cruise: true }, 1 / 60, world);
+    bump = Math.max(bump, car.impact);
+  }
+  const [cos, sin] = [Math.cos(FIELDS.rotation), Math.sin(FIELDS.rotation)];
+  const [ox, oz] = [car.x - FIELDS.x, car.z - FIELDS.z];
+  return { lx: ox * cos - oz * sin, lz: ox * sin + oz * cos, bump };
+}
+
+test('the car stops at the edge of a standing crop without a bump, and drives on over what is cut', () => {
+  const obstacles = [];
+  const fields = buildFields(new THREE.Scene(), obstacles);
+  run(fields, 0.1, { x: 0, z: 0 });
+  const { rapeseed, wheat, plough } = FIELD_PLOTS;
+  // Into the rapeseed from beside it: stopped at the edge, the car's nose in the stalks.
+  const middle = (rapeseed.z0 + rapeseed.z1) / 2;
+  const stopped = cruise(obstacles, [rapeseed.x1 + 8, middle], [-1, 0], 4);
+  assert.ok(stopped.lx > rapeseed.x1 + 1 && stopped.lx < rapeseed.x1 + 3, `stopped ${stopped.lx - rapeseed.x1} m out`);
+  assert.equal(stopped.bump, 0);
+  // Up a lane of the wheat the combine has cut, and into one it has yet to cut.
+  const lane = x => [x, wheat.z0 - 6];
+  const cut = cruise(obstacles, lane(wheat.x0 + 3), [0, 1], 6);
+  assert.ok(cut.lz > wheat.z0 + 20, `up the stubble to ${cut.lz - wheat.z0} m in`);
+  const standing = cruise(obstacles, lane(wheat.x1 - 3), [0, 1], 4);
+  assert.ok(standing.lz < wheat.z0, `kept out of the wheat, ${wheat.z0 - standing.lz} m short of it`);
+  // Over the ploughed field.
+  const ploughed = cruise(obstacles, [plough.x0 + 10, plough.z1 + 4], [0, -1], 6);
+  assert.ok(ploughed.lz < plough.z1 - 20);
 });
 
 test('a finished field grows back only while nobody is near', () => {

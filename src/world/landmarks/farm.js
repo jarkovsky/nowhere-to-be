@@ -88,7 +88,7 @@ export function buildFarm(scene, obstacles) {
     });
   }
 
-  // Paddock fence, with a gate on the house side, shut. The car can knock it down.
+  // Paddock fence, with a gate on the house side, shut.
   const { x0, x1, z0, z1 } = FARM.paddock;
   const corners = [
     [x0, z0],
@@ -120,6 +120,7 @@ export function buildFarm(scene, obstacles) {
   // A field of wheat beyond the barn.
   const wheat = wheatField(FARM.wheat, local);
   scene.add(wheat.mesh);
+  obstacles.push(...wheat.obstacles);
 
   scene.add(parts.mesh());
   // The walls, and the porch in front of the door, which a car would sink into.
@@ -136,7 +137,6 @@ export function buildFarm(scene, obstacles) {
   // Wood smoke from the farmhouse chimney.
   const smoke = createSmoke(scene, at(house.x + 2, 6.6, house.z - 1.2), { rise: 8, size: 0.5 });
   return {
-    fences,
     update(time) {
       smoke.update(time);
       wheat.show();

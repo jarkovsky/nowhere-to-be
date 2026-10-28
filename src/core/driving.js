@@ -8,7 +8,7 @@ export const CAR = {
   wheelbase: 2.44,
   topSpeed: 14,
   reverseSpeed: 5,
-  cruiseSpeed: 7,
+  cruiseSpeed: 6,
   acceleration: 5.5,
   braking: 13,
   /** Two circles along the body approximate its footprint for collisions. */
@@ -209,7 +209,8 @@ export function stepDriving(state, input, dt, world) {
     cz += hit.nz * hit.depth;
     const into = state.vx * hit.nx + state.vz * hit.nz;
     if (into < 0) {
-      state.impact = Math.max(state.impact, -into);
+      // A crop only brushes against the car.
+      if (!obstacle.soft) state.impact = Math.max(state.impact, -into);
       const speed = Math.hypot(state.vx, state.vz);
       const glancing = speed > 0.5 && -into / speed < 0.7;
       // Cancel the velocity into the obstacle. Glancing contact slides

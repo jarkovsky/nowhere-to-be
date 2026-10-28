@@ -48,7 +48,7 @@ export function cottage(parts, obstacles, frame, lx, lz, { walls, roof }) {
   return at(lx + 2.4, ridge + 1, lz - 0.8);
 }
 
-/** A ring of fence posts with two rails round a paddock, following the ground, which the car can knock down. */
+/** A ring of fence posts with two rails round a paddock, following the ground. */
 export function ringFence(fences, { x, z, radius }, { posts = Math.round((radius * 2 * Math.PI) / 2.6) } = {}) {
   const points = Array.from({ length: posts }, (_, k) => {
     const a = (k / posts) * Math.PI * 2;
@@ -132,7 +132,7 @@ function buildOne(scene, obstacles, fences, farm) {
     const floor = shelter.ground(0, 0);
     parts.box(3.2, 1.4 + high - low, 2, '#8a6a4a', shelter.at(0, (high + low) / 2 + 0.7 - floor, -3.2));
     parts.box(3.6, 0.12, 2.6, '#5f5b54', shelter.at(0, high + 1.5 - floor, -3.1, { rx: 0.18 }));
-    // The fence round it can be knocked down, so the shelter stops the car itself.
+    // The shelter is solid too.
     obstacles.push({ ...shelter.local(0, -3.2), halfX: 1.9, halfZ: 1.3, rotation: shelter.rotation, radius: 0 });
   }
 
@@ -146,7 +146,6 @@ export function buildFarms(scene, obstacles) {
   scene.add(fences.mesh());
   obstacles.push(...fences.obstacles);
   return {
-    fences,
     update(time) {
       for (const smoke of chimneys) smoke.update(time);
     },

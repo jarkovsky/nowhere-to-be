@@ -76,7 +76,6 @@ export function buildLandmarks(scene, obstacles) {
 
   let time = 0;
   const machines = [];
-  const fences = [farm.fences, farms.fences];
   return {
     occluders: [
       ...tunnel.occluders,
@@ -91,11 +90,6 @@ export function buildLandmarks(scene, obstacles) {
     /** The roadworks machines and the tractors in the fields, for collisions. */
     machines,
     fields,
-    /**
-     * Before the car is driven for `dt` seconds, knocks down the paddock fence it is about to
-     * run into fast enough, slowing it a little. True if it knocked some down.
-     */
-    knockFences: (state, dt) => fences.reduce((knocked, fence) => fence.knock(state, dt) || knocked, false),
     /** The fire engine at the village answers a honk nearby. */
     hearHorn: (x, z) => village.hearHorn(x, z),
     update(dt, night, { crossingClosed = false, player = null } = {}) {
@@ -116,7 +110,6 @@ export function buildLandmarks(scene, obstacles) {
       airfield.update(time, night, player);
       fjord.update(dt);
       farms.update(time);
-      if (player) for (const fence of fences) fence.update(dt, player);
       village.update(dt);
       depot.update(night);
       desert.update(dt, night, player);
