@@ -106,6 +106,7 @@ import { boulderGeometry, rockMaterial } from './rocks.js';
 import { createScatter } from './scatter.js';
 import { buildDesertScenery, desertGround, desertTakes } from './sand.js';
 import { WINTER_TINTS, winterGround } from './snow.js';
+import { buildIce } from './ice.js';
 
 const random = createRandom(82741);
 
@@ -349,6 +350,8 @@ function riverStrip(river, skip) {
   const deep = new THREE.Color('#689fa6');
   const run = new THREE.Color('#7fb8bb');
   const pale = new THREE.Color('#bcdedc');
+  // In the winter the open water is darker and colder, a blue-grey.
+  const cold = new THREE.Color('#38577f');
   const positions = [];
   const colors = [];
   const indices = [];
@@ -361,10 +364,12 @@ function riverStrip(river, skip) {
     }
     const y = riverLevel(river, s);
     const half = river.halfWidth(s) * 1.2 + 2.5;
+    const winter = winterness(x, z);
     tone
       .copy(deep)
       .lerp(run, smoothstep(river.flow(s), 0.5, 1.5))
-      .lerp(pale, river.shallow(s) * 0.85);
+      .lerp(pale, river.shallow(s) * 0.85)
+      .lerp(cold, winter);
     const row = positions.length / 3;
     for (const [across, edge] of [
       [-1, 0.4],
@@ -372,7 +377,12 @@ function riverStrip(river, skip) {
       [1, 0.4],
     ]) {
       positions.push(x - dz * half * across, y, z + dx * half * across);
-      colors.push(...tone.clone().lerp(pale, edge).toArray());
+      colors.push(
+        ...tone
+          .clone()
+          .lerp(pale, edge * (1 - 0.7 * winter))
+          .toArray(),
+      );
     }
     if (previous >= 0) {
       const [aL, aM, aR, bL, bM, bR] = [previous, previous + 1, previous + 2, row, row + 1, row + 2];
@@ -418,6 +428,8 @@ function buildRipples(scene) {
         side: random() * 2 - 1,
         size: 0.8 + random() * 0.8,
         phase: random() * 6.3,
+        // Fainter in the winter.
+        faint: 1 - 0.65 * winterness(near.x, near.z),
         x: near.x,
         z: near.z,
       });
@@ -448,7 +460,7 @@ function buildRipples(scene) {
         const swell = 0.8 + 0.2 * Math.sin(time * 0.9 + ripple.phase);
         dummy.position.set(p.x, ripple.levels[Math.min(k, ripple.levels.length - 1)], p.z);
         dummy.rotation.set(-Math.PI / 2, 0, Math.atan2(p.dx, p.dz) + Math.PI / 2);
-        dummy.scale.set(((0.6 + flow * 1.1) * ripple.size * swell) / 0.6, 1, 1);
+        dummy.scale.set(((0.6 + flow * 1.1) * ripple.size * swell * ripple.faint) / 0.6, 1, 1);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
       });
@@ -506,6 +518,7 @@ function buildWater(scene) {
     });
   }
   const ripples = buildRipples(scene);
+  const ice = buildIce(scene);
   const spring = new THREE.Mesh(new THREE.CircleGeometry(SPRING.radius + 1.2, 20).rotateX(-Math.PI / 2), brookMaterial);
   spring.position.set(SPRING.x, brookLevel(0), SPRING.z);
   scene.add(spring);
@@ -552,6 +565,7 @@ function buildWater(scene) {
     update(dt, eye) {
       time += dt;
       ripples.update(dt, eye);
+      ice.update(dt, eye);
       glints.forEach((glint, i) => {
         dummy.position.set(glint.x, LAKE.level + 0.04, glint.z);
         dummy.rotation.set(0, 0, 0);
@@ -1042,6 +1056,10 @@ function buildTrees(scatter, obstacles) {
 let mossy = null;
 const mossyStones = () => (mossy ??= [0, 1, 2, 3].map(seed => boulderGeometry(seed + 11, { moss: 0.5 })));
 
+/** The same stones with snow lying on them, made the first time they are wanted. */
+let cappedStones = null;
+const snowyStones = () => (cappedStones ??= [0, 1, 2, 3].map(seed => boulderGeometry(seed + 11, { moss: 0, snow: 1 })));
+
 /** Where a stone `size` across and `height` high stands at (x, z), sunk a little, turned by `turn`. */
 function stoneMatrix(x, z, size, height, turn) {
   return new THREE.Matrix4().compose(
@@ -1143,15 +1161,26 @@ function buildRiverStones(scatter, obstacles) {
       if (Math.hypot(p.x, p.z) < VALLEY_RADIUS - 2) obstacles.push({ x: p.x, z: p.z, radius: size * 0.95 });
     }
   }
-  scatter.add({ geometry: shapes, near: UNDERGROWTH_RANGE, material: rockMaterial, items });
-  scatter.add({
-    geometry: shapes,
-    far: shapes[0],
-    near: UNDERGROWTH_RANGE,
-    range: 600,
-    material: rockMaterial,
-    items: boulders,
-  });
+  // In the winter they wear caps of snow, from shapes of their own.
+  const capped = snowyStones();
+  const wintry = ({ matrix }) => winterness(matrix.elements[12], matrix.elements[14]) > 0.5;
+  const bare = list => list.filter(item => !wintry(item));
+  const snowy = list => list.filter(wintry).map(item => ({ ...item }));
+  scatter.add({ geometry: shapes, near: UNDERGROWTH_RANGE, material: rockMaterial, items: bare(items) });
+  scatter.add({ geometry: capped, near: UNDERGROWTH_RANGE, material: rockMaterial, items: snowy(items) });
+  for (const [geometry, list] of [
+    [shapes, bare(boulders)],
+    [capped, snowy(boulders)],
+  ]) {
+    scatter.add({
+      geometry,
+      far: geometry[0],
+      near: UNDERGROWTH_RANGE,
+      range: 600,
+      material: rockMaterial,
+      items: list,
+    });
+  }
 }
 
 /**
