@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { OUTER_ROAD, CONNECTORS, RIVERS, TRACKS, rockiness, ROCK_HILL, ROUGH, RUGGED } from '../src/world/layout.js';
-import { FORDS, isDriveable, terrainHeight, waterDepth } from '../src/world/terrain.js';
+import { FORDS, drivingHeight, isDriveable, terrainHeight, waterDepth } from '../src/world/terrain.js';
 import { OUTER, createTraffic } from '../src/vehicles/traffic.js';
 
 test('the gravel roads are driveable all the way and never steep', () => {
@@ -11,7 +11,7 @@ test('the gravel roads are driveable all the way and never steep', () => {
       const p = path.at(s);
       const back = path.at(s - 8);
       assert.ok(isDriveable(p.x, p.z), `blocked at ${p.x}, ${p.z}`);
-      const grade = Math.abs(terrainHeight(p.x, p.z) - terrainHeight(back.x, back.z)) / 8;
+      const grade = Math.abs(drivingHeight(p.x, p.z) - drivingHeight(back.x, back.z)) / 8;
       assert.ok(grade < 0.2, `${grade.toFixed(2)} steep at ${p.x.toFixed(0)}, ${p.z.toFixed(0)}`);
     }
   }

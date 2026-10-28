@@ -187,39 +187,116 @@ export function onGravel(x, z, distance = GRAVEL_HALF_WIDTH) {
 /**
  * Rivers in the outlands, from where they come out of the mountains to where they go back
  * into them. Each runs down its own valley, and wherever a gravel road or a track crosses
- * one, the road dips through the water at a ford. `depth` is in the middle of the stream.
+ * one, the road dips through the water at a ford, or goes over it on a bridge (see BRIDGES).
+ *
+ * A river changes along its length: `halfWidth(s)` and `depth(s)` (in the middle of the stream)
+ * are functions of the distance along it. It runs wide, deep and slow in pools, narrower and
+ * quicker in runs, and wide, shallow and quick over riffles; `flow(s)` is how fast the water
+ * seems to go, `shallow(s)` how much of a riffle it is there, and `widest` the most it reaches
+ * either side. Its `sites` are the places that shape it for a road: a ford is wide and
+ * shallow, a bridge narrows it and deepens it under the deck, a pool is a broad quiet reach.
  */
+function makeRiver(id, points, { seed, narrow, wide, run, pool }) {
+  const path = createPath(points, { spacing: 1.5 });
+  const sites = [];
+  /** How much a site shapes the river at `s`: 1 within its reach and fading to 0 beyond. */
+  const grip = (site, s) => 1 - smoothstep(Math.abs(s - site.s), site.hold ?? 6, (site.hold ?? 6) + 12);
+  const pooled = s => smoothstep(valueNoise(s / 110, seed, seed), 0.3, 0.7);
+  const riffled = s => smoothstep(valueNoise(s / 38, seed * 3.1, seed + 7), 0.6, 0.78) * (1 - 0.6 * pooled(s));
+  const blend = (s, base, key) => {
+    let value = base;
+    for (const site of sites) value = lerp(value, site[key], grip(site, s));
+    return value;
+  };
+  return {
+    id,
+    path,
+    sites,
+    widest: wide * 1.3 + 0.5,
+    /** A width to draw on the map. */
+    typical: (narrow + wide) / 2,
+    halfWidth: s => blend(s, lerp(narrow, wide, pooled(s)) * (1 + 0.3 * riffled(s)), 'halfWidth'),
+    depth: s => blend(s, lerp(run, pool, pooled(s)) * lerp(1, 0.35, riffled(s)), 'depth'),
+    flow: s => lerp(1.7, 0.45, pooled(s)) * (1 + 0.5 * riffled(s)),
+    shallow: s => Math.max(riffled(s), ...sites.map(site => (site.kind === 'ford' ? grip(site, s) : 0))),
+    /** How much a ford or a bridge holds the river to its shape at `s`: 1 under one, 0 well away. */
+    engineered: s => Math.max(0, ...sites.map(site => (site.kind === 'pool' ? 0 : grip(site, s)))),
+  };
+}
+
 export const RIVERS = [
-  {
-    // In from the mountains in the south-west, round inside the outer road and out again.
-    id: 'river',
-    halfWidth: 4,
-    depth: 0.8,
-    path: createPath(
-      [
-        polar(150, 1080),
-        polar(149, 990),
-        polar(147, 900),
-        polar(145, 840),
-        polar(142, 780),
-        polar(136, 740),
-        polar(128, 725),
-        polar(120, 735),
-        polar(114, 775),
-        polar(112, 857),
-        polar(110, 950),
-        polar(108, 1080),
-      ],
-      { spacing: 1.5 },
-    ),
-  },
+  // In from the mountains in the south-west, round inside the outer road and out again.
+  makeRiver(
+    'river',
+    [
+      polar(150, 1080),
+      polar(149, 990),
+      polar(147, 900),
+      polar(145, 840),
+      polar(142, 780),
+      polar(136, 740),
+      polar(128, 725),
+      polar(120, 735),
+      polar(114, 775),
+      polar(112, 857),
+      polar(110, 950),
+      polar(108, 1080),
+    ],
+    { seed: 11, narrow: 3, wide: 5.5, run: 0.7, pool: 1.1 },
+  ),
+  // In from the mountains in the north-east, under the outer road, across the gravel road
+  // out to it from the ring, and back under the outer road and out again.
+  makeRiver(
+    'winter',
+    [
+      polar(296, 1080),
+      polar(298, 980),
+      polar(301, 890),
+      polar(304, 830),
+      polar(309, 775),
+      polar(315, 742),
+      polar(322, 732),
+      polar(328, 738),
+      polar(331.5, 757),
+      polar(333, 790),
+      polar(334.4, 850),
+      polar(335, 950),
+      polar(335.5, 1080),
+    ],
+    { seed: 23, narrow: 2.8, wide: 5.2, run: 0.65, pool: 1.05 },
+  ),
+  // In from the mountains in the east, under the outer road, round a loop inside it, and back
+  // across it and out again.
+  makeRiver(
+    'east',
+    [
+      polar(34, 1080),
+      polar(33, 980),
+      polar(32, 900),
+      polar(30.6, 850),
+      polar(28.4, 812),
+      polar(25.6, 788),
+      polar(22.4, 778),
+      polar(19.2, 786),
+      polar(17.2, 805),
+      polar(16.3, 835),
+      polar(15.6, 920),
+      polar(15.4, 1080),
+    ],
+    { seed: 37, narrow: 3, wide: 5.6, run: 0.7, pool: 1.1 },
+  ),
 ];
 
 /** How deep the water is where a road fords a river. */
 export const FORD_DEPTH = 0.3;
 
+/** No river comes nearer the centre than this, less the furthest anything asks about. */
+const RIVERS_FROM = Math.min(...RIVERS.flatMap(river => river.path.samples.map(p => Math.hypot(p.x, p.z)))) - 30;
+
 /** The river at a point, if it is within `distance` of one: { river, s, distance }, or null. */
 export function nearRiver(x, z, distance) {
+  // They all run out in the outlands, so most of the valley is quickly ruled out.
+  if (x * x + z * z < RIVERS_FROM * RIVERS_FROM) return null;
   for (const river of RIVERS) {
     if (!river.path.isNear(x, z, distance)) continue;
     const { s, distance: d } = river.path.nearest(x, z);
@@ -1008,6 +1085,37 @@ export function inOrchard(x, z, margin = ORCHARD.margin) {
   return Math.abs(lx) < ORCHARD.half[0] + margin && Math.abs(lz) < ORCHARD.half[1] + margin;
 }
 
+// --- The fishing hut ----------------------------------------------------------------
+
+/**
+ * A fishing hut on stilts on the bank of the south-west river, where it swings in closest to the
+ * centre and the water lies wide and still. It faces the river (its own +Z), with a jetty out
+ * over the water in front of it, a bench to one side, a rowing boat pulled up on the bank on the
+ * other, and a fishing rod leaning on its rail. Its own short track comes in from the outer
+ * road. Things are given in its frame: `lx` across and `lz` out of its front.
+ */
+export const FISHING = (() => {
+  const river = RIVERS[0];
+  const bend = river.path.samples.reduce((a, p) => (Math.hypot(p.x, p.z) < Math.hypot(a.x, a.z) ? p : a)).s;
+  river.sites.push({ s: bend, kind: 'pool', halfWidth: 6.2, depth: 1.1, hold: 14 });
+  // On the side of the river nearer the outer road.
+  const out = [river.path.offset(bend, 15), river.path.offset(bend, -15)];
+  const bank = Math.hypot(out[0].x, out[0].z) > Math.hypot(out[1].x, out[1].z) ? out[0] : out[1];
+  const water = river.path.at(bend);
+  const rotation = Math.atan2(water.x - bank.x, water.z - bank.z);
+  const local = localFrame(bank.x, bank.z, rotation);
+  return {
+    x: bank.x,
+    z: bank.z,
+    rotation,
+    /** The jetty runs out from `from` to `to` in front of the hut, `width` across. */
+    jetty: { from: 2.2, to: 11, width: 2, lx: 1.4 },
+    bench: { ...local(-4.2, 2.6), rotation },
+    boat: { ...local(5.4, 4.6), rotation: rotation + 0.3 },
+    track: [local(-9, -90), local(-8, -50), local(-7, -22), local(-6.4, -6), local(-6.2, 3)].map(p => [p.x, p.z]),
+  };
+})();
+
 /**
  * Narrow side tracks: two dirt ruts with grass between, or a footpath along the shore. `grade`,
  * where given, is the steepest they climb, and `window` how far either way the lie of the land
@@ -1182,6 +1290,37 @@ export const TRACKS = [
     grade: 0.5,
     window: 2,
     path: ROUGH.path,
+  },
+  // --- Tracks to the rivers' crossings ---
+  {
+    // Off the outer road, in over the winter river on a log bridge, round a field inside its
+    // loop and back out through a ford.
+    id: 'winter-log',
+    ruts: true,
+    path: createPath(
+      fromOuterRoad(
+        polar(319.5, 790),
+        polar(319.2, 758),
+        polar(318.6, 722),
+        polar(315.5, 706),
+        polar(312, 716),
+        polar(310.4, 745),
+        polar(309.4, 780),
+        outerPoint(308.8),
+      ),
+    ),
+  },
+  {
+    // Off the outer road and down to a ford over the eastern river, ending in the field beyond it.
+    id: 'east-ford',
+    ruts: true,
+    path: createPath(fromOuterRoad(polar(23.4, 830), polar(23.1, 805), polar(22.8, 782), polar(22.6, 758))),
+  },
+  {
+    // Off the outer road to the fishing hut on the bank of the south-west river.
+    id: 'fishing',
+    ruts: true,
+    path: createPath(fromOuterRoad(...FISHING.track)),
   },
 ];
 
@@ -1424,20 +1563,158 @@ export const FORD = (() => {
   return { x: sample.x, z: sample.z, s: sample.s, brook: along, distance };
 })();
 
+// --- The bridges -----------------------------------------------------------------------
+
+/**
+ * What each style of bridge is like. `width` is the deck between its rails, `arch` how high the
+ * deck rises over its ends, `lift` how far above the ground it starts, `halfWidth` and `depth` the
+ * river under it, and `min` the shortest it is.
+ */
+export const BRIDGE_STYLES = {
+  // An old stone arch with parapets, on the gravel roads.
+  stone: { width: 7.8, arch: 1.2, lift: 0.04, halfWidth: 4.4, depth: 1.5, min: 30 },
+  // A plank deck on log trestles, with rails.
+  timber: { width: 7.6, arch: 0.45, lift: 0.12, halfWidth: 4, depth: 1.1, min: 18 },
+  // A narrow, low crossing of planks side by side for one car, with a log along each edge: the
+  // deck is a car's width and 0.6 m either side.
+  log: { width: 3.4, arch: 0.1, lift: 0.04, halfWidth: 2.3, depth: 0.7, min: 11 },
+};
+
+/** Every crossing of a river by one road or track: where they meet, and how far along the river that is. */
+function crossingsOf(river, id, path) {
+  const found = [];
+  let previous = null;
+  for (const p of path.samples) {
+    if (!river.path.isNear(p.x, p.z, 10)) {
+      previous = null;
+      continue;
+    }
+    const near = river.path.nearest(p.x, p.z);
+    if (previous && Math.sign(previous.side) !== Math.sign(near.side) && near.distance < 8)
+      found.push({ river, id, path, s: p.s, riverS: near.s, x: p.x, z: p.z });
+    previous = near;
+  }
+  return found;
+}
+
+/**
+ * Which crossings are bridged, and in what style: by river, then by road ('outer' or a
+ * connector's or a track's id), and which of its crossings (`first`, the one nearest its start,
+ * or the `angle` in degrees round from due east it lies at). The rest are fords.
+ */
+const BRIDGE_PLAN = [
+  { river: 'winter', road: 'outer', style: 'timber' },
+  { river: 'winter', road: 'winter-log', first: true, style: 'log' },
+  { river: 'east', road: 'outer', angle: [20, 40], style: 'stone' },
+  { river: 'river', road: 'outer', angle: [130, 160], style: 'timber' },
+];
+
+const angleOf = ({ x, z }) => (((Math.atan2(z, x) * 180) / Math.PI) % 360) + (z < 0 ? 360 : 0);
+
+/** Every place a gravel road or a track crosses a river, with the `style` of bridge it has, or null for a ford. */
+export const CROSSINGS = RIVERS.flatMap(river => {
+  const roads = [
+    ['outer', OUTER_ROAD],
+    ...CONNECTORS.map(connector => [connector.id, connector.path]),
+    ...TRACKS.map(track => [track.id, track.path]),
+  ];
+  return roads.flatMap(([id, path]) => {
+    const here = crossingsOf(river, id, path);
+    return here.map(crossing => {
+      const angle = angleOf(crossing);
+      const rule = BRIDGE_PLAN.find(
+        r =>
+          r.river === river.id &&
+          r.road === id &&
+          (!r.first || crossing === here[0]) &&
+          (!r.angle || (angle >= r.angle[0] && angle <= r.angle[1])),
+      );
+      return { ...crossing, style: rule?.style ?? null };
+    });
+  });
+});
+
+/**
+ * A bridge over a crossing. Its deck runs straight between two points on the road, far enough
+ * out to clear the river and its banks, so the road never strays far from the middle of it.
+ * The river is narrowed and deepened under it.
+ */
+function bridgeAcross({ river, id, path, s, riverS, style }) {
+  const base = BRIDGE_STYLES[style];
+  const [road, stream] = [path.at(s), river.path.at(riverS)];
+  const slant = Math.max(0.55, Math.abs(road.dx * stream.dz - road.dz * stream.dx));
+  const length = Math.ceil(Math.max(base.min, (2 * (base.halfWidth + 3.2)) / slant) / 2) * 2;
+  const [a, b] = [path.at(s - length / 2), path.at(s + length / 2)];
+  const span = Math.hypot(b.x - a.x, b.z - a.z);
+  river.sites.push({ s: riverS, kind: 'bridge', halfWidth: base.halfWidth, depth: base.depth, hold: 6 });
+  return {
+    id: `${river.id}-${id}-${Math.round(s)}`,
+    style,
+    path,
+    s,
+    river,
+    riverS,
+    x: (a.x + b.x) / 2,
+    z: (a.z + b.z) / 2,
+    dx: (b.x - a.x) / span,
+    dz: (b.z - a.z) / span,
+    length: span,
+    width: base.width,
+    arch: base.arch,
+    lift: base.lift,
+  };
+}
+
+// A ford is wide and shallow, so the road runs across it smoothly at a steady pace.
+for (const crossing of CROSSINGS) {
+  if (crossing.style) continue;
+  const gravel = GRAVEL.includes(crossing.path);
+  crossing.river.sites.push({ s: crossing.riverS, kind: 'ford', halfWidth: gravel ? 6.5 : 5, depth: 0.2, hold: 5 });
+}
+
 // Where the trail meets the creek. The deck runs straight between two points on the curving
 // trail, so the trail never strays far from the middle of the bridge.
-const crossing = closestApproach(ROAD, CREEK).sample;
-const bridgeEnds = [ROAD.at(crossing.s - 11), ROAD.at(crossing.s + 11)];
-const span = Math.hypot(bridgeEnds[1].x - bridgeEnds[0].x, bridgeEnds[1].z - bridgeEnds[0].z);
-export const BRIDGE = {
-  s: crossing.s,
-  x: (bridgeEnds[0].x + bridgeEnds[1].x) / 2,
-  z: (bridgeEnds[0].z + bridgeEnds[1].z) / 2,
-  dx: (bridgeEnds[1].x - bridgeEnds[0].x) / span,
-  dz: (bridgeEnds[1].z - bridgeEnds[0].z) / span,
-  length: span,
-  width: 9.6, // a little wider than the trail itself
-};
+const creekCrossing = closestApproach(ROAD, CREEK).sample;
+const creekEnds = [ROAD.at(creekCrossing.s - 11), ROAD.at(creekCrossing.s + 11)];
+const creekSpan = Math.hypot(creekEnds[1].x - creekEnds[0].x, creekEnds[1].z - creekEnds[0].z);
+
+/**
+ * The bridges: the creek's on the trail first, then those over the rivers. Each is { id, style,
+ * path, s, x, z, dx, dz, length, width, arch, lift }, the deck centred on (x, z) and running along
+ * (dx, dz), and `s` how far along its `path` its middle is. See deckHeight in terrain.js.
+ */
+export const BRIDGES = [
+  {
+    id: 'creek',
+    style: 'timber',
+    path: ROAD,
+    s: creekCrossing.s,
+    x: (creekEnds[0].x + creekEnds[1].x) / 2,
+    z: (creekEnds[0].z + creekEnds[1].z) / 2,
+    dx: (creekEnds[1].x - creekEnds[0].x) / creekSpan,
+    dz: (creekEnds[1].z - creekEnds[0].z) / creekSpan,
+    length: creekSpan,
+    width: 9.6, // a little wider than the trail itself
+    arch: BRIDGE_STYLES.timber.arch,
+    lift: BRIDGE_STYLES.timber.lift,
+    // Its one trestle stands in the middle of the gully.
+    bents: [0],
+  },
+  ...CROSSINGS.filter(crossing => crossing.style).map(bridgeAcross),
+];
+
+/** The bridge over the creek, on the trail. */
+export const BRIDGE = BRIDGES[0];
+
+/** True on a bridge's deck at distance `s` along `path`, less `margin` at each end. */
+export function onBridgeDeck(path, s, margin = 0.6) {
+  return BRIDGES.some(b => b.path === path && path.apart(s, b.s) < b.length / 2 - margin);
+}
+
+/** True where a road or track crosses a river by a bridge rather than a ford, `s` along `path`. */
+export function isBridged(path, s) {
+  return BRIDGES.some(b => b.path === path && path.apart(s, b.s) < b.length / 2 + 4);
+}
 
 /** Where the railway crosses the trail: `s` along the railway, `roadS` along the trail. */
 export const LEVEL_CROSSING = (() => {
@@ -1550,11 +1827,13 @@ export const PLACES = [
   ...FARMS.map(({ id, x, z }) => ({ id, x, z })),
   { id: 'desert', x: DESERT.oasis.x, z: DESERT.oasis.z },
   { id: 'lookout', x: ROUGH.lookout.x, z: ROUGH.lookout.z },
+  { id: 'fishing', x: FISHING.x, z: FISHING.z },
 ];
 
 /**
  * Ground that flattens so buildings and camp furniture sit on level ground: to its natural
- * height, or to `level` where one is given.
+ * height, or to `level` where one is given, or to the height of the ground as it is by then (the
+ * valley floor beside a river, say) for a `level` of 'ground'.
  */
 export const PADS = [
   ...[...FJORD_VILLAGE.houses, ...FJORD_VILLAGE.boathouses, FJORD_VILLAGE.church].map(({ x, z, level }) => ({
@@ -1588,6 +1867,8 @@ export const PADS = [
   { x: DESERT.station.x, z: DESERT.station.z, radius: 9, falloff: 6 },
   ...DESERT.houses.map(({ x, z }) => ({ x, z, radius: 5.5, falloff: 5 })),
   { x: DESERT.windpump.x, z: DESERT.windpump.z, radius: 4, falloff: 5 },
+  // The fishing hut on the river bank, with its yard.
+  { x: FISHING.x, z: FISHING.z, radius: 6, falloff: 6, level: 'ground' },
 ];
 
 function patchOnRoad(x, z) {

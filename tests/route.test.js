@@ -4,11 +4,31 @@ import * as THREE from 'three';
 import { angleDelta, clamp } from '../src/core/math.js';
 import { createObstacleIndex, penetration } from '../src/core/collision.js';
 import { createCarState, stepDriving } from '../src/core/driving.js';
-import { ROAD, CAMP_TRAIL, TRACKS, JETTY, RING_ROAD, ROADWORKS, ORCHARD, ROUGH } from '../src/world/layout.js';
+import {
+  ROAD,
+  CAMP_TRAIL,
+  TRACKS,
+  JETTY,
+  RING_ROAD,
+  ROADWORKS,
+  ORCHARD,
+  BRIDGES,
+  CROSSINGS,
+  RIVERS,
+  ROUGH,
+} from '../src/world/layout.js';
 import { chassisPose } from '../src/core/suspension.js';
 import { localFrame } from '../src/world/build.js';
 import { createPath, headingOf } from '../src/world/path.js';
-import { drivingHeight, isDriveable, waterLevel } from '../src/world/terrain.js';
+import {
+  FORDS,
+  drivingHeight,
+  isDriveable,
+  onDeck,
+  wadingDepth,
+  waterDepth,
+  waterLevel,
+} from '../src/world/terrain.js';
 import { buildScenery } from '../src/world/scenery.js';
 import { buildBridge } from '../src/world/landmarks/bridge.js';
 import { buildTunnel } from '../src/world/landmarks/tunnel.js';
@@ -25,6 +45,7 @@ import { buildSummit } from '../src/world/landmarks/summit.js';
 import { buildFields } from '../src/world/landmarks/fields.js';
 import { buildOrchard } from '../src/world/landmarks/orchard.js';
 import { buildLookout } from '../src/world/landmarks/lookout.js';
+import { buildFishing } from '../src/world/landmarks/fishing.js';
 import { createSurfaces } from '../src/world/surfaces.js';
 import { LANE } from '../src/vehicles/traffic.js';
 
@@ -47,6 +68,7 @@ for (const build of [
   buildFields,
   buildOrchard,
   buildLookout,
+  buildFishing,
 ]) {
   build(scene, obstacles);
 }
@@ -67,10 +89,14 @@ const world = {
 /**
  * Steers along a path like a careful driver and reports how far it got. A careless one aims
  * `bias` metres to the side of it, and swings that aim `zigzag` metres either way every 6 seconds.
+ * `watch(car)`, if given, is called after every step, and `inWorld` is the world to drive in.
  */
-function followPath(path, length, { bias = 0, zigzag = 0 } = {}) {
+function followPath(path, length, { bias = 0, zigzag = 0, watch = null, inWorld = world, speed = 0 } = {}) {
   const start = path.at(0);
-  const car = createCarState({ x: start.x, z: start.z, heading: headingOf(start.dx, start.dz) });
+  const heading = headingOf(start.dx, start.dz);
+  const car = createCarState({ x: start.x, z: start.z, heading });
+  // Set off already moving, with `speed` metres a second, where the way up to it isn't the point.
+  Object.assign(car, { speed, vx: -Math.sin(heading) * speed, vz: -Math.cos(heading) * speed });
   let progress = 0;
   let lastS = 0;
   const stats = { roll: 0, pitch: 0, off: 0, slowest: Infinity, stopped: 0 };
@@ -86,7 +112,8 @@ function followPath(path, length, { bias = 0, zigzag = 0 } = {}) {
     const aim = bias + zigzag * Math.sin((step / 60) * ((2 * Math.PI) / 6));
     const ahead = path.offset(near.s + 7, aim);
     const desired = Math.atan2(-(ahead.x - car.x), -(ahead.z - car.z));
-    stepDriving(car, { cruise: true, steer: clamp(angleDelta(car.heading, desired) * 2.5, -1, 1) }, 1 / 60, world);
+    stepDriving(car, { cruise: true, steer: clamp(angleDelta(car.heading, desired) * 2.5, -1, 1) }, 1 / 60, inWorld);
+    watch?.(car);
     // How far it leans and tips, how far from the path it strays and how slowly it goes, once under way.
     const pose = chassisPose(car.x, car.z, car.heading, (x, z) => drivingHeight(x, z));
     stats.roll = Math.max(stats.roll, Math.abs(pose.roll));
@@ -98,6 +125,25 @@ function followPath(path, length, { bias = 0, zigzag = 0 } = {}) {
     stats.stopped = Math.max(stats.stopped, still / 60);
   }
   return { progress, ...stats };
+}
+
+/** The world as the game has it for water: the tyres in a ford are in water, and on a deck they are on planks. */
+const wetWorld = {
+  ...world,
+  surface: (x, z) => (onDeck(x, z) ? 'road' : waterDepth(x, z) > 0.15 ? 'water' : 'track'),
+  waterDepth: wadingDepth,
+};
+
+/** A stretch of a road from `from` to `to` metres along it, driven that way (backwards if `to` is less). */
+function stretchOf(path, from, to) {
+  const points = [];
+  const step = Math.sign(to - from) * 2;
+  for (let s = from; step > 0 ? s <= to : s >= to; s += step) {
+    const p = path.at(s);
+    // An open road stops at its ends, and the stretch with it.
+    if (!points.length || Math.hypot(p.x - points.at(-1)[0], p.z - points.at(-1)[1]) > 0.5) points.push([p.x, p.z]);
+  }
+  return createPath(points);
 }
 
 test('nothing blocks the trail all the way round the loop', () => {
@@ -186,6 +232,54 @@ test('nothing solid stands within the rough trail, or 1.2 m to either side of it
   }
 });
 
+/**
+ * Drives across a crossing at cruise, in one direction, from far enough back to be up to speed,
+ * and reports the slowest it went on the way over, the deepest water it was in, and whether it
+ * was ever off the deck while it should have been on it.
+ */
+function crossAtCruise(crossing, bridge, direction) {
+  const { path, s } = crossing;
+  const half = bridge ? bridge.length / 2 : crossing.river.halfWidth(crossing.riverS) + 3;
+  const run = 40;
+  const stretch = stretchOf(path, s - direction * (half + run), s + direction * (half + 30));
+  const from = { x: crossing.x, z: crossing.z };
+  let slowest = Infinity;
+  let deepest = 0;
+  let offDeck = null;
+  const result = followPath(stretch, stretch.length - 4, {
+    inWorld: wetWorld,
+    speed: 6,
+    watch: car => {
+      const between = bridge
+        ? Math.abs((car.x - bridge.x) * bridge.dx + (car.z - bridge.z) * bridge.dz) < half - 1
+        : Math.hypot(car.x - from.x, car.z - from.z) < half;
+      if (!between) return;
+      slowest = Math.min(slowest, car.speed);
+      deepest = Math.max(deepest, wadingDepth(car.x, car.z));
+      if (bridge && !onDeck(car.x, car.z)) offDeck = `${car.x.toFixed(1)}, ${car.z.toFixed(1)}`;
+      // Whatever is under it, the wheels are above the water on a bridge.
+      if (bridge && drivingHeight(car.x, car.z) < waterLevel(car.x, car.z) + 0.3) offDeck ??= 'in the water';
+    },
+  });
+  return { ...result, slowest, deepest, offDeck };
+}
+
+test('every bridge can be driven over at cruise in both directions, and the car stays on the deck', () => {
+  const bridged = CROSSINGS.filter(crossing => crossing.style);
+  assert.ok(bridged.length >= 5);
+  for (const crossing of bridged) {
+    const bridge = BRIDGES.find(b => b.path === crossing.path && Math.abs(b.s - crossing.s) < 1);
+    for (const direction of [1, -1]) {
+      const label = `${bridge.id} (${bridge.style}) ${direction > 0 ? 'forwards' : 'backwards'}`;
+      const drive = crossAtCruise(crossing, bridge, direction);
+      assert.equal(drive.stuck, undefined, `${label}: ${drive.stuck}`);
+      assert.equal(drive.offDeck, null, `${label}: off the deck at ${drive.offDeck}`);
+      assert.ok(drive.slowest > 5.7, `${label}: slowed to ${drive.slowest.toFixed(2)} m/s`);
+      assert.ok(drive.progress > 60);
+    }
+  }
+});
+
 test('a careless driver, aiming off the rough trail or zig-zagging across it, is never held up', () => {
   const back = createPath([...ROUGH.points].reverse());
   for (const [way, path] of [
@@ -200,6 +294,28 @@ test('a careless driver, aiming off the rough trail or zig-zagging across it, is
       assert.ok(result.stopped <= 3, `${label}: stood still for ${result.stopped.toFixed(1)} s`);
     }
   }
+});
+
+test('every ford can be driven through at cruise in both directions, in water no deeper than 0.45 m', () => {
+  assert.ok(FORDS.length >= 5);
+  for (const ford of FORDS) {
+    const crossing = CROSSINGS.find(c => c.path === ford.path && Math.abs(c.s - ford.s) < 3);
+    for (const direction of [1, -1]) {
+      const label = `${ford.river.id} ford at ${ford.x.toFixed(0)}, ${ford.z.toFixed(0)} ${direction > 0 ? 'forwards' : 'backwards'}`;
+      const drive = crossAtCruise({ ...crossing, river: ford.river, riverS: ford.riverS }, null, direction);
+      assert.equal(drive.stuck, undefined, `${label}: ${drive.stuck}`);
+      assert.ok(drive.deepest > 0.1, `${label}: it really is a ford`);
+      assert.ok(drive.deepest < 0.45, `${label}: ${drive.deepest.toFixed(2)} m deep`);
+      assert.ok(drive.slowest > 5.7, `${label}: slowed to ${drive.slowest.toFixed(2)} m/s`);
+    }
+  }
+  assert.ok(RIVERS.length >= 3);
+});
+
+test('the fishing hut can be reached along its track', () => {
+  const { path } = TRACKS.find(track => track.id === 'fishing');
+  const result = followPath(path, path.length - 4, { inWorld: wetWorld });
+  assert.equal(result.stuck, undefined, result.stuck);
 });
 
 test('the new road can be driven from the upland road to where the digging is', () => {

@@ -23,6 +23,18 @@ const PLACES = [
     'winter',
     'const s = L.OUTER_ROAD.nearest(L.WINTER.snowman.x, L.WINTER.snowman.z).s; const p = L.OUTER_ROAD.at(s - 30); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))',
   ],
+  [
+    'stone bridge',
+    "const b = L.BRIDGES.find(b => b.style === 'stone'); g.teleport(b.x - b.dx * 24, b.z - b.dz * 24, Math.atan2(-b.dx, -b.dz))",
+  ],
+  [
+    'fishing hut',
+    "const p = L.TRACKS.find(t => t.id === 'fishing').path.at(L.TRACKS.find(t => t.id === 'fishing').path.length - 22); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))",
+  ],
+  [
+    'winter river',
+    "const b = L.BRIDGES.find(b => b.style === 'log'); g.teleport(b.x - b.dx * 14, b.z - b.dz * 14, Math.atan2(-b.dx, -b.dz))",
+  ],
   ['upland road', 'const p = L.RING_ROAD.at(1200); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))'],
   ['tunnel', 'const p = L.ROAD.at(L.TUNNEL.s - 40); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))'],
   ['rough trail', 'const p = L.ROUGH.path.at(60); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))'],
