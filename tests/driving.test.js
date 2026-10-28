@@ -31,6 +31,16 @@ test('turning is tighter at low speed than at high speed', () => {
   assert.ok(slow.speed / slowYaw < fast.speed / fastYaw);
 });
 
+test('cruise control holds the speed it is given, and 6 m/s when it is not given one', () => {
+  for (const speed of [6, 9, 12]) {
+    const car = drive(createCarState(START), { cruise: true, cruiseSpeed: speed }, 8);
+    assert.ok(Math.abs(car.speed - speed) < 0.3, `${speed} m/s: speed ${car.speed}`);
+  }
+  assert.equal(CAR.cruiseSpeed, 6);
+  const plain = drive(createCarState(START), { cruise: true }, 8);
+  assert.ok(Math.abs(plain.speed - 6) < 0.3, `speed ${plain.speed}`);
+});
+
 test('cruise control holds a steady speed and the brake overrides it', () => {
   const car = drive(createCarState(START), { cruise: true }, 4);
   assert.ok(Math.abs(car.speed - CAR.cruiseSpeed) < 0.3, `speed ${car.speed}`);

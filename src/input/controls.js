@@ -1,5 +1,7 @@
 // Keyboard, on-screen touch buttons and tilt steering, merged into one input.
 
+import { CAR } from '../core/driving.js';
+
 const DRIVE_KEYS = {
   ArrowUp: 'forward',
   KeyW: 'forward',
@@ -47,6 +49,7 @@ export function createControls({ touchRoot, tilt, onAction, isDriving }) {
   const touches = new Map();
   let konami = 0;
   let cruise = false;
+  let cruiseSpeed = CAR.cruiseSpeed;
 
   window.addEventListener('keydown', event => {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -108,6 +111,12 @@ export function createControls({ touchRoot, tilt, onAction, isDriving }) {
     set cruise(value) {
       cruise = value;
     },
+    get cruiseSpeed() {
+      return cruiseSpeed;
+    },
+    set cruiseSpeed(value) {
+      cruiseSpeed = value;
+    },
     /** The current driving input for stepDriving(). */
     read() {
       const pressed = name => [...held].some(code => DRIVE_KEYS[code] === name) || [...touches.values()].includes(name);
@@ -122,6 +131,7 @@ export function createControls({ touchRoot, tilt, onAction, isDriving }) {
         brake: pressed('brake') || motion.pending || (motion.enabled && !motion.ready),
         steer: motion.steering,
         cruise,
+        cruiseSpeed,
       };
     },
   };

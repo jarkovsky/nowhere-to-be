@@ -8,6 +8,7 @@ export const CAR = {
   wheelbase: 2.44,
   topSpeed: 14,
   reverseSpeed: 5,
+  /** The speed cruise control holds unless the input names another (`cruiseSpeed`), and the slowest it offers. */
   cruiseSpeed: 6,
   acceleration: 5.5,
   braking: 13,
@@ -15,6 +16,10 @@ export const CAR = {
   bodyOffset: 0.95,
   bodyRadius: 1.15,
 };
+
+/** The steps of the cruise speed in the menu, slowest first: today's, then one and a half times and twice that. */
+export const CRUISE_SPEEDS = [CAR.cruiseSpeed, 9, 12];
+export const CRUISE_SPEED_NAMES = ['slow', 'medium', 'fast'];
 
 /**
  * How each surface changes top speed and grip. Leaves and snow lie on the
@@ -121,7 +126,8 @@ export function placeCar(state, place) {
 
 /**
  * Advances the car by `dt` seconds.
- * input: { forward, backward, left, right, brake, cruise, steer (analog -1..1) }
+ * input: { forward, backward, left, right, brake, cruise, steer (analog -1..1) }, and optionally
+ *        cruiseSpeed (m/s, for cruise to hold; CAR.cruiseSpeed when left out)
  * world: { obstacles (index), dynamic (circles), surface(x, z), slope(x, z, heading), isDriveable(x, z),
  *          waterDepth(x, z) (optional) }
  */
@@ -143,7 +149,7 @@ export function stepDriving(state, input, dt, world) {
   if (input.brake) {
     accel = -Math.sign(forward) * Math.min(CAR.braking, Math.abs(forward) / dt);
   } else if (input.forward || (input.cruise && !input.backward)) {
-    const target = input.forward ? top : Math.min(CAR.cruiseSpeed, top);
+    const target = input.forward ? top : Math.min(input.cruiseSpeed ?? CAR.cruiseSpeed, top);
     accel = forward < -0.3 ? CAR.braking : CAR.acceleration * clamp((target - forward) / 3, -1 - 2 * wading, 1);
   } else if (input.backward) {
     const reverse = CAR.reverseSpeed * lerp(1, WADING.slowest, wading);

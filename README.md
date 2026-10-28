@@ -54,7 +54,7 @@ Play it at [nowhere-to-be.jarkovsky.com](https://nowhere-to-be.jarkovsky.com).
   <img src="docs/rally.jpg" width="49%" alt="A rally car on the track up to the summit">
 </p>
 <p>
-  <img src="docs/menu.jpg" width="49%" alt="The pause menu: a play button and picture buttons for the car, the map, sound, cruise control, the minimap, a night at camp and going back to the start">
+  <img src="docs/menu.jpg" width="49%" alt="The pause menu: a play button and picture buttons for the car, the map, sound, cruise control, its speed, the minimap, a night at camp and going back to the start">
   <img src="docs/garage.jpg" width="49%" alt="Choosing a vehicle, a colour and roof items, with the roof tent open on the car">
 </p>
 <p>
@@ -73,12 +73,15 @@ Play it at [nowhere-to-be.jarkovsky.com](https://nowhere-to-be.jarkovsky.com).
 | Horn           | `H`                  | Horn button above the pedals       |
 | Look           | Drag, scroll to zoom | Drag on the scenery                |
 | Cruise         | `E`                  | In the menu                        |
+| Cruise speed   | Menu only            | In the menu                        |
 | Map            | In the menu          | In the menu, or tap the minimap    |
 | Bring a friend | `F` by the depot     | Tap the friend at the depot        |
 | Pause          | `Esc`                | ❚❚ button, top right               |
 | Back to start  | `R`                  | Home button in the menu            |
 
 To carry on after pausing, press the big play button or tap the game around the menu. With cruise control on, the car keeps driving by itself, so on touch screens only the pedal for braking and reversing shows. On a tablet held sideways the steering buttons and the pedals sit halfway up each side, under the thumbs.
+
+The speed tile in the menu steps cruise control through slow (6 m/s, the usual speed), medium (9) and fast (12). It starts on slow at every visit and isn't remembered, so a faster speed never carries over into the next player's game.
 
 ## Playing on a phone
 
