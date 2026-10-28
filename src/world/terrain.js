@@ -86,6 +86,8 @@ const BANDS = [
   }
 }
 const FINE = BANDS[2];
+/** The bands of the grid, for shaders that look heights up: where each starts, its first grid line and its cell size. */
+export const GRID_BANDS = BANDS.map(({ from, to, start, size }) => ({ from, to, start, size }));
 
 /** World coordinate of every grid line, identical for X and Z. */
 export const AXIS = Float64Array.from([

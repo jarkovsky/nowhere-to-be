@@ -380,9 +380,9 @@ export function drawMapLines(ctx, scale) {
 
 const rgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
 const TINT = {
-  meadow: rgb('#bdd096'),
-  dry: rgb('#d8d09c'),
-  high: rgb('#adbf8c'),
+  meadow: rgb('#d9c48f'),
+  dry: rgb('#e3cf9a'),
+  high: rgb('#c8b88f'),
   woods: rgb('#93b07a'),
   rock: rgb('#bab4a6'),
   stone: rgb('#cdc3ab'),

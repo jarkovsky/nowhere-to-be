@@ -44,7 +44,7 @@ const COLORS = Object.fromEntries(
   Object.entries({
     // The haze away from the sun, which is also the colour of the sky at the horizon.
     nightHaze: '#22385a',
-    dayHaze: '#c8dcdf',
+    dayHaze: '#d6d9cf',
     sunsetHaze: '#e8b4a0',
     rainHaze: '#aebfc0',
     // The sky overhead.
@@ -57,13 +57,13 @@ const COLORS = Object.fromEntries(
     dayGlow: '#f7ead0',
     sunsetGlow: '#ffb067',
     rainGlow: '#c3cdca',
-    sunDay: '#ffefcc',
+    sunDay: '#ffe4be',
     sunEvening: '#ffb47a',
     sunNight: '#9abadd',
     skyNight: '#9ebbd0',
-    skyDay: '#dce8f0',
+    skyDay: '#e2e3dc',
     groundNight: '#526477',
-    groundDay: '#7c735a',
+    groundDay: '#86704e',
     skyEvening: '#f4c7a0',
     discDay: '#fff4d8',
     discEvening: '#ffcf8e',
