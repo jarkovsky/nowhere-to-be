@@ -293,6 +293,46 @@ function inSand(x, z) {
   return !TRACKS.some(track => track.desert && track.path.isNear(x, z, 2));
 }
 
+// --- The winter ----------------------------------------------------------------------------
+
+/**
+ * A winter in the north-east outlands, between the outer road's bend and the fence: deep snow,
+ * birch woods, snow on the boulders and a cold, pale light. It lies between the bearings `from`
+ * and `to` (degrees, as in `polar`) from `inner` metres out, and autumn gives way to it over
+ * about `edge` metres. A snowman stands by the outer road.
+ */
+export const WINTER = (() => {
+  const [x, z] = polar(312, 850);
+  // The snowman stands back from the outer road on its inner side, facing it.
+  const along = OUTER_ROAD.nearest(...polar(309, 805)).s;
+  const road = OUTER_ROAD.at(along);
+  const inward = (q => (Math.hypot(q.x, q.z) < Math.hypot(road.x, road.z) ? 1 : -1))(OUTER_ROAD.offset(along, 1));
+  const spot = OUTER_ROAD.offset(along, 8 * inward);
+  return {
+    x,
+    z,
+    from: 290,
+    to: 335,
+    inner: 690,
+    edge: 100,
+    snowman: { x: spot.x, z: spot.z, rotation: Math.atan2(road.x - spot.x, road.z - spot.z) },
+  };
+})();
+
+/** How wintry it is at a point: 1 in the middle of the snow, 0 in autumn, with a ragged edge between. */
+export function winterness(x, z) {
+  // The snow lies in the north-east quarter, so most of the world is turned away before any
+  // trigonometry: this is asked for every point of the ground at load, and of the ribbons.
+  if (z > -150 || x < 100 || x * x + z * z < 560 * 560) return 0;
+  const [r, bearing] = [Math.hypot(x, z), ((Math.atan2(z, x) * 180) / Math.PI + 360) % 360];
+  const half = WINTER.edge / 2;
+  const wander = (valueNoise(x / 55, z / 55, 131) - 0.5) * 24;
+  const along = smoothstep(r + wander, WINTER.inner - half, WINTER.inner + half);
+  // Metres inside the nearer of the two bearings that bound it.
+  const inside = (Math.min(bearing - WINTER.from, WINTER.to - bearing) * Math.PI * r) / 180;
+  return along * smoothstep(inside + wander, -half, half);
+}
+
 /** A hill of bare rock out to the east, with a track that winds round it to the top. */
 export const ROCK_HILL = { x: 857, z: -198, radius: 70, height: 44 };
 

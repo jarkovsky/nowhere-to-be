@@ -10,6 +10,9 @@ import { flatMaterial } from './build.js';
 const STONE = ['#8d91a0', '#878b99', '#9598a4', '#898c97'];
 /** What grows on the tops: grass gone gold, and moss. */
 const MOSS = [new THREE.Color('#a08c4e'), new THREE.Color('#87864c')];
+/** In the winter, the snow lying on their tops and the cold shade on their sides. */
+const SNOW = new THREE.Color('#f4f8ff');
+const SNOW_SHADE = new THREE.Color('#a9b8e0');
 
 /** Rocks are shaded smoothly, unlike most things, so their rounded edges show. */
 export const rockMaterial = flatMaterial('#ffffff', { vertexColors: true, flatShading: false });
@@ -17,9 +20,10 @@ export const rockMaterial = flatMaterial('#ffffff', { vertexColors: true, flatSh
 /**
  * A boulder roughly 2 m across, flat underneath, with vertex colours and smooth normals.
  * `detail` 2 is for big boulders near the camera, 1 for small stones and 0 for far off.
- * `moss` is how much grows on its top, from 0 to 1.
+ * `moss` is how much grows on its top, from 0 to 1, and `snow` how much snow lies on it: a deep
+ * cap over every face that looks up, with a ragged edge, and the stone below it cooled.
  */
-export function boulderGeometry(seed, { detail = 1, moss = 0.35 } = {}) {
+export function boulderGeometry(seed, { detail = 1, moss = 0.35, snow = 0 } = {}) {
   const random = createRandom(seed * 7919 + 13);
   let geometry = new THREE.IcosahedronGeometry(1, detail);
   geometry.deleteAttribute('normal');
@@ -27,13 +31,13 @@ export function boulderGeometry(seed, { detail = 1, moss = 0.35 } = {}) {
   geometry = mergeVertices(geometry);
   const position = geometry.attributes.position;
   const stretch = [0.85 + random() * 0.35, 0.62 + random() * 0.25, 0.85 + random() * 0.35];
-  const blocky = 0.45 + random() * 0.3;
+  const blocky = (0.45 + random() * 0.3) * (1 - 0.8 * snow);
   // Faces where it has split, flat across: mostly on the sides and the top.
   const cuts = Array.from({ length: 3 }, () => {
     const a = random() * Math.PI * 2;
     const up = random() * 0.9;
     const normal = new THREE.Vector3(Math.cos(a), up, Math.sin(a)).normalize();
-    return { normal, depth: 0.62 + random() * 0.22 };
+    return { normal, depth: 0.62 + random() * 0.22 + 0.12 * snow };
   });
   const offset = random() * 50;
   const p = new THREE.Vector3();
@@ -58,6 +62,7 @@ export function boulderGeometry(seed, { detail = 1, moss = 0.35 } = {}) {
   const base = new THREE.Color(STONE[seed % STONE.length]);
   const growth = MOSS[seed % MOSS.length];
   const color = new THREE.Color();
+  const tone = new THREE.Color();
   const colors = new Float32Array(normal.count * 3);
   const mossy = moss > 0 ? 0.35 + moss : 0;
   for (let i = 0; i < normal.count; i++) {
@@ -66,6 +71,11 @@ export function boulderGeometry(seed, { detail = 1, moss = 0.35 } = {}) {
     color.copy(base).multiplyScalar(0.9 + patch * 0.16);
     color.lerp(growth, smoothstep(up, 0.5, 0.82) * mossy * smoothstep(patch, 0.25, 0.55));
     if (up < 0) color.multiplyScalar(1 + up * 0.25);
+    if (snow > 0) {
+      color.lerp(SNOW_SHADE, 0.25 * snow);
+      const cap = smoothstep(up + (patch - 0.5) * 0.35, 0.28, 0.5);
+      color.lerp(tone.copy(SNOW).lerp(SNOW_SHADE, smoothstep(up, 1, 0.55) * 0.5), cap * snow);
+    }
     color.toArray(colors, i * 3);
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));

@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { createRandom, smoothstep } from '../core/math.js';
 import { terrainHeight } from './terrain.js';
+import { winterness } from './layout.js';
 import { HAZE, createSkyDome } from './sky.js';
 
 const SKY_PRESETS = ['auto', 'sunset', 'night', 'rain', 'day'];
@@ -71,6 +72,14 @@ const COLORS = Object.fromEntries(
     dayCloud: '#f6f6f2',
     sunsetCloud: '#f3b9a6',
     rainCloud: '#b9c2c3',
+    // In the winter, by day: a cold, pale, hazy blue, and the blue shade the snow lies in.
+    winterHaze: '#aecbf0',
+    winterZenith: '#8fb3d8',
+    winterGlow: '#e6eefb',
+    winterSky: '#9dbcf6',
+    winterGround: '#5a7cc8',
+    winterSun: '#e8f0ff',
+    winterCloud: '#e3ecf7',
   }).map(([name, hex]) => [name, new THREE.Color(hex)]),
 );
 
@@ -86,6 +95,8 @@ export function createAtmosphere(scene, sun, ambient) {
   let day = 1;
   let sunset = 0;
   let rain = 0;
+  // How far into the winter the car is, a little behind where it is, so a jump takes a moment.
+  let winter = 0;
 
   const dome = createSkyDome(scene.fog.color);
   scene.add(dome);
@@ -159,6 +170,31 @@ export function createAtmosphere(scene, sun, ambient) {
   flies.frustumCulled = false;
   scene.add(flies);
 
+  // A light fall of snow round the camera, a few flakes in the air at a time.
+  const SNOW_COUNT = 260;
+  const snowPositions = new Float32Array(SNOW_COUNT * 3);
+  const snowSeeds = Array.from({ length: SNOW_COUNT }, () => ({
+    x: (random() - 0.5) * 70,
+    z: (random() - 0.5) * 70,
+    y: random() * 24,
+    speed: 0.8 + random() * 0.9,
+    phase: random() * 7,
+  }));
+  const snowGeometry = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
+  const snowfall = new THREE.Points(
+    snowGeometry,
+    new THREE.PointsMaterial({
+      color: '#ffffff',
+      size: 3,
+      sizeAttenuation: false,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    }),
+  );
+  snowfall.frustumCulled = false;
+  scene.add(snowfall);
+
   function updateShootingStar(dt, centre) {
     meteor.next -= dt;
     if (meteor.life <= 0 && meteor.next <= 0 && day < 0.25 && rain < 0.2) {
@@ -206,31 +242,41 @@ export function createAtmosphere(scene, sun, ambient) {
       day += (target.day - day) * blend;
       sunset += (target.sunset - sunset) * blend;
       rain += (target.rain - rain) * blend;
+      winter += (winterness(centre.x, centre.z) - winter) * (1 - Math.exp(-dt * 2));
+      // By day only: at night the snow is lit by the moon and stars, and the sky stays dark.
+      const cold = winter * day;
 
       const haze = scene.fog.color
         .copy(COLORS.nightHaze)
         .lerp(COLORS.dayHaze, day)
         .lerp(COLORS.sunsetHaze, sunset * 0.8)
-        .lerp(COLORS.rainHaze, rain * 0.65);
+        .lerp(COLORS.rainHaze, rain * 0.65)
+        .lerp(COLORS.winterHaze, cold * 0.8);
       scene.background.copy(haze);
-      scene.fog.density = 0.0011 + rain * 0.0035;
+      scene.fog.density = 0.0011 + rain * 0.0035 + winter * 0.0007;
       sky.zenith.value
         .copy(COLORS.nightZenith)
         .lerp(COLORS.dayZenith, day)
         .lerp(COLORS.sunsetZenith, sunset * 0.7)
-        .lerp(COLORS.rainZenith, rain * 0.7);
+        .lerp(COLORS.rainZenith, rain * 0.7)
+        .lerp(COLORS.winterZenith, cold * 0.7);
       glow
         .copy(COLORS.nightGlow)
         .lerp(COLORS.dayGlow, day)
         .lerp(COLORS.sunsetGlow, sunset)
         .lerp(COLORS.rainGlow, rain * 0.8)
+        .lerp(COLORS.winterGlow, cold * 0.7)
         .toArray(HAZE.sunColor);
-      ambient.intensity = 0.85 + day * 0.4 + sunset * 0.3;
+      ambient.intensity = 0.85 + day * 0.4 + sunset * 0.3 + cold * 0.15;
       ambient.color
         .copy(COLORS.skyNight)
         .lerp(COLORS.skyDay, day)
-        .lerp(COLORS.skyEvening, sunset * 0.55);
-      ambient.groundColor.copy(COLORS.groundNight).lerp(COLORS.groundDay, day);
+        .lerp(COLORS.skyEvening, sunset * 0.55)
+        .lerp(COLORS.winterSky, winter * 0.75 * (0.4 + 0.6 * day));
+      ambient.groundColor
+        .copy(COLORS.groundNight)
+        .lerp(COLORS.groundDay, day)
+        .lerp(COLORS.winterGround, winter * 0.8 * day);
 
       // The sun is never high, and low on the horizon in the evening, where the haze glows round it.
       const elevation = 0.03 + day * 0.42 - sunset * 0.06;
@@ -252,7 +298,8 @@ export function createAtmosphere(scene, sun, ambient) {
         .copy(COLORS.nightCloud)
         .lerp(COLORS.dayCloud, day)
         .lerp(COLORS.sunsetCloud, sunset * 0.8)
-        .lerp(COLORS.rainCloud, rain);
+        .lerp(COLORS.rainCloud, rain)
+        .lerp(COLORS.winterCloud, cold * 0.6);
       sky.cloudCover.value = 0.3 + rain * 0.7;
       sky.time.value = time;
 
@@ -260,7 +307,11 @@ export function createAtmosphere(scene, sun, ambient) {
       const ground = terrainHeight(centre.x, centre.z);
       const light = 0.32 + day * 0.58 - sunset * 0.22;
       sun.intensity = Math.max(0.25, 0.4 + day * 2.7 + sunset * 1.1 - rain * 1.6);
-      sun.color.copy(COLORS.sunNight).lerp(COLORS.sunDay, day).lerp(COLORS.sunEvening, sunset);
+      sun.color
+        .copy(COLORS.sunNight)
+        .lerp(COLORS.sunDay, day)
+        .lerp(COLORS.sunEvening, sunset)
+        .lerp(COLORS.winterSun, cold * 0.7);
       sun.target.position.set(centre.x, ground, centre.z);
       sun.position.set(
         centre.x + SUN_BEARING.x * Math.cos(light) * 200,
@@ -292,6 +343,19 @@ export function createAtmosphere(scene, sun, ambient) {
           rainPositions[k + 5] = z + 0.08;
         }
         rainGeometry.attributes.position.needsUpdate = true;
+      }
+
+      snowfall.visible = winter > 0.02;
+      snowfall.material.opacity = Math.min(1, winter * 1.4) * 0.8;
+      if (snowfall.visible) {
+        snowSeeds.forEach((flake, i) => {
+          const x = around(flake.x, centre.x, 70) + Math.sin(time * 0.5 + flake.phase) * 1.2;
+          const z = around(flake.z, centre.z, 70) + Math.cos(time * 0.4 + flake.phase) * 1.2;
+          snowPositions[i * 3] = x;
+          snowPositions[i * 3 + 1] = ground + ((((flake.y - time * flake.speed) % 24) + 24) % 24);
+          snowPositions[i * 3 + 2] = z;
+        });
+        snowGeometry.attributes.position.needsUpdate = true;
       }
 
       flies.visible = day < 0.5;

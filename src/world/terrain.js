@@ -56,6 +56,7 @@ import {
   lakeDistance,
   nearRiver,
   rockiness,
+  winterness,
   ringRadius,
   outerRadius,
 } from './layout.js';
@@ -831,10 +832,15 @@ export function riverLevel(river, s) {
 /** Roughly where the snow starts, in metres above the valley floor. */
 export const SNOWLINE = 116;
 
-/** How snowy the ground is: 0 below the snowline, 1 above it. The line wanders a little. */
-export function snowCover(x, z, h = terrainHeight(x, z)) {
+/** How snowy the ground is from its height alone: 0 below the snowline, 1 above it. The line wanders a little. */
+export function highSnow(x, z, h = terrainHeight(x, z)) {
   const line = SNOWLINE + (valueNoise(x / 37, z / 37, 41) - 0.5) * 16;
   return smoothstep(h, line - 1.5, line + 1.5);
+}
+
+/** How snowy the ground is: snow lies above the snowline, and everywhere in the winter. */
+export function snowCover(x, z, h = terrainHeight(x, z)) {
+  return Math.max(winterness(x, z), highSnow(x, z, h));
 }
 
 export function waterDepth(x, z) {
