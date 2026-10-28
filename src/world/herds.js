@@ -8,10 +8,20 @@ import * as THREE from 'three';
 import { angleDelta, createRandom } from '../core/math.js';
 import { HERDS } from './layout.js';
 import { terrainHeight, waterDepth } from './terrain.js';
-import { PartsBuilder, vertexColorMaterial } from './build.js';
+import { PartsBuilder } from './build.js';
+import { cone, eyes, fleece, furMaterial, leg, lump, pair, sheepFace, tube } from './creatures.js';
 
 const DARK = '#2f2b26';
 const CREAM = '#eee4c9';
+const BAY = '#8a5532';
+const GOAT = '#e8e2d4';
+const PIG = '#e9aaa0';
+const MOOSE = '#4a3829';
+const BOAR = '#4b3b2e';
+const RED = '#8a5a3a';
+const MOUFLON = '#8b5a36';
+const CAMEL = '#c8a06a';
+const ANTLER = '#d4c4a0';
 /** Herds further than this from the player aren't drawn or moved. */
 const DRAW_DISTANCE = 260;
 
@@ -23,16 +33,24 @@ const DRAW_DISTANCE = 260;
  */
 export const KINDS = {
   horse: {
-    body: p => p.box(2, 0.85, 0.72, '#8a5532', { y: 1.6 }).box(0.16, 0.9, 0.18, DARK, { x: -1.08, y: 1.35, rz: -0.25 }),
-    head: p =>
-      p
-        .box(0.45, 1, 0.4, '#8a5532', { x: 0.2, y: 0.35, rz: -0.45 })
-        .box(0.12, 0.95, 0.12, DARK, { x: 0.02, y: 0.45, rz: -0.45 })
-        .box(0.78, 0.34, 0.34, '#8a5532', { x: 0.62, y: 0.74, rz: 0.4 })
-        .box(0.5, 0.06, 0.1, '#f1ece0', { x: 0.66, y: 0.92, rz: 0.4 })
-        .box(0.08, 0.2, 0.08, DARK, { x: 0.38, y: 1.02, z: 0.1 })
-        .box(0.08, 0.2, 0.08, DARK, { x: 0.38, y: 1.02, z: -0.1 }),
-    leg: p => p.box(0.18, 1.2, 0.18, '#7a4a2c', { y: -0.6 }).box(0.22, 0.2, 0.22, DARK, { y: -1.12 }),
+    body: p => {
+      lump(p, BAY, [0, 1.62, 0], [0.95, 0.42, 0.36]);
+      lump(p, BAY, [0.6, 1.62, 0], [0.4, 0.45, 0.35]); // chest
+      lump(p, BAY, [-0.6, 1.68, 0], [0.42, 0.42, 0.36]); // quarters
+      tube(p, DARK, [-0.96, 1.85, 0], [-1.22, 1.05, 0], 0.09, 0.06); // tail
+      return lump(p, DARK, [-1.23, 1.02, 0], [0.08, 0.14, 0.08]);
+    },
+    head: p => {
+      tube(p, BAY, [-0.04, -0.12, 0], [0.42, 0.8, 0], 0.3, 0.19); // neck
+      lump(p, DARK, [0.12, 0.42, 0], [0.09, 0.48, 0.07], { tilt: -0.47 }); // mane
+      lump(p, BAY, [0.5, 0.84, 0], [0.24, 0.19, 0.17], { tilt: -0.3 });
+      tube(p, BAY, [0.56, 0.82, 0], [0.98, 0.68, 0], 0.17, 0.12); // face
+      lump(p, '#6e4228', [0.99, 0.67, 0], [0.12, 0.12, 0.13]); // muzzle
+      lump(p, '#f1ece0', [0.78, 0.8, 0], [0.2, 0.035, 0.05], { tilt: -0.3 }); // blaze
+      eyes(p, 0.62, 0.92, 0.15);
+      return pair(p, side => cone(p, BAY, [0.4, 0.98, side * 0.08], [0.36, 1.22, side * 0.11], 0.06, 0.5));
+    },
+    leg: p => leg(p, '#7a4a2c', { length: 1.28, top: 0.11, bottom: 0.06, foot: DARK, hoof: 0.08 }),
     hip: 1.28,
     feet: [0.75, 0.25],
     neck: [0.88, 1.85],
@@ -44,16 +62,23 @@ export const KINDS = {
     call: 'neigh',
   },
   goat: {
-    body: p =>
-      p.box(1, 0.5, 0.42, '#e8e2d4', { y: 0.85 }).box(0.08, 0.2, 0.08, '#e8e2d4', { x: -0.52, y: 1.12, rz: 0.4 }),
-    head: p =>
-      p
-        .box(0.42, 0.26, 0.24, '#e8e2d4', { x: 0.16, y: 0.16, rz: -0.3 })
-        .box(0.06, 0.36, 0.06, '#7b6d58', { x: -0.02, y: 0.42, z: 0.07, rz: 0.6 })
-        .box(0.06, 0.36, 0.06, '#7b6d58', { x: -0.02, y: 0.42, z: -0.07, rz: 0.6 })
-        .box(0.06, 0.16, 0.06, '#cfc8b6', { x: 0.3, y: -0.04 })
-        .box(0.08, 0.05, 0.36, '#e8e2d4', { x: 0.02, y: 0.26 }),
-    leg: p => p.box(0.1, 0.62, 0.1, '#d9d2c3', { y: -0.31 }).box(0.11, 0.1, 0.11, DARK, { y: -0.58 }),
+    body: p => {
+      lump(p, GOAT, [0, 0.86, 0], [0.5, 0.26, 0.22]);
+      lump(p, GOAT, [0.3, 0.88, 0], [0.24, 0.27, 0.22]);
+      lump(p, GOAT, [-0.3, 0.9, 0], [0.24, 0.25, 0.22]);
+      tube(p, GOAT, [0.32, 0.95, 0], [0.52, 1.08, 0], 0.15, 0.11); // neck
+      return cone(p, GOAT, [-0.46, 1.0, 0], [-0.6, 1.2, 0], 0.05); // tail, up
+    },
+    head: p => {
+      lump(p, GOAT, [0.1, 0.12, 0], [0.16, 0.14, 0.13], { tilt: -0.3 });
+      tube(p, GOAT, [0.14, 0.1, 0], [0.36, -0.02, 0], 0.1, 0.07); // face
+      lump(p, '#d9d2c3', [0.37, -0.03, 0], [0.06, 0.06, 0.065]); // muzzle
+      cone(p, '#cfc8b6', [0.3, -0.06, 0], [0.32, -0.26, 0], 0.045); // beard
+      eyes(p, 0.18, 0.17, 0.11, 0.03);
+      pair(p, side => cone(p, '#7b6d58', [0.04, 0.24, side * 0.06], [-0.18, 0.46, side * 0.1], 0.04)); // horns
+      return pair(p, side => cone(p, GOAT, [0.04, 0.17, side * 0.1], [0, 0.12, side * 0.3], 0.06, 0.5)); // ears
+    },
+    leg: p => leg(p, '#d9d2c3', { length: 0.62, top: 0.06, bottom: 0.035, foot: DARK }),
     hip: 0.62,
     feet: [0.36, 0.13],
     neck: [0.5, 1.02],
@@ -65,14 +90,20 @@ export const KINDS = {
     call: 'baa',
   },
   pig: {
-    body: p => p.box(1.15, 0.62, 0.62, '#e9aaa0', { y: 0.66 }).box(0.08, 0.14, 0.08, '#e9aaa0', { x: -0.6, y: 0.86 }),
-    head: p =>
-      p
-        .box(0.4, 0.42, 0.48, '#e9aaa0', { x: 0.14 })
-        .box(0.12, 0.22, 0.26, '#d98f86', { x: 0.39, y: -0.06 })
-        .box(0.06, 0.18, 0.14, '#e29a90', { x: 0.1, y: 0.28, z: 0.16, rx: 0.4 })
-        .box(0.06, 0.18, 0.14, '#e29a90', { x: 0.1, y: 0.28, z: -0.16, rx: -0.4 }),
-    leg: p => p.box(0.14, 0.36, 0.14, '#e29a90', { y: -0.18 }),
+    body: p => {
+      lump(p, PIG, [0, 0.68, 0], [0.62, 0.33, 0.32]);
+      lump(p, PIG, [0.32, 0.66, 0], [0.32, 0.31, 0.3]);
+      lump(p, PIG, [-0.3, 0.7, 0], [0.33, 0.32, 0.31]);
+      return tube(p, PIG, [-0.6, 0.8, 0], [-0.68, 0.9, 0], 0.03, 0.02); // tail
+    },
+    head: p => {
+      lump(p, PIG, [0.12, 0, 0], [0.24, 0.22, 0.25]);
+      tube(p, PIG, [0.2, -0.04, 0], [0.42, -0.06, 0], 0.14, 0.12);
+      lump(p, '#d98f86', [0.43, -0.06, 0], [0.04, 0.1, 0.12]); // snout
+      eyes(p, 0.26, 0.08, 0.14, 0.03);
+      return pair(p, side => cone(p, '#e29a90', [0.1, 0.18, side * 0.12], [0.26, 0.3, side * 0.2], 0.08, 0.4)); // ears
+    },
+    leg: p => leg(p, '#e29a90', { length: 0.38, top: 0.07, bottom: 0.05, foot: '#b57f74' }),
     hip: 0.38,
     feet: [0.38, 0.2],
     neck: [0.56, 0.68],
@@ -84,13 +115,9 @@ export const KINDS = {
     call: 'oink',
   },
   sheep: {
-    body: p => p.add(new THREE.IcosahedronGeometry(0.8, 1), CREAM, { y: 0.95, sx: 1.3, sy: 0.8, sz: 0.85 }),
-    head: p =>
-      p
-        .box(0.5, 0.38, 0.36, DARK, { x: 0.18 })
-        .box(0.24, 0.08, 0.14, DARK, { x: 0.02, y: 0.12, z: 0.24 })
-        .box(0.24, 0.08, 0.14, DARK, { x: 0.02, y: 0.12, z: -0.24 }),
-    leg: p => p.box(0.13, 0.62, 0.13, DARK, { y: -0.31 }),
+    body: p => fleece(p, 0.95, 1.05),
+    head: p => sheepFace(p, 1, DARK),
+    leg: p => leg(p, DARK, { length: 0.62, top: 0.065, bottom: 0.04 }),
     hip: 0.62,
     feet: [0.55, 0.28],
     neck: [0.9, 1.05],
@@ -102,20 +129,31 @@ export const KINDS = {
     call: 'baa',
   },
   moose: {
-    body: p => p.box(2.3, 1.1, 0.85, '#4a3829', { y: 1.95 }).box(0.9, 0.35, 0.7, '#4a3829', { x: 0.6, y: 2.6 }),
-    head: p => {
-      p.box(0.6, 0.6, 0.5, '#4a3829', { x: 0.2, y: 0.05, rz: -0.3 })
-        .box(0.95, 0.45, 0.38, '#4a3829', { x: 0.72, y: -0.15, rz: -0.35 })
-        .box(0.32, 0.32, 0.36, '#3d2e22', { x: 1.15, y: -0.38 })
-        .box(0.12, 0.4, 0.1, '#3d2e22', { x: 0.6, y: -0.5 });
-      // Broad, flat antlers with points along their edges.
-      for (const side of [-1, 1]) {
-        p.box(0.7, 0.08, 0.5, '#cdbb98', { x: 0.3, y: 0.42, z: side * 0.55, rx: side * 0.35 });
-        for (let k = 0; k < 3; k++) p.box(0.08, 0.22, 0.08, '#cdbb98', { x: 0.1 + k * 0.22, y: 0.55, z: side * 0.8 });
-      }
-      return p;
+    body: p => {
+      lump(p, MOOSE, [0, 1.95, 0], [1.1, 0.52, 0.42]);
+      lump(p, MOOSE, [0.6, 2.15, 0], [0.55, 0.55, 0.42]); // the hump over the shoulders
+      lump(p, MOOSE, [-0.7, 1.98, 0], [0.45, 0.48, 0.4]);
+      return lump(p, MOOSE, [-1.1, 2.1, 0], [0.08, 0.1, 0.07]); // stub of a tail
     },
-    leg: p => p.box(0.2, 1.5, 0.2, '#b8a68a', { y: -0.75 }),
+    head: p => {
+      tube(p, MOOSE, [-0.05, 0, 0], [0.4, 0.05, 0], 0.32, 0.26); // neck
+      lump(p, MOOSE, [0.42, 0, 0], [0.26, 0.24, 0.22], { tilt: -0.35 });
+      tube(p, MOOSE, [0.5, -0.05, 0], [1.05, -0.4, 0], 0.2, 0.17); // long face
+      lump(p, '#3d2e22', [1.1, -0.42, 0], [0.18, 0.16, 0.17]); // big soft muzzle
+      tube(p, '#3d2e22', [0.55, -0.2, 0], [0.6, -0.6, 0], 0.08, 0.04); // bell
+      eyes(p, 0.6, 0.06, 0.18);
+      pair(p, side => cone(p, MOOSE, [0.3, 0.2, side * 0.15], [0.2, 0.38, side * 0.35], 0.08, 0.5)); // ears
+      // Broad, flat antlers with points along their edges.
+      return pair(p, side => {
+        tube(p, ANTLER, [0.3, 0.2, side * 0.16], [0.32, 0.42, side * 0.42], 0.06, 0.05, 5);
+        lump(p, ANTLER, [0.32, 0.46, side * 0.64], [0.38, 0.06, 0.3], { roll: -side * 0.35 });
+        for (let k = 0; k < 4; k++) {
+          const x = 0.05 + k * 0.18;
+          cone(p, ANTLER, [x, 0.54, side * 0.86], [x, 0.76, side * 0.94], 0.04, 1, 5);
+        }
+      });
+    },
+    leg: p => leg(p, '#b8a68a', { length: 1.5, top: 0.12, bottom: 0.065, foot: '#3d2e22' }),
     hip: 1.5,
     feet: [0.8, 0.28],
     neck: [1.1, 2.3],
@@ -127,14 +165,21 @@ export const KINDS = {
     call: 'moo',
   },
   boar: {
-    body: p => p.box(1.25, 0.7, 0.55, '#4b3b2e', { y: 0.8 }).box(1, 0.18, 0.2, '#2f251d', { x: 0.1, y: 1.2 }),
-    head: p =>
-      p
-        .box(0.55, 0.45, 0.42, '#4b3b2e', { x: 0.2, y: -0.05, rz: -0.25 })
-        .box(0.14, 0.2, 0.22, '#2f251d', { x: 0.5, y: -0.2 })
-        .box(0.04, 0.14, 0.04, CREAM, { x: 0.45, y: -0.16, z: 0.13 })
-        .box(0.04, 0.14, 0.04, CREAM, { x: 0.45, y: -0.16, z: -0.13 }),
-    leg: p => p.box(0.13, 0.48, 0.13, '#2f251d', { y: -0.24 }),
+    body: p => {
+      lump(p, BOAR, [0, 0.82, 0], [0.62, 0.36, 0.28]);
+      lump(p, BOAR, [0.32, 0.88, 0], [0.34, 0.4, 0.29]); // deep in the chest
+      lump(p, '#2f251d', [0.1, 1.12, 0], [0.5, 0.1, 0.1]); // bristles along the back
+      return tube(p, BOAR, [-0.6, 0.9, 0], [-0.7, 0.68, 0], 0.03, 0.02); // tail
+    },
+    head: p => {
+      lump(p, BOAR, [0.12, -0.02, 0], [0.24, 0.22, 0.2], { tilt: -0.25 });
+      tube(p, BOAR, [0.18, -0.06, 0], [0.5, -0.2, 0], 0.15, 0.09); // long snout
+      lump(p, '#2f251d', [0.51, -0.2, 0], [0.04, 0.08, 0.09]);
+      eyes(p, 0.24, 0.06, 0.15, 0.03);
+      pair(p, side => cone(p, CREAM, [0.42, -0.2, side * 0.08], [0.44, -0.08, side * 0.13], 0.025)); // tusks
+      return pair(p, side => cone(p, '#2f251d', [0.04, 0.16, side * 0.11], [-0.02, 0.32, side * 0.16], 0.06, 0.5));
+    },
+    leg: p => leg(p, '#2f251d', { length: 0.48, top: 0.08, bottom: 0.045 }),
     hip: 0.48,
     feet: [0.42, 0.17],
     neck: [0.6, 0.85],
@@ -146,20 +191,31 @@ export const KINDS = {
     call: 'oink',
   },
   deer: {
-    body: p => p.box(1.9, 0.8, 0.6, '#8a5a3a', { y: 1.45 }).box(0.3, 0.5, 0.62, '#d8c3a0', { x: -0.85, y: 1.45 }),
-    head: p => {
-      p.box(0.4, 0.8, 0.38, '#8a5a3a', { x: 0.12, y: 0.25, rz: -0.35 })
-        .box(0.6, 0.3, 0.3, '#8a5a3a', { x: 0.42, y: 0.62, rz: 0.3 })
-        .box(0.12, 0.12, 0.32, DARK, { x: 0.72, y: 0.52 });
-      // Antlers: a beam up, back and out on each side, with tines off it.
-      for (const side of [-1, 1]) {
-        p.box(0.07, 0.95, 0.07, '#d9c9a6', { x: 0.2, y: 1.2, z: side * 0.2, rz: 0.3, rx: side * 0.35 });
-        p.box(0.06, 0.4, 0.06, '#d9c9a6', { x: 0.3, y: 1.05, z: side * 0.3, rz: -0.6 });
-        p.box(0.06, 0.35, 0.06, '#d9c9a6', { x: 0.12, y: 1.5, z: side * 0.36, rz: -0.4 });
-      }
-      return p;
+    body: p => {
+      // Paler underneath.
+      const coat = (x, y) => (y < 1.2 ? '#c9a67e' : RED);
+      lump(p, coat, [0, 1.45, 0], [0.92, 0.38, 0.29]);
+      lump(p, coat, [0.55, 1.45, 0], [0.4, 0.4, 0.29]);
+      lump(p, coat, [-0.55, 1.5, 0], [0.4, 0.37, 0.29]);
+      return lump(p, '#d8c3a0', [-0.9, 1.52, 0], [0.1, 0.24, 0.24]); // pale rump
     },
-    leg: p => p.box(0.15, 1.1, 0.15, '#7a4e32', { y: -0.55 }),
+    head: p => {
+      tube(p, RED, [-0.05, -0.15, 0], [0.24, 0.6, 0], 0.24, 0.15); // neck
+      lump(p, RED, [0.3, 0.66, 0], [0.22, 0.17, 0.15], { tilt: -0.15 });
+      tube(p, RED, [0.38, 0.63, 0], [0.7, 0.55, 0], 0.12, 0.075);
+      lump(p, DARK, [0.71, 0.55, 0], [0.05, 0.065, 0.07]);
+      eyes(p, 0.42, 0.7, 0.13);
+      pair(p, side => cone(p, RED, [0.22, 0.76, side * 0.09], [0.12, 0.96, side * 0.28], 0.08, 0.45));
+      // Antlers: a beam up, back and out on each side, with tines off it.
+      return pair(p, side => {
+        const bend = [0.12, 1.3, side * 0.32];
+        tube(p, ANTLER, [0.24, 0.78, side * 0.08], bend, 0.04, 0.035, 5);
+        tube(p, ANTLER, bend, [0.02, 1.72, side * 0.4], 0.035, 0.022, 5);
+        cone(p, ANTLER, [0.21, 0.95, side * 0.14], [0.45, 1.1, side * 0.2], 0.025, 1, 5);
+        cone(p, ANTLER, [0.1, 1.4, side * 0.34], [0.3, 1.6, side * 0.42], 0.022, 1, 5);
+      });
+    },
+    leg: p => leg(p, '#7a4e32', { length: 1.12, top: 0.09, bottom: 0.045, foot: DARK }),
     hip: 1.12,
     feet: [0.68, 0.2],
     neck: [0.85, 1.75],
@@ -170,15 +226,23 @@ export const KINDS = {
     frisky: 0.1,
   },
   mouflon: {
-    body: p => p.box(1.05, 0.55, 0.45, '#8b5a36', { y: 0.88 }).box(0.4, 0.3, 0.47, '#d8c7a6', { x: -0.05, y: 0.92 }),
-    head: p => {
-      p.box(0.42, 0.28, 0.26, '#8b5a36', { x: 0.16, y: 0.08 }).box(0.14, 0.14, 0.2, '#e8dfcc', { x: 0.36, y: 0.02 });
-      // Horns curling round in a ring beside each ear.
-      for (const side of [-1, 1])
-        p.add(new THREE.TorusGeometry(0.17, 0.05, 4, 8), '#a08e6e', { x: 0, y: 0.18, z: side * 0.17 });
-      return p;
+    body: p => {
+      // A pale belly and a pale saddle on the flanks.
+      const coat = (x, y) => (y < 0.74 ? '#e8dfcc' : Math.abs(x + 0.05) < 0.2 && y < 0.98 ? '#d8c7a6' : MOUFLON);
+      lump(p, coat, [0, 0.9, 0], [0.52, 0.27, 0.22]);
+      lump(p, coat, [0.3, 0.9, 0], [0.24, 0.28, 0.22]);
+      lump(p, coat, [-0.3, 0.92, 0], [0.24, 0.26, 0.22]);
+      return tube(p, MOUFLON, [0.32, 0.98, 0], [0.52, 1.1, 0], 0.14, 0.11); // neck
     },
-    leg: p => p.box(0.1, 0.62, 0.1, '#e8dfcc', { y: -0.31 }),
+    head: p => {
+      lump(p, MOUFLON, [0.12, 0.06, 0], [0.17, 0.14, 0.13]);
+      tube(p, '#e8dfcc', [0.18, 0.04, 0], [0.38, 0, 0], 0.09, 0.065); // muzzle
+      eyes(p, 0.2, 0.12, 0.11, 0.03);
+      pair(p, side => cone(p, MOUFLON, [0.02, 0.14, side * 0.1], [-0.04, 0.12, side * 0.28], 0.05, 0.5)); // ears
+      // Horns curling round in a ring beside each ear.
+      return pair(p, side => p.add(new THREE.TorusGeometry(0.16, 0.05, 5, 10), '#a08e6e', { y: 0.18, z: side * 0.18 }));
+    },
+    leg: p => leg(p, '#e8dfcc', { length: 0.62, top: 0.06, bottom: 0.035, foot: DARK }),
     hip: 0.62,
     feet: [0.36, 0.14],
     neck: [0.5, 1.05],
@@ -190,26 +254,31 @@ export const KINDS = {
     call: 'baa',
   },
   camel: {
-    // A dromedary: one hump, a long neck reaching forward and up, and long legs on broad pads.
-    body: p =>
-      p
-        .box(1.8, 0.75, 0.7, '#c8a06a', { y: 1.75 })
-        .box(0.55, 0.62, 0.64, '#c8a06a', { x: 0.72, y: 1.66 })
-        .add(new THREE.SphereGeometry(0.5, 10, 7), '#c29a63', { x: -0.1, y: 2.16, sx: 1.2, sy: 1, sz: 0.82 })
-        .box(0.08, 0.6, 0.08, '#c8a06a', { x: -0.93, y: 1.55, rz: -0.2 })
-        .box(0.12, 0.22, 0.1, '#6f5439', { x: -0.99, y: 1.2, rz: -0.2 }),
-    head: p =>
-      p
-        .box(0.34, 1.25, 0.3, '#c8a06a', { x: 0.36, y: 0.38, rz: -0.75 })
-        .box(0.64, 0.3, 0.3, '#c8a06a', { x: 0.94, y: 0.9, rz: 0.15 })
-        .box(0.2, 0.22, 0.26, '#a8845a', { x: 1.22, y: 0.82, rz: 0.15 })
-        .box(0.08, 0.14, 0.06, '#a8845a', { x: 0.74, y: 1.1, z: 0.1 })
-        .box(0.08, 0.14, 0.06, '#a8845a', { x: 0.74, y: 1.1, z: -0.1 }),
+    // A dromedary: one hump, a long neck dipping forward and curving up, and long legs on broad pads.
+    body: p => {
+      lump(p, CAMEL, [0, 1.75, 0], [0.92, 0.38, 0.35]);
+      lump(p, CAMEL, [0.62, 1.68, 0], [0.38, 0.36, 0.33]);
+      lump(p, '#c29a63', [-0.1, 2.12, 0], [0.6, 0.48, 0.38]); // the hump
+      tube(p, CAMEL, [-0.88, 1.85, 0], [-0.98, 1.3, 0], 0.04, 0.03); // tail
+      return lump(p, '#6f5439', [-0.99, 1.25, 0], [0.05, 0.1, 0.05]);
+    },
+    head: p => {
+      tube(p, CAMEL, [-0.05, -0.05, 0], [0.55, 0.1, 0], 0.22, 0.15);
+      lump(p, CAMEL, [0.55, 0.1, 0], 0.15);
+      tube(p, CAMEL, [0.55, 0.1, 0], [0.8, 0.84, 0], 0.15, 0.12);
+      lump(p, CAMEL, [0.86, 0.9, 0], [0.2, 0.15, 0.14], { tilt: 0.1 });
+      tube(p, CAMEL, [0.95, 0.89, 0], [1.25, 0.82, 0], 0.12, 0.1);
+      lump(p, '#a8845a', [1.26, 0.81, 0], [0.07, 0.1, 0.11]);
+      eyes(p, 0.93, 0.98, 0.12);
+      return pair(p, side => cone(p, '#a8845a', [0.76, 1.0, side * 0.08], [0.7, 1.14, side * 0.12], 0.04));
+    },
     leg: p =>
-      p
-        .box(0.17, 1.36, 0.17, '#bf9762', { y: -0.68 })
-        .box(0.22, 0.17, 0.22, '#b38a58', { y: -0.74 })
-        .box(0.26, 0.1, 0.26, '#6f5439', { y: -1.37 }),
+      lump(
+        leg(p, '#bf9762', { length: 1.42, top: 0.1, bottom: 0.055, foot: '#6f5439', hoof: 0.06, knee: 0.04 }),
+        '#6f5439',
+        [0, -1.38, 0],
+        [0.13, 0.05, 0.13],
+      ),
     hip: 1.42,
     feet: [0.62, 0.22],
     neck: [0.86, 1.95],
@@ -229,7 +298,7 @@ function herdMeshes(scene, kind, herd) {
     herd.radius * 1.5 + 6,
   );
   const mesh = (build, n) => {
-    const instanced = new THREE.InstancedMesh(build(new PartsBuilder()).geometry(), vertexColorMaterial, n);
+    const instanced = new THREE.InstancedMesh(build(new PartsBuilder()).geometry(), furMaterial, n);
     instanced.castShadow = true;
     instanced.boundingSphere = patch;
     scene.add(instanced);

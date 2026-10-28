@@ -6,10 +6,12 @@ import { angleDelta, createRandom } from '../core/math.js';
 import { WOLF_ROUTE } from './layout.js';
 import { terrainHeight } from './terrain.js';
 import { PartsBuilder, limb } from './build.js';
+import { cone, eyes, furMaterial, leg, lump, pair, tube } from './creatures.js';
 
 const FUR = '#7d7f7a';
 const PALE = '#d9d6cc';
 const DARK = '#2f332f';
+const GREY = '#6c6e69';
 const TROT = 2.2;
 const SPACING = 3.4;
 const HOWL = 3.4;
@@ -19,29 +21,35 @@ export function wolf(scale) {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
-  body.add(
-    new PartsBuilder()
-      .box(1.45, 0.6, 0.55, FUR, { y: 1.02 })
-      .box(0.55, 0.5, 0.6, PALE, { x: 0.55, y: 0.92 }) // chest
-      .box(0.5, 0.42, 0.62, '#6c6e69', { x: 0.45, y: 1.32 }) // ruff
-      .box(0.9, 0.26, 0.26, FUR, { x: -0.98, y: 0.86, rz: 0.7 }) // tail, hanging low
-      .box(0.24, 0.24, 0.27, DARK, { x: -1.3, y: 0.55, rz: 0.7 })
-      .mesh({ receiveShadow: false }),
+  const p = new PartsBuilder();
+  lump(p, FUR, [0, 1.02, 0], [0.72, 0.29, 0.27]);
+  lump(p, PALE, [0.5, 0.95, 0], [0.32, 0.3, 0.27]); // chest
+  lump(p, GREY, [0.42, 1.26, 0], [0.34, 0.24, 0.3]); // ruff
+  tube(p, FUR, [-0.66, 1.1, 0], [-1.02, 0.74, 0], 0.11, 0.13); // tail, hanging low
+  tube(p, FUR, [-1.02, 0.74, 0], [-1.2, 0.5, 0], 0.13, 0.08);
+  lump(p, DARK, [-1.22, 0.48, 0], [0.08, 0.1, 0.08]);
+  body.add(p.mesh({ material: furMaterial, receiveShadow: false }));
+  const head = limb(
+    body,
+    0.78,
+    1.32,
+    0,
+    q => {
+      lump(q, FUR, [0.12, 0.06, 0], [0.24, 0.21, 0.21]);
+      tube(q, PALE, [0.24, 0, 0], [0.6, -0.04, 0], 0.12, 0.08); // muzzle
+      lump(q, DARK, [0.61, -0.03, 0], 0.05); // nose
+      eyes(q, 0.3, 0.14, 0.12, 0.035, '#b8913f');
+      return pair(q, side => cone(q, FUR, [0.04, 0.22, side * 0.1], [0, 0.46, side * 0.14], 0.08, 0.5)); // ears
+    },
+    furMaterial,
   );
-  const head = limb(body, 0.78, 1.32, 0, p => {
-    p.box(0.46, 0.42, 0.42, FUR, { x: 0.12, y: 0.06 });
-    p.box(0.34, 0.2, 0.24, PALE, { x: 0.46, y: -0.04 }); // muzzle
-    p.box(0.07, 0.07, 0.1, DARK, { x: 0.64, y: 0.02 });
-    for (const z of [-0.13, 0.13]) {
-      p.box(0.1, 0.24, 0.12, FUR, { x: 0.02, y: 0.36, z });
-      p.box(0.05, 0.06, 0.05, DARK, { x: 0.33, y: 0.14, z: z * 1.3 });
-    }
-    return p;
-  });
   const legs = [];
   for (const x of [-0.5, 0.48]) {
-    for (const z of [-0.17, 0.17])
-      legs.push(limb(body, x, 0.78, z, p => p.box(0.14, 0.8, 0.14, '#6c6e69', { y: -0.38 })));
+    for (const z of [-0.17, 0.17]) {
+      legs.push(
+        limb(body, x, 0.78, z, q => leg(q, GREY, { length: 0.78, top: 0.08, bottom: 0.045, foot: DARK }), furMaterial),
+      );
+    }
   }
   root.scale.setScalar(scale);
   root.traverse(child => {
