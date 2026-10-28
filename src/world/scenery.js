@@ -71,6 +71,7 @@ import {
   rockiness,
   lakeDistance,
   desertness,
+  winterness,
 } from './layout.js';
 import {
   terrainHeight,
@@ -80,6 +81,7 @@ import {
   creekLevel,
   riverLevel,
   snowCover,
+  highSnow,
   waterLevel,
   POOL,
   FORDS,
@@ -94,6 +96,7 @@ import { PAD_RADIUS } from './landmarks/helipad.js';
 import { boulderGeometry, rockMaterial } from './rocks.js';
 import { createScatter } from './scatter.js';
 import { buildDesertScenery, desertGround, desertTakes } from './sand.js';
+import { WINTER_TINTS, winterGround } from './snow.js';
 
 const random = createRandom(82741);
 
@@ -135,7 +138,7 @@ function groundColor(x, z, h, up, out) {
   // High up, the grass gives way to stony ground and then snow, which doesn't settle on cliffs.
   out.lerp(GROUND.alpine, smoothstep(h, 86, 108) * 0.75);
   grass *= 1 - smoothstep(h, 84, 100);
-  if (h > 90) out.lerp(GROUND.snow, snowCover(x, z, h) * smoothstep(up, 0.6, 0.78));
+  if (h > 90) out.lerp(GROUND.snow, highSnow(x, z, h) * smoothstep(up, 0.6, 0.78));
   // Along the water: sand, gravel and stones, then nothing under the water itself.
   const shore = amount => {
     out.lerp(GROUND.bank, amount);
@@ -179,6 +182,8 @@ function groundColor(x, z, h, up, out) {
   random();
   desertGround(x, z, up, out);
   if (grass > 0) grass *= 1 - smoothstep(desertness(x, z), 0.05, 0.45);
+  const winter = winterness(x, z);
+  if (winter > 0) grass = winterGround(x, z, up, winter, out, grass);
   out.multiplyScalar(0.96 + random() * 0.08);
   return grass;
 }
@@ -191,6 +196,8 @@ function groundNormal(x, z) {
 }
 
 const PACKED_SNOW = new THREE.Color('#e3e8e4');
+/** Roads and tracks in the winter, trodden and bluer than the drifts either side. */
+const PACKED_WINTER = new THREE.Color('#cdd9f0');
 
 /**
  * A strip draped over the ground along a path, optionally offset sideways or
@@ -237,7 +244,7 @@ export function ribbonGeometry(
       const snow = snowCover(x, z);
       positions.set([x, terrainHeight(x, z) + lift, z], v);
       normals.set(groundNormal(x, z), v);
-      tint.copy(base).lerp(PACKED_SNOW, snow).toArray(colors, v);
+      tint.copy(base).lerp(PACKED_SNOW, snow).lerp(PACKED_WINTER, winterness(x, z)).toArray(colors, v);
     }
   });
   const indices = [];
@@ -722,13 +729,17 @@ const TINTS = {
   bush: [0.09, 0.45, 0.33, 0.04, 0.1, 0.06],
 };
 
-function tint(name) {
+/**
+ * A tint for the leaves. In the winter (`winter` from 0 to 1) it turns to the `snowy` one, which
+ * is worked out from the same random numbers, so the winter doesn't move anything else.
+ */
+function tint(name, winter = 0, snowy = name) {
   const [h, s, l, dh, ds, dl] = TINTS[name];
-  return new THREE.Color().setHSL(
-    h + (random() - 0.5) * 2 * dh,
-    s + (random() - 0.5) * 2 * ds,
-    l + (random() - 0.5) * 2 * dl,
-  );
+  const [a, b, c] = [random() - 0.5, random() - 0.5, random() - 0.5];
+  const color = new THREE.Color().setHSL(h + a * 2 * dh, s + b * 2 * ds, l + c * 2 * dl);
+  if (winter <= 0) return color;
+  const [wh, ws, wl, wdh, wds, wdl] = WINTER_TINTS[snowy];
+  return color.lerp(new THREE.Color().setHSL(wh + a * 2 * wdh, ws + b * 2 * wds, wl + c * 2 * wdl), winter);
 }
 
 /** What colour a broadleaved tree has turned. */
@@ -773,12 +784,26 @@ function buildTrees(scatter, obstacles) {
   // Lone trees on top of the open knolls.
   for (const knoll of KNOLLS.slice(1)) rounds.push({ x: knoll.x, z: knoll.z, scale: 1.7, rotation: knoll.x });
 
+  // In the winter the woods are birch woods, with firs among them: the broadleaved trees and
+  // about half the pines are swapped for birches, tree for tree, so there are no more or fewer.
+  const wintry = tree => winterness(tree.x, tree.z) > 0.5;
+  const birchOf = tree => ({ ...tree, scale: 0.8 + (tree.scale - 0.65) * 0.5 });
+  // The lists themselves are left as they are, as the stumps and logs below are drawn from them.
+  const swapped = new Set();
+  for (const tree of rounds) if (wintry(tree)) swapped.add(tree);
+  for (const tree of pines) {
+    const pick = Math.abs(Math.sin(tree.x * 12.9898 + tree.z * 78.233) * 43758.5453) % 1;
+    if (wintry(tree) && pick < 0.8) swapped.add(tree);
+  }
+  const standing = list => list.filter(tree => !swapped.has(tree));
+  const turnedBirches = [...swapped].map(birchOf);
+
   const tinted =
-    (name, sink = 0.2) =>
-    tree => ({
-      matrix: placed(tree, sink),
-      color: tint(typeof name === 'function' ? name(tree) : name),
-    });
+    (name, snowy, sink = 0.2) =>
+    tree => {
+      const picked = typeof name === 'function' ? name(tree) : name;
+      return { matrix: placed(tree, sink), color: tint(picked, winterness(tree.x, tree.z), snowy) };
+    };
   // Larches grow among the spruces on the lower slopes.
   const conifer = tree =>
     random() < 0.38 * (1 - smoothstep(terrainHeight(tree.x, tree.z), 60, 90)) ? 'larch' : 'spruce';
@@ -791,22 +816,28 @@ function buildTrees(scatter, obstacles) {
     near: PINE_DETAIL,
     cell: FAR_CELL,
     material: trees,
-    items: pines.map(tinted(conifer)),
+    items: standing(pines).map(tinted(conifer, 'fir')),
   });
-  scatter.add({ geometry: round, far: round, cell: FAR_CELL, material: trees, items: rounds.map(tinted(turned)) });
+  scatter.add({
+    geometry: round,
+    far: round,
+    cell: FAR_CELL,
+    material: trees,
+    items: standing(rounds).map(tinted(turned, 'birch')),
+  });
   scatter.add({
     geometry: birch,
     far: birch,
     cell: FAR_CELL,
     material: trees,
-    items: birches.map(tinted(() => (random() < 0.75 ? 'yellow' : 'birch'))),
+    items: [...birches, ...turnedBirches].map(tinted(() => (random() < 0.75 ? 'yellow' : 'birch'), 'birch')),
   });
   scatter.add({
     geometry: bushGeometry(),
     near: UNDERGROWTH_RANGE,
     shadows: false,
     material: trees,
-    items: bushes.map(tinted('bush', 0.1)),
+    items: bushes.map(tinted('bush', 'grass', 0.1)),
   });
   for (const tree of [...pines, ...rounds, ...birches]) {
     if (Math.hypot(tree.x, tree.z) < VALLEY_RADIUS + 5)
@@ -969,6 +1000,8 @@ function buildRocks(scatter, obstacles) {
   }
 
   const items = [];
+  // The rocks in the winter have snow lying on their tops: they are drawn with shapes of their own.
+  const snowItems = [];
   lists.forEach((list, shape) => {
     for (const rock of list) {
       const item = {
@@ -980,7 +1013,8 @@ function buildRocks(scatter, obstacles) {
         sx: 1.25,
         sy: rock.tall ?? 1,
       };
-      items.push({ matrix: placed(item, 0.18), color: new THREE.Color().setScalar(0.92 + random() * 0.14), shape });
+      const color = new THREE.Color().setScalar(0.92 + random() * 0.14);
+      (winterness(rock.x, rock.z) > 0.5 ? snowItems : items).push({ matrix: placed(item, 0.18), color, shape });
     }
     for (const rock of list) {
       if (rock.size > 0.9) obstacles.push({ x: rock.x, z: rock.z, radius: rock.size * 1.05 });
@@ -994,6 +1028,14 @@ function buildRocks(scatter, obstacles) {
     cell: FAR_CELL,
     material: rockMaterial,
     items,
+  });
+  scatter.add({
+    geometry: [0, 1, 2, 3, 4].map(seed => boulderGeometry(seed, { detail: 2, snow: 1 })),
+    far: boulderGeometry(5, { detail: 0, snow: 1 }),
+    near: ROCK_DETAIL,
+    cell: FAR_CELL,
+    material: rockMaterial,
+    items: snowItems,
   });
 }
 
@@ -1054,7 +1096,9 @@ function buildGroundCover(scatter) {
     return { matrix: dummy.matrix.clone(), color: new THREE.Color(flower.color) };
   });
   const grass = foliageMaterial('grass', DETAIL_RANGE);
-  scatter.add({ geometry: flowerGeometry(), near: DETAIL_RANGE, shadows: false, material: grass, items: flowerItems });
+  // None come up through the snow.
+  const flowering = flowerItems.filter(({ matrix }) => winterness(matrix.elements[12], matrix.elements[14]) < 0.2);
+  scatter.add({ geometry: flowerGeometry(), near: DETAIL_RANGE, shadows: false, material: grass, items: flowering });
 
   // The grass covers the meadows now (see grass.js), so the tufts that once dotted them aren't
   // drawn. Their random numbers are still drawn, so nothing placed after them moves.
@@ -1079,7 +1123,7 @@ function isLongGrassGround(x, z) {
   if (lakeDistance(x, z) < 2.4 || CREEK.isNear(x, z, 6)) return false;
   if (BROOK.isNear(x, z, 3.2) || nearRiver(x, z, 7) || inFjord(x, z, 3) || OXBOW.path.isNear(x, z, 11)) return false;
   const h = placementHeight(x, z);
-  return h < 92 && snowCover(x, z, h) < 0.2 && steepness(x, z) < 0.5;
+  return h < 92 && highSnow(x, z, h) < 0.2 && steepness(x, z) < 0.5;
 }
 
 /** The square the grass mask covers, a metre to a texel: everywhere inside the fence. */
@@ -1219,14 +1263,19 @@ function buildLongGrass(scatter) {
     dummy.updateMatrix();
     // Most clumps have gone over to seed, golden, among a few still olive green.
     const golden = grassRandom() < 0.6 + hue;
-    items.push({
-      matrix: dummy.matrix.clone(),
-      color: new THREE.Color().setHSL(
-        golden ? 0.09 + grassRandom() * 0.03 : 0.17 - hue * 0.05 + grassRandom() * 0.03,
-        golden ? 0.55 : 0.36 + grassRandom() * 0.1,
-        golden ? 0.44 + grassRandom() * 0.08 : 0.3 + grassRandom() * 0.08,
-      ),
-    });
+    const color = new THREE.Color().setHSL(
+      golden ? 0.09 + grassRandom() * 0.03 : 0.17 - hue * 0.05 + grassRandom() * 0.03,
+      golden ? 0.55 : 0.36 + grassRandom() * 0.1,
+      golden ? 0.44 + grassRandom() * 0.08 : 0.3 + grassRandom() * 0.08,
+    );
+    // In the winter the clumps are frosted pale blue.
+    const winter = winterness(x, z);
+    if (winter > 0) {
+      const [h, s, l, dh, ds, dl] = WINTER_TINTS.grass;
+      const spread = (hue - 0.2) * 5;
+      color.lerp(new THREE.Color().setHSL(h + spread * dh, s + spread * ds, l + spread * dl), winter);
+    }
+    items.push({ matrix: dummy.matrix.clone(), color });
   };
   // Patches of it, a few metres to ten across, in some meadows and along the edges of the woods:
   // a try for every 35 square metres inside the fence, and no more than a patch for every 1580.

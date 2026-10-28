@@ -32,6 +32,7 @@ const {
   VALLEY_RADIUS,
   WATERFALL,
   desertness,
+  winterness,
   lakeDistance,
   rockiness,
 } = layout;
@@ -394,6 +395,7 @@ const TINT = {
   stone: rgb('#cdc3ab'),
   alpine: rgb('#c9c6b6'),
   snow: rgb('#f7f8f3'),
+  winter: rgb('#e4edf9'),
   sand: rgb('#e8dcb2'),
   desert: rgb('#eed9a8'),
   paper: rgb(PAPER),
@@ -452,6 +454,7 @@ function groundTint(x, z, h, slope, c) {
   if (h > 90) mix(c, TINT.snow, snowCover(x, z, h) * (1 - smoothstep(slope, 0.85, 1.3)));
   if (rocky > 0) mix(c, TINT.stone, rocky * 0.85);
   if (sand > 0) mix(c, TINT.desert, smoothstep(sand, 0.25, 0.75));
+  mix(c, TINT.winter, winterness(x, z) * 0.9);
   if (lakeDistance(x, z) < 2.2) mix(c, TINT.sand, 1 - smoothstep(h, LAKE.level + 0.35, LAKE.level + 1.2));
   const crop = r < 400 ? cropAt(x, z) : null;
   if (crop) mix(c, crop, 0.9);

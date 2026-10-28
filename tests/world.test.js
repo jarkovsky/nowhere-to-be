@@ -16,6 +16,8 @@ import {
   VALLEY_RADIUS,
   UPLANDS_RADIUS,
   SUMMIT,
+  polar,
+  winterness,
   FIELDS,
   RING_ROAD,
   LINKS,
@@ -240,6 +242,28 @@ test('snow lies on the summit and the high peaks, but never in the valley', () =
       if (Math.hypot(x, z) < UPLANDS_RADIUS - 40) assert.equal(snowCover(x, z), 0, `snow at ${x}, ${z}`);
     }
   }
+});
+
+test('the winter lies in the north-east, with a gradual edge, and snow lies all over it', () => {
+  const [x, z] = polar(312, 850);
+  assert.equal(winterness(x, z), 1);
+  assert.equal(snowCover(x, z), 1);
+  for (const [bearing, r] of [
+    [100, 850],
+    [312, 400],
+    [180, 900],
+    [270, 850],
+  ]) {
+    assert.equal(winterness(...polar(bearing, r)), 0, `winter at ${bearing} degrees, ${r} m`);
+  }
+  // Out along a bearing from autumn to winter, in steps of 4 m, it never jumps.
+  let last = 0;
+  for (let r = 600; r <= 800; r += 4) {
+    const w = winterness(...polar(312, r));
+    assert.ok(Math.abs(w - last) < 0.12, `jump of ${w - last} at ${r} m`);
+    last = w;
+  }
+  assert.ok(winterness(...polar(312, 690)) > 0.2 && winterness(...polar(312, 690)) < 0.8);
 });
 
 test('the farmland is gentle enough for fields', () => {

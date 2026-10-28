@@ -125,7 +125,7 @@ const GROUND_DETAIL = /* glsl */ `
     float gullies = texture2D( groundDetail, vec2( ( p.x - p.y ) / 240.0, vGround.y / 900.0 ) ).r;
     shade += far * ( ( blotchFar - 0.5 ) * 0.3 + steep * ( gullies - 0.5 ) * 0.45 );
     // Snow keeps most of its brightness.
-    float snowy = smoothstep( 0.72, 0.88, min( diffuseColor.r, diffuseColor.b ) );
+    float snowy = smoothstep( 0.45, 0.75, min( diffuseColor.r, diffuseColor.b ) );
     diffuseColor.rgb *= 1.0 + shade * ( 1.0 - 0.7 * snowy );
     #ifdef USE_COLOR_ALPHA
       // Under the grass (how grassy it is comes in the alpha) the ground is a little darker, as

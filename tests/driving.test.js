@@ -56,6 +56,18 @@ test('snow and leaves on the trail let the car slide but keep its speed; grass s
   assert.ok(lateral(snowTurn) > lateral(roadTurn), 'more sideways slip on snow');
 });
 
+test("on the winter's deep snow cruise control still holds its speed, and the car grips better than on icy snow", () => {
+  const drift = drive(createCarState(START), { cruise: true }, 8, flatWorld({ surface: 'drift' }));
+  assert.ok(Math.abs(drift.speed - CAR.cruiseSpeed) < 0.3, `speed ${drift.speed}`);
+  const slide = surface => {
+    const world = flatWorld({ surface });
+    const car = drive(createCarState(START), { cruise: true }, 4, world);
+    const turned = drive(car, { cruise: true, left: true }, 0.6, world);
+    return Math.abs(turned.vx * Math.cos(turned.heading) - turned.vz * Math.sin(turned.heading));
+  };
+  assert.ok(slide('drift') < slide('snow'), 'less sideways slip than on icy snow');
+});
+
 test('hills slow the car going up and a parked car stays put', () => {
   const flat = drive(createCarState(START), { forward: true }, 1.5);
   const uphill = drive(createCarState(START), { forward: true }, 1.5, flatWorld({ slope: 0.3 }));

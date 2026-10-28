@@ -153,7 +153,10 @@ const GRASS_VERTEX = /* glsl */ `
   // A little greener or more golden than the ground round it, here and there.
   float hue = fract( seed * 5.31 );
   vec3 tint = hue < 0.3 ? vec3( 0.9, 1.04, 0.84 ) : hue < 0.62 ? vec3( 1.1, 1.0, 0.8 ) : vec3( 1.0 );
-  vGrassColor = ground.rgb * tint;
+  // Where the ground is snow (only the winter's has grass on it) the blades are frosted pale
+  // blue, a little darker than the snow round them so the tufts show.
+  float snowy = smoothstep( 0.3, 0.5, min( ground.r, ground.b ) );
+  vGrassColor = mix( ground.rgb * tint, vec3( 0.27, 0.42, 0.86 ) * ( 0.92 + 0.16 * fract( seed * 3.3 ) ), snowy );
   vGrassTip = along;
 `;
 

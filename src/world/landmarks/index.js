@@ -25,6 +25,7 @@ import { buildVillage } from './village.js';
 import { buildDepot } from './depot.js';
 import { buildDesert } from './desert.js';
 import { buildOrchard } from './orchard.js';
+import { buildSnowman } from './snowman.js';
 import { buildHeaps } from '../heaps.js';
 import { HELIPAD, KRYSTOF } from '../layout.js';
 
@@ -64,6 +65,7 @@ export function buildLandmarks(scene, obstacles) {
   ];
   own('chapel', buildChapel);
   own('orchard', buildOrchard);
+  own('snowman', buildSnowman);
   own('summit', buildSummit);
   const fields = own('fields', buildFields);
   const airfield = own('airfield', buildAirfield);

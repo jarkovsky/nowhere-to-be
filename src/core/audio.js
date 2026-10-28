@@ -16,7 +16,8 @@ export function engineRpm(speed, throttle) {
 
 /**
  * The soft sound under the tyres on each surface: muffled noise, plus bubbles
- * in water and an occasional crunch on leaves and snow.
+ * in water and an occasional crunch on leaves. Snow only hushes: it lies over the whole of the
+ * winter, and a crunch every moment there would never let up.
  */
 const SURFACE_BEDS = {
   water: { cutoff: 700, gain: 0.035, bubbles: 1 },
@@ -387,9 +388,8 @@ export function createAudio() {
         bubble(0.012 + 0.012 * surfacePace);
         nextBubble = now + (0.05 + Math.random() * 0.2) / (profile.bubbles * (0.4 + surfacePace));
       }
-      if ((kind === 'leaves' || kind === 'snow') && now > nextCrackle) {
-        if (kind === 'leaves') burst('highpass', 3200, 0.04, 0.02 * surfacePace);
-        else burst('lowpass', 1100, 0.07, 0.02 * surfacePace);
+      if (kind === 'leaves' && now > nextCrackle) {
+        burst('highpass', 3200, 0.04, 0.02 * surfacePace);
         nextCrackle = now + (0.14 + Math.random() * 0.25) / (0.4 + surfacePace);
       }
     },

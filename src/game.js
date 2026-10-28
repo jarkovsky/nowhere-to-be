@@ -57,6 +57,7 @@ import {
   onDeck,
   onFin,
   snowCover,
+  highSnow,
   terrainHeight,
   wadingDepth,
   waterDepth,
@@ -85,7 +86,7 @@ function surfaceUnder(x, z) {
   if (waterDepth(x, z) > 0.15) return 'water';
   const patch = surfaceAt(x, z);
   if (patch === 'leaves' || patch === 'mud') return patch;
-  if (snowCover(x, z) > 0.5) return 'snow';
+  if (snowCover(x, z) > 0.5) return highSnow(x, z) > 0.5 ? 'snow' : 'drift';
   if (ROAD.isNear(x, z, ROAD_HALF_WIDTH + 0.6) || CAMP_TRAIL.isNear(x, z, 2.6)) return 'road';
   if (onPaved(x, z, ROAD_HALF_WIDTH + 0.6) || onAirfield(x, z)) return 'road';
   if (onDriveway(x, z, 0.4) || onForecourt(x, z)) return 'road';
