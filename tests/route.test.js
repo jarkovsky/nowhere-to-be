@@ -4,7 +4,8 @@ import * as THREE from 'three';
 import { angleDelta, clamp } from '../src/core/math.js';
 import { createObstacleIndex, penetration } from '../src/core/collision.js';
 import { createCarState, stepDriving } from '../src/core/driving.js';
-import { ROAD, CAMP_TRAIL, TRACKS, JETTY, RING_ROAD, ROADWORKS, ORCHARD } from '../src/world/layout.js';
+import { ROAD, CAMP_TRAIL, TRACKS, JETTY, RING_ROAD, ROADWORKS, ORCHARD, ROUGH } from '../src/world/layout.js';
+import { chassisPose } from '../src/core/suspension.js';
 import { localFrame } from '../src/world/build.js';
 import { createPath, headingOf } from '../src/world/path.js';
 import { drivingHeight, isDriveable, waterLevel } from '../src/world/terrain.js';
@@ -23,6 +24,7 @@ import { buildRoadworks } from '../src/world/landmarks/roadworks.js';
 import { buildSummit } from '../src/world/landmarks/summit.js';
 import { buildFields } from '../src/world/landmarks/fields.js';
 import { buildOrchard } from '../src/world/landmarks/orchard.js';
+import { buildLookout } from '../src/world/landmarks/lookout.js';
 import { createSurfaces } from '../src/world/surfaces.js';
 import { LANE } from '../src/vehicles/traffic.js';
 
@@ -44,6 +46,7 @@ for (const build of [
   buildSummit,
   buildFields,
   buildOrchard,
+  buildLookout,
 ]) {
   build(scene, obstacles);
 }
@@ -61,12 +64,17 @@ const world = {
   isDriveable,
 };
 
-/** Steers along a path like a careful driver and reports how far it got. */
-function followPath(path, length) {
+/**
+ * Steers along a path like a careful driver and reports how far it got. A careless one aims
+ * `bias` metres to the side of it, and swings that aim `zigzag` metres either way every 6 seconds.
+ */
+function followPath(path, length, { bias = 0, zigzag = 0 } = {}) {
   const start = path.at(0);
   const car = createCarState({ x: start.x, z: start.z, heading: headingOf(start.dx, start.dz) });
   let progress = 0;
   let lastS = 0;
+  const stats = { roll: 0, pitch: 0, off: 0, slowest: Infinity, stopped: 0 };
+  let still = 0;
   for (let step = 0; step < 60 * 400 && progress < length; step++) {
     const near = path.nearest(car.x, car.z);
     if (near.distance > 6) return { progress, stuck: `left the path at s=${progress.toFixed(0)}` };
@@ -75,11 +83,21 @@ function followPath(path, length) {
     if (path.closed) delta = ((delta + path.length * 1.5) % path.length) - path.length / 2;
     progress += delta;
     lastS = near.s;
-    const ahead = path.at(near.s + 7);
+    const aim = bias + zigzag * Math.sin((step / 60) * ((2 * Math.PI) / 6));
+    const ahead = path.offset(near.s + 7, aim);
     const desired = Math.atan2(-(ahead.x - car.x), -(ahead.z - car.z));
     stepDriving(car, { cruise: true, steer: clamp(angleDelta(car.heading, desired) * 2.5, -1, 1) }, 1 / 60, world);
+    // How far it leans and tips, how far from the path it strays and how slowly it goes, once under way.
+    const pose = chassisPose(car.x, car.z, car.heading, (x, z) => drivingHeight(x, z));
+    stats.roll = Math.max(stats.roll, Math.abs(pose.roll));
+    stats.pitch = Math.max(stats.pitch, Math.abs(pose.pitch));
+    stats.off = Math.max(stats.off, near.distance);
+    if (step > 180) stats.slowest = Math.min(stats.slowest, car.speed);
+    // How long the car stands still at a stretch.
+    still = step > 180 && Math.abs(car.speed) < 0.3 ? still + 1 : 0;
+    stats.stopped = Math.max(stats.stopped, still / 60);
   }
-  return { progress };
+  return { progress, ...stats };
 }
 
 test('nothing blocks the trail all the way round the loop', () => {
@@ -134,6 +152,53 @@ test('every lane of the orchard can be driven up and down, and along the headlan
       result.progress >= path.length - 4,
       `only reached ${result.progress.toFixed(0)} of ${path.length.toFixed(0)} m`,
     );
+  }
+});
+
+test('the rough trail can be driven from end to end in both directions, and the car never tips over or strays', () => {
+  const there = ROUGH.path;
+  const back = createPath([...ROUGH.points].reverse());
+  for (const [way, path] of [
+    ['out', there],
+    ['back', back],
+  ]) {
+    const result = followPath(path, path.length - 4);
+    assert.equal(result.stuck, undefined, `${way}: ${result.stuck}`);
+    assert.ok(
+      result.progress >= path.length - 4,
+      `${way}: only reached ${result.progress.toFixed(0)} of ${path.length.toFixed(0)} m`,
+    );
+    // It leans to the side on the slope and in the ruts, and pitches on the climb and the steps, but
+    // stays well short of tipping over (the car has no way to roll: it only follows the ground).
+    assert.ok(result.roll < 0.45, `${way}: leaned ${result.roll.toFixed(2)} rad`);
+    assert.ok(result.pitch < 0.8, `${way}: pitched ${result.pitch.toFixed(2)} rad`);
+    assert.ok(result.off < 3.5, `${way}: strayed ${result.off.toFixed(1)} m from the trail`);
+    // It slows to a crawl over the steep parts, but never stops.
+    assert.ok(result.slowest > 2.2, `${way}: slowed to ${result.slowest.toFixed(1)} m/s`);
+  }
+});
+
+test('nothing solid stands within the rough trail, or 1.2 m to either side of it', () => {
+  for (const obstacle of obstacles) {
+    for (const p of ROUGH.path.samples) {
+      assert.equal(penetration(p.x, p.z, 3.2, obstacle), null, `blocked at ${p.x.toFixed(0)}, ${p.z.toFixed(0)}`);
+    }
+  }
+});
+
+test('a careless driver, aiming off the rough trail or zig-zagging across it, is never held up', () => {
+  const back = createPath([...ROUGH.points].reverse());
+  for (const [way, path] of [
+    ['out', ROUGH.path],
+    ['back', back],
+  ]) {
+    for (const options of [{ bias: -3 }, { bias: -2 }, { bias: 2 }, { bias: 3 }, { zigzag: 2.5 }]) {
+      const result = followPath(path, path.length - 4, options);
+      const label = `${way} ${JSON.stringify(options)}`;
+      assert.equal(result.stuck, undefined, `${label}: ${result.stuck}`);
+      assert.ok(result.progress >= path.length - 4, `${label}: only reached ${result.progress.toFixed(0)} m`);
+      assert.ok(result.stopped <= 3, `${label}: stood still for ${result.stopped.toFixed(1)} s`);
+    }
   }
 });
 

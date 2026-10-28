@@ -69,6 +69,10 @@ import {
   onGravel,
   nearRiver,
   rockiness,
+  ruggedness,
+  gullyDepth,
+  ROUGH,
+  RUGGED,
   lakeDistance,
   desertness,
   winterness,
@@ -164,6 +168,17 @@ function groundColor(x, z, h, up, out) {
   const rocky = rockiness(x, z);
   if (rocky > 0) out.lerp(rockTone.copy(GROUND.stone).lerp(GROUND.rock, valueNoise(x / 9, z / 9, 61)), rocky * 0.9);
   grass *= 1 - Math.min(1, rocky * 1.6);
+  // The rugged country is stonier and its grass thinner, and the dry gully is gravel.
+  const rugged = ruggedness(x, z);
+  if (rugged > 0) {
+    out.lerp(rockTone.copy(GROUND.stone).lerp(GROUND.rock, valueNoise(x / 9, z / 9, 61)), rugged * 0.3);
+    grass *= 1 - rugged * 0.45;
+  }
+  const gully = gullyDepth(x, z);
+  if (gully > 0) {
+    out.lerp(GROUND.bank, smoothstep(gully, 0.3, 2) * 0.9);
+    grass *= 1 - smoothstep(gully, 0.1, 0.9);
+  }
   for (const patch of SURFACES) {
     // Mud's ragged edge comes from noise rather than the shared random numbers, so that
     // adding a patch of it doesn't move every tree placed after the ground.
@@ -921,7 +936,7 @@ function buildBrookStones(scene) {
 function buildTrackRocks(scatter) {
   const stoneRandom = createRandom(6421);
   const shapes = [0, 1, 2, 3].map(seed => boulderGeometry(seed + 11, { moss: 0.3 }));
-  const items = TRACK_ROCKS.map(rock => {
+  const items = [...TRACK_ROCKS, ...ROUGH.rocks].map(rock => {
     const matrix = stoneMatrix(rock.x, rock.z, rock.r * 0.85, rock.h / 0.72, stoneRandom() * 6.3);
     return { matrix, shape: Math.floor(stoneRandom() * shapes.length) };
   });
@@ -949,10 +964,90 @@ function buildRiverStones(scatter) {
   scatter.add({ geometry: shapes, near: UNDERGROWTH_RANGE, material: rockMaterial, items });
 }
 
+/**
+ * The boulders along the rough trail, which the car goes round, and rocky outcrops over the
+ * rugged country round it, a tall block of stone with smaller ones beside it, on the steeper
+ * ground and well back from the trail. They have numbers of their own, so they don't move
+ * anything else that is scattered.
+ */
+function buildRoughRocks(scatter, obstacles) {
+  const random = createRandom(8123);
+  const shapes = [0, 1, 2, 3, 4].map(seed => boulderGeometry(seed, { detail: 2 }));
+  const lists = shapes.map(() => []);
+  // None of the solid ones stands within the trail's drivable width: 2 m and 1.2 m more either side.
+  const clear = ({ x, z, size }) => ROUGH.path.nearest(x, z).distance - size * 1.05 >= 3.6;
+  const add = rock => clear(rock) && lists[Math.floor(random() * shapes.length)].push(rock);
+  for (const { x, z, size, rotation, tall } of ROUGH.boulders) add({ x, z, size, rotation, tilt: 0, tall });
+  let outcrops = 0;
+  for (let tries = 0; tries < 6000 && outcrops < 80; tries++) {
+    const angle = ((RUGGED.from + random() * (RUGGED.to - RUGGED.from)) * Math.PI) / 180;
+    const radius = RUGGED.near + random() * (RUGGED.far - RUGGED.near);
+    const [x, z] = [Math.cos(angle) * radius, Math.sin(angle) * radius];
+    if (ruggedness(x, z) < 0.4 || steepness(x, z) < 0.3 || ROUGH.path.isNear(x, z, 9) || gullyDepth(x, z) > 0.2)
+      continue;
+    if (!isClearGround(x, z, { road: 10 })) continue;
+    outcrops++;
+    add({
+      x,
+      z,
+      size: 1.8 + random() * 1.8,
+      rotation: random() * 6.3,
+      tilt: (random() - 0.5) * 0.4,
+      tall: 1.5 + random() * 0.6,
+    });
+    for (let k = 1 + Math.floor(random() * 3); k > 0; k--) {
+      const a = random() * Math.PI * 2;
+      const d = 2.8 + random() * 2.4;
+      add({
+        x: x + Math.cos(a) * d,
+        z: z + Math.sin(a) * d,
+        size: 0.8 + random() * 1.1,
+        rotation: random() * 6.3,
+        tilt: random() * 0.4,
+        tall: 1.1,
+      });
+    }
+  }
+  const items = [];
+  lists.forEach((list, shape) => {
+    for (const rock of list) {
+      const item = {
+        x: rock.x,
+        z: rock.z,
+        scale: rock.size,
+        rotation: rock.rotation,
+        tilt: rock.tilt,
+        sx: 1.25,
+        sy: rock.tall,
+      };
+      items.push({ matrix: placed(item, 0.18), color: new THREE.Color().setScalar(0.92 + random() * 0.14), shape });
+      obstacles.push({ x: rock.x, z: rock.z, radius: rock.size * 1.05 });
+    }
+  });
+  scatter.add({
+    geometry: shapes,
+    far: boulderGeometry(5, { detail: 0 }),
+    near: ROCK_DETAIL,
+    cell: FAR_CELL,
+    material: rockMaterial,
+    items,
+  });
+}
+
 function buildRocks(scatter, obstacles) {
   const shapes = [0, 1, 2, 3, 4].map(seed => boulderGeometry(seed, { detail: 2 }));
   const lists = shapes.map(() => []);
-  const add = rock => lists[Math.floor(random() * shapes.length)].push(rock);
+  // A rock that would stand within the rough trail's drivable width is moved back out of it, so
+  // nothing solid can hold the car there. That takes no random numbers.
+  const add = rock => {
+    const { sample, distance } = ROUGH.path.nearest(rock.x, rock.z);
+    const room = rock.size * 1.05 + 3.6;
+    if (distance < room && distance > 0) {
+      rock.x = sample.x + ((rock.x - sample.x) / distance) * room;
+      rock.z = sample.z + ((rock.z - sample.z) / distance) * room;
+    }
+    lists[Math.floor(random() * shapes.length)].push(rock);
+  };
 
   const across = 2 * VALLEY_RADIUS;
   // Boulders scattered across the valley, one try for every 2720 square metres, often with a
@@ -1195,6 +1290,8 @@ function grassMask() {
       along(track.path, 0.8, 0.45);
     }
   }
+  // Where the rough trail's ruts are dug deep, the churned earth is bare.
+  for (const { from, to } of ROUGH.ruts) along(ROUGH.path, 3.4, 0.7, { skip: s => s < from - 2 || s > to + 2 });
   // The orchard's grass is mown short, between the trees and round them.
   const { x: ox, z: oz } = ORCHARD;
   where(ox - 45, ox + 45, oz - 45, oz + 45, (x, z) => inOrchard(x, z, 2), 0.6);
@@ -1603,6 +1700,7 @@ export function buildScenery(parent) {
   buildRocks(scatter, obstacles);
   buildBrookStones(scene);
   buildTrackRocks(scatter);
+  buildRoughRocks(scatter, obstacles);
   buildRiverStones(scatter);
   buildGroundCover(scatter);
   buildLongGrass(scatter);

@@ -203,6 +203,11 @@ export const PLACE_ICONS = {
     color: '#6f7448',
     d: 'M3 19.5h18M4.5 19.5l1.5-8h12l1.5 8M8 15.2h8M8.5 11.5 9.5 9M12 11.5V8.5M15.5 11.5 14.5 9',
   },
+  lookout: {
+    name: 'Lookout',
+    color: GREEN,
+    d: 'M3.5 21.5v-2a3 3 0 0 1 3-3h11a3 3 0 0 1 3 3v2ZM6.5 16.5v-1.8a2.6 2.6 0 0 1 2.6-2.6h5.8a2.6 2.6 0 0 1 2.6 2.6v1.8ZM9.2 12.1v-1.5a2.3 2.3 0 0 1 2.3-2.3h1a2.3 2.3 0 0 1 2.3 2.3v1.5ZM12 8.3V3',
+  },
 };
 
 /** The places to mark on the map, most important first, with their pictures. */

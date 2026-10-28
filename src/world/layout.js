@@ -581,6 +581,180 @@ function roundAndUp(hill, [x, z], { turns = 1.35, from = 80, to = 13 } = {}) {
   return points;
 }
 
+// --- The rough trail ---------------------------------------------------------------
+// A hard trail over a ridge in the west-north-west outlands, round the outland hill there: a
+// steep climb with rock steps and deep ruts, over the top to a lookout, and down the far side
+// along a slope, through a boulder field and a dry gully to the outer road. The ground round
+// it is rougher and steeper than anywhere else. Nothing on it is a trap: the car crawls over
+// the steps and ruts rather than stopping at them, and every boulder has room to go round.
+
+/** The rugged country: a sector of the outlands, between these bearings (see polar) and distances. */
+export const RUGGED = { from: 188, to: 220, near: 690, far: 960 };
+
+/**
+ * How rugged the ground is at a point: 1 well inside the sector, 0 outside it and on the outer
+ * road, which runs through, so the road keeps the gentle ground it was laid on.
+ */
+export function ruggedness(x, z) {
+  const r = Math.hypot(x, z);
+  if (r < RUGGED.near || r > RUGGED.far) return 0;
+  const angle = ((Math.atan2(z, x) * 180) / Math.PI + 360) % 360;
+  const inside = smoothstep(angle, RUGGED.from, RUGGED.from + 10) * (1 - smoothstep(angle, RUGGED.to - 10, RUGGED.to));
+  const radial = smoothstep(r, RUGGED.near, RUGGED.near + 50) * (1 - smoothstep(r, RUGGED.far - 30, RUGGED.far));
+  const road = smoothstep(Math.abs(r - outerRadius(Math.atan2(z, x))), 14, 50);
+  return inside * radial * road;
+}
+
+/** Knolls that raise the outland hill into a ridge with a crest, and shoulders to either side of it. */
+export const RUGGED_HILLS = [
+  { x: -905, z: -212, radius: 40, height: 14 },
+  { x: -880, z: -128, radius: 32, height: 11 },
+  { x: -955, z: -285, radius: 34, height: 16 },
+  { x: -945, z: -130, radius: 30, height: 13 },
+];
+
+export const ROUGH = (() => {
+  const start = OUTER_ROAD.nearest(-805, -125).sample;
+  const end = OUTER_ROAD.nearest(-722, -372).sample;
+  const base = createPath([
+    [start.x, start.z],
+    [-830, -138],
+    [-852, -150],
+    [-872, -168],
+    [-890, -190],
+    [-907, -214],
+    [-898, -240],
+    [-880, -262],
+    [-866, -284],
+    [-846, -300],
+    [-818, -318],
+    [-790, -338],
+    [-760, -356],
+    [end.x, end.z],
+  ]);
+  // Where it winds from side to side among boulders, swinging `amplitude` either way over every
+  // `wavelength`: gently enough to steer round at a crawl. The boulders stand on the middle line
+  // where it swings furthest from it, so there is always a clear way past each on one side.
+  const winding = {
+    amplitude: 3.7,
+    wavelength: 28,
+    zones: [
+      { from: 84, to: 112 },
+      { from: 258, to: 314 },
+    ],
+  };
+  const swing = s => {
+    const zone = winding.zones.find(z => s >= z.from && s <= z.to);
+    return zone ? winding.amplitude * Math.sin(((s - zone.from) / winding.wavelength) * Math.PI * 2) : 0;
+  };
+  const points = [];
+  for (let s = 0; s < base.length; s += 14) {
+    const zone = winding.zones.find(z => s > z.from - 14 && s < z.to + 14);
+    // Twice as often where it winds, to catch the swings.
+    for (const along of zone ? [s, s + 7] : [s]) {
+      const p = base.offset(Math.min(along, base.length), swing(along));
+      points.push([p.x, p.z]);
+    }
+  }
+  points.push([end.x, end.z]);
+  const path = createPath(points);
+  /** How far along the trail the point `s` metres along the middle line is. */
+  const along = s => {
+    const p = base.at(s);
+    return path.nearest(p.x, p.z).s;
+  };
+  const stretch = (from, to) => ({ from: along(from), to: along(to) });
+  const random = createRandom(7731);
+
+  // Rock steps across the climb and the way down: a row of rocks lying across the trail, each a
+  // bump in the surface the tyres rest on (see TRACK_ROCKS), a little over wheel height.
+  const steps = [68, 124, 190, 240];
+  const rocks = steps.flatMap(s =>
+    [-2.2, -1.1, 0, 1.1, 2.2].map(side => {
+      const p = base.offset(s + (random() - 0.5) * 1.2, side + (random() - 0.5) * 0.3);
+      return { x: p.x, z: p.z, r: 1.05 + random() * 0.2, h: 0.36 + random() * 0.14 };
+    }),
+  );
+
+  // Boulders, which the car goes round. None stands within the trail's drivable width (its
+  // half-width and 1.2 m more either side), so nothing can hold the car. Where the trail winds, a
+  // boulder flanks the outside of each bend, and a drive-over rock lies on the middle line, which
+  // the trail swings clear of, so it still reads as threading between rocks.
+  const boulders = [];
+  const reach = 2 + 1.2 + 0.4;
+  const boulder = (p, size) =>
+    boulders.push({ x: p.x, z: p.z, size, rotation: random() * 6.3, tall: 0.85 + random() * 0.4 });
+  for (const { from, to } of winding.zones) {
+    for (let s = from + winding.wavelength / 4; s <= to; s += winding.wavelength / 2) {
+      const size = 1.1 + random() * 0.25;
+      boulder(base.offset(s, Math.sign(swing(s)) * (winding.amplitude + reach + size * 1.05)), size);
+      const middle = base.at(s);
+      rocks.push({ x: middle.x, z: middle.z, r: 1.5, h: 0.4 + random() * 0.1 });
+    }
+    for (let s = from + 3; s < to; s += 6.5)
+      boulder(base.offset(s, (random() < 0.5 ? -1 : 1) * (10 + random() * 3)), 0.9 + random() * 0.9);
+  }
+  for (let s = 22; s < 214; s += 11 + random() * 8) {
+    if (winding.zones.some(z => s > z.from - 8 && s < z.to + 8)) continue;
+    const size = 1 + random() * 1.1;
+    boulder(base.offset(s, (random() < 0.5 ? -1 : 1) * (reach + size * 1.05 + random() * 2.5)), size);
+  }
+
+  // A dry gully the trail dips through, cut across the slope below the boulders: it runs from
+  // high ground on one side, fading out, to the lower side, where it opens out.
+  const crossing = path.at(338);
+  const gullyAt = (side, shift = 0) => [
+    crossing.x - crossing.dz * side + crossing.dx * shift,
+    crossing.z + crossing.dx * side + crossing.dz * shift,
+  ];
+  const gully = {
+    path: createPath([gullyAt(-50, -3), gullyAt(-26, 4), gullyAt(0, 0), gullyAt(18, -3), gullyAt(28, 1)]),
+    halfWidth: 6.5,
+    depth: 3,
+  };
+
+  // The lookout: the summit of the hill, a few metres off the trail where it comes over the
+  // crest, levelled off at the top (see the terrain). A cairn stands on the very top and a bench
+  // a little way down from it on the trail's side, facing out over the outlands.
+  const top = { x: -916, z: -222 };
+  const view = Math.atan2(300, -80);
+  const lookout = {
+    x: top.x,
+    z: top.z,
+    view,
+    cairn: { x: top.x, z: top.z },
+    bench: { x: top.x + Math.sin(view) * 3.2, z: top.z + Math.cos(view) * 3.2, rotation: view },
+    /** How far the level top reaches, and how far it eases off beyond that. */
+    radius: 4.5,
+    falloff: 5,
+  };
+
+  return {
+    base,
+    winding,
+    swing,
+    points,
+    path,
+    steps,
+    rocks,
+    boulders,
+    gully,
+    lookout,
+    /** Stretches of the trail, by distance along it, with ruts dug deep in them and with the slope across it. */
+    ruts: [stretch(16, 62), { from: path.length - 44, to: path.length - 8 }],
+    lean: { ...stretch(212, 252), slope: 0.28 },
+  };
+})();
+
+/** How deep the dry gully is cut at a point: down to nothing at its ends and well to the sides. */
+export function gullyDepth(x, z) {
+  const { path, halfWidth, depth } = ROUGH.gully;
+  if (!path.isNear(x, z, halfWidth)) return 0;
+  const { distance, s } = path.nearest(x, z);
+  const t = s / path.length;
+  return depth * (1 - smoothstep(distance, 1.8, halfWidth)) * smoothstep(t, 0, 0.3) * (1 - smoothstep(t, 0.85, 1));
+}
+
 /** Mountain stream: from the waterfall pool, under the bridge, into the lake. */
 export const CREEK = createPath(
   [
@@ -1001,6 +1175,14 @@ export const TRACKS = [
     grade: 0.16,
     path: createPath(fromOuterRoad(...DESERT.track.map(({ x, z }) => [x, z]))),
   },
+  {
+    // Over the ridge in the west-north-west to the lookout and down to the outer road again.
+    id: 'rough',
+    ruts: true,
+    grade: 0.5,
+    window: 2,
+    path: ROUGH.path,
+  },
 ];
 
 /**
@@ -1367,6 +1549,7 @@ export const PLACES = [
   { id: 'village', x: VILLAGE.fireStation.x, z: VILLAGE.fireStation.z },
   ...FARMS.map(({ id, x, z }) => ({ id, x, z })),
   { id: 'desert', x: DESERT.oasis.x, z: DESERT.oasis.z },
+  { id: 'lookout', x: ROUGH.lookout.x, z: ROUGH.lookout.z },
 ];
 
 /**
