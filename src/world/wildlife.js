@@ -4,19 +4,16 @@
 // wolves, both farms keep chickens, and herds roam the outlands. The ones on the
 // ground let the car come close, and run out of its way at the last moment (see dodge.js).
 import * as THREE from 'three';
-import { angleDelta, createRandom, smoothstep, valueNoise } from '../core/math.js';
+import { angleDelta, createRandom, smoothstep } from '../core/math.js';
 import { FARM, HABITATS, LAKE } from './layout.js';
 import { terrainHeight } from './terrain.js';
-import { PartsBuilder, limb, localFrame } from './build.js';
-import { cone, eyes, fleece, furMaterial, leg, lump, pair, sheepFace, tube } from './creatures.js';
+import { ANIMAL_BEVEL, PartsBuilder, limb, localFrame } from './build.js';
 import { createWolves } from './wolves.js';
 import { createChickens } from './chickens.js';
 import { createHerds } from './herds.js';
 import { createDodge, stepDodge } from './dodge.js';
 
 const DARK = '#394439';
-/** A duck's webbed foot. */
-const BEAD_FOOT = new THREE.SphereGeometry(1, 8, 4);
 const CREAM = '#eee4c9';
 
 export function deer() {
@@ -24,26 +21,23 @@ export function deer() {
   const body = new THREE.Group();
   root.add(body);
   const fur = '#ad8962';
-  // Paler underneath.
-  const coat = (x, y) => (y < 1.3 ? '#d7c3a0' : fur);
-  const p = new PartsBuilder();
-  lump(p, coat, [0, 1.55, 0], [0.95, 0.36, 0.3]);
-  lump(p, coat, [0.58, 1.55, 0], [0.42, 0.42, 0.31]); // chest and shoulders
-  lump(p, coat, [-0.6, 1.62, 0], [0.42, 0.38, 0.3]); // haunches
-  lump(p, CREAM, [-0.97, 1.66, 0], [0.1, 0.24, 0.22]); // white rump
-  lump(p, DARK, [-1.04, 1.8, 0], [0.08, 0.1, 0.07]); // tail
-  tube(p, fur, [0.68, 1.7, 0], [1.02, 2.5, 0], 0.27, 0.17); // neck
-  lump(p, fur, [1.1, 2.6, 0], [0.24, 0.19, 0.17], { tilt: -0.2 }); // head
-  tube(p, fur, [1.2, 2.58, 0], [1.56, 2.47, 0], 0.13, 0.08); // muzzle
-  lump(p, DARK, [1.57, 2.47, 0], [0.06, 0.07, 0.08]); // nose
-  eyes(p, 1.22, 2.66, 0.13);
-  pair(p, side => cone(p, fur, [1.02, 2.72, side * 0.1], [0.88, 3.0, side * 0.32], 0.09, 0.45)); // ears
-  body.add(p.mesh({ material: furMaterial, receiveShadow: false }));
+  const parts = new PartsBuilder({ bevel: ANIMAL_BEVEL })
+    .box(2.05, 0.85, 0.67, fur, { y: 1.54 })
+    .box(0.49, 1.05, 0.47, fur, { x: 0.76, y: 2.01, rz: -0.28 })
+    .box(0.91, 0.45, 0.43, fur, { x: 1.15, y: 2.63 })
+    .box(0.19, 0.22, 0.44, DARK, { x: 1.62, y: 2.6 })
+    .box(0.25, 0.4, 0.36, CREAM, { x: -1.09, y: 1.6 });
+  for (const z of [-0.27, 0.27]) parts.box(0.16, 0.48, 0.24, fur, { x: 0.92, y: 2.97, z, rx: z });
+  for (const z of [-0.23, 0.23]) parts.box(0.07, 0.08, 0.04, DARK, { x: 1.35, y: 2.75, z });
+  body.add(parts.mesh({ receiveShadow: false }));
   const legs = [];
   for (const x of [-0.7, 0.7]) {
     for (const z of [-0.23, 0.23]) {
-      const build = q => leg(q, fur, { length: 1.3, top: 0.1, bottom: 0.05, foot: DARK, knee: x < 0 ? -0.05 : 0.03 });
-      legs.push(limb(body, x, 1.3, z, build, furMaterial));
+      legs.push(
+        limb(body, x, 1.3, z, p =>
+          p.box(0.18, 1.1, 0.17, fur, { y: -0.54 }).box(0.2, 0.18, 0.19, DARK, { x: 0.04, y: -1.09 }),
+        ),
+      );
     }
   }
   return { root, body, legs };
@@ -53,25 +47,15 @@ export function duck(scale) {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
-  const green = '#4f8064';
-  const p = new PartsBuilder();
-  lump(p, CREAM, [0, 0.55, 0], [0.78, 0.4, 0.45]);
-  lump(p, CREAM, [-0.64, 0.68, 0], [0.24, 0.12, 0.2], { tilt: 0.5 }); // tail, turned up
-  tube(p, green, [0.5, 0.7, 0], [0.66, 1.0, 0], 0.16, 0.12); // neck
-  lump(p, green, [0.68, 1.03, 0], [0.21, 0.18, 0.16]); // head
-  lump(p, '#dfaa49', [0.92, 0.98, 0], [0.18, 0.05, 0.09]); // bill
-  eyes(p, 0.78, 1.08, 0.13, 0.03);
-  body.add(p.mesh({ material: furMaterial, receiveShadow: false }));
-  const foot = q =>
-    tube(q, '#dfaa49', [0, 0.14, 0], [0, -0.06, 0], 0.035).add(BEAD_FOOT, '#dfaa49', {
-      x: 0.06,
-      y: -0.07,
-      sx: 0.16,
-      sy: 0.03,
-      sz: 0.1,
-    });
-  const feet = z => limb(body, 0.1, 0.12, z, foot, furMaterial);
-  const legs = [-0.22, 0.22].map(feet);
+  body.add(
+    new PartsBuilder({ bevel: ANIMAL_BEVEL })
+      .add(new THREE.IcosahedronGeometry(0.6, 1), CREAM, { y: 0.55, sx: 1.3, sy: 0.65, sz: 0.75 })
+      .box(0.45, 0.5, 0.4, '#4f8064', { x: 0.65, y: 0.98 })
+      .box(0.4, 0.11, 0.28, '#dfaa49', { x: 0.99, y: 0.85 })
+      .box(0.06, 0.07, 0.43, DARK, { x: 0.81, y: 1.04 })
+      .mesh({ receiveShadow: false }),
+  );
+  const legs = [-0.22, 0.22].map(z => limb(body, 0.1, 0.12, z, p => p.box(0.3, 0.1, 0.18, '#dfaa49')));
   root.scale.setScalar(scale);
   return { root, body, legs };
 }
@@ -80,12 +64,19 @@ export function sheep() {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
-  const p = fleece(new PartsBuilder(), 1.1, 1.3);
-  for (const x of [-0.7, 0.7]) {
-    for (const z of [-0.32, 0.32]) leg(p, DARK, { length: 0.75, top: 0.08, bottom: 0.05, at: [x, 0.75, z] });
-  }
-  body.add(p.mesh({ material: furMaterial, receiveShadow: false }));
-  const head = limb(body, 1.05, 1.05, 0, q => sheepFace(q, 1.25), furMaterial);
+  const parts = new PartsBuilder({ bevel: ANIMAL_BEVEL }).add(new THREE.IcosahedronGeometry(1, 1), CREAM, {
+    y: 1.1,
+    sx: 1.3,
+    sy: 0.8,
+    sz: 0.8,
+  });
+  for (const x of [-0.75, 0.75]) for (const z of [-0.4, 0.4]) parts.box(0.18, 0.7, 0.18, DARK, { x, y: 0.35, z });
+  body.add(parts.mesh({ receiveShadow: false }));
+  const head = limb(body, 1, 1, 0, p => {
+    p.box(0.65, 0.5, 0.5, DARK, { x: 0.1 });
+    for (const z of [-0.35, 0.35]) p.box(0.3, 0.16, 0.25, '#cfc3a5', { y: 0.2, z });
+    return p;
+  });
   return { root, body, legs: [head] };
 }
 
@@ -94,22 +85,16 @@ export function rabbit() {
   const body = new THREE.Group();
   root.add(body);
   const fur = '#c9b48f';
-  const p = new PartsBuilder();
-  lump(p, fur, [0.05, 0.45, 0], [0.55, 0.38, 0.36], { tilt: 0.2 }); // body, hunched up
-  lump(p, fur, [-0.28, 0.4, 0], [0.4, 0.38, 0.4]); // haunches
-  lump(p, CREAM, [-0.64, 0.56, 0], 0.16); // tail
-  lump(p, fur, [0.5, 0.78, 0], [0.26, 0.24, 0.22]); // head
-  lump(p, CREAM, [0.7, 0.72, 0], [0.1, 0.1, 0.12]); // muzzle
-  eyes(p, 0.63, 0.84, 0.15, 0.04);
-  pair(p, side => {
-    lump(p, fur, [0.38, 1.2, side * 0.1], [0.08, 0.3, 0.05], { tilt: 0.25, roll: side * 0.15 }); // ears
-    lump(p, '#e3b7a5', [0.43, 1.2, side * 0.1], [0.03, 0.22, 0.03], { tilt: 0.25, roll: side * 0.15 });
-  });
-  pair(p, side => {
-    lump(p, fur, [0.42, 0.08, side * 0.15], [0.14, 0.08, 0.08]); // fore paws
-    lump(p, fur, [-0.32, 0.09, side * 0.24], [0.26, 0.1, 0.1]); // hind feet
-  });
-  body.add(p.mesh({ material: furMaterial, receiveShadow: false }));
+  const parts = new PartsBuilder({ bevel: ANIMAL_BEVEL })
+    .add(new THREE.IcosahedronGeometry(0.58, 1), fur, { y: 0.48, sx: 1.15, sy: 0.8, sz: 0.7 })
+    .box(0.48, 0.44, 0.4, fur, { x: 0.49, y: 0.77 })
+    .add(new THREE.IcosahedronGeometry(0.18, 0), CREAM, { x: -0.62, y: 0.58 });
+  for (const z of [-0.13, 0.13]) {
+    parts.box(0.14, 0.6, 0.12, fur, { x: 0.4, y: 1.17, z, rz: 0.18 });
+    parts.box(0.06, 0.07, 0.025, DARK, { x: 0.7, y: 0.83, z: z * 1.65 });
+  }
+  for (const x of [-0.34, 0.4]) for (const z of [-0.23, 0.23]) parts.box(0.29, 0.17, 0.17, fur, { x, y: 0.13, z });
+  body.add(parts.mesh({ receiveShadow: false }));
   return { root, body, legs: [] };
 }
 
@@ -119,36 +104,26 @@ export function cow() {
   root.add(body);
   const hide = '#f1ece0';
   const patch = '#3c3f3a';
-  const pink = '#e9b3a4';
-  // Black patches over the white.
-  const coat = (x, y, z) => (valueNoise(x * 1.8 + 4, y * 2.2 + z * 1.4, 13) > 0.55 ? patch : hide);
-  const p = new PartsBuilder();
-  lump(p, coat, [0, 1.42, 0], [1.1, 0.52, 0.5]);
-  lump(p, coat, [0.72, 1.45, 0], [0.48, 0.55, 0.47]); // shoulders
-  lump(p, coat, [-0.72, 1.55, 0], [0.5, 0.5, 0.48]); // hips
-  lump(p, pink, [-0.5, 0.9, 0], [0.2, 0.14, 0.18]); // udder
-  tube(p, hide, [-1.12, 1.85, 0], [-1.3, 1.02, 0], 0.045, 0.03); // tail
-  lump(p, patch, [-1.3, 0.97, 0], [0.06, 0.12, 0.06]);
-  tube(p, coat, [0.95, 1.55, 0], [1.2, 1.78, 0], 0.4, 0.3); // neck
-  for (const x of [-0.82, 0.82]) {
-    for (const z of [-0.3, 0.3]) leg(p, hide, { length: 1.1, top: 0.15, bottom: 0.09, foot: patch, at: [x, 1.1, z] });
+  const parts = new PartsBuilder({ bevel: ANIMAL_BEVEL })
+    .box(2.3, 1.1, 1.05, hide, { y: 1.45 })
+    .box(0.8, 0.7, 1.08, patch, { x: -0.3, y: 1.6 })
+    .box(0.5, 0.5, 1.08, patch, { x: 0.7, y: 1.35 })
+    .box(0.35, 0.3, 0.3, '#e9b3a4', { x: -0.55, y: 0.85 })
+    .box(0.08, 0.9, 0.08, hide, { x: -1.18, y: 1.3, rz: -0.15 });
+  for (const x of [-0.85, 0.85]) {
+    for (const z of [-0.35, 0.35]) parts.box(0.24, 0.95, 0.24, hide, { x, y: 0.47, z });
   }
-  body.add(p.mesh({ material: furMaterial, receiveShadow: false }));
-  const head = limb(
-    body,
-    1.15,
-    1.75,
-    0,
-    q => {
-      lump(q, coat, [0.28, 0, 0], [0.32, 0.29, 0.27]); // skull
-      tube(q, hide, [0.35, -0.05, 0], [0.7, -0.2, 0], 0.24, 0.19); // face
-      lump(q, pink, [0.72, -0.2, 0], [0.12, 0.16, 0.19]); // muzzle
-      eyes(q, 0.48, 0.1, 0.22, 0.05);
-      pair(q, side => cone(q, patch, [0.18, 0.08, side * 0.24], [0.1, 0.1, side * 0.52], 0.09, 0.5)); // ears
-      return pair(q, side => cone(q, '#e3d6b4', [0.2, 0.24, side * 0.14], [0.26, 0.44, side * 0.3], 0.045)); // horns
-    },
-    furMaterial,
-  );
+  body.add(parts.mesh({ receiveShadow: false }));
+  const head = limb(body, 1.15, 1.75, 0, p => {
+    p.box(0.75, 0.62, 0.62, hide, { x: 0.35 });
+    p.box(0.3, 0.42, 0.66, '#e9b3a4', { x: 0.72, y: -0.08 });
+    p.box(0.3, 0.3, 0.64, patch, { x: 0.2, y: 0.17 });
+    for (const z of [-0.36, 0.36]) {
+      p.box(0.08, 0.22, 0.08, '#e3d6b4', { x: 0.25, y: 0.38, z });
+      p.box(0.22, 0.12, 0.2, patch, { x: 0.1, y: 0.15, z: z * 1.35 });
+    }
+    return p;
+  });
   return { root, body, legs: [head] };
 }
 
@@ -157,27 +132,18 @@ export function fox() {
   const body = new THREE.Group();
   root.add(body);
   const fur = '#d0773b';
-  // White under the chin and down the chest.
-  const coat = (x, y) => (y < 0.64 && x > -0.2 ? CREAM : fur);
-  const p = new PartsBuilder();
-  lump(p, coat, [0, 0.74, 0], [0.55, 0.21, 0.19]);
-  lump(p, CREAM, [0.42, 0.72, 0], [0.2, 0.2, 0.17]); // chest
-  tube(p, fur, [0.45, 0.8, 0], [0.68, 0.95, 0], 0.16, 0.14); // neck
-  lump(p, fur, [0.72, 0.97, 0], [0.19, 0.17, 0.17]); // head
-  cone(p, CREAM, [0.8, 0.92, 0], [1.06, 0.88, 0], 0.11, 0.8); // muzzle
-  lump(p, DARK, [1.05, 0.88, 0], 0.04); // nose
-  eyes(p, 0.84, 1.02, 0.1, 0.035);
-  pair(p, side => cone(p, fur, [0.66, 1.08, side * 0.09], [0.62, 1.3, side * 0.14], 0.07, 0.5)); // ears
-  tube(p, fur, [-0.48, 0.8, 0], [-0.95, 0.85, 0], 0.08, 0.15); // the brush
-  tube(p, fur, [-0.95, 0.85, 0], [-1.18, 0.95, 0], 0.15, 0.1);
-  lump(p, CREAM, [-1.22, 0.97, 0], [0.12, 0.1, 0.1]); // its white tip
-  body.add(p.mesh({ material: furMaterial, receiveShadow: false }));
+  const parts = new PartsBuilder({ bevel: ANIMAL_BEVEL })
+    .box(1.15, 0.45, 0.42, fur, { y: 0.72 })
+    .box(0.42, 0.4, 0.4, fur, { x: 0.7, y: 0.95 })
+    .box(0.36, 0.2, 0.22, CREAM, { x: 0.98, y: 0.86 })
+    .box(0.07, 0.07, 0.08, DARK, { x: 1.17, y: 0.92 })
+    .box(0.75, 0.24, 0.24, fur, { x: -0.85, y: 0.82, rz: 0.35 })
+    .box(0.2, 0.22, 0.25, CREAM, { x: -1.22, y: 0.97, rz: 0.35 });
+  for (const z of [-0.12, 0.12]) parts.box(0.1, 0.22, 0.1, DARK, { x: 0.68, y: 1.25, z });
+  body.add(parts.mesh({ receiveShadow: false }));
   const legs = [];
   for (const x of [-0.42, 0.42]) {
-    for (const z of [-0.14, 0.14]) {
-      const build = q => leg(q, fur, { length: 0.55, top: 0.05, bottom: 0.03, foot: DARK, hoof: 0.45 });
-      legs.push(limb(body, x, 0.55, z, build, furMaterial));
-    }
+    for (const z of [-0.14, 0.14]) legs.push(limb(body, x, 0.55, z, p => p.box(0.1, 0.55, 0.1, DARK, { y: -0.25 })));
   }
   return { root, body, legs };
 }
@@ -185,14 +151,14 @@ export function fox() {
 /** The flock of geese: one instanced mesh for the bodies and one for the wings. */
 function geeseFlock(scene, count) {
   const unlit = { castShadow: false, receiveShadow: false };
-  const body = new PartsBuilder()
+  const body = new PartsBuilder({ bevel: ANIMAL_BEVEL })
     .box(1, 0.36, 0.42, '#8a8679')
     .box(0.7, 0.12, 0.14, '#33362f', { x: 0.75, y: 0.08 })
     .box(0.24, 0.2, 0.18, '#33362f', { x: 1.15, y: 0.12 })
     .box(0.3, 0.16, 0.38, '#d9d4c4', { x: -0.55 })
     .mesh(unlit);
   // The wing extends along +Z from its hinge; the left wing is the same one turned half over.
-  const wing = new PartsBuilder().box(0.55, 0.05, 1.1, '#6f6c62', { z: 0.55 }).mesh(unlit);
+  const wing = new PartsBuilder({ bevel: ANIMAL_BEVEL }).box(0.55, 0.05, 1.1, '#6f6c62', { z: 0.55 }).mesh(unlit);
   const bodies = new THREE.InstancedMesh(body.geometry, body.material, count);
   const wings = new THREE.InstancedMesh(wing.geometry, wing.material, count * 2);
   // Round the lead goose, big enough for the whole V and its wings, so the flock isn't drawn while it is out of view.
@@ -229,7 +195,7 @@ function geeseFlock(scene, count) {
 /** A golden eagle with its wings spread for soaring, as one rigid mesh. */
 export function eagle() {
   const brown = '#5e4632';
-  const parts = new PartsBuilder()
+  const parts = new PartsBuilder({ bevel: ANIMAL_BEVEL })
     .box(1.1, 0.34, 0.42, brown)
     .box(0.36, 0.3, 0.3, '#b48a4e', { x: 0.66, y: 0.06 })
     .box(0.18, 0.12, 0.12, '#e0b649', { x: 0.88, y: 0.02 })
@@ -252,7 +218,7 @@ export function eagle() {
 export function fish() {
   const root = new THREE.Group();
   root.add(
-    new PartsBuilder()
+    new PartsBuilder({ bevel: ANIMAL_BEVEL })
       .add(new THREE.IcosahedronGeometry(0.3, 0), '#9fb2a8', { sx: 1.7, sy: 0.8, sz: 0.6 })
       .box(0.3, 0.36, 0.06, '#8aa198', { x: -0.62 })
       .mesh({ castShadow: false, receiveShadow: false }),
