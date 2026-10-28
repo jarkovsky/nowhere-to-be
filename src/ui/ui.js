@@ -207,7 +207,7 @@ export function createUI({ journal, pictures, on }) {
     ready(touch) {
       $('play').disabled = false;
       document.body.classList.toggle('touch', touch);
-      if (touch) $('title-hint').textContent = 'Drive with the on-screen pedals. Tilt steering is in the menu.';
+      if (touch) $('title-hint').textContent = 'Tilt to steer. The car drives itself; the pedal brakes and reverses.';
     },
     startPlaying() {
       document.body.classList.add('playing');
