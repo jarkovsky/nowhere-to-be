@@ -4,6 +4,7 @@
 // firs, whose crowns are loaded with snow.
 import * as THREE from 'three';
 import { fractalNoise, smoothstep, valueNoise } from '../core/math.js';
+import { winterness } from './layout.js';
 
 const SNOW = new THREE.Color('#eef5ff');
 const HOLLOW = new THREE.Color('#9fb8e0');
@@ -41,3 +42,30 @@ export const WINTER_TINTS = {
   fir: [0.6, 0.65, 0.86, 0.03, 0.08, 0.06],
   grass: [0.62, 0.6, 0.66, 0.025, 0.08, 0.05],
 };
+
+const LYING = new THREE.Color('#f1f6ff');
+const lying = new THREE.Color();
+
+/**
+ * Lays snow on the tops of what a PartsBuilder has made, in the winter: every face that looks
+ * up goes white-blue, by how wintry it is where it stands, a little patchy from one part to the
+ * next so the planks aren't all alike. Anywhere else the parts are left as they were.
+ */
+export function snowOver(parts) {
+  for (const [n, part] of parts.parts.entries()) {
+    const { position, normal, color } = part.attributes;
+    for (let i = 0; i < position.count; i += 3) {
+      if (normal.getY(i) < 0.5) continue;
+      const winter = winterness(
+        (position.getX(i) + position.getX(i + 1) + position.getX(i + 2)) / 3,
+        (position.getZ(i) + position.getZ(i + 1) + position.getZ(i + 2)) / 3,
+      );
+      if (winter <= 0) continue;
+      const amount = winter * (0.75 + 0.25 * valueNoise(n * 1.7, i * 0.01, 241));
+      for (let k = 0; k < 3; k++) {
+        lying.fromBufferAttribute(color, i + k).lerp(LYING, amount);
+        color.setXYZ(i + k, lying.r, lying.g, lying.b);
+      }
+    }
+  }
+}

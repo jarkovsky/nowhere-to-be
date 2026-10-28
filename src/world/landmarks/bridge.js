@@ -7,6 +7,7 @@ import { createRandom } from '../../core/math.js';
 import { BRIDGES } from '../layout.js';
 import { terrainHeight, deckHeight } from '../terrain.js';
 import { PartsBuilder } from '../build.js';
+import { snowOver } from '../snow.js';
 
 const PLANK_COLORS = ['#8b6446', '#7f5a3f', '#946b4a', '#866044'];
 const BEAM = '#5f4532';
@@ -295,6 +296,7 @@ export function buildBridge(scene, obstacles) {
     const parts = new PartsBuilder();
     // The creek's own bridge keeps the numbers it always had.
     BUILDERS[bridge.style](bridge, parts, obstacles, createRandom(i === 0 ? 7 : 7 + i * 13));
+    snowOver(parts);
     scene.add(parts.mesh());
   });
 }
