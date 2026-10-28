@@ -26,6 +26,15 @@ const CHROME = '#c9cdc6';
 const DARK = '#2a2e33';
 
 const WHEEL_RADIUS = 0.59;
+/** How far the edges of a vehicle's panels are bevelled. */
+export const BEVEL = 0.05;
+/** Paint with a soft sheen where it catches the sun, coloured by its corners, for the traffic. */
+export const paintMaterial = new THREE.MeshPhongMaterial({
+  vertexColors: true,
+  flatShading: true,
+  shininess: 28,
+  specular: '#2a2722',
+});
 
 /**
  * A wheel with a plain hub, or with `holes` an alloy one: a wider rim with a ring of holes round
@@ -175,6 +184,91 @@ function wheelWells(parts, wheels, radius, sill, x) {
 const shade = (color, amount) => `#${new THREE.Color(color).multiplyScalar(amount).getHexString()}`;
 
 /** The race number 01 on a white panel, on the car's left (side -1) or right (side 1) flank. */
+/**
+ * Two wipers resting at the foot of a windscreen `width` by `height` and `depth` thick, facing
+ * -Z with its middle at (0, y, z) and tipped back by `rx`, as the pane itself is built.
+ */
+export function wipers(parts, { width, height, depth, y, z, rx = 0 }) {
+  const [ly, lz] = [-height / 2 + 0.07, -depth / 2 - 0.015];
+  const at = { y: y + ly * Math.cos(rx) - lz * Math.sin(rx), z: z + ly * Math.sin(rx) + lz * Math.cos(rx) };
+  for (const side of [-1, 1]) {
+    parts.box(width * 0.34, 0.03, 0.03, RUBBER, { ...at, x: side * width * 0.22, rx, rz: side * 0.12 });
+  }
+  return parts;
+}
+
+/** A number plate's half width and half height. */
+const PLATE = [0.275, 0.0725];
+
+/**
+ * A number plate at height `y` with its back against `z`, facing out at the front (`out` -1)
+ * or the back (1): white in a dark rim, with the blue strip of a European plate at its left
+ * end, and no number on it.
+ */
+function plate(parts, y, z, out) {
+  parts.box(PLATE[0] * 2, PLATE[1] * 2, 0.02, '#33383a', { y, z: z + out * 0.008 });
+  parts.box(0.52, 0.12, 0.02, '#f4f2ea', { y, z: z + out * 0.016 });
+  // The left end as you face it: the car's right at the front, its left at the back.
+  parts.box(0.07, 0.11, 0.02, '#2f58a6', { x: -out * 0.225, y, z: z + out * 0.022 });
+}
+
+/**
+ * Where a number plate goes at one end of a vehicle built from `builders` (front to -Z) facing
+ * `out` (-1 the front, 1 the back): on the lowest stretch from `low` to `high` up that is flat
+ * and upright across the middle for a plate's width and height, as a bumper is, and further out
+ * than anything in front of it there. Null if there is no such stretch.
+ */
+function plateSpot(builders, out, low, high) {
+  // The faces turned out that way, as triangles across X and Y with the plane each lies in.
+  const faces = [];
+  for (const { parts } of builders) {
+    for (const part of parts) {
+      const p = part.attributes.position.array;
+      for (let i = 0; i < p.length; i += 9) {
+        const [ax, ay, az, bx, by, bz, cx, cy, cz] = p.subarray(i, i + 9);
+        const [ux, uy, uz, vx, vy, vz] = [bx - ax, by - ay, bz - az, cx - ax, cy - ay, cz - az];
+        const n = [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx];
+        const length = Math.hypot(...n);
+        if (length < 1e-9 || (n[2] * out) / length < 0.95) continue;
+        faces.push({ ax, ay, bx, by, cx, cy, n, d: n[0] * ax + n[1] * ay + n[2] * az });
+      }
+    }
+  }
+  /** How far out the outermost of those faces lies over (x, y), or -Infinity. */
+  const outermost = (x, y) => {
+    let best = -Infinity;
+    for (const f of faces) {
+      const d1 = (x - f.bx) * (f.ay - f.by) - (f.ax - f.bx) * (y - f.by);
+      const d2 = (x - f.cx) * (f.by - f.cy) - (f.bx - f.cx) * (y - f.cy);
+      const d3 = (x - f.ax) * (f.cy - f.ay) - (f.cx - f.ax) * (y - f.ay);
+      if ((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0)) continue;
+      best = Math.max(best, ((f.d - f.n[0] * x - f.n[1] * y) / f.n[2]) * out);
+    }
+    return best;
+  };
+  for (let y = low; y <= high; y += 0.02) {
+    const reach = [];
+    for (const dx of [-1, -0.35, 0.35, 1]) {
+      // A bumper a little thinner than the plate will do.
+      for (const dy of [-0.55, 0, 0.55]) reach.push(outermost(dx * PLATE[0], y + dy * PLATE[1]));
+    }
+    const [near, far] = [Math.min(...reach), Math.max(...reach)];
+    if (near > -Infinity && far - near < 0.006) return { y, z: far * out };
+  }
+  return null;
+}
+
+/**
+ * Puts number plates on a vehicle built from `builders` (front to -Z), in the first of them, at
+ * the `ends` it has (-1 the front, 1 the back), from `low` to `high` up (see plateSpot).
+ */
+export function numberPlates(builders, { ends = [-1, 1], low = 0.35, high = 1.6 } = {}) {
+  for (const out of ends) {
+    const spot = plateSpot(builders, out, low, high);
+    if (spot) plate(builders[0], spot.y, spot.z, out);
+  }
+}
+
 function raceNumber(parts, side, { x, y, z }) {
   const ink = '#1d2024';
   parts.box(0.02, 0.38, 0.5, '#f4f1e8', { x, y, z });
@@ -222,6 +316,12 @@ const VEHICLE_BUILDERS = {
     trim.box(2.06, 0.14, 2.48, CREAM, { y: 2.5, z: 0.35 }); // roof
     trim.box(2.26, 0.21, 0.23, CREAM, { y: 0.86, z: -2.02 }); // bumpers
     trim.box(2.26, 0.21, 0.23, CREAM, { y: 0.86, z: 1.98 });
+    // Amber indicators on the ends of the bumper, wipers resting at the foot of the windscreen, an
+    // exhaust under the back and mud flaps behind the back wheels.
+    for (const x of [-0.94, 0.94]) trim.box(0.16, 0.07, 0.09, '#e39a3b', { x, y: 1.0, z: -2.05 });
+    wipers(trim, { width: 1.86, height: 0.74, depth: 2.26, y: 2.06, z: 0.35 });
+    trim.add(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 8), METAL, { x: 0.62, y: 0.69, z: 1.92, rx: Math.PI / 2 });
+    for (const x of [-1.0, 1.0]) trim.box(0.36, 0.38, 0.03, RUBBER, { x, y: 0.53, z: 1.86 });
     // The grille, with the lamps either side of it, inside the arches.
     trim.box(0.72, 0.3, 0.05, RUBBER, { y: 1.18, z: -1.94 });
     for (let i = -2; i <= 2; i++) trim.box(0.055, 0.24, 0.025, METAL, { x: i * 0.13, y: 1.18, z: -1.98 });
@@ -252,6 +352,7 @@ const VEHICLE_BUILDERS = {
     // The cab, with glass all round between the pillars.
     painted.box(1.92, 0.4, 1.6, '#ffffff', { y: 1.52, z: -0.1 });
     trim.box(1.86, 0.66, 1.56, GLASS, { y: 2.05, z: -0.1 });
+    wipers(trim, { width: 1.86, height: 0.66, depth: 1.56, y: 2.05, z: -0.1 });
     for (const x of [-0.95, 0.95]) {
       for (const z of [-0.88, 0.68]) painted.box(0.1, 0.68, 0.13, '#ffffff', { x, y: 2.05, z });
       trim.box(0.05, 0.06, 0.27, CREAM, { x: x * 1.02, y: 1.55, z: -0.2 });
@@ -312,6 +413,7 @@ const VEHICLE_BUILDERS = {
     trim.box(2.05, 0.94, 4.1, CREAM, { y: 2.09, z: 0.1 });
     trim.box(2.07, 0.58, 3, GLASS, { y: 2.14, z: 0.5 }); // side windows
     trim.box(1.8, 0.6, 0.08, GLASS, { y: 2.12, z: -1.97, rx: -0.1 }); // windscreen
+    wipers(trim, { width: 1.8, height: 0.6, depth: 0.08, y: 2.12, z: -1.97, rx: -0.1 });
     trim.box(1.9, 0.2, 3.5, '#e2d7b8', { y: 2.64, z: 0.25 }); // pop-top
     trim.box(1.7, 0.36, 3.2, CREAM, { y: 2.88, z: 0.35 });
     painted.box(2.06, 0.08, 4.12, '#ffffff', { y: 1.66, z: 0.1 }); // waist stripe
@@ -371,6 +473,15 @@ const VEHICLE_BUILDERS = {
       ),
       GLASS,
     );
+    // Wipers on the windscreen, which slopes back from 1.15 m up at the front to 1.78 m.
+    wipers(trim, {
+      width: 1.72,
+      height: Math.hypot(0.42, 0.63),
+      depth: 0,
+      y: 1.465,
+      z: -0.57,
+      rx: Math.atan2(0.42, 0.63),
+    });
     painted.box(1.76, 0.06, 1.42, '#ffffff', { y: 1.79, z: 0.31 }); // roof
     for (const side of [-1, 1]) {
       const x = side * 0.865;
@@ -455,6 +566,7 @@ const VEHICLE_BUILDERS = {
       }
     }
     trim.box(1.3, 0.18, 0.2, METAL, { y: 0.8, z: -2.15 }); // front weight
+    trim.box(1.3, 0.12, 0.14, '#2f3430', { y: 0.52, z: -1.55 }); // the front axle, under the chassis
     trim.box(0.6, 0.1, 0.5, METAL, { y: 0.7, z: 2 }); // hitch
     trim.box(0.2, 0.12, 0.5, METAL, { y: 0.7, z: 1.6 }); // and the drawbar out to it from the chassis
 
@@ -573,8 +685,8 @@ const VEHICLE_BUILDERS = {
     trim.box(1.3, 0.14, 1.1, '#3b3f3c', { y: 1.07, z: 1.9 }); // the hitch
 
     // The trailer, built from its hitch point, which rests on the lorry's hitch, and painted like it.
-    const trailerPaint = new PartsBuilder();
-    const trailer = new PartsBuilder();
+    const trailerPaint = new PartsBuilder({ bevel: BEVEL });
+    const trailer = new PartsBuilder({ bevel: BEVEL });
     trailerPaint.box(2.5, 2.74, 10, '#ffffff', { y: 1.43, z: 3.75 });
     trailer.box(2.54, 0.16, 10.04, DARK, { y: 0.1, z: 3.75 });
     for (const side of [-1, 1]) {
@@ -591,6 +703,7 @@ const VEHICLE_BUILDERS = {
     trailerPaint.box(0.03, 2.56, 0.02, line, { y: 1.5, z: 8.76 });
     for (const x of [-0.95, -0.35, 0.35, 0.95]) trailer.box(0.05, 2.4, 0.04, METAL, { x, y: 1.5, z: 8.78 });
     trailer.box(2.3, 0.16, 0.14, DARK, { y: -0.42, z: 8.62 });
+    numberPlates([trailer, trailerPaint], { ends: [1], low: -0.6, high: 0.6 }); // on the trailer's bumper
 
     return {
       wheels,
@@ -859,6 +972,7 @@ const VEHICLE_BUILDERS = {
     for (const x of [-0.5, -0.17, 0.17, 0.5]) trim.box(0.03, 0.18, 0.3, DARK, { x, y: 0.28, z: 2.22 });
 
     return {
+      plates: false,
       wheels,
       headlamps: { x: 0.7, y: 0.645, z: -2.3, square: true, size: [0.36, 0.09] },
       brakeLights: { x: 0.62, y: 0.86, z: 2.29, size: [0.42, 0.08] },
@@ -1039,8 +1153,8 @@ const VEHICLE_BUILDERS = {
     const bonnet = along(top, -1.42);
     const slope = Math.atan2(bonnet - along(top, -1.74), 0.32);
     const hinge = [0.52, bonnet - 0.008, -1.42];
-    const lid = new PartsBuilder();
-    const housing = new PartsBuilder();
+    const lid = new PartsBuilder({ bevel: BEVEL });
+    const housing = new PartsBuilder({ bevel: BEVEL });
     const lens = new PartsBuilder();
     const reach = [-Math.cos(lift) * 0.32, Math.sin(lift) * 0.32];
     housing.add(profile([[0, 0], reach, [reach[0], -0.03], [0, -0.06]], 0.36), DARK);
@@ -1090,9 +1204,9 @@ function roundedPanel(width, height, depth, radius) {
 
 /** The parts of one of the garage's vehicles, for building a copy of it elsewhere (the farm's tractors). */
 export function vehicleParts(name) {
-  const painted = new PartsBuilder();
-  const trim = new PartsBuilder();
-  const spec = VEHICLE_BUILDERS[name](painted, trim, new PartsBuilder());
+  const painted = new PartsBuilder({ bevel: BEVEL });
+  const trim = new PartsBuilder({ bevel: BEVEL });
+  const spec = VEHICLE_BUILDERS[name](painted, trim, new PartsBuilder({ bevel: BEVEL }));
   return { painted, trim, spec };
 }
 
@@ -1176,8 +1290,15 @@ export function createCar({ mud = true, headlight: beam = true } = {}) {
   const body = new THREE.Group();
   root.add(body);
 
-  // Parts painted grey rather than white come out a darker shade of the paint.
-  const paint = new THREE.MeshLambertMaterial({ color: CAR_COLORS.orange, flatShading: true, vertexColors: true });
+  // Parts painted grey rather than white come out a darker shade of the paint, which has a soft
+  // sheen where it catches the sun.
+  const paint = new THREE.MeshPhongMaterial({
+    color: CAR_COLORS.orange,
+    flatShading: true,
+    vertexColors: true,
+    shininess: 28,
+    specular: '#2a2722',
+  });
   // Lamps glow brighter at night; brake lights glow when braking.
   const headlampMaterial = new THREE.MeshLambertMaterial({
     color: '#fff3ce',
@@ -1201,10 +1322,12 @@ export function createCar({ mud = true, headlight: beam = true } = {}) {
   /** Each vehicle is built the first time it is chosen. */
   const vehicles = {};
   function build(name) {
-    const painted = new PartsBuilder();
-    const trim = new PartsBuilder();
-    const cargoParts = new PartsBuilder();
+    const painted = new PartsBuilder({ bevel: BEVEL });
+    const trim = new PartsBuilder({ bevel: BEVEL });
+    const cargoParts = new PartsBuilder({ bevel: BEVEL });
     const spec = VEHICLE_BUILDERS[name](painted, trim, cargoParts);
+    // A race car has none.
+    if (spec.plates !== false) numberPlates([trim, painted]);
     const shell = new THREE.Group();
     if (!painted.isEmpty) shell.add(painted.mesh({ material: paint }));
     shell.add(trim.mesh());
