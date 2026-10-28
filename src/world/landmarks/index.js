@@ -24,6 +24,7 @@ import { buildFarms } from './farms.js';
 import { buildVillage } from './village.js';
 import { buildDepot } from './depot.js';
 import { buildDesert } from './desert.js';
+import { buildOrchard } from './orchard.js';
 import { buildHeaps } from '../heaps.js';
 import { HELIPAD, KRYSTOF } from '../layout.js';
 
@@ -62,6 +63,7 @@ export function buildLandmarks(scene, obstacles) {
     own('krystofPad', (group, list) => buildHelipad(group, list, KRYSTOF.pad)),
   ];
   own('chapel', buildChapel);
+  own('orchard', buildOrchard);
   own('summit', buildSummit);
   const fields = own('fields', buildFields);
   const airfield = own('airfield', buildAirfield);
@@ -72,7 +74,7 @@ export function buildLandmarks(scene, obstacles) {
   const depot = own('depot', buildDepot);
   const desert = own('desert', buildDesert);
   own('heaps', group => buildHeaps(group));
-  own('signs', group => buildSigns(group, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard }));
+  const signs = own('signs', group => buildSigns(group, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard }));
 
   let time = 0;
   const machines = [];
@@ -115,6 +117,7 @@ export function buildLandmarks(scene, obstacles) {
       village.update(dt);
       depot.update(night);
       desert.update(dt, night, player);
+      if (player) signs.update(player.x, player.z);
     },
   };
 }

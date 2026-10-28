@@ -739,6 +739,61 @@ function fromOuterRoad(...points) {
   return [[start.x, start.z], ...points];
 }
 
+/** Points for a track that leaves the ring road where it passes closest to the first of them. */
+function fromRingRoad(...points) {
+  const start = RING_ROAD.nearest(...points[0]).sample;
+  return [[start.x, start.z], ...points];
+}
+
+/**
+ * An orchard of apple and pear trees on the gentle slope inside the ring road in the south-west,
+ * in six rows with lanes 9 m wide between them, wide enough to drive up, and a headland across
+ * the top to turn round on. In its own frame the road is towards +Z, the rows run along Z and
+ * the track comes up the middle lane. The fruit stall stands beside the track at the foot,
+ * facing it, and the beehives along the side. Each tree is { x, z, scale, rotation, fruit }.
+ */
+export const ORCHARD = (() => {
+  const [x, z] = [-282, 424];
+  const road = RING_ROAD.nearest(x, z).sample;
+  const rotation = Math.atan2(road.x - x, road.z - z);
+  const local = localFrame(x, z, rotation);
+  const random = createRandom(4441);
+  const rows = [-22.5, -13.5, -4.5, 4.5, 13.5, 22.5];
+  const trees = [];
+  for (const lx of rows) {
+    for (let lz = -24; lz <= 18; lz += 7) {
+      // Pears in the two outer rows, apples in the rest.
+      const fruit = Math.abs(lx) > 20 ? 'pear' : 'apple';
+      const spot = local(lx + (random() - 0.5) * 0.5, lz + (random() - 0.5) * 0.5);
+      trees.push({ ...spot, scale: 0.85 + random() * 0.3, rotation: random() * Math.PI * 2, fruit });
+    }
+  }
+  // A ladder against a tree in the second row, along the row so it is out of the lanes.
+  const ladder = { row: 13.5, lz: 4 };
+  return {
+    x,
+    z,
+    rotation,
+    rows,
+    trees,
+    ladder: { ...local(ladder.row, ladder.lz + 1.25), tree: local(ladder.row, ladder.lz) },
+    stall: { ...local(4.6, 27), rotation: rotation - Math.PI / 2 },
+    hives: [-14, -10.5, -7, -3.5].map(lz => ({ ...local(27.5, lz), rotation: rotation - Math.PI / 2 })),
+    crates: [-13.5, 13.5, -22.5].map(lx => local(lx, 23.5)),
+    /** Half the size of the ground it covers, in its frame, and how far the woods keep back. */
+    half: [27, 30],
+    margin: 6,
+  };
+})();
+
+/** True in the orchard, or within `margin` more of it. */
+export function inOrchard(x, z, margin = ORCHARD.margin) {
+  const [dx, dz] = [x - ORCHARD.x, z - ORCHARD.z];
+  const [cos, sin] = [Math.cos(ORCHARD.rotation), Math.sin(ORCHARD.rotation)];
+  const [lx, lz] = [dx * cos - dz * sin, dx * sin + dz * cos];
+  return Math.abs(lx) < ORCHARD.half[0] + margin && Math.abs(lz) < ORCHARD.half[1] + margin;
+}
+
 /**
  * Narrow side tracks: two dirt ruts with grass between, or a footpath along the shore. `grade`,
  * where given, is the steepest they climb, and `window` how far either way the lie of the land
@@ -872,6 +927,16 @@ export const TRACKS = [
     ruts: true,
     grade: 0.22,
     path: createPath(roundAndUp(ROCK_HILL, outerPoint(354))),
+  },
+  {
+    // Off the ring road to the fruit stall, and on up the middle lane of the orchard.
+    id: 'orchard',
+    ruts: true,
+    path: createPath(
+      fromRingRoad(
+        ...[38, 26, 12, -4, -20].map(lz => Object.values(localFrame(ORCHARD.x, ORCHARD.z, ORCHARD.rotation)(0, lz))),
+      ),
+    ),
   },
   // Off the outer road into each farm's yard.
   ...FARMS.map(({ id, x, z, gate }) => ({
@@ -1253,6 +1318,7 @@ export const PLACES = [
   { id: 'roadworks', x: ROADWORKS.site.x, z: ROADWORKS.site.z },
   { id: 'helipad', x: HELIPAD.x, z: HELIPAD.z },
   { id: 'chapel', x: CHAPEL.x, z: CHAPEL.z },
+  { id: 'orchard', x: ORCHARD.x, z: ORCHARD.z },
   { id: 'summit', x: SUMMIT.x, z: SUMMIT.z },
   { id: 'fields', x: FARMSTEAD.x, z: FARMSTEAD.z },
   { id: 'airfield', x: AIRFIELD.x - 30, z: (AIRFIELD.z0 + AIRFIELD.z1) / 2 },
@@ -1290,6 +1356,7 @@ export const PADS = [
   { x: ROADWORKS.site.x, z: ROADWORKS.site.z, radius: 14, falloff: 10 },
   { x: HELIPAD.x, z: HELIPAD.z, radius: 10.5, falloff: 7 },
   { x: CHAPEL.x, z: CHAPEL.z, radius: 5, falloff: 6 },
+  { x: ORCHARD.stall.x, z: ORCHARD.stall.z, radius: 4, falloff: 5 },
   { x: SUMMIT.x, z: SUMMIT.z, radius: 8, falloff: 10 },
   { x: FARMSTEAD.x, z: FARMSTEAD.z, radius: 12, falloff: 10 },
   // Cut into the slope a little above the trail, so the yard runs gently up from it.

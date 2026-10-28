@@ -17,6 +17,8 @@ import {
   TRACKS,
   DRIVEWAYS,
   onDriveway,
+  inOrchard,
+  ORCHARD,
   onForecourt,
   RAILWAY,
   HALT,
@@ -83,7 +85,7 @@ import {
   FORDS,
 } from './terrain.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { PartsBuilder, flatMaterial, freeze, prism, tintable, vertexColorMaterial } from './build.js';
+import { PartsBuilder, flatMaterial, freeze, mergeByArea, prism, tintable, vertexColorMaterial } from './build.js';
 import { SWAY, foliageMaterial, groundMaterial } from './detail.js';
 import { growsTall } from './trample.js';
 import { createGround } from './ground.js';
@@ -199,9 +201,11 @@ export function ribbon(path, halfWidth, color, options) {
 }
 
 /** Shaded like the ground beneath it, so it doesn't show its facets where the ground doesn't. */
+/** Roads, tracks and paths are drawn over the ground, pulled a little towards the camera. */
+const RIBBON = groundMaterial({ polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+
 export function ribbonMesh(geometry) {
-  const material = groundMaterial({ polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  const mesh = new THREE.Mesh(geometry, material);
+  const mesh = new THREE.Mesh(geometry, RIBBON);
   mesh.receiveShadow = true;
   return mesh;
 }
@@ -595,6 +599,55 @@ export function roundTreeGeometry() {
     parts.add(new THREE.IcosahedronGeometry(r, 0), LEAVES, { x, y, z, ry: x * 2 });
   }
   return crownShading(tintable(parts.geometry(), [TRUNK]), 4.9);
+}
+
+/** The colours of ripe apples and pears, and of the leaves that turn on fruit trees. */
+export const FRUIT = { apple: '#c4382a', pear: '#d6bf4a' };
+
+/**
+ * An apple or pear tree, pruned low and wide: a short trunk forking into boughs, a broad crown
+ * of leafy clumps, and the fruit hanging round the outside of them.
+ */
+export function fruitTreeGeometry(fruit = 'apple') {
+  const parts = new PartsBuilder();
+  parts.add(new THREE.CylinderGeometry(0.15, 0.21, 1.6, 5), TRUNK, { y: 0.8 });
+  for (const [x, z, rz, rx] of [
+    [0.32, 0.05, -0.55, 0],
+    [-0.3, 0.12, 0.55, 0.15],
+    [0.02, -0.32, 0.05, -0.6],
+  ]) {
+    parts.add(new THREE.CylinderGeometry(0.07, 0.11, 1.2, 5), TRUNK, { x, y: 1.95, z, rz, rx });
+  }
+  const clumps = [
+    [1.6, 0, 3.0, 0, 0.85],
+    [1.15, 1.2, 2.65, 0.35, 1],
+    [1.1, -1.15, 2.6, -0.45, 1],
+    [1.05, 0.25, 3.55, -1.05, 1],
+    [1.0, -0.45, 3.5, 1.0, 1],
+    [0.95, 0.95, 2.5, -1.05, 1],
+    [0.9, -0.95, 2.35, 1.05, 1],
+  ];
+  for (const [r, x, y, z, sy] of clumps)
+    parts.add(new THREE.IcosahedronGeometry(r, 0), LEAVES, { x, y, z, sy, ry: x * 2 });
+  // Two or three fruit on each clump, low on its outside where they hang in view, set a little
+  // into it so they sit on its faces.
+  const shape = fruit === 'pear' ? { sy: 1.35 } : {};
+  clumps.forEach(([r, x, y, z, sy], k) => {
+    const out = Math.atan2(z, x) || k;
+    for (let n = 0; n < (k === 0 ? 4 : 2 + (k % 2)); n++) {
+      const a = out + (n - 1) * 0.9 + k;
+      const down = -0.15 - ((n * 0.37 + k * 0.23) % 0.5);
+      const flat = Math.sqrt(1 - down * down);
+      const reach = r * 0.84;
+      parts.add(new THREE.IcosahedronGeometry(0.11, 0), FRUIT[fruit], {
+        x: x + Math.cos(a) * flat * reach,
+        y: y + down * reach * sy,
+        z: z + Math.sin(a) * flat * reach,
+        ...shape,
+      });
+    }
+  });
+  return crownShading(tintable(parts.geometry(), [TRUNK, FRUIT[fruit]]), 3, 0.8);
 }
 
 export function birchGeometry() {
@@ -1098,6 +1151,9 @@ function grassMask() {
       along(track.path, 0.8, 0.45);
     }
   }
+  // The orchard's grass is mown short, between the trees and round them.
+  const { x: ox, z: oz } = ORCHARD;
+  where(ox - 45, ox + 45, oz - 45, oz + 45, (x, z) => inOrchard(x, z, 2), 0.6);
   // Round the buildings and in their yards.
   const yards = [
     [SPAWN, 8],
@@ -1485,7 +1541,7 @@ export function buildScenery(parent) {
   // What would grow in the crop fields, or in the desert, is left out as it is added rather than
   // where it is placed, so that leaving it out doesn't move everything placed after it.
   const everything = createScatter(scene);
-  const grows = (x, z) => outsideCrops(x, z) && !desertTakes(x, z);
+  const grows = (x, z) => outsideCrops(x, z) && !desertTakes(x, z) && !inOrchard(x, z);
   const scatter = {
     ...everything,
     add: kind =>
@@ -1508,10 +1564,14 @@ export function buildScenery(parent) {
   buildPeaks(scene);
   buildFences(scene, scatter);
   // The logs' obstacles are left out with them, by their middles.
-  const kept = obstacles.filter(o =>
-    o.x === undefined ? !desertTakes((o.ax + o.bx) / 2, (o.az + o.bz) / 2) : grows(o.x, o.z),
-  );
+  const kept = obstacles.filter(o => {
+    if (o.x !== undefined) return grows(o.x, o.z);
+    const [x, z] = [(o.ax + o.bx) / 2, (o.az + o.bz) / 2];
+    return !desertTakes(x, z) && !inOrchard(x, z);
+  });
   kept.push(...buildDesertScenery(everything));
+  // The roads, tracks and paths, merged by area: from up high, a view takes in dozens of them.
+  mergeByArea(scene, RIBBON, 480);
   freeze(scene);
   parent.add(scene);
   return {

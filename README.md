@@ -101,7 +101,7 @@ To play on your phone from your own computer, run `npm run dev` and open the **N
 ## Things to find
 
 - **Places.** A waterfall, a farm, a fire tower, a windmill, a jetty you can drive onto, a mountain hut, a line of old concrete bunkers, a chapel, a railway halt, roadworks, a helipad and a small airfield.
-- **The uplands.** Past the valley rim the land levels out into uplands. To the north-west a track climbs round three hairpins to a snowy summit with a lookout tower, the north is rocky, and in a pass to the south-east there is a small farm with fields.
+- **The uplands.** Past the valley rim the land levels out into uplands. To the north-west a track climbs round three hairpins to a snowy summit with a lookout tower, the north is rocky, in a pass to the south-east there is a small farm with fields, and in the south-west, just inside the paved road, an orchard of apple and pear trees. A track leads up its middle past a fruit stall with crates of apples and a heap of pumpkins, the lanes between the rows are wide enough to drive up, and painted beehives stand along one side.
 - **The roads.** A paved road runs all the way round the uplands. Two roads climb up to it from the valley trail, one on each side, and blue signs with a plane on them show the way to the airfield. Beyond it, three gravel roads lead out to a longer gravel road round the outlands.
 - **The outlands.** Out past the uplands, before the mountains:
   - A river with two shallow fords that the gravel road dips through.

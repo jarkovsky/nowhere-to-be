@@ -60,6 +60,73 @@ export function separateMeshKinds(root) {
  * Marks everything under `root` as fixed in place, so the renderer doesn't work out again
  * where it is every frame. Only for things that never move: moving one afterwards has no effect.
  */
+/**
+ * Merges the meshes among `group`'s children that are drawn with `material` into one mesh for
+ * each square `size` metres across, each triangle going to the square its middle lies in. A view
+ * over much of the world then draws a few meshes rather than every one, and squares out of view
+ * are still skipped. Only indexed meshes left where they were built, with the same attributes
+ * as the first, are merged.
+ */
+export function mergeByArea(group, material, size) {
+  const meshes = group.children.filter(o => {
+    if (!o.isMesh || o.isInstancedMesh || o.material !== material || !o.geometry.index) return false;
+    o.updateMatrix();
+    return o.matrix.equals(IDENTITY);
+  });
+  const names = Object.keys(meshes[0]?.geometry.attributes ?? {})
+    .sort()
+    .join();
+  const merging = meshes.filter(mesh => Object.keys(mesh.geometry.attributes).sort().join() === names);
+  if (merging.length < 2) return;
+  const cells = new Map();
+  for (const mesh of merging) {
+    const { index, attributes } = mesh.geometry;
+    const { position } = attributes;
+    const moved = new Map();
+    for (let t = 0; t < index.count; t += 3) {
+      const corners = [index.getX(t), index.getX(t + 1), index.getX(t + 2)];
+      const x = corners.reduce((sum, i) => sum + position.getX(i), 0) / 3;
+      const z = corners.reduce((sum, i) => sum + position.getZ(i), 0) / 3;
+      const key = `${Math.floor(x / size)},${Math.floor(z / size)}`;
+      if (!cells.has(key)) cells.set(key, { values: {}, indices: [], count: 0 });
+      const cell = cells.get(key);
+      // Each corner is copied into a cell once, however many of its triangles go there.
+      if (!moved.has(key)) moved.set(key, new Map());
+      const placed = moved.get(key);
+      for (const i of corners) {
+        if (!placed.has(i)) {
+          placed.set(i, cell.count++);
+          for (const [name, attribute] of Object.entries(attributes)) {
+            const values = (cell.values[name] ??= []);
+            for (let k = 0; k < attribute.itemSize; k++) values.push(attribute.getComponent(i, k));
+          }
+        }
+        cell.indices.push(placed.get(i));
+      }
+    }
+    group.remove(mesh);
+    mesh.geometry.dispose();
+  }
+  const { castShadow, receiveShadow, renderOrder } = merging[0];
+  for (const { values, indices } of cells.values()) {
+    const geometry = new THREE.BufferGeometry();
+    for (const [name, attribute] of Object.entries(merging[0].geometry.attributes)) {
+      const Type = attribute.array.constructor;
+      geometry.setAttribute(
+        name,
+        new THREE.BufferAttribute(new Type(values[name]), attribute.itemSize, attribute.normalized),
+      );
+    }
+    geometry.setIndex(indices);
+    geometry.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geometry, material);
+    Object.assign(mesh, { castShadow, receiveShadow, renderOrder });
+    group.add(mesh);
+  }
+}
+
+const IDENTITY = new THREE.Matrix4();
+
 export function freeze(root) {
   root.traverse(object => {
     object.updateMatrix();

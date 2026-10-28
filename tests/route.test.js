@@ -4,8 +4,9 @@ import * as THREE from 'three';
 import { angleDelta, clamp } from '../src/core/math.js';
 import { createObstacleIndex, penetration } from '../src/core/collision.js';
 import { createCarState, stepDriving } from '../src/core/driving.js';
-import { ROAD, CAMP_TRAIL, TRACKS, JETTY, RING_ROAD, ROADWORKS } from '../src/world/layout.js';
-import { headingOf } from '../src/world/path.js';
+import { ROAD, CAMP_TRAIL, TRACKS, JETTY, RING_ROAD, ROADWORKS, ORCHARD } from '../src/world/layout.js';
+import { localFrame } from '../src/world/build.js';
+import { createPath, headingOf } from '../src/world/path.js';
 import { drivingHeight, isDriveable, waterLevel } from '../src/world/terrain.js';
 import { buildScenery } from '../src/world/scenery.js';
 import { buildBridge } from '../src/world/landmarks/bridge.js';
@@ -21,6 +22,7 @@ import { buildRailway } from '../src/world/landmarks/railway.js';
 import { buildRoadworks } from '../src/world/landmarks/roadworks.js';
 import { buildSummit } from '../src/world/landmarks/summit.js';
 import { buildFields } from '../src/world/landmarks/fields.js';
+import { buildOrchard } from '../src/world/landmarks/orchard.js';
 import { createSurfaces } from '../src/world/surfaces.js';
 import { LANE } from '../src/vehicles/traffic.js';
 
@@ -41,6 +43,7 @@ for (const build of [
   buildRoadworks,
   buildSummit,
   buildFields,
+  buildOrchard,
 ]) {
   build(scene, obstacles);
 }
@@ -99,6 +102,38 @@ test('every side track can be driven from end to end', () => {
     const result = followPath(track.path, track.path.length - 4);
     assert.equal(result.stuck, undefined, `${track.id}: ${result.stuck}`);
     assert.ok(result.progress >= track.path.length - 4, `${track.id} only reached ${result.progress.toFixed(0)} m`);
+  }
+});
+
+test('every lane of the orchard can be driven up and down, and along the headland across the top', () => {
+  const local = localFrame(ORCHARD.x, ORCHARD.z, ORCHARD.rotation);
+  const along = points => createPath(points.map(([lx, lz]) => Object.values(local(lx, lz))));
+  const lanes = [-18, -9, 0, 9, 18].flatMap(lx => [
+    along([
+      [lx, 28],
+      [lx, 0],
+      [lx, -29],
+    ]),
+    along([
+      [lx, -29],
+      [lx, 0],
+      [lx, 28],
+    ]),
+  ]);
+  for (const path of [
+    ...lanes,
+    along([
+      [-24, -29.5],
+      [0, -29.5],
+      [24, -29.5],
+    ]),
+  ]) {
+    const result = followPath(path, path.length - 4);
+    assert.equal(result.stuck, undefined, result.stuck);
+    assert.ok(
+      result.progress >= path.length - 4,
+      `only reached ${result.progress.toFixed(0)} of ${path.length.toFixed(0)} m`,
+    );
   }
 });
 
