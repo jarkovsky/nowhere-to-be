@@ -1349,8 +1349,8 @@ export const HABITATS = {
   eagle: { x: SERLICH.x, z: SERLICH.z, radius: 34, height: 30, period: 38 },
 };
 
-/** Garden gnomes hidden around the valley. Entirely optional. */
-export const GNOMES = [
+/** Small glades kept clear of trees and rocks, a few metres across. */
+export const GLADES = [
   { x: -71, z: 121 }, // behind the cabin
   { x: 176, z: -64 }, // down by the creek, under the bridge
   { x: 211.5, z: -70 }, // beside the waterfall pool

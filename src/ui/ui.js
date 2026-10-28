@@ -4,7 +4,7 @@
 // it through callbacks.
 import { CAR_COLORS } from '../vehicles/car.js';
 import { COLORS, DECORATIONS, VEHICLES } from '../core/journal.js';
-import { gnomeArt, gnomeIcon, roofArt } from './art.js';
+import { roofArt } from './art.js';
 
 const $ = id => document.getElementById(id);
 
@@ -37,10 +37,9 @@ const LABELS = {
 };
 
 /** `pictures` has the garage's pictures of the vehicles (see pictures.js). */
-export function createUI({ journal, gnomeCount, pictures, on }) {
+export function createUI({ journal, pictures, on }) {
   const menu = $('menu');
   let toastTimer = null;
-  let gnomeTimer = null;
   let showroom = false;
   let mapOpen = false;
   const toastQueue = [];
@@ -167,60 +166,25 @@ export function createUI({ journal, gnomeCount, pictures, on }) {
       style: c => `--swatch:${CAR_COLORS[c] ?? 'transparent'}`,
     });
     // Roof items can be combined, so each button toggles its own item.
-    choiceButtons(
-      $('decoration-options'),
-      DECORATIONS.filter(d => d !== 'gnome' || choices.gnomes.length === gnomeCount),
-      {
-        label: d => LABELS.decorations[d],
-        art: roofArt,
-        isPressed: d => choices.decorations.includes(d),
-        choose: d => ({
-          decorations: choices.decorations.includes(d)
-            ? choices.decorations.filter(item => item !== d)
-            : [...choices.decorations, d],
-        }),
-      },
-    );
+    choiceButtons($('decoration-options'), DECORATIONS, {
+      label: d => LABELS.decorations[d],
+      art: roofArt,
+      isPressed: d => choices.decorations.includes(d),
+      choose: d => ({
+        decorations: choices.decorations.includes(d)
+          ? choices.decorations.filter(item => item !== d)
+          : [...choices.decorations, d],
+      }),
+    });
   }
 
-  /** The gnomes found so far, and a note if progress can't be saved. */
+  /** A note if the car choices can't be saved. */
   function refreshMenu() {
-    const { gnomes } = journal.get();
-    $('gnome-tally-row').innerHTML = gnomeRow(gnomes.length);
-    $('gnome-count').textContent = `${gnomes.length} of ${gnomeCount} garden gnomes found`;
     $('save-note').hidden = journal.isPersistent();
   }
   refreshMenu();
 
   // --- Toasts ---------------------------------------------------------------------
-
-  /** One gnome per hiding place, coloured in from the left as they are found. `fresh` pops in. */
-  function gnomeRow(count, fresh = -1) {
-    return Array.from(
-      { length: gnomeCount },
-      (_, i) =>
-        `<span class="${i < count ? 'found' : ''}${i === fresh ? ' fresh' : ''}" style="--i:${i}">${gnomeIcon()}</span>`,
-    ).join('');
-  }
-
-  function showGnomeProgress(count) {
-    const panel = $('gnome-progress');
-    const complete = count === gnomeCount;
-    $('gnome-row').innerHTML = gnomeRow(count, complete ? -1 : count - 1);
-    $('gnome-number').textContent = `${count} / ${gnomeCount}`;
-    $('gnome-status').textContent = `${count} of ${gnomeCount} garden gnomes found`;
-    panel.classList.toggle('complete', complete);
-    panel.classList.remove('leaving');
-    panel.hidden = false;
-    clearTimeout(gnomeTimer);
-    gnomeTimer = setTimeout(
-      () => {
-        panel.classList.add('leaving');
-        gnomeTimer = setTimeout(() => (panel.hidden = true), 400);
-      },
-      complete ? 7000 : 5000,
-    );
-  }
 
   function showNextToast() {
     const toast = $('toast');
@@ -279,11 +243,6 @@ export function createUI({ journal, gnomeCount, pictures, on }) {
     toast(entry) {
       toastQueue.push(entry);
       if (!toastTimer) showNextToast();
-    },
-    gnomeFound(count) {
-      showGnomeProgress(count);
-      if (count === gnomeCount)
-        this.toast({ art: gnomeArt(), title: 'All garden gnomes found', detail: 'A new roof option is waiting.' });
     },
     setSwitch(id, on) {
       $(id).setAttribute('aria-checked', String(on));

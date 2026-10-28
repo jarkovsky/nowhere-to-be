@@ -1665,7 +1665,7 @@ function createTeddy() {
   return teddy;
 }
 
-/** Unlocked by finding every gnome. */
+/** A garden gnome: the gnome roof item. */
 export function gnomeParts(parts, transform = {}) {
   const { x = 0, y = 0, z = 0, scale = 1 } = transform;
   const s = scale;

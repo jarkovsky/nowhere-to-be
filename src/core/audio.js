@@ -366,12 +366,6 @@ export function createAudio() {
       }
     },
 
-    chime() {
-      if (!playable()) return;
-      const now = context.currentTime;
-      [784, 988, 1175, 1568].forEach((f, i) => tone(f, now + i * 0.07, 0.5, { volume: 0.06 }));
-    },
-
     /** A wooden fence going over: two soft hollow knocks and a rattle. */
     knock() {
       if (!playable()) return;

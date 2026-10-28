@@ -26,7 +26,6 @@ import { AIR_AMBULANCE, VALLEY_RESCUE, createHelicopter } from './vehicles/helic
 import { createPlanes } from './vehicles/plane.js';
 import { createAtmosphere } from './world/atmosphere.js';
 import { separateMeshKinds } from './world/build.js';
-import { createGnomes } from './world/collectibles.js';
 import { buildLandmarks, insideTunnel } from './world/landmarks/index.js';
 import { OUTLINE, createFerry } from './world/ferry.js';
 import { createMudHole } from './world/mudhole.js';
@@ -34,7 +33,6 @@ import {
   CAMP,
   CAMP_TRAIL,
   DEPOT,
-  GNOMES,
   ROAD,
   ROAD_HALF_WIDTH,
   SPAWN,
@@ -179,7 +177,6 @@ export function createGame(canvas) {
   const minimap = createMinimap(document.getElementById('corner-map'), mapPicture, state, target);
   const ui = createUI({
     journal,
-    gnomeCount: GNOMES.length,
     pictures,
     on: {
       play,
@@ -214,14 +211,6 @@ export function createGame(canvas) {
   obstacles.push(...secrets.obstacles);
   const helicopters = [VALLEY_RESCUE, AIR_AMBULANCE].map(spec => createHelicopter(scene, spec));
   const planes = createPlanes(scene, obstacles);
-  const gnomes = createGnomes(scene, {
-    found: journal.get().gnomes,
-    onFound: index => {
-      if (!journal.collectGnome(index)) return;
-      sound.chime();
-      ui.gnomeFound(journal.get().gnomes.length);
-    },
-  });
 
   // Everything that moves and can be bumped into: the other travellers, the train and the crossing barriers.
   const moving = [];
@@ -823,7 +812,6 @@ export function createGame(canvas) {
     landmarks.update(dt, night, { crossingClosed, player: state });
     wildlife.update(dt, state, night);
     secrets.update(dt, state, night);
-    gnomes.update(dt, state, driving);
     // Stuck in the mud hole and pulled out of it, the car makes no sound in the mud.
     surfaces.update(dt, state, driving, mudHole.slip, mudHole.gripping());
     if (driving) wading.update(dt, state, car, car.trailer ? trailer : null);
@@ -917,7 +905,6 @@ export function createGame(canvas) {
         map: mapView.getState(),
         minimap: minimap.getState(),
         tilt: tilt.getState(),
-        gnomes: gnomes.getState(),
         wildlife: wildlife.getState(),
         cameraBlocked: chase.isBlocked(),
         cameraMode: chase.getMode(),
