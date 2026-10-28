@@ -43,6 +43,7 @@ export function createAudio() {
   let noise;
   let enabled = true;
   let enginePitch = 1;
+  let engineDiesel = 0;
   let surface = 'grass';
   let surfacePace = 0;
   let nextCrackle = 0;
@@ -147,7 +148,7 @@ export function createAudio() {
     trim.connect(volume).connect(master);
     pulses.start();
     body.start();
-    engine = { pulses, body, exhaust, volume };
+    engine = { pulses, body, exhaust, muffler, pulseDepth, volume };
 
     // The tyres in water, snow and leaves: muffled noise whose level and tone follow the surface.
     const bedFilter = context.createBiquadFilter();
@@ -292,9 +293,14 @@ export function createAudio() {
       return true;
     },
 
-    /** Lower for the lorry's big engine, higher for the racing cars'. 1 is the little off-roader. */
-    setEngine(pitch = 1) {
+    /**
+     * Lower for the lorry's big engine, higher for the racing cars'. 1 is the little off-roader.
+     * A `diesel` from 0 to 1 gives it a slow, muffled chug: its thumps stand out more, the
+     * exhaust is damped further and it is a little quieter.
+     */
+    setEngine(pitch = 1, diesel = 0) {
       enginePitch = pitch;
+      engineDiesel = diesel;
     },
 
     /** The other travellers' reply: a lower, two-note toot. */
@@ -409,8 +415,10 @@ export function createAudio() {
       glide(engine.pulses.frequency, firing, now, 0.08);
       glide(engine.body.frequency, firing, now, 0.08);
       glide(engine.exhaust.frequency, (220 + rpm * 0.09 + throttle * 200) * enginePitch, now, 0.1);
+      glide(engine.muffler.frequency, 1000 - engineDiesel * 380, now, 0.3);
+      glide(engine.pulseDepth.gain, 0.16 + engineDiesel * 0.1, now, 0.3);
       // A little under the music.
-      const loudness = 0.045 + throttle * 0.032 + (rpm / 4000) * 0.027;
+      const loudness = (0.045 + throttle * 0.032 + (rpm / 4000) * 0.027) * (1 - engineDiesel * 0.22);
       glide(engine.volume.gain, engineOn ? loudness : 0, now, engineOn ? 0.15 : 0.4);
 
       const profile = SURFACE_BEDS[surface];

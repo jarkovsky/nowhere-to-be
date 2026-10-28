@@ -116,15 +116,17 @@ export function buildDepot(scene, obstacles) {
     }
   }
 
-  // The yard: concrete in front of the doors, with white lines between the bays.
-  const yard = FORECOURTS.find(court => court.id === 'depot');
-  parts.box(
-    yard.x1 - yard.x0,
-    0.12,
-    yard.z1 - yard.z0,
-    CONCRETE,
-    at((yard.x0 + yard.x1) / 2, -0.03, (yard.z0 + yard.z1) / 2),
-  );
+  // The yard: concrete in front of the doors, with white lines between the bays, and the apron
+  // beside the building where the flatbed lorry waits, with a line down each side of it.
+  for (const court of FORECOURTS.filter(({ id }) => id.startsWith('depot'))) {
+    parts.box(
+      court.x1 - court.x0,
+      0.12,
+      court.z1 - court.z0,
+      CONCRETE,
+      at((court.x0 + court.x1) / 2, -0.03, (court.z0 + court.z1) / 2),
+    );
+  }
   for (let i = 0; i <= DEPOT.bays.length; i++) {
     const x =
       i === 0
@@ -134,6 +136,7 @@ export function buildDepot(scene, obstacles) {
           : (DEPOT.bays[i - 1] + DEPOT.bays[i]) / 2;
     parts.box(0.14, 0.02, 5.6, TRIM, at(x, 0.04, 3.1));
   }
+  for (const side of [-1, 1]) parts.box(0.14, 0.02, 10.4, TRIM, at(DEPOT.apron.lx + side * 2.4, 0.04, 2.8));
 
   // A stack of tyres by one end, and an oil drum by the other, each on the ground where it stands.
   const floor = (lx, lz) => frame.ground(lx, lz) - frame.at(0, 0, 0).y;

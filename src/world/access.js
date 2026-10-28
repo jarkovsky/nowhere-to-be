@@ -27,6 +27,7 @@ const frame = ({ x, z, rotation }, lx, lz) => ({
 /** Every spot a vehicle is parked or waits at, by name. */
 export const PARKED = [
   ...DEPOT.bays.map((lx, i) => ({ name: `depot bay ${i + 1}`, ...frame(DEPOT, lx, DEPOT.noses - 2) })),
+  { name: 'depot apron', ...frame(DEPOT, DEPOT.apron.lx, DEPOT.apron.nose - 2) },
   { name: 'fire engine', ...frame(VILLAGE.fireStation, -2.6, 5.2) },
   { name: 'camper van at the petrol station', ...frame(DESERT.station, -0.6, 5.1) },
   { name: 'planes on the apron', x: 540, z: 162 },

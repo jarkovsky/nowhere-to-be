@@ -1,12 +1,25 @@
-// Saved choices: the car, its colour and roof items, and settings.
-// Stored in localStorage when available; otherwise it lasts for the visit.
+// Saved choices: the car's colour and roof items, and settings. The vehicle is chosen
+// afresh each visit, always starting in the off-roader. Stored in localStorage when
+// available; otherwise it lasts for the visit.
 
 // The key keeps the game's original working title so existing saves survive.
 export const SAVE_KEY = 'little-wilds-adventures-v1';
 
 export const COLORS = ['orange', 'sage', 'blue', 'berry', 'yellow', 'rainbow'];
 export const DECORATIONS = ['flag', 'teddy', 'tent', 'gnome'];
-export const VEHICLES = ['offroader', 'pickup', 'van', 'saloon', 'tractor', 'lorry', 'hyundai', 'mercedes', 'miata'];
+export const VEHICLES = [
+  'offroader',
+  'pickup',
+  'van',
+  'saloon',
+  'tractor',
+  'lorry',
+  'hyundai',
+  'mercedes',
+  'miata',
+  'flatbed',
+  'expedition',
+];
 
 /**
  * There used to be two lorries in colours of their own, Oliver in blue and Ruda in red. A save
@@ -56,12 +69,16 @@ export function createJournal(storage) {
   } catch {
     data = { ...DEFAULTS };
   }
+  // The vehicle isn't remembered: a child who keeps changing cars would otherwise start each
+  // visit in a different one, and the first in the garage is the one to find waiting.
+  data.vehicle = DEFAULTS.vehicle;
   let persistent = Boolean(storage);
 
   function save(patch) {
     data = { ...data, ...patch };
     try {
-      storage?.setItem(SAVE_KEY, JSON.stringify(data));
+      const { vehicle, ...kept } = data;
+      storage?.setItem(SAVE_KEY, JSON.stringify(kept));
       persistent = Boolean(storage);
     } catch {
       persistent = false;

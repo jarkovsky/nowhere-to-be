@@ -111,7 +111,8 @@ export function createCopies(scene) {
   return {
     /**
      * How big a vehicle is: from its middle to its nose and to its tail (the trailer's), half
-     * its width, its height and its wheelbase; whether it is a lorry, and the horn it has.
+     * its width, its height and its wheelbase; whether it is a lorry (pulling a trailer) and
+     * whether it is long, and the horn it has.
      */
     sizeOf(vehicle) {
       if (sizes.has(vehicle)) return sizes.get(vehicle);
@@ -133,6 +134,7 @@ export function createCopies(scene) {
         height: box.max.y,
         wheelbase: copy.wheelbase,
         lorry: Boolean(copy.car.trailer),
+        long: box.max.z - box.min.z > 9,
         horn: copy.car.spec.voice?.horn ?? 'beep',
       };
       sizes.set(vehicle, size);

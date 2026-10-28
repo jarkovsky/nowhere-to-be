@@ -61,6 +61,8 @@ const NAMES = {
   hyundai: 'Rally car',
   mercedes: 'Racing car',
   miata: 'Roadster',
+  flatbed: 'Flatbed lorry with a digger',
+  expedition: 'Expedition truck',
 };
 
 /** The garage's vehicles as the player drives them, in a paint, with roof items, and the lamps on at `night`. */
@@ -144,6 +146,18 @@ export const MODELS = [
     name: 'Roadster with its lamps up, the tent packed on the boot, flag, teddy and gnome',
     group: 'Garage',
     create: () => garageVehicle('miata', 'orange', ['tent', 'flag', 'teddy', 'gnome'], 1),
+  },
+  {
+    id: 'garage.flatbed.tent',
+    name: 'Flatbed lorry with the roof tent, flag, teddy and gnome',
+    group: 'Garage',
+    create: () => garageVehicle('flatbed', 'orange', ['tent', 'flag', 'teddy', 'gnome']),
+  },
+  {
+    id: 'garage.expedition.tent',
+    name: 'Expedition truck with the roof tent, flag, teddy and gnome',
+    group: 'Garage',
+    create: () => garageVehicle('expedition', 'orange', ['tent', 'flag', 'teddy', 'gnome']),
   },
   ...[
     ['camper', 'Camper van', camperVan],

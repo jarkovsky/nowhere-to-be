@@ -463,7 +463,7 @@ export function createGame(canvas) {
     state.body = bodyOf(car.size);
     wheelLayout = layoutOf(car.spec.wheels);
     hasTent = decorations.includes('tent');
-    sound.setEngine(car.spec.voice?.engine);
+    sound.setEngine(car.spec.voice?.engine, car.spec.voice?.diesel);
     friends.choose(vehicle, color);
     trailer.ready = false;
     if (car.trailer) placeTrailer();
