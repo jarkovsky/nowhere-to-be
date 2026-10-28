@@ -168,8 +168,10 @@ function groundColor(x, z, h, up, out) {
     if (d < 1 && patch.id === 'snow') out.copy(GROUND.snow);
     if (d < 1 && patch.id === 'leaves') out.lerp(GROUND.leaves, 0.75);
     if (d < 1.2 && patch.id === 'mud') out.lerp(GROUND.mud, 0.85 * (1 - smoothstep(d, 0.8, 1.2)));
-    if (d < 1.2 && patch.id !== 'leaves') grass *= smoothstep(d, 0.9, 1.2);
-    if (d < 1 && patch.id === 'leaves') grass *= 0.4;
+    // The mud's colour reaches out past its edge, so the grass starts a little further out.
+    if (patch.id === 'mud') grass *= smoothstep(d, 1.15, 1.45);
+    else if (patch.id === 'snow') grass *= smoothstep(d, 0.9, 1.2);
+    else if (d < 1) grass *= 0.4;
   }
   desertGround(x, z, up, out);
   if (grass > 0) grass *= 1 - smoothstep(desertness(x, z), 0.05, 0.45);
