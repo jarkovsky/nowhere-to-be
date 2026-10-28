@@ -26,6 +26,7 @@ import { buildDesert } from '../world/landmarks/desert.js';
 import { buildOrchard } from '../world/landmarks/orchard.js';
 import { buildSnowman } from '../world/landmarks/snowman.js';
 import { buildLookout } from '../world/landmarks/lookout.js';
+import { buildFishing } from '../world/landmarks/fishing.js';
 import { buildHeaps } from '../world/heaps.js';
 import { HELIPAD, KRYSTOF } from '../world/layout.js';
 import { drivingHeight, waterLevel } from '../world/terrain.js';
@@ -57,6 +58,7 @@ export const LANDMARKS = {
   chapel: buildChapel,
   orchard: buildOrchard,
   snowman: buildSnowman,
+  fishing: buildFishing,
   summit: buildSummit,
   fields: (scene, obstacles) => {
     // The tractors and the combine take their places in the fields on the first update.

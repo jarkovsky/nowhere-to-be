@@ -32,6 +32,7 @@ import {
   OUTER_ROAD,
   GRAVEL_HALF_WIDTH,
   ROUGH,
+  FISHING,
 } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder } from '../build.js';
@@ -285,6 +286,51 @@ function paintRoadworksSign(arrow) {
   };
 }
 
+/** A white road sign with a blue border and a fish over waves on it, for the way to the fishing hut. */
+function paintFishingSign(arrow) {
+  return (ctx, w, h) => {
+    ctx.fillStyle = '#f4f2ea';
+    ctx.fillRect(0, 0, w, h);
+    ctx.save();
+    const u = w / 300;
+    ctx.scale(u, u);
+    ctx.strokeStyle = '#2d6a8f';
+    ctx.lineWidth = 14;
+    ctx.lineJoin = 'round';
+    ctx.strokeRect(22, 22, 256, 160);
+    // The fish: an oval body, a tail, an eye and a stripe.
+    ctx.fillStyle = '#2d6a8f';
+    ctx.beginPath();
+    ctx.ellipse(140, 88, 62, 34, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(190, 88);
+    ctx.lineTo(236, 56);
+    ctx.lineTo(236, 120);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#f4f2ea';
+    ctx.beginPath();
+    ctx.arc(108, 78, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(146, 60, 8, 56);
+    // Waves under it.
+    ctx.strokeStyle = '#2d6a8f';
+    ctx.lineWidth = 9;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let x = 52; x < 250; x += 48) {
+      ctx.moveTo(x, 150);
+      ctx.quadraticCurveTo(x + 12, 138, x + 24, 150);
+      ctx.quadraticCurveTo(x + 36, 162, x + 48, 150);
+    }
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#23262a';
+    if (arrow) drawArrow(ctx, w / 2, h * 0.8, w * 0.36, arrow);
+  };
+}
+
 /** Which way an arrow should point for someone reading the sign from the front or back. */
 function arrowFor(from, yaw, to, back) {
   const vx = to.x - from.x;
@@ -459,6 +505,7 @@ function paintMap(ctx, w, h) {
     horses: 'Horses',
     goats: 'Goats',
     desert: 'Desert',
+    fishing: 'Fishing hut',
   };
   /** Draws text in the current font and alignment, and returns the box it fills. */
   const write = (text, x, y, size) => {
@@ -645,6 +692,14 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
       .map(along => OUTER_ROAD.offset(from + along, side * (GRAVEL_HALF_WIDTH + 2.2)))
       .sort((a, b) => ROUGH.path.nearest(b.x, b.z).distance - ROUGH.path.nearest(a.x, a.z).distance);
     pictureSign(scene, parts, { ...p, yaw: Math.atan2(p.dx, p.dz) }, paintRoughSign, ROUGH.lookout);
+  }
+  // Fish signs on the outer road either side of the track to the fishing hut, on its side.
+  const hutTrack = TRACKS.find(track => track.id === 'fishing').path;
+  const turnOff = OUTER_ROAD.nearest(hutTrack.at(0).x, hutTrack.at(0).z);
+  const turnSide = Math.sign(OUTER_ROAD.nearest(hutTrack.at(14).x, hutTrack.at(14).z).side) || 1;
+  for (const along of [-16, 16]) {
+    const p = OUTER_ROAD.offset(turnOff.s + along, turnSide * (GRAVEL_HALF_WIDTH + 2.4));
+    pictureSign(scene, parts, { ...p, yaw: Math.atan2(-p.dx, -p.dz) }, paintFishingSign, FISHING);
   }
 
   // A board on the summit, facing the end of the track.

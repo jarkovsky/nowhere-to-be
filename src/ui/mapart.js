@@ -143,6 +143,12 @@ export const PLACE_ICONS = {
     color: RED,
     d: 'M6 21v-9l6-5 6 5v9ZM12 7V2M10 4h4M10.5 21v-3a1.5 1.5 0 0 1 3 0v3',
   },
+  fishing: {
+    name: 'Fishing hut',
+    color: BLUE,
+    d: 'M2.5 12c2.8-4.2 8-5.6 12.5-3.2 1.5.8 2.8 2.1 4.2 3.2-1.4 1.1-2.7 2.4-4.2 3.2-4.5 2.4-9.7 1-12.5-3.2ZM19.2 12l2.3-3.5v7Z',
+    solid: 'M7.4 11a1 1 0 1 0 2 0 1 1 0 0 0-2 0Z',
+  },
   orchard: {
     name: 'Orchard',
     color: GREEN,
@@ -320,7 +326,7 @@ function mapLines() {
   };
   const taxiway = { x0: apron.x1 - 1, x1: AIRFIELD.x, z0: AIRFIELD.taxiZ - 5, z1: AIRFIELD.taxiZ + 5 };
   lines = [
-    ...RIVERS.map(river => ({ shape: shapeOf([river.path], 4), color: WATER, width: river.halfWidth * 2, min: 2.5 })),
+    ...RIVERS.map(river => ({ shape: shapeOf([river.path], 4), color: WATER, width: river.typical * 2, min: 2.5 })),
     { shape: shapeOf([CREEK], 4), color: WATER, width: CREEK_HALF_WIDTH * 2, min: 2 },
     { shape: shapeOf([BROOK], 4), color: WATER, width: BROOK_HALF_WIDTH * 2, min: 2 },
     // The tracks: brown dashes on a pale verge, so they show on the woods as well as the meadows.

@@ -22,7 +22,9 @@ import {
   onForecourt,
   RAILWAY,
   HALT,
-  BRIDGE,
+  BRIDGES,
+  onBridgeDeck,
+  FISHING,
   TUNNEL,
   WATERFALL,
   CAMP,
@@ -119,6 +121,7 @@ const GROUND = {
   leaves: new THREE.Color('#c4873f'),
   mud: new THREE.Color('#7a6446'),
   stone: new THREE.Color('#b3a891'),
+  gravel: new THREE.Color('#c3b9a0'),
 };
 const rockTone = new THREE.Color();
 
@@ -156,8 +159,14 @@ function groundColor(x, z, h, up, out) {
   if (h < FJORD.level + 1.5 && inFjord(x, z, 6)) shore(1 - smoothstep(h, FJORD.level + 0.4, FJORD.level + 1.5));
   if (CREEK.isNear(x, z, 9)) shore(1 - smoothstep(CREEK.nearest(x, z).distance, 5, 9));
   if (BROOK.isNear(x, z, 6)) shore(1 - smoothstep(BROOK.nearest(x, z).distance, 2.5, 6));
-  const river = nearRiver(x, z, 12);
-  if (river) shore(1 - smoothstep(river.distance, river.river.halfWidth + 1, river.river.halfWidth + 7));
+  const river = nearRiver(x, z, 14);
+  if (river) {
+    const halfWidth = river.river.halfWidth(river.s);
+    shore(1 - smoothstep(river.distance, halfWidth + 1, halfWidth + 7));
+    // Gravel bars and the shallows are pale stones, with the odd darker one.
+    const near = 1 - smoothstep(h - waterLevel(x, z), 0.08, 0.5);
+    if (near > 0) out.lerp(GROUND.gravel, near * (0.7 + 0.3 * valueNoise(x / 1.7, z / 1.7, 83)));
+  }
   // Gravel on the oxbow's shore and over its bed, where it shows through the shallows.
   if (OXBOW.path.isNear(x, z, 16)) {
     const { s, distance } = OXBOW.path.nearest(x, z);
@@ -279,7 +288,7 @@ export function ribbonGeometry(
 }
 
 const inTunnel = s => ROAD.apart(s, TUNNEL.s) < TUNNEL.length / 2 + 4;
-const onBridge = s => ROAD.apart(s, BRIDGE.s) < BRIDGE.length / 2 - 0.6;
+const onBridge = s => onBridgeDeck(ROAD, s);
 
 /**
  * A flat strip of water along a stream, `halfWidth` either side of it at `level(s)`, leaving
@@ -304,6 +313,133 @@ function waterStrip(path, halfWidth, level, { skip = () => false, until = () => 
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.computeVertexNormals();
   return geometry;
+}
+
+const RIVER_WATER = new THREE.MeshLambertMaterial({
+  color: '#ffffff',
+  vertexColors: true,
+  emissive: '#285f63',
+  emissiveIntensity: 0.3,
+  transparent: true,
+  opacity: 0.72,
+  depthWrite: false,
+});
+
+/**
+ * The water of a river, a ribbon whose colour shows what it is doing there: darker where it
+ * runs slow and deep, paler over the riffles and the shallows of a ford, and paler again at
+ * the edges. It stops where `skip(s)`.
+ */
+function riverStrip(river, skip) {
+  const deep = new THREE.Color('#689fa6');
+  const run = new THREE.Color('#7fb8bb');
+  const pale = new THREE.Color('#bcdedc');
+  const positions = [];
+  const colors = [];
+  const indices = [];
+  const tone = new THREE.Color();
+  let previous = -1;
+  for (const { x, z, dx, dz, s } of river.path.samples) {
+    if (skip(s)) {
+      previous = -1;
+      continue;
+    }
+    const y = riverLevel(river, s);
+    const half = river.halfWidth(s) * 1.2 + 2.5;
+    tone
+      .copy(deep)
+      .lerp(run, smoothstep(river.flow(s), 0.5, 1.5))
+      .lerp(pale, river.shallow(s) * 0.85);
+    const row = positions.length / 3;
+    for (const [across, edge] of [
+      [-1, 0.4],
+      [0, 0],
+      [1, 0.4],
+    ]) {
+      positions.push(x - dz * half * across, y, z + dx * half * across);
+      colors.push(...tone.clone().lerp(pale, edge).toArray());
+    }
+    if (previous >= 0) {
+      const [aL, aM, aR, bL, bM, bR] = [previous, previous + 1, previous + 2, row, row + 1, row + 2];
+      indices.push(aL, aM, bL, aM, bM, bL, aM, aR, bM, aR, bR, bM);
+    }
+    previous = row;
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/**
+ * Pale streaks on the rivers that drift downstream with the current: long and quick where the
+ * water runs fast, short and slow where it is still, and most of them over the riffles. Only
+ * those near the camera are moved, since the rest can't be seen.
+ */
+function buildRipples(scene) {
+  const random = createRandom(6113);
+  const ripples = [];
+  for (const river of RIVERS) {
+    const { samples, spacing, length } = river.path;
+    const flows = samples.map(p => river.flow(p.s));
+    const reaches = samples.map(p => river.halfWidth(p.s) * 0.85);
+    const levels = samples.map(p => riverLevel(river, p.s) + 0.035);
+    let made = 0;
+    for (let tries = 0; made < length / 6 && tries < length; tries++) {
+      const s = random() * length;
+      if (random() > 0.25 + 0.75 * river.shallow(s)) continue;
+      const near = river.path.at(s);
+      if (Math.hypot(near.x, near.z) > VALLEY_RADIUS + 60) continue;
+      ripples.push({
+        river,
+        flows,
+        reaches,
+        levels,
+        spacing,
+        length,
+        s,
+        side: random() * 2 - 1,
+        size: 0.8 + random() * 0.8,
+        phase: random() * 6.3,
+        x: near.x,
+        z: near.z,
+      });
+      made++;
+    }
+  }
+  const mesh = new THREE.InstancedMesh(
+    new THREE.PlaneGeometry(0.6, 0.1),
+    new THREE.MeshBasicMaterial({ color: '#e9f5f0', transparent: true, opacity: 0.5, depthWrite: false }),
+    ripples.length,
+  );
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  const dummy = new THREE.Object3D();
+  let time = 0;
+  return {
+    update(dt, eye) {
+      time += dt;
+      ripples.forEach((ripple, i) => {
+        if ((ripple.x - eye.x) ** 2 + (ripple.z - eye.z) ** 2 > 300 * 300) return;
+        const k = Math.round(ripple.s / ripple.spacing);
+        const flow = ripple.flows[Math.min(k, ripple.flows.length - 1)];
+        ripple.s = (ripple.s + dt * flow * 0.8) % ripple.length;
+        const side = ripple.side * ripple.reaches[Math.min(k, ripple.reaches.length - 1)];
+        const p = ripple.river.path.offset(ripple.s, side);
+        ripple.x = p.x;
+        ripple.z = p.z;
+        const swell = 0.8 + 0.2 * Math.sin(time * 0.9 + ripple.phase);
+        dummy.position.set(p.x, ripple.levels[Math.min(k, ripple.levels.length - 1)], p.z);
+        dummy.rotation.set(-Math.PI / 2, 0, Math.atan2(p.dx, p.dz) + Math.PI / 2);
+        dummy.scale.set(((0.6 + flow * 1.1) * ripple.size * swell) / 0.6, 1, 1);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+    },
+  };
 }
 
 function buildWater(scene) {
@@ -349,15 +485,12 @@ function buildWater(scene) {
   scene.add(brook);
   for (const river of RIVERS) {
     inPieces(river.path, outside => {
-      const level = s => riverLevel(river, s);
-      const water = new THREE.Mesh(
-        waterStrip(river.path, river.halfWidth + 3, level, { skip: outside }),
-        brookMaterial,
-      );
+      const water = new THREE.Mesh(riverStrip(river, outside), RIVER_WATER);
       water.receiveShadow = true;
       scene.add(water);
     });
   }
+  const ripples = buildRipples(scene);
   const spring = new THREE.Mesh(new THREE.CircleGeometry(SPRING.radius + 1.2, 20).rotateX(-Math.PI / 2), brookMaterial);
   spring.position.set(SPRING.x, brookLevel(0), SPRING.z);
   scene.add(spring);
@@ -401,8 +534,9 @@ function buildWater(scene) {
   const dummy = new THREE.Object3D();
   let time = 0;
   return {
-    update(dt) {
+    update(dt, eye) {
       time += dt;
+      ripples.update(dt, eye);
       glints.forEach((glint, i) => {
         dummy.position.set(glint.x, LAKE.level + 0.04, glint.z);
         dummy.rotation.set(0, 0, 0);
@@ -449,7 +583,7 @@ const CLEARINGS = [
   { x: CAMP.x, z: CAMP.z, r: 24 },
   { x: CABIN.x, z: CABIN.z, r: 14 },
   { x: TUNNEL.x, z: TUNNEL.z, r: 34 },
-  { x: BRIDGE.x, z: BRIDGE.z, r: 18 },
+  ...BRIDGES.map(({ x, z, length }) => ({ x, z, r: length / 2 + 8 })),
   { x: WATERFALL.x, z: WATERFALL.z, r: 26 },
   { x: FARM.x, z: FARM.z, r: 40 },
   { x: TOWER.x, z: TOWER.z, r: 14 },
@@ -465,6 +599,7 @@ const CLEARINGS = [
   { x: HELIPAD.x, z: HELIPAD.z, r: 20 },
   { x: CHAPEL.x, z: CHAPEL.z, r: 9 },
   { x: SUMMIT.x, z: SUMMIT.z, r: 16 },
+  { x: FISHING.x, z: FISHING.z, r: 15 },
   { x: FARMSTEAD.x, z: FARMSTEAD.z, r: 22 },
   { x: FIELDS.x, z: FIELDS.z, r: FIELDS.radius },
   { ...AIRFIELD.hangar, r: 22 },
@@ -943,25 +1078,65 @@ function buildTrackRocks(scatter) {
   scatter.add({ geometry: shapes, far: shapes[0], near: UNDERGROWTH_RANGE, range: 600, material: rockMaterial, items });
 }
 
-/** Stones along the rivers' edges, though not where the roads ford them. They have numbers of their own. */
-function buildRiverStones(scatter) {
+/**
+ * Stones along the rivers' banks and in the stream, though not where the roads cross them. The
+ * small ones are only for looking at: the car drives over them, and they stand in the shallows,
+ * on the bars and along the edges. The big boulders are solid, and stand in the stream and on
+ * its banks wherever the water is shallow enough for them to show. They have numbers of their own.
+ */
+function buildRiverStones(scatter, obstacles) {
   const stoneRandom = createRandom(7321);
   const shapes = mossyStones();
   const items = [];
+  const boulders = [];
   for (const river of RIVERS) {
-    const fords = FORDS.filter(ford => ford.river === river);
-    for (let s = 2; s < river.path.length; s += 1.8 + stoneRandom() * 2.4) {
-      const side = stoneRandom() < 0.5 ? -1 : 1;
-      const p = river.path.offset(s, side * (river.halfWidth - 0.8 + stoneRandom() * 2.6));
+    // Not within reach of a road: the fords are driven through and the bridges stand over the water.
+    const crossings = river.sites.filter(site => site.kind !== 'pool').map(site => site.s);
+    for (let s = 2; s < river.path.length; s += 1.4 + stoneRandom() * 2) {
+      const clear = !crossings.some(at => Math.abs(at - s) < 24);
+      const halfWidth = river.halfWidth(s);
+      // Along the edges, and out in the stream.
+      const across =
+        stoneRandom() < 0.55
+          ? (stoneRandom() < 0.5 ? -1 : 1) * (halfWidth - 0.8 + stoneRandom() * 2.6)
+          : (stoneRandom() * 2 - 1) * halfWidth;
+      const p = river.path.offset(s, across);
       const size = 0.3 + stoneRandom() * 0.6;
       const turn = stoneRandom() * 6.3;
       const shape = Math.floor(stoneRandom() * shapes.length);
-      if (Math.hypot(p.x, p.z) > VALLEY_RADIUS + 60) continue;
-      if (fords.some(ford => Math.hypot(ford.x - p.x, ford.z - p.z) < river.halfWidth + 8)) continue;
+      if (Math.hypot(p.x, p.z) > VALLEY_RADIUS + 60 || !clear) continue;
+      // Only where it stands clear of the water, or is just under it.
+      const depth = waterLevel(p.x, p.z) - terrainHeight(p.x, p.z);
+      if (depth > 0.5) continue;
       items.push({ matrix: stoneMatrix(p.x, p.z, size, size * 0.7, turn), shape });
+    }
+    // Boulders: a few to every stretch, on the banks and in the water.
+    for (let s = 20; s < river.path.length - 10; s += 9 + stoneRandom() * 16) {
+      const near = river.sites.some(site => site.kind !== 'pool' && Math.abs(site.s - s) < 30);
+      const halfWidth = river.halfWidth(s);
+      const across = (stoneRandom() * 2 - 1) * (halfWidth + 3);
+      const p = river.path.offset(s, across);
+      const size = 0.9 + stoneRandom() ** 2 * 1.1;
+      const turn = stoneRandom() * 6.3;
+      const shape = Math.floor(stoneRandom() * shapes.length);
+      if (near || Math.hypot(p.x, p.z) > VALLEY_RADIUS + 60) continue;
+      // Not where it would be a stone's throw from the road or the hut's track.
+      if (onGravel(p.x, p.z, 8) || TRACKS.some(track => track.path.isNear(p.x, p.z, 7))) continue;
+      if (waterLevel(p.x, p.z) - terrainHeight(p.x, p.z) > 0.8) continue;
+      if (Math.hypot(p.x - FISHING.x, p.z - FISHING.z) < 14) continue;
+      boulders.push({ matrix: stoneMatrix(p.x, p.z, size, size * 1.15, turn), shape });
+      if (Math.hypot(p.x, p.z) < VALLEY_RADIUS - 2) obstacles.push({ x: p.x, z: p.z, radius: size * 0.95 });
     }
   }
   scatter.add({ geometry: shapes, near: UNDERGROWTH_RANGE, material: rockMaterial, items });
+  scatter.add({
+    geometry: shapes,
+    far: shapes[0],
+    near: UNDERGROWTH_RANGE,
+    range: 600,
+    material: rockMaterial,
+    items: boulders,
+  });
 }
 
 /**
@@ -1644,7 +1819,7 @@ function buildGravelRoads(scene) {
     // The roads out from the ring start at its edge, and tuck under the outer road where they join it.
     const off = s => {
       const p = path.at(s);
-      return onPaved(p.x, p.z, ROAD_HALF_WIDTH + 0.4) || (!path.closed && s > path.length - 3);
+      return onPaved(p.x, p.z, ROAD_HALF_WIDTH + 0.4) || (!path.closed && s > path.length - 3) || onBridgeDeck(path, s);
     };
     inPieces(path, outside => {
       const skip = s => outside(s) || off(s);
@@ -1672,7 +1847,11 @@ export function buildScenery(parent) {
     // Tracks that leave a paved or gravel road start at its edge.
     const paved = s => {
       const p = track.path.at(s);
-      return onPaved(p.x, p.z, ROAD_HALF_WIDTH + 0.4) || onGravel(p.x, p.z, GRAVEL_HALF_WIDTH + 0.2);
+      return (
+        onPaved(p.x, p.z, ROAD_HALF_WIDTH + 0.4) ||
+        onGravel(p.x, p.z, GRAVEL_HALF_WIDTH + 0.2) ||
+        onBridgeDeck(track.path, s)
+      );
     };
     if (track.ruts) {
       for (const offset of [-0.85, 0.85])
@@ -1701,7 +1880,7 @@ export function buildScenery(parent) {
   buildBrookStones(scene);
   buildTrackRocks(scatter);
   buildRoughRocks(scatter, obstacles);
-  buildRiverStones(scatter);
+  buildRiverStones(scatter, obstacles);
   buildGroundCover(scatter);
   buildLongGrass(scatter);
   const grass = createGrass({ ground: ground.texture, colors: ground.colors, ...grassMask() });
@@ -1728,7 +1907,7 @@ export function buildScenery(parent) {
     update(dt, camera, sun) {
       const eye = camera.position;
       SWAY.time.value += dt;
-      water.update(dt);
+      water.update(dt, eye);
       ground.update(eye);
       scatter.update(eye, sun);
       grass.update(camera);

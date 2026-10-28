@@ -1,7 +1,8 @@
 {
   "landmark.bridge": {
     "gap-under at 183.8, 1.9, -63.6": "The deck's first plank, where the bridge meets the bank: the bank slopes across the trail, and the plank's far end reaches out over it from the stringers, as on a real bridge.",
-    "roof-gap at 180.2, 1.6, -44.5": "The planks rest on stringers that rest on the abutment: between the stringers there is room under the planks, as on a real bridge."
+    "roof-gap at 180.2, 1.6, -44.5": "The planks rest on stringers that rest on the abutment: between the stringers there is room under the planks, as on a real bridge.",
+    "drive-in at 725.9, 49.7, 422.8": "The stone bridge's masonry runs on under the road at each end: its end faces lie buried below where the deck meets the ground, so the car drives over them onto the deck, and it is the parapets either side that stop it, with obstacles of their own."
   },
   "landmark.camp": {
     "gap-under at 37.2, -1.0, -27.0": "The logs on the campfire are propped up across each other, each with one end on the ground and the other leaning up over the fire.",

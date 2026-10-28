@@ -27,8 +27,8 @@ export const CRUISE_SPEED_NAMES = ['slow', 'medium', 'fast'];
  * Loose sand slows it a little more than grass and lets it slide a little. The deep snow of the
  * winter, drifted over everything, grips like sand rather than like the icy snow high on the
  * summit: it is all there is to drive on there, and a small child steering by tilt has to be
- * able to keep to the road. Standing wheat or
- * long meadow grass holds it back a little more than grass, but not below cruising speed.
+ * able to keep to the road. Standing wheat or long meadow grass holds it back a little more
+ * than grass, but not below cruising speed, and nor does shallow water, as at a ford.
  */
 const SURFACE_HANDLING = {
   road: { speed: 1, grip: 1 },
@@ -40,7 +40,7 @@ const SURFACE_HANDLING = {
   snow: { speed: 1, grip: 0.38 },
   drift: { speed: 0.92, grip: 0.75 },
   mud: { speed: 0.7, grip: 0.7 },
-  water: { speed: 0.42, grip: 0.7 },
+  water: { speed: 0.5, grip: 0.7 },
   crop: { speed: 0.72, grip: 0.82 },
 };
 

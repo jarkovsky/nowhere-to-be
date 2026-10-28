@@ -24,6 +24,8 @@ import {
   LEVEL_CROSSING,
   WATERFALL,
   BRIDGE,
+  BRIDGES,
+  isBridged,
   JETTY,
   TUNNEL,
   PADS,
@@ -356,16 +358,24 @@ function levelAlong(path, flatWidth, falloff, { window = 14, banks = 0, grade = 
       path.closed,
     );
   const profile = Number.isFinite(grade) ? limitGrade(smooth, path.spacing, grade, path.closed) : smooth;
-  // Where it fords a river it dips into the water, on ramps no steeper than it may climb.
-  for (const ford of FORDS) {
-    if (ford.path !== path) continue;
-    const flat = ford.river.halfWidth + 1;
+  // Where it fords a river it dips into the water, and where it crosses one on a bridge it comes
+  // down to the valley floor, on ramps no steeper than it may climb.
+  const dips = [
+    ...FORDS.map(ford => ({ ...ford, flat: ford.river.halfWidth(ford.riverS) + 1 })),
+    ...BRIDGES.filter(bridge => bridge.river).map(bridge => ({
+      ...bridge,
+      level: riverLevel(bridge.river, bridge.riverS) + 0.4,
+      flat: bridge.length / 2,
+    })),
+  ];
+  for (const dip of dips) {
+    if (dip.path !== path) continue;
     const ramp = Number.isFinite(grade) ? grade : 0.15;
     path.samples.forEach(({ s }, i) => {
       const along = path.closed
-        ? path.length / 2 - Math.abs(path.wrap(s - ford.s) - path.length / 2)
-        : Math.abs(s - ford.s);
-      profile[i] = Math.min(profile[i], ford.level + Math.max(0, along - flat) * ramp);
+        ? path.length / 2 - Math.abs(path.wrap(s - dip.s) - path.length / 2)
+        : Math.abs(s - dip.s);
+      profile[i] = Math.min(profile[i], dip.level + Math.max(0, along - dip.flat) * ramp);
     });
   }
   if (flatEnds) {
@@ -462,7 +472,7 @@ for (let iz = 0; iz < GRID; iz++) {
 
 function flattenPads(pads) {
   for (const pad of pads) {
-    const level = pad.level ?? naturalHeight(pad.x, pad.z);
+    const level = pad.level === 'ground' ? sampleGrid(pad.x, pad.z) : (pad.level ?? naturalHeight(pad.x, pad.z));
     forEachVertexNear(pad.x, pad.z, pad.radius + pad.falloff, (vertex, _x, _z, distance) => {
       heights[vertex] = lerp(heights[vertex], level, 1 - smoothstep(distance, pad.radius, pad.radius + pad.falloff));
     });
@@ -503,8 +513,9 @@ function levelRailway() {
 }
 
 // Each river runs along a valley floor that falls all the way from its source to its mouth:
-// the lie of the land along it, smoothed, never rising again once it has fallen.
-const riverFloors = RIVERS.map(({ path }) => {
+// the lie of the land along it, smoothed, never rising again once it has fallen. It lies level
+// where a road crosses it, ford or bridge, and falls a little more steeply either side of that.
+const riverFloors = RIVERS.map(({ path, sites }) => {
   let lowest = Infinity;
   const natural = smoothProfile(
     path.samples.map(p => sampleGrid(p.x, p.z)),
@@ -512,7 +523,14 @@ const riverFloors = RIVERS.map(({ path }) => {
     false,
   );
   const falling = natural.map(h => (lowest = Math.min(lowest, h)));
-  return smoothProfile(falling, Math.round(20 / path.spacing), false);
+  const floor = smoothProfile(falling, Math.round(20 / path.spacing), false);
+  for (const site of sites.filter(site => site.kind !== 'pool')) {
+    const level = floor[Math.round(site.s / path.spacing)];
+    path.samples.forEach(({ s }, i) => {
+      floor[i] = lerp(floor[i], level, 1 - smoothstep(Math.abs(s - site.s), 14, 44));
+    });
+  }
+  return floor;
 });
 
 /** The water surface along each river, a little below its valley floor. */
@@ -534,14 +552,14 @@ RIVERS.forEach((river, r) => {
     const apart = path.samples.map(p => (river.path.isNear(p.x, p.z, 3) ? river.path.nearest(p.x, p.z).distance : 9));
     const at = i => apart[path.closed ? (i + n) % n : clamp(i, 0, n - 1)];
     path.samples.forEach((p, i) => {
-      if (apart[i] > 2 || apart[i] > at(i - 1) || apart[i] >= at(i + 1)) return;
+      if (apart[i] > 2 || apart[i] > at(i - 1) || apart[i] >= at(i + 1) || isBridged(path, p.s)) return;
       const along = river.path.nearest(p.x, p.z).s;
       const level = riverWater[r][Math.round(along / river.path.spacing)] - FORD_DEPTH;
-      FORDS.push({ river, path, width, s: p.s, x: p.x, z: p.z, level });
+      FORDS.push({ river, path, width, s: p.s, riverS: along, x: p.x, z: p.z, level });
     });
   }
 });
-RIVERS.forEach((river, i) => levelAlong(river.path, () => river.halfWidth + 14, 70, { levels: riverFloors[i] }));
+RIVERS.forEach((river, i) => levelAlong(river.path, s => river.halfWidth(s) + 14, 70, { levels: riverFloors[i] }));
 
 // The fjord is dug out of the land before any road is laid: deep still water, sheer walls
 // along its sides and a gentle slope round its head that steepens further back to meet the hills.
@@ -616,27 +634,63 @@ PONDS.forEach((pond, i) => {
 
 // Once the river's channel is dug, the road is put back across it. Its surface is taken here,
 // before the digging.
-const fordCrossings = FORDS.map(({ river, path, s, width }) => {
-  const reach = river.halfWidth + 8;
+const roadStretch = (path, width, from, to) => {
   const points = [];
-  for (let k = -reach; k <= reach; k += 2) {
-    const p = path.at(s + k);
+  for (let k = from; k <= to; k += 2) {
+    const p = path.at(k);
     // An open road clamps at its ends, so the stretch stops there.
     if (!points.length || Math.hypot(p.x - points.at(-1)[0], p.z - points.at(-1)[1]) > 0.5) points.push([p.x, p.z]);
   }
   const stretch = createPath(points);
   return { stretch, width, levels: stretch.samples.map(p => sampleGrid(p.x, p.z)) };
+};
+const fordCrossings = FORDS.map(({ river, riverS, path, s, width }) => {
+  const reach = river.halfWidth(riverS) + 8;
+  return roadStretch(path, width, s - reach, s + reach);
 });
+// Where a bridge carries a road over a river, the road is put back up to the ends of the deck,
+// and on past them, so the banks the channel is cut with don't cut into it: under the deck the
+// channel is left as it is.
+for (const bridge of BRIDGES) {
+  if (!bridge.river) continue;
+  const width = GRAVEL.includes(bridge.path) ? GRAVEL_WIDTH() : (TRACKS.find(t => t.path === bridge.path)?.width ?? 2);
+  const [near, far] = [bridge.length / 2 - 0.5, bridge.length / 2 + 16];
+  fordCrossings.push(
+    roadStretch(bridge.path, width, bridge.s - far, bridge.s - near),
+    roadStretch(bridge.path, width, bridge.s + near, bridge.s + far),
+  );
+}
 
-// The channel: deepest in the middle, with banks rising gently from the water's edge.
+// The channel: deepest in the middle, with banks rising gently from the water's edge. Its width
+// and depth change along the river, its banks wander from side to side, and on the inside of
+// the bends the gravel lies in bars just above the water, which narrows the stream there.
 RIVERS.forEach((river, r) => {
   const water = riverWater[r];
-  for (const [vertex, { index, distance }] of nearestSamples(river.path, river.halfWidth + 12)) {
-    const across = distance / river.halfWidth;
-    const surface =
-      across < 1
-        ? water[index] - 0.05 - river.depth * (1 - across * across)
-        : water[index] - 0.05 + (distance - river.halfWidth) * 0.35;
+  const { samples } = river.path;
+  // How sharply the river is turning at each sample: positive to the right, so the right bank is
+  // the inside of the bend.
+  const turning = samples.map((_, i) => {
+    const [a, b] = [samples[Math.max(0, i - 12)], samples[Math.min(samples.length - 1, i + 12)]];
+    return a.dx * b.dz - a.dz * b.dx;
+  });
+  for (const [vertex, { index, distance }] of nearestSamples(river.path, river.widest + 12)) {
+    const sample = samples[index];
+    const [x, z] = [AXIS[vertex % GRID], AXIS[Math.floor(vertex / GRID)]];
+    const halfWidth = river.halfWidth(sample.s) * (0.82 + 0.36 * valueNoise(x / 10, z / 10, 71));
+    const across = distance / halfWidth;
+    const floor = water[index] - 0.05;
+    let surface =
+      across < 1 ? floor - river.depth(sample.s) * (1 - across * across) : floor + (distance - halfWidth) * 0.35;
+    // The bar lies on the inside of a bend, where the current is slow, and comes and goes along it.
+    const rightOf = (x - sample.x) * -sample.dz + (z - sample.z) * sample.dx;
+    const bar =
+      rightOf * turning[index] > 0 && across < 1.3
+        ? smoothstep(Math.abs(turning[index]), 0.08, 0.3) *
+          smoothstep(valueNoise(sample.s / 26, 3.3, 5), 0.28, 0.55) *
+          (1 - river.engineered(sample.s)) *
+          smoothstep(across, 0.3, 0.55)
+        : 0;
+    if (bar > 0) surface = lerp(surface, Math.max(surface, water[index] + 0.1), bar);
     heights[vertex] = Math.min(heights[vertex], surface);
   }
 });
@@ -851,7 +905,7 @@ export function waterLevel(x, z) {
   if (BROOK.isNear(x, z, BROOK_HALF_WIDTH + 4)) level = Math.max(level, brookLevel(BROOK.nearest(x, z).s));
   if (Math.hypot(x - SPRING.x, z - SPRING.z) < SPRING.radius + 2) level = Math.max(level, SPRING_LEVEL);
   if (OXBOW.path.isNear(x, z, OXBOW_REACH)) level = Math.max(level, OXBOW_LEVEL);
-  const river = nearRiver(x, z, 10);
+  const river = nearRiver(x, z, 12);
   if (river) level = Math.max(level, riverLevel(river.river, river.s));
   if (inFjord(x, z, 6)) level = Math.max(level, FJORD.level);
   PONDS.forEach((pond, i) => {
@@ -889,26 +943,43 @@ export function waterDepth(x, z) {
 
 // --- The bridge deck -----------------------------------------------------------
 
-function bridgeLocal(x, z) {
-  const dx = x - BRIDGE.x;
-  const dz = z - BRIDGE.z;
-  return { along: dx * BRIDGE.dx + dz * BRIDGE.dz, side: -dx * BRIDGE.dz + dz * BRIDGE.dx };
+function bridgeLocal(bridge, x, z) {
+  const dx = x - bridge.x;
+  const dz = z - bridge.z;
+  return { along: dx * bridge.dx + dz * bridge.dz, side: -dx * bridge.dz + dz * bridge.dx };
 }
 
-const bridgeEnds = [-1, 1].map(sign =>
-  terrainHeight(BRIDGE.x + (BRIDGE.dx * sign * BRIDGE.length) / 2, BRIDGE.z + (BRIDGE.dz * sign * BRIDGE.length) / 2),
+/** The ground at either end of each bridge, from the end behind to the end ahead. */
+const bridgeEnds = BRIDGES.map(bridge =>
+  [-1, 1].map(sign =>
+    terrainHeight(bridge.x + (bridge.dx * sign * bridge.length) / 2, bridge.z + (bridge.dz * sign * bridge.length) / 2),
+  ),
 );
 
-/** Top of the bridge planks at a distance along the bridge, from its centre. */
-export function deckHeight(along) {
-  const t = clamp(along / BRIDGE.length + 0.5, 0, 1);
-  return lerp(bridgeEnds[0], bridgeEnds[1], t) + Math.sin(t * Math.PI) * 0.45 + 0.12;
+/**
+ * Top of a bridge's deck at a distance along it, from its centre (the creek's bridge unless
+ * given): it starts at the ground, `lift` above it, and rises in a gentle arch.
+ */
+export function deckHeight(along, bridge = BRIDGE) {
+  const t = clamp(along / bridge.length + 0.5, 0, 1);
+  const [behind, ahead] = bridgeEnds[BRIDGES.indexOf(bridge)];
+  return lerp(behind, ahead, t) + Math.sin(t * Math.PI) * bridge.arch + bridge.lift;
+}
+
+/** The bridge whose deck is at a point, or null. */
+export function bridgeAt(x, z) {
+  for (const bridge of BRIDGES) {
+    const reach = bridge.length / 2 + bridge.width / 2;
+    if (Math.abs(x - bridge.x) > reach || Math.abs(z - bridge.z) > reach) continue;
+    const { along, side } = bridgeLocal(bridge, x, z);
+    if (Math.abs(side) <= bridge.width / 2 && Math.abs(along) <= bridge.length / 2) return bridge;
+  }
+  return null;
 }
 
 export function bridgeHeight(x, z) {
-  const { along, side } = bridgeLocal(x, z);
-  if (Math.abs(side) > BRIDGE.width / 2 || Math.abs(along) > BRIDGE.length / 2) return null;
-  return deckHeight(along);
+  const bridge = bridgeAt(x, z);
+  return bridge ? deckHeight(bridgeLocal(bridge, x, z).along, bridge) : null;
 }
 
 // --- The jetty -------------------------------------------------------------------

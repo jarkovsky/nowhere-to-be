@@ -27,6 +27,7 @@ import { buildDesert } from './desert.js';
 import { buildOrchard } from './orchard.js';
 import { buildSnowman } from './snowman.js';
 import { buildLookout } from './lookout.js';
+import { buildFishing } from './fishing.js';
 import { buildHeaps } from '../heaps.js';
 import { HELIPAD, KRYSTOF } from '../layout.js';
 
@@ -77,6 +78,7 @@ export function buildLandmarks(scene, obstacles) {
   const depot = own('depot', buildDepot);
   const desert = own('desert', buildDesert);
   own('lookout', buildLookout);
+  own('fishing', buildFishing);
   own('heaps', group => buildHeaps(group));
   const signs = own('signs', group => buildSigns(group, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard }));
 
