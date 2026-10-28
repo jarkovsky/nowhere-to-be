@@ -11,7 +11,7 @@ import { BRIDGE, OUTER_ROAD, RING_ROAD, ROAD } from '../world/layout.js';
 import { headingOf } from '../world/path.js';
 import { drivingHeight } from '../world/terrain.js';
 import { PartsBuilder } from '../world/build.js';
-import { createWheel } from './car.js';
+import { BEVEL, createWheel, numberPlates, paintMaterial, wipers } from './car.js';
 
 /** How far from the middle of the trail the other travellers drive. */
 export const LANE = 2.3;
@@ -24,11 +24,12 @@ const DRAW_DISTANCE = 330;
 const GLASS = '#4b6a6c';
 
 export function camperVan() {
-  const parts = new PartsBuilder();
+  const parts = new PartsBuilder({ bevel: BEVEL });
   parts.box(2.05, 1.05, 4.5, '#5c9a96', { y: 1.15 });
   parts.box(2.05, 0.95, 4.3, '#efe6cc', { y: 2.15, z: 0.1 });
   parts.box(2.07, 0.6, 3.1, '#4b6a6c', { y: 2.2, z: 0.55 }); // side windows
   parts.box(1.8, 0.62, 0.08, '#4b6a6c', { y: 2.2, z: -2.11, rx: -0.12 }); // windscreen
+  wipers(parts, { width: 1.8, height: 0.62, depth: 0.08, y: 2.2, z: -2.11, rx: -0.12 });
   parts.box(1.9, 0.18, 3.6, '#e2d7b8', { y: 2.72, z: 0.3 }); // pop-top roof
   parts.box(2.12, 0.2, 0.25, '#e7dfc8', { y: 0.72, z: -2.3 });
   parts.box(2.12, 0.2, 0.25, '#e7dfc8', { y: 0.72, z: 2.3 });
@@ -37,13 +38,14 @@ export function camperVan() {
 }
 
 export function pickup() {
-  const parts = new PartsBuilder();
+  const parts = new PartsBuilder({ bevel: BEVEL });
   const paint = '#b5533c';
   const glass = '#4b6a6c';
   parts.box(2.0, 0.7, 4.8, paint, { y: 1.05 });
   // Cab: painted up to the window line, then glass on all four sides between the pillars.
   parts.box(1.9, 0.35, 1.8, paint, { y: 1.57, z: -0.6 });
   parts.box(1.84, 0.62, 1.74, glass, { y: 2.06, z: -0.6 });
+  wipers(parts, { width: 1.84, height: 0.62, depth: 1.74, y: 2.06, z: -0.6 });
   for (const x of [-0.93, 0.93]) {
     for (const z of [-1.46, 0.25]) parts.box(0.1, 0.64, 0.12, paint, { x, y: 2.06, z });
   }
@@ -64,12 +66,13 @@ export function pickup() {
 }
 
 export function saloon() {
-  const parts = new PartsBuilder();
+  const parts = new PartsBuilder({ bevel: BEVEL });
   const paint = '#e9e2cf';
   parts.box(1.76, 0.56, 4.1, paint, { y: 0.86 });
   parts.box(1.66, 0.12, 1.1, paint, { y: 1.2, z: -1.45 });
   parts.box(1.66, 0.12, 0.8, paint, { y: 1.2, z: 1.62 });
   parts.box(1.6, 0.52, 1.95, '#4b6a6c', { y: 1.5, z: 0.2 });
+  wipers(parts, { width: 1.6, height: 0.52, depth: 1.95, y: 1.5, z: 0.2 });
   for (const x of [-0.8, 0.8]) {
     for (const z of [-0.74, 0.2, 1.14]) parts.box(0.08, 0.54, 0.1, paint, { x, y: 1.5, z });
     parts.box(0.04, 0.04, 3.8, '#b8bcb5', { x: x * 1.105, y: 0.98 });
@@ -82,7 +85,7 @@ export function saloon() {
 
 /** A country bus, cream with an orange stripe. */
 export function bus() {
-  const parts = new PartsBuilder();
+  const parts = new PartsBuilder({ bevel: BEVEL });
   const cream = '#efe6cc';
   const stripe = '#d0773b';
   const glass = '#4b6a6c';
@@ -92,6 +95,7 @@ export function bus() {
   parts.box(2.47, 0.8, 7.6, glass, { y: 2.4, z: 0.6 }); // side windows
   for (let z = -2.6; z <= 4.2; z += 1.36) parts.box(2.49, 0.82, 0.12, cream, { y: 2.4, z });
   parts.box(2.2, 1.1, 0.08, glass, { y: 2.3, z: -4.71 }); // windscreen
+  wipers(parts, { width: 2.2, height: 1.1, depth: 0.08, y: 2.3, z: -4.71 });
   parts.box(2.3, 0.36, 9.2, '#e2d7b8', { y: 3.08 }); // roof
   parts.box(1.2, 0.32, 0.06, '#2f3430', { y: 3.1, z: -4.72 }); // destination board
   parts.box(2.5, 0.22, 0.25, '#8e8b80', { y: 0.62, z: -4.75 });
@@ -101,11 +105,12 @@ export function bus() {
 
 /** An ambulance in Czech colours: sulphur yellow with a green and yellow chequered band. */
 export function ambulance() {
-  const parts = new PartsBuilder();
+  const parts = new PartsBuilder({ bevel: BEVEL });
   const yellow = '#f1dc3c';
   parts.box(2.1, 0.95, 1.5, yellow, { y: 1.05, z: -2.05 }); // bonnet
   parts.box(2.04, 0.8, 1.1, yellow, { y: 1.9, z: -1.75 }); // cab
   parts.box(1.9, 0.62, 0.08, GLASS, { y: 1.95, z: -2.3, rx: -0.18 }); // windscreen
+  wipers(parts, { width: 1.9, height: 0.62, depth: 0.08, y: 1.95, z: -2.3, rx: -0.18 });
   parts.box(2.06, 0.5, 0.75, GLASS, { y: 2, z: -1.75 }); // cab windows
   parts.box(2.3, 2.3, 3.7, yellow, { y: 1.8, z: 1.05 }); // the box at the back
   for (const x of [-1.16, 1.16]) {
@@ -140,11 +145,12 @@ export function ambulance() {
 
 /** A red fire engine with a white stripe and a ladder on the roof. */
 export function fireEngine() {
-  const parts = new PartsBuilder();
+  const parts = new PartsBuilder({ bevel: BEVEL });
   const red = '#c7312a';
   parts.box(2.45, 0.5, 8, '#2f3430', { y: 0.95 }); // chassis
   parts.box(2.45, 1.8, 2.1, red, { y: 2.1, z: -2.9 }); // cab
   parts.box(2.2, 0.85, 0.08, GLASS, { y: 2.45, z: -3.96 }); // windscreen
+  wipers(parts, { width: 2.2, height: 0.85, depth: 0.08, y: 2.45, z: -3.96 });
   parts.box(2.47, 0.65, 1.6, GLASS, { y: 2.45, z: -2.95 }); // cab windows
   parts.box(2.5, 2.1, 5.3, red, { y: 2.15, z: 1.25 }); // the body, with lockers along the sides
   for (const x of [-1.26, 1.26]) {
@@ -172,11 +178,12 @@ export function fireEngine() {
 
 /** A Czech police estate car: silver, with reflective blue and yellow bands and a light bar. */
 export function policeCar() {
-  const parts = new PartsBuilder();
+  const parts = new PartsBuilder({ bevel: BEVEL });
   const silver = '#c9cdcc';
   parts.box(1.8, 0.62, 4.6, silver, { y: 0.86 });
   parts.box(1.72, 0.14, 1.2, silver, { y: 1.22, z: -1.65 }); // bonnet
   parts.box(1.66, 0.52, 2.9, GLASS, { y: 1.48, z: 0.45 }); // glass all round, an estate's long roof
+  wipers(parts, { width: 1.66, height: 0.52, depth: 2.9, y: 1.48, z: 0.45 });
   for (const x of [-0.84, 0.84]) {
     for (const z of [-1.0, 0.3, 1.85]) parts.box(0.08, 0.54, 0.12, silver, { x, y: 1.48, z });
     parts.box(0.03, 0.2, 4.4, '#2b55a8', { x: x * 1.08, y: 0.98 }); // blue band
@@ -204,7 +211,7 @@ export function policeCar() {
 
 /** A wide, low army off-roader in olive green, with a canvas cover over the back. */
 export function armyCar() {
-  const parts = new PartsBuilder();
+  const parts = new PartsBuilder({ bevel: BEVEL });
   const olive = '#5d6a45';
   const dark = '#2f3529';
   parts.box(2.3, 0.7, 4.7, olive, { y: 1.05 }); // hull
@@ -212,6 +219,7 @@ export function armyCar() {
   parts.box(1.4, 0.3, 0.06, dark, { y: 1.15, z: -2.37 }); // grille
   parts.box(2.1, 0.62, 1.7, olive, { y: 1.98, z: 0.1 }); // cab
   parts.box(1.9, 0.42, 0.06, GLASS, { y: 2.02, z: -0.77 }); // windscreen
+  wipers(parts, { width: 1.9, height: 0.42, depth: 0.06, y: 2.02, z: -0.77 });
   parts.box(0.06, 0.44, 0.06, olive, { y: 2.02, z: -0.79 });
   for (const x of [-1.06, 1.06]) parts.box(0.03, 0.36, 1.2, GLASS, { x, y: 2.05, z: 0.1 });
   parts.box(2.04, 0.8, 1.55, '#7d7652', { y: 1.8, z: 1.75 }); // canvas cover
@@ -229,12 +237,13 @@ export function armyCar() {
  */
 export function offRoader(paint, load) {
   return () => {
-    const parts = new PartsBuilder();
+    const parts = new PartsBuilder({ bevel: BEVEL });
     const dark = '#2f3430';
     parts.box(2, 0.8, 4.4, paint, { y: 1.15 });
     parts.box(1.96, 0.85, 2.8, paint, { y: 1.95, z: 0.55 }); // cabin
     parts.box(1.98, 0.5, 2.5, GLASS, { y: 2.02, z: 0.55 }); // windows all round
     parts.box(1.8, 0.5, 0.06, GLASS, { y: 2.02, z: -0.86 }); // windscreen
+    wipers(parts, { width: 1.8, height: 0.5, depth: 0.06, y: 2.02, z: -0.86 });
     parts.box(1.6, 0.3, 0.06, dark, { y: 1.25, z: -2.22 }); // grille
     for (const x of [-1.04, 1.04]) parts.box(0.14, 0.2, 4.2, dark, { x, y: 0.72 }); // sills
     parts.box(2.2, 0.26, 0.3, dark, { y: 0.8, z: -2.3 }); // bumpers
@@ -266,10 +275,11 @@ export function offRoader(paint, load) {
 
 /** A fuel tanker for the airfield. */
 export function tanker() {
-  const parts = new PartsBuilder();
+  const parts = new PartsBuilder({ bevel: BEVEL });
   parts.box(2.3, 0.4, 8, '#2f3430', { y: 0.85 }); // chassis
   parts.box(2.35, 1.9, 1.9, '#2f6f9a', { y: 1.95, z: -3 }); // cab
   parts.box(2.1, 0.8, 0.08, GLASS, { y: 2.4, z: -3.96 });
+  wipers(parts, { width: 2.1, height: 0.8, depth: 0.08, y: 2.4, z: -3.96 });
   parts.box(2.37, 0.6, 1.4, GLASS, { y: 2.4, z: -3.05 });
   parts.add(new THREE.CylinderGeometry(1.1, 1.1, 5.6, 14), '#e6e3d8', { y: 2.2, z: 1.15, rx: Math.PI / 2 });
   parts.add(new THREE.CylinderGeometry(1.12, 1.12, 0.4, 14), '#d0a23a', { y: 2.2, z: 1.15, rx: Math.PI / 2 });
@@ -279,11 +289,12 @@ export function tanker() {
 
 /** A little white delivery van. */
 export function deliveryVan() {
-  const parts = new PartsBuilder();
+  const parts = new PartsBuilder({ bevel: BEVEL });
   const white = '#eeece4';
   parts.box(1.95, 1.9, 3.4, white, { y: 1.55, z: 0.5 }); // box body
   parts.box(1.9, 0.9, 1.1, white, { y: 1.0, z: -1.7 }); // bonnet
   parts.box(1.85, 0.6, 0.6, GLASS, { y: 1.85, z: -1.25, rx: -0.5 }); // windscreen
+  wipers(parts, { width: 1.85, height: 0.6, depth: 0.6, y: 1.85, z: -1.25, rx: -0.5 });
   for (const x of [-0.98, 0.98]) parts.box(0.03, 0.55, 0.7, GLASS, { x, y: 1.95, z: -0.75 });
   for (const x of [-0.99, 0.99]) parts.box(0.02, 0.3, 2.6, '#d0773b', { x, y: 1.3, z: 0.8 }); // stripe
   parts.box(2.05, 0.2, 0.25, '#8e8b80', { y: 0.62, z: -2.3 });
@@ -293,7 +304,9 @@ export function deliveryVan() {
 
 export function createVehicle(model) {
   const root = new THREE.Group();
-  const body = model.parts.mesh();
+  if (!model.plated) numberPlates([model.parts]);
+  model.plated = true;
+  const body = model.parts.mesh({ material: paintMaterial });
   root.add(body);
   // Only the front axle steers. Behind it the wheelbase reaches to the back axle, or to the
   // middle of the two at the back of a lorry.
