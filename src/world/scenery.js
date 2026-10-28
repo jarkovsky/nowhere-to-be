@@ -19,6 +19,9 @@ import {
   onDriveway,
   inOrchard,
   ORCHARD,
+  CRASH,
+  WORN_GROUND,
+  inDiscovery,
   onForecourt,
   RAILWAY,
   HALT,
@@ -124,6 +127,8 @@ const GROUND = {
   gravel: new THREE.Color('#c3b9a0'),
 };
 const rockTone = new THREE.Color();
+/** Ground worn bare or covered over (see WORN_GROUND), with its colours made. */
+const WORN = WORN_GROUND.map(patch => ({ ...patch, color: new THREE.Color(patch.color) }));
 
 /**
  * Colour of the ground at a grid point, into `out`. `up` is the Y of its normal: 1 on flat
@@ -204,6 +209,16 @@ function groundColor(x, z, h, up, out) {
   // A patch of snow by the trail had its ragged edge drawn here too; the draw is kept so the
   // trees placed after the ground stay where they are.
   random();
+  // Earth trodden bare in the logging camp's glade, and rubble round the mine. Their ragged edges come from
+  // noise, not the shared random numbers, so that they don't move anything placed after the ground.
+  for (const patch of WORN) {
+    const reach = Math.hypot(x - patch.x, z - patch.z) + (valueNoise(x / 3, z / 3, 17) - 0.5) * 4;
+    const worn = 1 - smoothstep(reach, patch.r, patch.r + patch.soft);
+    if (worn > 0) {
+      out.lerp(patch.color, worn * 0.85);
+      grass *= 1 - worn;
+    }
+  }
   desertGround(x, z, up, out);
   if (grass > 0) grass *= 1 - smoothstep(desertness(x, z), 0.05, 0.45);
   const winter = winterness(x, z);
@@ -1470,6 +1485,9 @@ function grassMask() {
   // The orchard's grass is mown short, between the trees and round them.
   const { x: ox, z: oz } = ORCHARD;
   where(ox - 45, ox + 45, oz - 45, oz + 45, (x, z) => inOrchard(x, z, 2), 0.6);
+  // The plane's scar is bare earth, and so are the glade in the logging camp and the mine's yard.
+  along(CRASH.scar, 1.2, 1);
+  for (const { x, z, r, soft } of WORN_GROUND) disc(x, z, r, soft, 1);
   // Round the buildings and in their yards.
   const yards = [
     [SPAWN, 8],
@@ -1866,7 +1884,7 @@ export function buildScenery(parent) {
   // What would grow in the crop fields, or in the desert, is left out as it is added rather than
   // where it is placed, so that leaving it out doesn't move everything placed after it.
   const everything = createScatter(scene);
-  const grows = (x, z) => outsideCrops(x, z) && !desertTakes(x, z) && !inOrchard(x, z);
+  const grows = (x, z) => outsideCrops(x, z) && !desertTakes(x, z) && !inOrchard(x, z) && !inDiscovery(x, z);
   const scatter = {
     ...everything,
     add: kind =>
@@ -1893,7 +1911,7 @@ export function buildScenery(parent) {
   const kept = obstacles.filter(o => {
     if (o.x !== undefined) return grows(o.x, o.z);
     const [x, z] = [(o.ax + o.bx) / 2, (o.az + o.bz) / 2];
-    return !desertTakes(x, z) && !inOrchard(x, z);
+    return !desertTakes(x, z) && !inOrchard(x, z) && !inDiscovery(x, z);
   });
   kept.push(...buildDesertScenery(everything));
   // The roads, tracks and paths, merged by area: from up high, a view takes in dozens of them.

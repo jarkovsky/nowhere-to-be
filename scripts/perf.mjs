@@ -42,6 +42,18 @@ const PLACES = [
     'lookout',
     'const { x, z, view } = L.ROUGH.lookout; g.teleport(x - Math.sin(view) * 8, z - Math.cos(view) * 8, view + Math.PI)',
   ],
+  [
+    'plane crash',
+    "const p = L.TRACKS.find(t => t.id === 'crash').path.at(50); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))",
+  ],
+  [
+    'old mine',
+    "const p = L.TRACKS.find(t => t.id === 'mine').path.at(30); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))",
+  ],
+  [
+    'logging camp',
+    "const p = L.TRACKS.find(t => t.id === 'logging').path.at(35); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))",
+  ],
 ];
 
 const server = await startServer();

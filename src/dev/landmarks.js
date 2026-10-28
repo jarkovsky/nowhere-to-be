@@ -27,6 +27,9 @@ import { buildOrchard } from '../world/landmarks/orchard.js';
 import { buildSnowman } from '../world/landmarks/snowman.js';
 import { buildLookout } from '../world/landmarks/lookout.js';
 import { buildFishing } from '../world/landmarks/fishing.js';
+import { buildCrash } from '../world/landmarks/crash.js';
+import { buildMine } from '../world/landmarks/mine.js';
+import { buildLogging } from '../world/landmarks/logging.js';
 import { buildHeaps } from '../world/heaps.js';
 import { HELIPAD, KRYSTOF } from '../world/layout.js';
 import { drivingHeight, waterLevel } from '../world/terrain.js';
@@ -74,5 +77,8 @@ export const LANDMARKS = {
   depot: buildDepot,
   desert: buildDesert,
   lookout: buildLookout,
+  crash: buildCrash,
+  mine: buildMine,
+  logging: buildLogging,
   heaps: scene => buildHeaps(scene),
 };

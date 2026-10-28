@@ -33,6 +33,9 @@ import {
   GRAVEL_HALF_WIDTH,
   ROUGH,
   FISHING,
+  CRASH,
+  MINE,
+  LOGGING,
 } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder } from '../build.js';
@@ -331,6 +334,124 @@ function paintFishingSign(arrow) {
   };
 }
 
+/**
+ * A brown sign, the colour of the signs to places worth a visit, with a cream picture on it and
+ * the arrow below. `draw(ctx, u)` paints the picture in a box 300 across, centred on (150, 110).
+ */
+function paintVisit(draw) {
+  return arrow => (ctx, w, h) => {
+    ctx.fillStyle = '#f4f2ea';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#7a4d2e';
+    ctx.beginPath();
+    ctx.roundRect(14, 14, w - 28, h - 28, 26);
+    ctx.fill();
+    ctx.save();
+    const u = w / 300;
+    ctx.scale(u, u);
+    ctx.fillStyle = ctx.strokeStyle = '#f4ecd6';
+    ctx.lineCap = ctx.lineJoin = 'round';
+    draw(ctx);
+    ctx.restore();
+    ctx.fillStyle = '#f4ecd6';
+    if (arrow) drawArrow(ctx, w / 2, h * 0.79, w * 0.4, arrow);
+  };
+}
+
+/** A small plane seen from above, nose down and slewed on its side, one wing gone, for the crash site. */
+const paintCrashSign = paintVisit(ctx => {
+  ctx.translate(150, 100);
+  ctx.rotate(0.55);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 13, 66, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // The wing on the left, and the stump of the one that came off.
+  ctx.beginPath();
+  ctx.moveTo(-10, -10);
+  ctx.lineTo(-96, 12);
+  ctx.lineTo(-96, 30);
+  ctx.lineTo(-10, 16);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(10, -10);
+  ctx.lineTo(30, -6);
+  ctx.lineTo(24, 14);
+  ctx.lineTo(10, 16);
+  ctx.fill();
+  // The tail.
+  ctx.beginPath();
+  ctx.moveTo(-8, 46);
+  ctx.lineTo(-36, 62);
+  ctx.lineTo(-36, 72);
+  ctx.lineTo(36, 72);
+  ctx.lineTo(36, 62);
+  ctx.lineTo(8, 46);
+  ctx.fill();
+  // The torn wing, a little way off.
+  ctx.save();
+  ctx.translate(86, 30);
+  ctx.rotate(-0.4);
+  ctx.fillRect(-4, -48, 20, 96);
+  ctx.restore();
+});
+
+/** An ore cart on a stretch of rail, for the old mine. */
+const paintMineSign = paintVisit(ctx => {
+  ctx.translate(150, 112);
+  ctx.beginPath();
+  ctx.moveTo(-82, -42);
+  ctx.lineTo(82, -42);
+  ctx.lineTo(62, 28);
+  ctx.lineTo(-62, 28);
+  ctx.closePath();
+  ctx.fill();
+  // The load, heaped above the rim.
+  ctx.beginPath();
+  ctx.arc(-40, -44, 26, Math.PI, 0);
+  ctx.arc(8, -50, 32, Math.PI, 0);
+  ctx.arc(52, -44, 24, Math.PI, 0);
+  ctx.fill();
+  ctx.fillStyle = '#7a4d2e';
+  for (const x of [-38, 38]) {
+    ctx.beginPath();
+    ctx.arc(x, 44, 19, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f4ecd6';
+    ctx.beginPath();
+    ctx.arc(x, 44, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#7a4d2e';
+  }
+  ctx.fillStyle = '#f4ecd6';
+  ctx.fillRect(-110, 62, 220, 8);
+});
+
+/** A pile of felled logs seen end on, three over two over one more, for the logging camp. */
+const paintLoggingSign = paintVisit(ctx => {
+  ctx.translate(150, 100);
+  for (const [x, y, r] of [
+    [-62, 40, 34],
+    [0, 40, 34],
+    [62, 40, 34],
+    [-31, -18, 34],
+    [31, -18, 34],
+  ]) {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    // The rings in the cut end.
+    ctx.save();
+    ctx.strokeStyle = '#7a4d2e';
+    ctx.lineWidth = 5;
+    for (const ring of [22, 11]) {
+      ctx.beginPath();
+      ctx.arc(x, y, ring, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+});
+
 /** Which way an arrow should point for someone reading the sign from the front or back. */
 function arrowFor(from, yaw, to, back) {
   const vx = to.x - from.x;
@@ -506,6 +627,9 @@ function paintMap(ctx, w, h) {
     goats: 'Goats',
     desert: 'Desert',
     fishing: 'Fishing hut',
+    crash: 'Plane wreck',
+    mine: 'Old mine',
+    logging: 'Logging camp',
   };
   /** Draws text in the current font and alignment, and returns the box it fills. */
   const write = (text, x, y, size) => {
@@ -700,6 +824,22 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
   for (const along of [-16, 16]) {
     const p = OUTER_ROAD.offset(turnOff.s + along, turnSide * (GRAVEL_HALF_WIDTH + 2.4));
     pictureSign(scene, parts, { ...p, yaw: Math.atan2(-p.dx, -p.dz) }, paintFishingSign, FISHING);
+  }
+  // Signs where the tracks to the places off the beaten track leave the road, a picture on each:
+  // one a little before the turning and one a little after, on the side the track is on.
+  const visits = [
+    { id: 'crash', road: RING_ROAD, half: ROAD_HALF_WIDTH + 2.4, picture: paintCrashSign, place: CRASH },
+    { id: 'mine', road: RING_ROAD, half: ROAD_HALF_WIDTH + 2.4, picture: paintMineSign, place: MINE },
+    { id: 'logging', road: OUTER_ROAD, half: GRAVEL_HALF_WIDTH + 2.4, picture: paintLoggingSign, place: LOGGING },
+  ];
+  for (const { id, road, half, picture, place } of visits) {
+    const { path } = TRACKS.find(track => track.id === id);
+    const near = road.nearest(path.at(14).x, path.at(14).z);
+    const side = Math.sign(near.side) || 1;
+    for (const along of [-16, 16]) {
+      const p = road.offset(near.s + along, side * half);
+      pictureSign(scene, parts, { ...p, yaw: Math.atan2(-p.dx, -p.dz) }, picture, place);
+    }
   }
 
   // A board on the summit, facing the end of the track.

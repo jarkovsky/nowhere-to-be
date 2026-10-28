@@ -28,6 +28,9 @@ import { buildOrchard } from './orchard.js';
 import { buildSnowman } from './snowman.js';
 import { buildLookout } from './lookout.js';
 import { buildFishing } from './fishing.js';
+import { buildCrash } from './crash.js';
+import { buildMine } from './mine.js';
+import { buildLogging } from './logging.js';
 import { buildHeaps } from '../heaps.js';
 import { HELIPAD, KRYSTOF } from '../layout.js';
 
@@ -79,6 +82,9 @@ export function buildLandmarks(scene, obstacles) {
   const desert = own('desert', buildDesert);
   own('lookout', buildLookout);
   own('fishing', buildFishing);
+  own('crash', buildCrash);
+  own('mine', buildMine);
+  own('logging', buildLogging);
   own('heaps', group => buildHeaps(group));
   const signs = own('signs', group => buildSigns(group, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard }));
 

@@ -24,6 +24,9 @@ import { railbus } from '../vehicles/train.js';
 import { RAMP_UP } from '../core/ferry.js';
 import { ferryModel } from '../world/ferry.js';
 import { combineHarvester, farmTractor, stalkGeometry } from '../world/landmarks/fields.js';
+import { wreckedPlane } from '../world/landmarks/crash.js';
+import { oreCartModel } from '../world/landmarks/mine.js';
+import { skidderModel } from '../world/landmarks/logging.js';
 import { dumpTruck, excavator, grader, roller, skidSteer } from '../world/landmarks/roadworks.js';
 import { buildTractor } from '../world/mudhole.js';
 import { cow, deer, duck, eagle, fish, fox, rabbit, sheep } from '../world/wildlife.js';
@@ -116,6 +119,14 @@ function herdAnimal(kind) {
 const turned = object => {
   const root = new THREE.Group();
   object.rotation.y = Math.PI / 2;
+  root.add(object);
+  return root;
+};
+
+/** Wraps a model built facing +Z so it faces -Z. */
+const facingBack = object => {
+  const root = new THREE.Group();
+  object.rotation.y = Math.PI;
   root.add(object);
   return root;
 };
@@ -249,6 +260,15 @@ export const MODELS = [
   { id: 'works.roller', name: 'Road roller', group: 'Machines', create: () => roller().root },
   { id: 'works.grader', name: 'Grader', group: 'Machines', create: () => grader().root },
   { id: 'works.loader', name: 'Skid steer loader', group: 'Machines', create: () => skidSteer().root },
+  { id: 'discover.plane', name: 'Crashed plane', group: 'Places to discover', create: () => wreckedPlane() },
+  { id: 'discover.cart', name: 'Ore cart, loaded', group: 'Places to discover', create: () => oreCartModel(true) },
+  {
+    id: 'discover.cart.empty',
+    name: 'Ore cart, empty',
+    group: 'Places to discover',
+    create: () => oreCartModel(false),
+  },
+  { id: 'discover.skidder', name: 'Skidder', group: 'Places to discover', create: () => facingBack(skidderModel()) },
   ...[
     ['deer', 'Deer', () => turned(deer().root)],
     ['sheep', 'Sheep', () => turned(sheep().root)],

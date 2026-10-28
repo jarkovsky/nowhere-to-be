@@ -1116,6 +1116,149 @@ export const FISHING = (() => {
   };
 })();
 
+// --- Places to discover ------------------------------------------------------------------
+// Three places off the beaten track, each at the end of a track of its own: a plane that came
+// down in a meadow long ago, an old mine in a hillside in the woods, and a logging camp in a
+// glade. Each is laid out in a frame of its own, with local +Z towards the road the track
+// leaves from, as the orchard is.
+
+/**
+ * A small plane that slid into a gentle meadow in the south-east uplands, downhill and nose
+ * first, with a long scar of torn earth behind it. In its frame the plane lies along Z with the
+ * nose to +Z, its torn-off left wing (local -X) a little way back and the track coming in from
+ * the right and behind.
+ */
+export const CRASH = (() => {
+  const [x, z] = [314, 608];
+  // Downhill, the way the plane slid.
+  const rotation = 0.87;
+  const local = localFrame(x, z, rotation);
+  const points = list => list.map(([lx, lz]) => Object.values(local(lx, lz)));
+  return {
+    x,
+    z,
+    rotation,
+    /** The furrow it cut, from where it first touched down to the tail, a little crooked. */
+    scar: createPath(
+      points([
+        [0.4, -4],
+        [0.1, -12],
+        [-1.4, -23],
+        [-2.8, -34],
+        [-2.4, -46],
+      ]),
+      { spacing: 2 },
+    ),
+    wing: { ...local(-9, -14), rotation: rotation + 0.55 },
+    wheel: local(3.6, -17.5),
+    /** Where the scattered panels lie, each with its own turn. */
+    panels: [
+      [2.8, -9, 0.4],
+      [-3.4, -22, 2.1],
+      [4.4, -27, 5.2],
+      [-1, -39, 3.3],
+    ].map(([lx, lz, turn]) => ({ ...local(lx, lz), rotation: rotation + turn })),
+    /** The ground the scenery keeps off: round the plane and its scar. */
+    clearing: { ...local(-1, -20), r: 34 },
+  };
+})();
+
+/**
+ * An old mine: a timber-framed adit dug into the foot of a hill in the woods in the north, boarded
+ * up a metre inside, with rails running out of it past two ore carts to a spoil heap, a
+ * small headframe, a tin-roofed shed and a lamp on a post. The ground is built up behind the
+ * mouth with a hill of its own, so the adit goes into the hillside.
+ */
+export const MINE = (() => {
+  const [x, z] = [-240, -632];
+  const road = RING_ROAD.nearest(x, z).sample;
+  const rotation = Math.atan2(road.x - x, road.z - z);
+  const local = localFrame(x, z, rotation);
+  return {
+    x,
+    z,
+    rotation,
+    hill: { ...local(0, -14), radius: 12, height: 15 },
+    /** The level yard in front of the mouth. */
+    yard: local(0, 3),
+    /** The rails run straight out from the mouth for this far, with the carts at these distances. */
+    railLength: 15,
+    carts: [5.2, 9],
+    spoil: { ...local(-10.5, 14), radius: 5 },
+    headframe: { ...local(11.5, 5), rotation: rotation - Math.PI / 2 },
+    shed: { ...local(-12, 1), rotation: rotation + Math.PI / 2 },
+    lamp: local(2.9, 3.2),
+    clearing: { ...local(0, 5), r: 23 },
+  };
+})();
+
+/**
+ * A logging camp in a glade at the edge of the woods in the west-south-west: stacks of felled
+ * logs, an old skidder, a sawmill shed with a round saw and a stack of planks, a small cabin,
+ * stumps all round the glade and an axe in a chopping block. In its frame +Z is towards the
+ * outer road the track comes in from.
+ */
+export const LOGGING = (() => {
+  const [x, z] = [-722, 190];
+  const road = OUTER_ROAD.nearest(x, z).sample;
+  const rotation = Math.atan2(road.x - x, road.z - z);
+  const local = localFrame(x, z, rotation);
+  const random = createRandom(4493);
+  // The stumps stand all round the edge of the glade, and a few nearer in.
+  const stumps = [];
+  for (let k = 0; k < 16; k++) {
+    const a = (k / 16) * Math.PI * 2 + random() * 0.3;
+    const r = 18 + random() * 8;
+    stumps.push({
+      ...local(Math.cos(a) * r * 1.15, -2 + Math.sin(a) * r),
+      scale: 0.8 + random() * 0.6,
+      rotation: random() * Math.PI * 2,
+    });
+  }
+  for (const [lx, lz] of [
+    [6.5, -1],
+    [-6, 11],
+    [8.5, 12.5],
+  ]) {
+    stumps.push({ ...local(lx, lz), scale: 0.7 + random() * 0.4, rotation: random() * Math.PI * 2 });
+  }
+  return {
+    x,
+    z,
+    rotation,
+    stumps,
+    cabin: { ...local(-10, -13), rotation },
+    sawmill: { ...local(11.5, -10), rotation },
+    planks: { ...local(19.5, -7), rotation: rotation + Math.PI / 2 + 0.06 },
+    skidder: { ...local(-10, 5), rotation: rotation + 0.5 },
+    /** Stacks of logs, each in its own frame with the logs along its X. */
+    stacks: [
+      { ...local(12.5, 5.5), rotation: rotation + 0.04, logs: 5 },
+      { ...local(-17, -3), rotation: rotation + Math.PI / 2 + 0.15, logs: 4 },
+      { ...local(2, -19.5), rotation: rotation - 0.06, logs: 4 },
+    ],
+    block: { ...local(-3.6, -9.2), rotation },
+    clearing: { ...local(0, -2), r: 27 },
+  };
+})();
+
+/** Ground the scenery keeps off, as circles: round each place to discover. */
+export const DISCOVERY_CLEARINGS = [CRASH.clearing, MINE.clearing, LOGGING.clearing];
+
+/** True in the clearing round one of the places to discover, or within `margin` more of it. */
+export function inDiscovery(x, z, margin = 0) {
+  return DISCOVERY_CLEARINGS.some(c => (x - c.x) ** 2 + (z - c.z) ** 2 < (c.r + margin) ** 2);
+}
+
+/**
+ * Ground worn bare or covered over: `color` replaces the meadow's out to `r`, fading out over
+ * the `soft` metres after that, and the grass stops growing on it.
+ */
+export const WORN_GROUND = [
+  { ...LOGGING.clearing, r: 13, soft: 9, color: '#8c6d47' },
+  { ...MINE.yard, r: 8, soft: 6, color: '#8d897d' },
+];
+
 /**
  * Narrow side tracks: two dirt ruts with grass between, or a footpath along the shore. `grade`,
  * where given, is the steepest they climb, and `window` how far either way the lie of the land
@@ -1311,6 +1454,20 @@ export const TRACKS = [
     ),
   },
   {
+    // Off the ring road across the meadow to the plane in the south-east, ending beside it.
+    id: 'crash',
+    ruts: true,
+    path: createPath(
+      fromRingRoad(
+        ...[
+          [26, -42],
+          [18, -22],
+          [13, -8],
+        ].map(([lx, lz]) => Object.values(localFrame(CRASH.x, CRASH.z, CRASH.rotation)(lx, lz))),
+      ),
+    ),
+  },
+  {
     // Off the outer road and down to a ford over the eastern river, ending in the field beyond it.
     id: 'east-ford',
     ruts: true,
@@ -1321,6 +1478,36 @@ export const TRACKS = [
     id: 'fishing',
     ruts: true,
     path: createPath(fromOuterRoad(...FISHING.track)),
+  },
+  {
+    // Off the ring road up through the woods to the yard in front of the mine.
+    id: 'mine',
+    ruts: true,
+    grade: 0.15,
+    path: createPath(
+      fromRingRoad(
+        ...[
+          [3, 50],
+          [1, 32],
+          [2, 19],
+        ].map(([lx, lz]) => Object.values(localFrame(MINE.x, MINE.z, MINE.rotation)(lx, lz))),
+      ),
+    ),
+  },
+  {
+    // Off the outer road along the edge of the woods into the glade.
+    id: 'logging',
+    ruts: true,
+    grade: 0.12,
+    path: createPath(
+      fromOuterRoad(
+        ...[
+          [3, 62],
+          [2, 36],
+          [3, 14],
+        ].map(([lx, lz]) => Object.values(localFrame(LOGGING.x, LOGGING.z, LOGGING.rotation)(lx, lz))),
+      ),
+    ),
   },
 ];
 
@@ -1839,6 +2026,9 @@ export const PLACES = [
   { id: 'desert', x: DESERT.oasis.x, z: DESERT.oasis.z },
   { id: 'lookout', x: ROUGH.lookout.x, z: ROUGH.lookout.z },
   { id: 'fishing', x: FISHING.x, z: FISHING.z },
+  { id: 'crash', x: CRASH.x, z: CRASH.z },
+  { id: 'mine', x: MINE.x, z: MINE.z },
+  { id: 'logging', x: LOGGING.x, z: LOGGING.z },
 ];
 
 /**
@@ -1881,6 +2071,13 @@ export const PADS = [
   { x: DESERT.windpump.x, z: DESERT.windpump.z, radius: 4, falloff: 5 },
   // The fishing hut on the river bank, with its yard.
   { x: FISHING.x, z: FISHING.z, radius: 6, falloff: 6, level: 'ground' },
+  // The plane lies on level ground, the mine's yard is cut into the hillside, and the logging
+  // camp's glade is trodden flat.
+  { x: CRASH.x, z: CRASH.z, radius: 9, falloff: 8 },
+  { x: MINE.yard.x, z: MINE.yard.z, radius: 8, falloff: 6 },
+  { x: MINE.headframe.x, z: MINE.headframe.z, radius: 3.5, falloff: 5 },
+  { x: MINE.shed.x, z: MINE.shed.z, radius: 3.5, falloff: 5 },
+  { x: LOGGING.x, z: LOGGING.z, radius: 16, falloff: 12 },
 ];
 
 function patchOnRoad(x, z) {

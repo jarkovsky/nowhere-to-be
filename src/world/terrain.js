@@ -48,6 +48,7 @@ import {
   RIVERS,
   FORD_DEPTH,
   ROCK_HILL,
+  MINE,
   ROCK_GATE,
   ROCK_FIN,
   FJORD,
@@ -138,7 +139,7 @@ function rimHeight(r, angle) {
   return valley + uplands + wall;
 }
 
-const HILLS = [...KNOLLS, SERLICH, SUMMIT, ...UPLAND_HILLS, ...OUTLAND_HILLS, ROCK_HILL, ...RUGGED_HILLS];
+const HILLS = [...KNOLLS, SERLICH, SUMMIT, ...UPLAND_HILLS, ...OUTLAND_HILLS, ROCK_HILL, ...RUGGED_HILLS, MINE.hill];
 
 /** The landscape before anything is levelled or dug out. */
 function wildHeight(x, z) {

@@ -16,6 +16,8 @@ import {
   CROSSINGS,
   RIVERS,
   ROUGH,
+  CRASH,
+  MINE,
 } from '../src/world/layout.js';
 import { chassisPose } from '../src/core/suspension.js';
 import { localFrame } from '../src/world/build.js';
@@ -46,6 +48,9 @@ import { buildFields } from '../src/world/landmarks/fields.js';
 import { buildOrchard } from '../src/world/landmarks/orchard.js';
 import { buildLookout } from '../src/world/landmarks/lookout.js';
 import { buildFishing } from '../src/world/landmarks/fishing.js';
+import { buildCrash } from '../src/world/landmarks/crash.js';
+import { buildMine } from '../src/world/landmarks/mine.js';
+import { buildLogging } from '../src/world/landmarks/logging.js';
 import { createSurfaces } from '../src/world/surfaces.js';
 import { LANE } from '../src/vehicles/traffic.js';
 
@@ -69,6 +74,9 @@ for (const build of [
   buildOrchard,
   buildLookout,
   buildFishing,
+  buildCrash,
+  buildMine,
+  buildLogging,
 ]) {
   build(scene, obstacles);
 }
@@ -316,6 +324,53 @@ test('the fishing hut can be reached along its track', () => {
   const { path } = TRACKS.find(track => track.id === 'fishing');
   const result = followPath(path, path.length - 4, { inWorld: wetWorld });
   assert.equal(result.stuck, undefined, result.stuck);
+});
+
+test('the tracks to the plane, the mine and the logging camp can be driven there and back at cruise speed', () => {
+  for (const id of ['crash', 'mine', 'logging']) {
+    const { path } = TRACKS.find(track => track.id === id);
+    const back = createPath(path.samples.map(p => [p.x, p.z]).reverse());
+    for (const [way, route] of [
+      ['there', path],
+      ['back', back],
+    ]) {
+      const result = followPath(route, route.length - 4);
+      assert.equal(result.stuck, undefined, `${id} ${way}: ${result.stuck}`);
+      assert.ok(result.progress >= route.length - 4, `${id} ${way}: only reached ${result.progress.toFixed(0)} m`);
+      assert.ok(result.slowest > 5.3, `${id} ${way}: slowed to ${result.slowest.toFixed(1)} m/s`);
+    }
+  }
+});
+
+test('the car cannot drive into the mine, nor through the wrecked plane', () => {
+  /** Drives at `to` from `from` for a while at cruise speed, and says how close it got. */
+  const driveAt = (from, to) => {
+    const car = createCarState({ ...from, heading: Math.atan2(-(to.x - from.x), -(to.z - from.z)) });
+    let nearest = Infinity;
+    for (let step = 0; step < 60 * 12; step++) {
+      stepDriving(car, { cruise: true }, 1 / 60, world);
+      nearest = Math.min(nearest, Math.hypot(car.x - to.x, car.z - to.z));
+    }
+    return { car, nearest };
+  };
+  // Down the middle of the yard into the mouth, which is boarded up a metre inside it.
+  const mine = localFrame(MINE.x, MINE.z, MINE.rotation);
+  const yard = driveAt(mine(0, 14), mine(0, -3));
+  const inside = (yard.car.x - MINE.x) * Math.sin(MINE.rotation) + (yard.car.z - MINE.z) * Math.cos(MINE.rotation);
+  assert.ok(inside > 0.3, `got ${(-inside).toFixed(1)} m into the mine`);
+  // At the plane's middle from each side, and at its tail from behind.
+  const plane = localFrame(CRASH.x, CRASH.z, CRASH.rotation);
+  for (const [name, from, to] of [
+    ['the left', plane(-9, 0.4), plane(0, 0.4)],
+    ['the right', plane(10, 0.4), plane(0, 0.4)],
+    ['behind', plane(0, -12), plane(0, 0)],
+  ]) {
+    const { nearest } = driveAt(from, to);
+    assert.ok(nearest > 0.5, `drove into the plane from ${name}, to ${nearest.toFixed(1)} m of its middle`);
+  }
+  // And the loose wing and the tail are solid too.
+  const wing = driveAt(plane(-9, -8), { x: CRASH.wing.x, z: CRASH.wing.z });
+  assert.ok(wing.nearest > 0.5, 'drove through the loose wing');
 });
 
 test('the new road can be driven from the upland road to where the digging is', () => {
