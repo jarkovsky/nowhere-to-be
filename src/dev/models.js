@@ -36,6 +36,7 @@ import {
   logGeometry,
   pineGeometry,
   roundTreeGeometry,
+  fruitTreeGeometry,
   stumpGeometry,
 } from '../world/scenery.js';
 import { boulderGeometry, rockMaterial } from '../world/rocks.js';
@@ -258,6 +259,8 @@ export const MODELS = [
     ['pine.far', 'Spruce (far off)', () => plant(pineGeometry(false), '#4d6b42')],
     ['round', 'Broadleaf tree', () => plant(roundTreeGeometry(), '#6b8a45')],
     ['birch', 'Birch', () => plant(birchGeometry(), '#8aa556')],
+    ['apple-tree', 'Apple tree', () => plant(fruitTreeGeometry('apple'), '#7d8c45')],
+    ['pear-tree', 'Pear tree', () => plant(fruitTreeGeometry('pear'), '#c8913a')],
     ['bush', 'Bush', () => plant(bushGeometry(), '#5f7d45')],
     ['stump', 'Stump', () => plant(stumpGeometry())],
     ['log', 'Fallen log', () => plant(logGeometry())],

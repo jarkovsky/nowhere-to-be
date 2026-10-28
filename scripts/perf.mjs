@@ -15,6 +15,10 @@ const PLACES = [
   ['summit', 'g.teleport(-300, -300, 2.6)'],
   ['upland farm', 'g.teleport(244, 298, -2.3)'],
   ['airfield', 'g.teleport(560, 200, -0.8)'],
+  [
+    'orchard',
+    "const p = L.TRACKS.find(t => t.id === 'orchard').path.at(55); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))",
+  ],
   ['upland road', 'const p = L.RING_ROAD.at(1200); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))'],
   ['tunnel', 'const p = L.ROAD.at(L.TUNNEL.s - 40); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))'],
 ];

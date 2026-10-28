@@ -381,6 +381,7 @@ function paintMap(ctx, w, h) {
     roadworks: 'Roadworks',
     helipad: 'Helipad',
     chapel: 'Chapel',
+    orchard: 'Orchard',
     summit: 'Velká Deštná',
     fields: 'Upland farm',
     airfield: 'Airfield',
@@ -597,4 +598,19 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
   scene.add(name);
 
   scene.add(parts.mesh());
+
+  // Each face with writing or a picture on it is drawn on its own, so it is only drawn near
+  // enough to make out (further for a bigger one), or a view out over the valley would take in
+  // dozens. Past that, the board is plain.
+  const faces = scene.children
+    .filter(o => o.material?.map)
+    .map(face => ({ face, reach: Math.max(90, 50 * face.geometry.parameters.width) }));
+  return {
+    /** Every frame, with where the car is. */
+    update(x, z) {
+      for (const { face, reach } of faces) {
+        face.visible = (face.position.x - x) ** 2 + (face.position.z - z) ** 2 < reach * reach;
+      }
+    },
+  };
 }
