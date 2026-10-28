@@ -351,7 +351,7 @@ const between = (random, [least, most]) => least + random() * (most - least);
  * Who drives where. Travellers are always about: [model, where they start as a fraction
  * of the way round, direction, cruising speed]. Visitors come along one at a time,
  * the first after `firstCall` seconds and then every `betweenCalls`; emergency ones
- * have blue lights and a siren, and everyone pulls over for them. `narrow(s)` marks
+ * have blue lights, and everyone pulls over for them. `narrow(s)` marks
  * stretches with no room to pull over.
  */
 export const VALLEY = {
@@ -596,12 +596,6 @@ export function createTraffic(scene, network = VALLEY) {
         const distance = Math.hypot(visitor.root.position.x - player.x, visitor.root.position.z - player.z);
         if (visitor.driven > 280 && distance > 170) visitor.active = false;
       }
-    },
-    /** How loud the siren is where the player is: 0 when no emergency vehicle is near. */
-    sirenLevel(player) {
-      const r = active();
-      if (!r?.emergency) return 0;
-      return Math.max(0, 1 - Math.hypot(r.root.position.x - player.x, r.root.position.z - player.z) / 150);
     },
     /** The visitor that is out, if any, and where it is on the road. */
     visitor() {

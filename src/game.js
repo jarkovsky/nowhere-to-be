@@ -35,7 +35,6 @@ import {
   CAMP_TRAIL,
   DEPOT,
   GNOMES,
-  LEVEL_CROSSING,
   ROAD,
   ROAD_HALF_WIDTH,
   SPAWN,
@@ -378,6 +377,8 @@ export function createGame(canvas) {
 
   function resume() {
     if (mode !== 'paused') return;
+    // From a tap: wakes the sound if the device stopped it while the game was in the background.
+    sound.start();
     ui.closeMenu();
     mode = pausedFrom;
     controls.clear();
@@ -702,6 +703,8 @@ export function createGame(canvas) {
     if (document.hidden) {
       tilt.suspend();
       pause();
+      // No frames are drawn in a hidden page, so the sound is told now: the music stops with it.
+      sound.update({ speed: 0, engineOn: false, active: false, rain: 0 });
     }
   });
   window.addEventListener('blur', () => controls.clear());
@@ -713,7 +716,6 @@ export function createGame(canvas) {
   let lastFrame = 0;
   let clock = 0;
   let dirt = 0;
-  let nextBell = 0;
   let wasBraking = false;
   let throttle = 0;
 
@@ -739,10 +741,9 @@ export function createGame(canvas) {
         renderer.render(scene, camera);
       }
       needsRender = false;
-      // Paused, the world stands still: no rotors or sirens carrying on at their last level.
+      // Paused, the world stands still: no rotors carrying on at their last level.
       sound.update({ speed: 0, engineOn: false, active: !document.hidden, rain: 0 });
       sound.rotor(0, 0);
-      sound.siren(0);
       return;
     }
     clock += dt;
@@ -820,14 +821,11 @@ export function createGame(canvas) {
     planes.update(dt, { player: state });
     const crossingClosed = train.crossingClosed();
     landmarks.update(dt, night, { crossingClosed, player: state });
-    if (crossingClosed && clock > nextBell) {
-      nextBell = clock + 0.55;
-      sound.crossingBell(Math.hypot(state.x - LEVEL_CROSSING.x, state.z - LEVEL_CROSSING.z));
-    }
     wildlife.update(dt, state, night);
     secrets.update(dt, state, night);
     gnomes.update(dt, state, driving);
-    surfaces.update(dt, state, driving, mudHole.slip);
+    // Stuck in the mud hole and pulled out of it, the car makes no sound in the mud.
+    surfaces.update(dt, state, driving, mudHole.slip, mudHole.gripping());
     if (driving) wading.update(dt, state, car, car.trailer ? trailer : null);
     if (driving) {
       // Puddles lie on the trail, so the tyres find them rather than the driving surface.
@@ -856,7 +854,7 @@ export function createGame(canvas) {
     scenery.update(dt, camera.position, sun);
 
     sound.update({
-      speed: driving ? state.speed + mudHole.slip : 0,
+      speed: driving ? state.speed : 0,
       throttle: driving ? throttle : 0,
       engineOn: driving,
       active: mode !== 'title' && !document.hidden,
@@ -868,8 +866,6 @@ export function createGame(canvas) {
       planes.engineSound(camera.position),
     ].reduce((a, b) => (b.level > a.level ? b : a));
     sound.rotor(mode === 'title' ? 0 : rotor.level, rotor.rate);
-    const siren = Math.max(landmarks.sirenLevel(state.x, state.z), ...roads.map(road => road.sirenLevel(state)));
-    sound.siren(mode === 'title' ? 0 : siren);
     renderer.render(scene, camera);
     if (!UNCAPPED) adaptResolution(frameMs, dt, targetFps);
   }

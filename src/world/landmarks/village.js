@@ -1,7 +1,7 @@
 // The village out on the outer road in the west: houses on both sides of the road, a pond on
 // the green, and the volunteer fire station that every Czech village has, with a tall tower
 // for drying the hoses, a siren on the roof and the fire engine parked out front. Sound the
-// horn by it and the engine answers with its blue lights and siren.
+// horn by it and the engine answers with its blue lights.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FORECOURTS, VILLAGE } from '../layout.js';
@@ -161,15 +161,11 @@ export function buildVillage(scene, obstacles) {
       engine.beacons[0].emissiveIntensity = alarm > 0 ? (flash ? 2.4 : 0.15) : 0;
       engine.beacons[1].emissiveIntensity = alarm > 0 ? (flash ? 0.15 : 2.4) : 0;
     },
-    /** A honk by the fire station sets off the engine's lights and siren for a while. */
+    /** A honk by the fire station sets off the engine's lights for a while. */
     hearHorn(x, z) {
       if (Math.hypot(x - spot.x, z - spot.z) > 40) return false;
       alarm = ALARM;
       return true;
-    },
-    /** How loud the siren is from a point, 0 to 1. */
-    sirenLevel(x, z) {
-      return alarm > 0 ? Math.max(0, 1 - Math.hypot(x - spot.x, z - spot.z) / 150) * Math.min(1, alarm) : 0;
     },
   };
 }

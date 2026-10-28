@@ -98,7 +98,6 @@ export function buildLandmarks(scene, obstacles) {
     knockFences: (state, dt) => fences.reduce((knocked, fence) => fence.knock(state, dt) || knocked, false),
     /** The fire engine at the village answers a honk nearby. */
     hearHorn: (x, z) => village.hearHorn(x, z),
-    sirenLevel: (x, z) => village.sirenLevel(x, z),
     update(dt, night, { crossingClosed = false, player = null } = {}) {
       time += dt;
       waterfall.update(time);
