@@ -38,7 +38,6 @@ import {
   roundTreeGeometry,
   stumpGeometry,
 } from '../world/scenery.js';
-import { furMaterial } from '../world/creatures.js';
 import { boulderGeometry, rockMaterial } from '../world/rocks.js';
 import {
   barrelCactusGeometry,
@@ -48,7 +47,7 @@ import {
   saguaroGeometry,
 } from '../world/sand.js';
 import { palmGeometry, tumbleweedGeometry } from '../world/landmarks/desert.js';
-import { PartsBuilder, vertexColorMaterial } from '../world/build.js';
+import { ANIMAL_BEVEL, PartsBuilder, vertexColorMaterial } from '../world/build.js';
 import { foliageMaterial } from '../world/detail.js';
 
 const NAMES = {
@@ -92,7 +91,8 @@ function plant(geometry, tint, material = vertexColorMaterial) {
 function herdAnimal(kind) {
   const spec = KINDS[kind];
   const root = new THREE.Group();
-  const piece = build => new THREE.Mesh(build(new PartsBuilder()).geometry(), furMaterial);
+  const piece = build =>
+    new THREE.Mesh(build(new PartsBuilder({ bevel: ANIMAL_BEVEL })).geometry(), vertexColorMaterial);
   root.add(piece(spec.body));
   const head = piece(spec.head);
   head.position.set(spec.neck[0], spec.neck[1], 0);
@@ -244,8 +244,8 @@ export const MODELS = [
     ['eagle', 'Eagle', () => turned(eagle())],
     ['fish', 'Fish', () => turned(fish())],
     ['wolf', 'Wolf', () => turned(wolf(1).root)],
-    ['hen', 'Hen', () => turned(new THREE.Mesh(chickenGeometry('#f1ece0', false), furMaterial))],
-    ['rooster', 'Rooster', () => turned(new THREE.Mesh(chickenGeometry('#b5653a', true), furMaterial))],
+    ['hen', 'Hen', () => turned(new THREE.Mesh(chickenGeometry('#f1ece0', false), vertexColorMaterial))],
+    ['rooster', 'Rooster', () => turned(new THREE.Mesh(chickenGeometry('#b5653a', true), vertexColorMaterial))],
     // The herds have a deer and a sheep of their own, besides the ones that roam on their own.
     ...Object.keys(KINDS).map(kind => [
       `herd.${kind}`,

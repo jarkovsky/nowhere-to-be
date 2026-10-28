@@ -76,8 +76,10 @@ const tint = new THREE.Color();
 
 /** Collects coloured geometry pieces and merges them into one mesh. */
 export class PartsBuilder {
-  constructor() {
+  /** With `bevel`, its boxes have their edges and corners cut off that far, or a third of their thinnest side. */
+  constructor({ bevel = 0 } = {}) {
     this.parts = [];
+    this.bevel = bevel;
   }
 
   /**
@@ -115,7 +117,9 @@ export class PartsBuilder {
   }
 
   box(width, height, depth, color, transform) {
-    return this.add(new THREE.BoxGeometry(width, height, depth), color, transform);
+    const cut = Math.min(this.bevel, Math.min(width, height, depth) / 3);
+    const geometry = cut > 0.004 ? bevelledBox(width, height, depth, cut) : new THREE.BoxGeometry(width, height, depth);
+    return this.add(geometry, color, transform);
   }
 
   /** A box stretched between two points, e.g. a beam or a rail. */
@@ -180,6 +184,68 @@ export function triangleGeometry(positions, colors) {
   return geometry;
 }
 
+const bevelled = new Map();
+
+/**
+ * A box `width` by `height` by `depth` with its edges and corners cut off `cut` in: a flat
+ * strip along each edge and a small triangle at each corner, which catch the light the way the
+ * pressed edges of a car's panels do. Shared between boxes of the same size.
+ */
+export function bevelledBox(width, height, depth, cut) {
+  const key = [width, height, depth, cut].join();
+  if (bevelled.has(key)) return bevelled.get(key);
+  const half = [width / 2, height / 2, depth / 2];
+  // Each corner has three points, one on each face that meets there: on the face across
+  // `axis`, pulled in along the other two.
+  const point = (signs, axis) => signs.map((sign, k) => sign * (k === axis ? half[k] : half[k] - cut));
+  const positions = [];
+  const triangle = (a, b, c) => {
+    // Wound to face away from the middle, whichever order the points come in.
+    const ab = a.map((v, k) => b[k] - v);
+    const ac = a.map((v, k) => c[k] - v);
+    const normal = [ab[1] * ac[2] - ab[2] * ac[1], ab[2] * ac[0] - ab[0] * ac[2], ab[0] * ac[1] - ab[1] * ac[0]];
+    const out = normal[0] * (a[0] + b[0] + c[0]) + normal[1] * (a[1] + b[1] + c[1]) + normal[2] * (a[2] + b[2] + c[2]);
+    positions.push(...a, ...(out >= 0 ? [...b, ...c] : [...c, ...b]));
+  };
+  const quad = (a, b, c, d) => {
+    triangle(a, b, c);
+    triangle(a, c, d);
+  };
+  const round = [
+    [1, 1],
+    [1, -1],
+    [-1, -1],
+    [-1, 1],
+  ];
+  const signsOf = (axis, sign, [u, v]) => {
+    const signs = [0, 0, 0];
+    signs[axis] = sign;
+    signs[(axis + 1) % 3] = u;
+    signs[(axis + 2) % 3] = v;
+    return signs;
+  };
+  for (let axis = 0; axis < 3; axis++) {
+    for (const sign of [-1, 1]) {
+      // The face itself.
+      quad(...round.map(uv => point(signsOf(axis, sign, uv), axis)));
+      // The strip along each of its edges towards the next axis round, which with every
+      // axis and sign covers all twelve edges once.
+      const next = (axis + 1) % 3;
+      for (const other of [-1, 1]) {
+        const ends = [-1, 1].map(w => signsOf(axis, sign, [other, w]));
+        quad(point(ends[0], axis), point(ends[1], axis), point(ends[1], next), point(ends[0], next));
+      }
+    }
+  }
+  for (const x of [-1, 1])
+    for (const y of [-1, 1]) for (const z of [-1, 1]) triangle(...[0, 1, 2].map(axis => point([x, y, z], axis)));
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.computeVertexNormals();
+  bevelled.set(key, geometry);
+  return geometry;
+}
+
 /** Converts a point in a prop's local frame (rotated by `rotation` about Y) to world coordinates. */
 export function localFrame(x, z, rotation) {
   const cos = Math.cos(rotation);
@@ -187,11 +253,14 @@ export function localFrame(x, z, rotation) {
   return (lx, lz) => ({ x: x + lx * cos + lz * sin, z: z - lx * sin + lz * cos });
 }
 
-/** A leg or a head on its own pivot at (x, y, z) on `parent`, built as its own small mesh of `material`, for animating. */
-export function limb(parent, x, y, z, build, material = vertexColorMaterial) {
+/** How far the edges of the blocks animals are built from are bevelled, so they look softer. */
+export const ANIMAL_BEVEL = 0.1;
+
+/** A leg or a head of an animal on its own pivot at (x, y, z) on `parent`, built as its own small mesh, for animating. */
+export function limb(parent, x, y, z, build) {
   const pivot = new THREE.Group();
   pivot.position.set(x, y, z);
-  pivot.add(build(new PartsBuilder()).mesh({ material, receiveShadow: false }));
+  pivot.add(build(new PartsBuilder({ bevel: ANIMAL_BEVEL })).mesh({ receiveShadow: false }));
   parent.add(pivot);
   return pivot;
 }

@@ -5,8 +5,7 @@ import * as THREE from 'three';
 import { createRandom } from '../core/math.js';
 import { YARDS } from './layout.js';
 import { terrainHeight } from './terrain.js';
-import { PartsBuilder, localFrame } from './build.js';
-import { cone, eyes, furMaterial, lump, pair, tube } from './creatures.js';
+import { ANIMAL_BEVEL, PartsBuilder, localFrame, vertexColorMaterial } from './build.js';
 
 const SCARE = 9;
 const BEAK = '#e0a942';
@@ -15,23 +14,20 @@ const COMB = '#c8302a';
 /** A chicken facing +X. `feathers` colours the body; the rooster has a tall tail and a bigger comb. */
 export function chickenGeometry(feathers, rooster) {
   const s = rooster ? 1.2 : 1;
-  const p = new PartsBuilder();
-  lump(p, feathers, [0, 0.42 * s, 0], [0.3 * s, 0.25 * s, 0.22 * s], { tilt: 0.15 });
-  tube(p, feathers, [0.16 * s, 0.5 * s, 0], [0.26 * s, 0.66 * s, 0], 0.1 * s, 0.07 * s); // neck
-  lump(p, feathers, [0.27 * s, 0.7 * s, 0], [0.09 * s, 0.085 * s, 0.075 * s]); // head
-  cone(p, BEAK, [0.33 * s, 0.69 * s, 0], [0.43 * s, 0.68 * s, 0], 0.03 * s); // beak
-  lump(p, COMB, [0.32 * s, 0.62 * s, 0], [0.025, 0.04, 0.02]); // wattle
-  lump(p, COMB, [0.26 * s, 0.79 * s, 0], [0.07 * s, (rooster ? 0.06 : 0.035) * s, 0.02]); // comb
-  eyes(p, 0.31 * s, 0.72 * s, 0.06 * s, 0.015);
+  const parts = new PartsBuilder({ bevel: ANIMAL_BEVEL })
+    .add(new THREE.IcosahedronGeometry(0.28 * s, 0), feathers, { y: 0.42 * s, sx: 1.25, sy: 0.95, sz: 0.85 })
+    .box(0.16 * s, 0.2 * s, 0.16 * s, feathers, { x: 0.25 * s, y: 0.66 * s }) // neck and head
+    .box(0.08, 0.06, 0.06, BEAK, { x: 0.36 * s, y: 0.68 * s })
+    .box(0.05, 0.08, 0.04, COMB, { x: 0.33 * s, y: 0.6 * s }) // wattle
+    .box(0.14 * s, (rooster ? 0.13 : 0.07) * s, 0.04, COMB, { x: 0.25 * s, y: 0.8 * s });
   if (rooster) {
-    // Tail feathers arching up and back.
-    cone(p, '#2f5546', [-0.24, 0.55, 0], [-0.5, 0.95, 0], 0.1, 0.4);
-    cone(p, '#3e3a6b', [-0.26, 0.5, 0], [-0.58, 0.72, 0], 0.09, 0.4);
+    parts.box(0.12, 0.42, 0.22, '#2f5546', { x: -0.36, y: 0.72, rz: -0.5 }); // tail feathers
+    parts.box(0.1, 0.32, 0.18, '#3e3a6b', { x: -0.42, y: 0.66, rz: -0.9 });
   } else {
-    cone(p, feathers, [-0.22, 0.48, 0], [-0.38, 0.66, 0], 0.1, 0.5);
+    parts.box(0.1, 0.22, 0.2, feathers, { x: -0.3, y: 0.56, rz: -0.5 });
   }
-  pair(p, side => tube(p, BEAK, [0, 0.24 * s, side * 0.08], [0, 0, side * 0.08], 0.022));
-  return p.geometry();
+  for (const z of [-0.08, 0.08]) parts.box(0.04, 0.22 * s, 0.04, BEAK, { y: 0.11 * s, z });
+  return parts.geometry();
 }
 
 export function createChickens(scene) {
@@ -61,8 +57,8 @@ export function createChickens(scene) {
         phase: random() * 10,
       });
     }
-    const henMesh = new THREE.InstancedMesh(henGeometry, furMaterial, yard.hens);
-    const roosterMesh = new THREE.InstancedMesh(roosterGeometry, furMaterial, 1);
+    const henMesh = new THREE.InstancedMesh(henGeometry, vertexColorMaterial, yard.hens);
+    const roosterMesh = new THREE.InstancedMesh(roosterGeometry, vertexColorMaterial, 1);
     // Some hens are white and some are brown, taking turns across all the yards.
     for (let i = 0; i < yard.hens; i++) {
       henMesh.setColorAt(i, henCount++ % 3 ? tint.set('#f4efe4') : tint.set('#d79a62'));
