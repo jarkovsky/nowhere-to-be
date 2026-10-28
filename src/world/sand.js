@@ -8,7 +8,7 @@ import { DESERT, TRACKS, VALLEY_RADIUS, desertness, nearRiver, onGravel } from '
 import { terrainHeight } from './terrain.js';
 import { PartsBuilder, tintable } from './build.js';
 import { foliageMaterial } from './detail.js';
-import { boulderGeometry } from './rocks.js';
+import { boulderGeometry, rockMaterial } from './rocks.js';
 
 const PARCHED = new THREE.Color('#c8b56c');
 const SAND = new THREE.Color('#dfbc80');
@@ -334,6 +334,7 @@ export function buildDesertScenery(scatter) {
     far: boulderGeometry(25, { detail: 0, moss: 0 }),
     near: 300,
     range: 450,
+    material: rockMaterial,
     items: rocks,
   });
   return obstacles;

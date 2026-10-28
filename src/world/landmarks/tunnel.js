@@ -5,7 +5,8 @@ import * as THREE from 'three';
 import { createRandom, smoothstep } from '../../core/math.js';
 import { ROAD, TUNNEL } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
-import { PartsBuilder, flatMaterial, triangleGeometry, vertexColorMaterial } from '../build.js';
+import { PartsBuilder, flatMaterial, triangleGeometry } from '../build.js';
+import { rockMaterial, softenRock } from '../rocks.js';
 
 const RINGS = 20;
 const ARCH_STEPS = 12;
@@ -74,8 +75,8 @@ export function buildTunnel(scene, obstacles) {
 
   const positions = [];
   const colors = [];
-  const rock = new THREE.Color('#8e9b95');
-  const moss = new THREE.Color('#8a9878');
+  const rock = new THREE.Color('#8b8f9d');
+  const moss = new THREE.Color('#988a52');
   const snow = new THREE.Color('#e7e9de');
   const color = new THREE.Color();
   const shade = (triangle, base) => {
@@ -108,7 +109,7 @@ export function buildTunnel(scene, obstacles) {
       else quad(b, a, d, c, frames[i].y);
     }
   }
-  const mountain = new THREE.Mesh(triangleGeometry(positions, colors), vertexColorMaterial);
+  const mountain = new THREE.Mesh(softenRock(triangleGeometry(positions, colors), 28), rockMaterial);
   mountain.castShadow = true;
   mountain.receiveShadow = true;
   scene.add(mountain);

@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 import { createRandom, smoothstep } from '../../core/math.js';
 import { terrainHeight, POOL } from '../terrain.js';
-import { triangleGeometry, vertexColorMaterial } from '../build.js';
+import { triangleGeometry } from '../build.js';
+import { rockMaterial, softenRock } from '../rocks.js';
 
 const ARC = 2.25; // half-angle of the horseshoe, opening to the west
 const STEPS = 22;
@@ -43,8 +44,8 @@ export function buildWaterfall(scene, obstacles) {
 
   const positions = [];
   const colors = [];
-  const rock = new THREE.Color('#8f968c');
-  const moss = new THREE.Color('#87976f');
+  const rock = new THREE.Color('#8c909c');
+  const moss = new THREE.Color('#948850');
   const color = new THREE.Color();
   const triangle = (a, b, c) => {
     const lowest = Math.min(a[1], b[1], c[1]) - POOL.level;
@@ -77,7 +78,7 @@ export function buildWaterfall(scene, obstacles) {
       else triangle(p, q, centre);
     }
   }
-  const cliff = new THREE.Mesh(triangleGeometry(positions, colors), vertexColorMaterial);
+  const cliff = new THREE.Mesh(softenRock(triangleGeometry(positions, colors)), rockMaterial);
   cliff.castShadow = true;
   cliff.receiveShadow = true;
   scene.add(cliff);

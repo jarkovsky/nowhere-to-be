@@ -292,13 +292,14 @@ function buildOasis(scene, parts, obstacles) {
     reedMesh.setColorAt(i, tint.setHSL(0.21 + (i % 3) * 0.02, 0.45, 0.4));
   });
 
-  // A few sandstone boulders on the shore.
+  // A few sandstone boulders on the shore, which the car bumps into rather than drives over.
   const stone = boulderGeometry(23, { moss: 0 });
   const random = createRandom(4129);
   for (const angle of [0.4, 2.1, 3.3, 4.6, 5.5]) {
     const out = radius + 1.8 + random() * 1.5;
     const [sx, sz] = [x + Math.cos(angle) * out, z + Math.sin(angle) * out];
     const size = 0.45 + random() * 0.4;
+    obstacles.push({ x: sx, z: sz, radius: size * 1.1 });
     parts.add(stone, () => SCREE.clone().multiplyScalar(0.85 + random() * 0.15), {
       x: sx,
       y: terrainHeight(sx, sz) - size * 0.2,
