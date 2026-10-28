@@ -214,6 +214,21 @@ export const PLACE_ICONS = {
     color: GREEN,
     d: 'M3.5 21.5v-2a3 3 0 0 1 3-3h11a3 3 0 0 1 3 3v2ZM6.5 16.5v-1.8a2.6 2.6 0 0 1 2.6-2.6h5.8a2.6 2.6 0 0 1 2.6 2.6v1.8ZM9.2 12.1v-1.5a2.3 2.3 0 0 1 2.3-2.3h1a2.3 2.3 0 0 1 2.3 2.3v1.5ZM12 8.3V3',
   },
+  crash: {
+    name: 'Crashed plane',
+    color: SLATE,
+    d: 'M13.5 3.5c.9 1.3 1 3.6 1 5.8l6.5 4.2v2l-6.5-1.6-.4 3.6 2.4 1.7V20L12 19l-3.1 1V18.2l2.4-1.7-.4-3.6L3 14.5v-2l6.5-4.2c0-2.2.1-4.5 1-5.8Z',
+  },
+  mine: {
+    name: 'Old mine',
+    color: BROWN,
+    d: 'M3 19.5h18M4.5 19.5v-6.5a7.5 7.5 0 0 1 15 0v6.5M8.5 19.5v-5a3.5 3.5 0 0 1 7 0v5M12 5.5V3M7.5 6.5 6 4.8M16.5 6.5 18 4.8',
+  },
+  logging: {
+    name: 'Logging camp',
+    color: GREEN,
+    d: 'M2.5 19.5h19M3 15h8M3 15a2 2 0 0 0 0 4M11 15a2 2 0 0 1 0 4M3 19h8M13 11h8M13 11a2 2 0 0 0 0 4M21 11a2 2 0 0 1 0 4M13 15h8M8 7h8M8 7a2 2 0 0 0 0 4M16 7a2 2 0 0 1 0 4',
+  },
 };
 
 /** The places to mark on the map, most important first, with their pictures. */
