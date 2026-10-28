@@ -1,4 +1,4 @@
-// Saved progress: gnomes, car choices and settings.
+// Saved choices: the car, its colour and roof items, and settings.
 // Stored in localStorage when available; otherwise it lasts for the visit.
 
 // The key keeps the game's original working title so existing saves survive.
@@ -18,7 +18,6 @@ const OLD_LORRIES = new Map([
 ]);
 
 const DEFAULTS = {
-  gnomes: [],
   color: 'orange',
   vehicle: 'offroader',
   decorations: [],
@@ -38,7 +37,6 @@ export function sanitise(saved) {
   const vehicle = lorry ? 'lorry' : saved.vehicle;
   const color = lorry ?? saved.color;
   return {
-    gnomes: list(saved.gnomes, i => Number.isInteger(i) && i >= 0 && i < 64),
     color: COLORS.includes(color) && (color !== 'rainbow' || rainbow) ? color : DEFAULTS.color,
     vehicle: VEHICLES.includes(vehicle) ? vehicle : DEFAULTS.vehicle,
     // Older saves kept a single `decoration`.
@@ -72,13 +70,8 @@ export function createJournal(storage) {
   }
 
   return {
-    get: () => ({ ...data, gnomes: [...data.gnomes], decorations: [...data.decorations] }),
+    get: () => ({ ...data, decorations: [...data.decorations] }),
     save,
-    collectGnome(index) {
-      if (data.gnomes.includes(index)) return false;
-      save({ gnomes: [...data.gnomes, index] });
-      return true;
-    },
     isPersistent: () => persistent,
   };
 }

@@ -31,6 +31,7 @@ import {
   JETTY,
   ROADWORKS,
   HELIPAD,
+  KRYSTOF,
   CHAPEL,
   SUMMIT,
   FIELDS,
@@ -43,7 +44,7 @@ import {
   HABITATS,
   SURFACES,
   YETI,
-  GNOMES,
+  GLADES,
   RING_ROAD,
   LINKS,
   AIRFIELD,
@@ -88,6 +89,7 @@ import { SWAY, foliageMaterial, groundMaterial } from './detail.js';
 import { growsTall } from './trample.js';
 import { createGround } from './ground.js';
 import { createGrass } from './grass.js';
+import { PAD_RADIUS } from './landmarks/helipad.js';
 import { boulderGeometry } from './rocks.js';
 import { createScatter } from './scatter.js';
 import { buildDesertScenery, desertGround, desertTakes } from './sand.js';
@@ -455,7 +457,7 @@ const CLEARINGS = [
   ...VILLAGE.houses.map(({ x, z }) => ({ x, z, r: 10 })),
   { x: VILLAGE.fireStation.x, z: VILLAGE.fireStation.z, r: 14 },
   ...PONDS.filter(pond => pond !== DESERT.oasis).map(({ x, z, radius }) => ({ x, z, r: radius + 6 })),
-  ...GNOMES.map(gnome => ({ ...gnome, r: 4 })),
+  ...GLADES.map(glade => ({ ...glade, r: 4 })),
   // The mud lies on the tracks, which are kept clear anyway.
   ...SURFACES.filter(p => p.id !== 'mud').map(p => ({ x: p.x, z: p.z, r: Math.max(p.rx, p.rz) + 4 })),
 ];
@@ -1055,7 +1057,7 @@ function grassMask() {
       along(track.path, 0.8, 0.45);
     }
   }
-  // Round the buildings and in their yards, and a little round each gnome, so it can be seen.
+  // Round the buildings and in their yards.
   const yards = [
     [SPAWN, 8],
     [DEPOT, 16],
@@ -1066,7 +1068,6 @@ function grassMask() {
     [WINDMILL, 7],
     [{ ...RAILWAY.at((HALT.from + HALT.to) / 2) }, 14],
     [ROADWORKS.path.at(ROADWORKS.gravel), 22],
-    [HELIPAD, 10],
     [CHAPEL, 6],
     [FARMSTEAD, 10],
     [AIRFIELD.hangar, 18],
@@ -1078,8 +1079,9 @@ function grassMask() {
     [VILLAGE.fireStation, 11],
   ];
   for (const [{ x, z }, r] of yards) disc(x, z, r, 3, 0.8);
+  // Nothing at all on the concrete: the hangar's floor and the helipads.
   disc(AIRFIELD.hangar.x, AIRFIELD.hangar.z, 14, 1);
-  for (const gnome of GNOMES) disc(gnome.x, gnome.z, 1.6, 1.2, 0.8);
+  for (const pad of [HELIPAD, KRYSTOF.pad]) disc(pad.x, pad.z, PAD_RADIUS + 0.4, 0.8);
   const { ground } = AIRFIELD;
   where(ground.x0 - 6, ground.x1 + 6, ground.z0 - 6, ground.z1 + 6, () => true, 0.6);
   where(ground.x0 - 6, ground.x1 + 6, ground.z0 - 6, ground.z1 + 6, (x, z) => onAirfield(x, z, 1));

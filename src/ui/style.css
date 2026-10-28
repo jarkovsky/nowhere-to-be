@@ -362,79 +362,6 @@ body.playing .shade {
   }
 }
 
-/* A row of gnomes, coloured in as they are found: the count for someone who can't read yet. */
-.gnome-progress {
-  position: fixed;
-  top: calc(max(18px, env(safe-area-inset-top)) + 96px);
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 10px 20px 10px 14px;
-  border-radius: 18px;
-  background: rgba(248, 245, 233, 0.94);
-  box-shadow: 0 10px 30px rgba(30, 50, 40, 0.18);
-  animation: toast-in 0.35s ease-out;
-  z-index: 3;
-}
-
-.gnome-progress.leaving {
-  animation: toast-out 0.4s ease-in forwards;
-}
-
-.gnome-row {
-  display: flex;
-  gap: 5px;
-}
-
-.gnome-row span {
-  display: block;
-  width: 32px;
-  height: 46px;
-  transform-origin: 50% 100%;
-}
-
-.gnome-row svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.gnome-row span:not(.found) svg * {
-  fill: #d8d5c6;
-}
-
-.gnome-row span.fresh {
-  animation: gnome-pop 0.9s cubic-bezier(0.3, 1.6, 0.5, 1) 0.25s both;
-}
-
-.gnome-progress.complete .gnome-row span {
-  animation: gnome-hop 0.5s ease-in-out calc(var(--i) * 0.07s) 4;
-}
-
-.gnome-number {
-  font-family: var(--display);
-  font-size: 28px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-@keyframes gnome-pop {
-  0% {
-    transform: translateY(-36px) scale(0.2);
-  }
-  60% {
-    transform: scale(1.6);
-  }
-}
-
-@keyframes gnome-hop {
-  50% {
-    transform: translateY(-12px);
-  }
-}
-
 /* The minimap, top left, clear of the pause button, the toasts and the pedals. A tap opens the map. */
 .corner-map {
   position: fixed;
@@ -762,24 +689,6 @@ kbd {
 
 body.touch .keys {
   display: none;
-}
-
-.gnome-tally {
-  display: flex;
-  justify-content: center;
-  margin-top: 22px;
-  padding: 12px 16px;
-  border-radius: 18px;
-  background: var(--paper-deep);
-}
-
-.gnome-tally .gnome-row {
-  gap: 4px;
-}
-
-.gnome-tally .gnome-row span {
-  width: 26px;
-  height: 37px;
 }
 
 /* --- Garage --------------------------------------------------------------------- */
@@ -1143,26 +1052,6 @@ body.touch .keys {
     height: 58px;
   }
 
-  .gnome-progress {
-    flex-direction: column;
-    gap: 2px;
-    padding: 10px 14px 6px;
-  }
-
-  .gnome-row {
-    gap: 3px;
-  }
-
-  .gnome-row span {
-    width: 24px;
-    height: 34px;
-  }
-
-  .gnome-tally .gnome-row span {
-    width: 22px;
-    height: 32px;
-  }
-
   .touch-controls .gas {
     width: 72px;
     height: 72px;
@@ -1205,16 +1094,6 @@ body.touch .keys {
   .tiles {
     margin-top: 0;
     grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
-  }
-
-  .gnome-tally {
-    margin-top: 12px;
-    padding: 8px 10px;
-  }
-
-  .gnome-tally .gnome-row span {
-    width: 18px;
-    height: 26px;
   }
 
   .menu.showroom {

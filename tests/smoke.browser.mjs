@@ -65,19 +65,6 @@ try {
   step('opens the map on the car from the menu, goes back with Escape, and shows the minimap');
 
   await page.evaluate(async () => {
-    const { GNOMES } = await import('/src/world/layout.js');
-    window.__game.teleport(GNOMES[0].x + 1.5, GNOMES[0].z, 0);
-  });
-  await page.waitForTimeout(400);
-  assert.deepEqual((await state(page)).journal.gnomes, [0]);
-  assert.ok(await page.locator('#gnome-progress').isVisible());
-  assert.equal(await page.locator('#gnome-row .found').count(), 1);
-  await page.keyboard.press('Escape');
-  assert.equal(await page.locator('#gnome-tally-row .found').count(), 1);
-  await page.getByRole('button', { name: 'Resume' }).click();
-  step('picks up a gnome and fills in the first one in the row, here and in the menu');
-
-  await page.evaluate(async () => {
     const { CAMP } = await import('/src/world/layout.js');
     window.__game.teleport(CAMP.x, CAMP.z, CAMP.heading);
   });
@@ -120,8 +107,7 @@ try {
   const reloaded = await state(page);
   assert.equal(reloaded.journal.color, 'blue');
   assert.deepEqual(reloaded.journal.decorations, ['flag', 'teddy', 'tent']);
-  assert.deepEqual(reloaded.journal.gnomes, [0]);
-  step('remembers car choices and gnomes after a reload');
+  step('remembers car choices after a reload');
 
   const canvas = await page.locator('#world').boundingBox();
   await page.mouse.move(canvas.width / 2, canvas.height / 2);

@@ -11,7 +11,6 @@ import {
   CAMP,
   CABIN,
   SPAWN,
-  GNOMES,
   PLACES,
   PADS,
   VALLEY_RADIUS,
@@ -217,16 +216,9 @@ test('the tunnel floor is level across the whole bore', () => {
   }
 });
 
-test('every gnome and place can be reached by car', () => {
-  for (const spot of [...GNOMES, ...PLACES]) {
+test('every place on the map is inside the fence', () => {
+  for (const spot of PLACES) {
     assert.ok(Math.hypot(spot.x, spot.z) < VALLEY_RADIUS, `${spot.x}, ${spot.z} is outside the fence`);
-  }
-  for (const gnome of GNOMES) {
-    const reachable = [0, 1, 2, 3, 4, 5, 6, 7].some(i => {
-      const a = (i / 8) * Math.PI * 2;
-      return isDriveable(gnome.x + Math.cos(a) * 2.5, gnome.z + Math.sin(a) * 2.5);
-    });
-    assert.ok(reachable, `gnome at ${gnome.x}, ${gnome.z} is unreachable`);
   }
 });
 
