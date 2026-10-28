@@ -29,6 +29,7 @@ import {
   ROADWORKS,
   ROCK_FIN,
   ROCK_GATE,
+  ROUGH,
   SUMMIT,
   TOWER,
   TUNNEL,
@@ -143,4 +144,20 @@ export const PLACES = [
     radius: 9,
   })),
   { id: 'desert.station', name: 'Petrol station', landmark: 'desert', ...DESERT.station, radius: 22 },
+  { id: 'lookout', name: 'Lookout on the ridge', landmark: 'lookout', ...ROUGH.lookout, radius: 14 },
+  { id: 'lookout.ruts', name: 'Deep ruts', landmark: 'lookout', ...ROUGH.path.at(ROUGH.ruts[0].from + 22), radius: 18 },
+  {
+    id: 'lookout.field',
+    name: 'Boulder field',
+    landmark: 'lookout',
+    ...ROUGH.path.at(ROUGH.winding.zones[1].from + 28),
+    radius: 30,
+  },
+  {
+    id: 'lookout.gully',
+    name: 'Dry gully',
+    landmark: 'lookout',
+    ...ROUGH.gully.path.at(ROUGH.gully.path.length * 0.5),
+    radius: 24,
+  },
 ];

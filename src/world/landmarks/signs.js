@@ -29,6 +29,9 @@ import {
   LINKS,
   AIRFIELD,
   RING_ROAD,
+  OUTER_ROAD,
+  GRAVEL_HALF_WIDTH,
+  ROUGH,
 } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder } from '../build.js';
@@ -165,6 +168,69 @@ function paintAirfieldSign(arrow) {
     ctx.fill();
     ctx.restore();
     if (arrow) drawArrow(ctx, w / 2, h * 0.79, w * 0.42, arrow);
+  };
+}
+
+/**
+ * A rust-red road sign with a cream mountain on it, and a little car climbing the winding trail
+ * up it, for the way to the rough trail and its lookout. No words needed.
+ */
+function paintRoughSign(arrow) {
+  return (ctx, w, h) => {
+    ctx.fillStyle = '#f4f2ea';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#b8673a';
+    ctx.beginPath();
+    ctx.roundRect(14, 14, w - 28, h - 28, 26);
+    ctx.fill();
+    ctx.save();
+    const u = w / 300;
+    ctx.scale(u, u);
+    ctx.fillStyle = '#f4f2ea';
+    ctx.beginPath();
+    ctx.moveTo(36, 186);
+    ctx.lineTo(118, 52);
+    ctx.lineTo(154, 108);
+    ctx.lineTo(186, 72);
+    ctx.lineTo(264, 186);
+    ctx.closePath();
+    ctx.fill();
+    // The trail zigzags up the mountain, as a rust-red line with a dash in it.
+    ctx.strokeStyle = '#b8673a';
+    ctx.lineCap = ctx.lineJoin = 'round';
+    ctx.lineWidth = 9;
+    ctx.beginPath();
+    [
+      [96, 186],
+      [186, 160],
+      [112, 134],
+      [176, 108],
+      [128, 86],
+    ].forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.stroke();
+    // The car, seen from the side and tipped uphill, on the second stretch of it.
+    ctx.translate(150, 125);
+    ctx.rotate(-0.4);
+    ctx.fillStyle = '#3b2a1e';
+    ctx.beginPath();
+    ctx.roundRect(-20, -17, 40, 15, 5);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(-12, -27, 22, 14, 4);
+    ctx.fill();
+    ctx.fillStyle = '#f4f2ea';
+    ctx.beginPath();
+    ctx.roundRect(-8, -24, 14, 8, 2);
+    ctx.fill();
+    ctx.fillStyle = '#3b2a1e';
+    for (const x of [-11, 11]) {
+      ctx.beginPath();
+      ctx.arc(x, -2, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.fillStyle = '#f4f2ea';
+    if (arrow) drawArrow(ctx, w / 2, h * 0.84, w * 0.34, arrow);
   };
 }
 
@@ -382,6 +448,7 @@ function paintMap(ctx, w, h) {
     helipad: 'Helipad',
     chapel: 'Chapel',
     orchard: 'Orchard',
+    lookout: 'Lookout',
     summit: 'Velká Deštná',
     fields: 'Upland farm',
     airfield: 'Airfield',
@@ -564,6 +631,20 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
   for (const along of [-30, 30]) {
     const p = RING_ROAD.offset(opening.s + along, Math.sign(opening.side) * (ROAD_HALF_WIDTH + 2.4));
     pictureSign(scene, parts, { ...p, yaw: Math.atan2(-p.dx, -p.dz) }, paintRoadworksSign, ROADWORKS.site);
+  }
+
+  // Mountain signs by the outer road at each end of the rough trail, on the side it leaves by,
+  // a little way along the road from where it does, on whichever side of the trail is further
+  // from it, facing along the road.
+  for (const at of [0, ROUGH.path.length]) {
+    const end = ROUGH.path.at(at);
+    const inward = ROUGH.path.at(at ? at - 14 : 14);
+    const side = Math.sign(OUTER_ROAD.nearest(inward.x, inward.z).side) || 1;
+    const from = OUTER_ROAD.nearest(end.x, end.z).s;
+    const [p] = [9, -9]
+      .map(along => OUTER_ROAD.offset(from + along, side * (GRAVEL_HALF_WIDTH + 2.2)))
+      .sort((a, b) => ROUGH.path.nearest(b.x, b.z).distance - ROUGH.path.nearest(a.x, a.z).distance);
+    pictureSign(scene, parts, { ...p, yaw: Math.atan2(p.dx, p.dz) }, paintRoughSign, ROUGH.lookout);
   }
 
   // A board on the summit, facing the end of the track.

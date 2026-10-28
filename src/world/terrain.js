@@ -57,6 +57,10 @@ import {
   nearRiver,
   rockiness,
   winterness,
+  ruggedness,
+  RUGGED_HILLS,
+  ROUGH,
+  gullyDepth,
   ringRadius,
   outerRadius,
 } from './layout.js';
@@ -132,7 +136,7 @@ function rimHeight(r, angle) {
   return valley + uplands + wall;
 }
 
-const HILLS = [...KNOLLS, SERLICH, SUMMIT, ...UPLAND_HILLS, ...OUTLAND_HILLS, ROCK_HILL];
+const HILLS = [...KNOLLS, SERLICH, SUMMIT, ...UPLAND_HILLS, ...OUTLAND_HILLS, ROCK_HILL, ...RUGGED_HILLS];
 
 /** The landscape before anything is levelled or dug out. */
 function wildHeight(x, z) {
@@ -169,6 +173,12 @@ function wildHeight(x, z) {
   // Rocky ground is broken up into knobs and ledges.
   const rocky = rockiness(x, z);
   if (rocky > 0) h += rocky * (fractalNoise(u / 24 + 3.7, v / 24 + 1.9, 3, 83) - 0.45) * 9;
+  // The rugged country is cut into sharp ridges and knobbly ground.
+  const rugged = ruggedness(x, z);
+  if (rugged > 0) {
+    const ridge = 1 - Math.abs(2 * fractalNoise(u / 62 + 2.9, v / 62 + 8.3, 2, 53) - 1);
+    h += rugged * (ridge * ridge * 13 + (valueNoise(u / 17, v / 17, 59) - 0.5) * 4);
+  }
   // A shelf behind the waterfall, so the stream drops off real high ground.
   h += 12 * smoothstep(x - WATERFALL.x, 4, 36) * (1 - smoothstep(Math.abs(z - WATERFALL.z), 26, 70));
   return h;
@@ -378,6 +388,28 @@ function levelAlong(path, flatWidth, falloff, { window = 14, banks = 0, grade = 
   return profile;
 }
 
+/**
+ * Tilts the ground across a stretch of a path, rising by `slope` for every metre to the side that
+ * is already higher, out to 6 m and easing off by 16, so the path runs along a side slope and the
+ * car leans on it. The path's own height is left as it is.
+ */
+function tiltAcross(path, { from, to, slope }) {
+  const bench = 6;
+  const reach = 16;
+  const stretch = path.samples.filter(p => p.s >= from && p.s <= to);
+  let rise = 0;
+  for (const p of stretch)
+    rise += sampleGrid(p.x - p.dz * 8, p.z + p.dx * 8) - sampleGrid(p.x + p.dz * 8, p.z - p.dx * 8);
+  const uphill = rise >= 0 ? 1 : -1;
+  for (const [vertex, { index, distance }] of nearestSamples(path, reach)) {
+    const p = path.samples[index];
+    const along = smoothstep(p.s, from, from + 10) * (1 - smoothstep(p.s, to - 10, to));
+    if (along <= 0) continue;
+    const side = (AXIS[vertex % GRID] - p.x) * -p.dz + (AXIS[Math.floor(vertex / GRID)] - p.z) * p.dx;
+    heights[vertex] += uphill * slope * clamp(side, -bench, bench) * (1 - smoothstep(distance, bench, reach)) * along;
+  }
+}
+
 const isInTunnel = s => ROAD.apart(s, TUNNEL.s) < TUNNEL.length / 2 + 6;
 
 // --- The desert's dunes ------------------------------------------------------
@@ -554,7 +586,15 @@ for (const link of LINKS)
 // The new road being built off the ring does too, and stays gentle all the way to the site.
 levelAlong(ROADWORKS.path, PAVED_WIDTH, 10, { window: 30, banks: 1.5, grade: 0.04, flatEnds: 10 });
 for (const { path } of CONNECTORS) levelAlong(path, GRAVEL_WIDTH, 10, { ...GRAVEL_GRADE, flatEnds: 10 });
+// The rough trail's dry gully is cut before the trail is laid, so the trail dips into it.
+for (const [vertex] of nearestSamples(ROUGH.gully.path, ROUGH.gully.halfWidth)) {
+  heights[vertex] -= gullyDepth(AXIS[vertex % GRID], AXIS[Math.floor(vertex / GRID)]);
+}
 TRACKS.filter(track => offGravel(track) && !track.desert).forEach(levelTrack);
+tiltAcross(ROUGH.path, ROUGH.lean);
+// The summit beside the trail is levelled off for the lookout once the trail is laid, so as not to
+// pull the trail's cutting about.
+flattenPads([{ ...ROUGH.lookout, level: sampleGrid(ROUGH.lookout.x, ROUGH.lookout.z) }]);
 levelAlong(ROAD, trailWidth, 0.5, { levels: roadProfile });
 levelAlong(RING_ROAD, PAVED_WIDTH, 0.5, { levels: ringLevels });
 levelAlong(OUTER_ROAD, GRAVEL_WIDTH, 0.5, { levels: outerLevels });
@@ -965,7 +1005,8 @@ function trackHeight(x, z) {
 const ROCK_CELL = 4;
 const rockCell = (cx, cz) => cx * 65536 + cz;
 const rockCells = new Map();
-for (const rock of TRACK_ROCKS) {
+// The rock steps across the rough trail are bumps of the same kind.
+for (const rock of [...TRACK_ROCKS, ...ROUGH.rocks]) {
   for (let cx = Math.floor((rock.x - rock.r) / ROCK_CELL); cx <= Math.floor((rock.x + rock.r) / ROCK_CELL); cx++) {
     for (let cz = Math.floor((rock.z - rock.r) / ROCK_CELL); cz <= Math.floor((rock.z + rock.r) / ROCK_CELL); cz++) {
       const key = rockCell(cx, cz);
@@ -985,6 +1026,65 @@ export function rockHeight(x, z) {
     if (d2 < 1) lift = Math.max(lift, rock.h * (1 - d2) ** 2);
   }
   return lift;
+}
+
+// --- The deep ruts on the rough trail ---------------------------------------------------
+
+/**
+ * Stretches of the rough trail are a built-up bed of churned earth: a hump along the middle with a
+ * rut dug deep for each wheel, the bed `lift` above the ground and the ruts `depth` below that.
+ * The bed is drawn by the lookout's builder, from the same numbers.
+ */
+export const RUTS = { lift: 0.5, depth: 0.42, flat: 2.2, edge: 4, wheels: 1.08, width: 0.5 };
+
+// Each trail sample along a rutted stretch is listed in the 4 m cells it can reach, so a point only checks the few near it.
+const RUT_CELL = 4;
+const rutCells = new Map();
+for (const { from, to } of ROUGH.ruts) {
+  for (const sample of ROUGH.path.samples) {
+    if (sample.s < from - RUT_CELL || sample.s > to + RUT_CELL) continue;
+    const entry = {
+      sample,
+      weight: smoothstep(sample.s, from, from + 6) * (1 - smoothstep(sample.s, to - 6, to)),
+    };
+    for (
+      let cx = Math.floor((sample.x - RUTS.edge) / RUT_CELL);
+      cx <= Math.floor((sample.x + RUTS.edge) / RUT_CELL);
+      cx++
+    ) {
+      for (
+        let cz = Math.floor((sample.z - RUTS.edge) / RUT_CELL);
+        cz <= Math.floor((sample.z + RUTS.edge) / RUT_CELL);
+        cz++
+      ) {
+        const key = rockCell(cx, cz);
+        if (!rutCells.has(key)) rutCells.set(key, []);
+        rutCells.get(key).push(entry);
+      }
+    }
+  }
+}
+
+/** The bed's height above the ground `side` metres from the middle of the trail, where it is fully there. */
+export function rutProfile(side) {
+  const across = Math.abs(side);
+  const rut = Math.max(0, 1 - ((across - RUTS.wheels) / RUTS.width) ** 2);
+  return RUTS.lift * (1 - smoothstep(across, RUTS.flat, RUTS.edge)) - RUTS.depth * rut * rut;
+}
+
+/** How far the bed of deep ruts lifts the tyres at a point: nothing away from them. */
+export function rutHeight(x, z) {
+  const nearby = rutCells.get(rockCell(Math.floor(x / RUT_CELL), Math.floor(z / RUT_CELL)));
+  if (!nearby) return 0;
+  let best = null;
+  let nearest = Infinity;
+  for (const entry of nearby) {
+    const d = (x - entry.sample.x) ** 2 + (z - entry.sample.z) ** 2;
+    if (d < nearest) [nearest, best] = [d, entry];
+  }
+  if (!best || nearest > RUTS.edge ** 2) return 0;
+  const { sample, weight } = best;
+  return weight * rutProfile((x - sample.x) * -sample.dz + (z - sample.z) * sample.dx);
 }
 
 // --- Heaps --------------------------------------------------------------------------
@@ -1080,7 +1180,7 @@ const FIN_STEP = 1.5;
  * for something already up at their level (`from`, how high it was a moment ago).
  */
 export function drivingHeight(x, z, from = -Infinity) {
-  const ground = terrainHeight(x, z) + Math.max(rockHeight(x, z), heapHeight(x, z));
+  const ground = terrainHeight(x, z) + Math.max(rockHeight(x, z), heapHeight(x, z)) + rutHeight(x, z);
   const deck = bridgeHeight(x, z) ?? jettyHeight(x, z) ?? quayHeight(x, z) ?? floatingHeight(x, z) ?? trackHeight(x, z);
   const surface = deck === null ? ground : Math.max(ground, deck);
   if (from === -Infinity) return surface;

@@ -25,6 +25,11 @@ const PLACES = [
   ],
   ['upland road', 'const p = L.RING_ROAD.at(1200); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))'],
   ['tunnel', 'const p = L.ROAD.at(L.TUNNEL.s - 40); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))'],
+  ['rough trail', 'const p = L.ROUGH.path.at(60); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))'],
+  [
+    'lookout',
+    'const { x, z, view } = L.ROUGH.lookout; g.teleport(x - Math.sin(view) * 8, z - Math.cos(view) * 8, view + Math.PI)',
+  ],
 ];
 
 const server = await startServer();

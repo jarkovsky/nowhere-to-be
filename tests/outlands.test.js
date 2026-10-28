@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { OUTER_ROAD, CONNECTORS, RIVERS, TRACKS, rockiness, ROCK_HILL } from '../src/world/layout.js';
+import { OUTER_ROAD, CONNECTORS, RIVERS, TRACKS, rockiness, ROCK_HILL, ROUGH, RUGGED } from '../src/world/layout.js';
 import { FORDS, isDriveable, terrainHeight, waterDepth } from '../src/world/terrain.js';
 import { OUTER, createTraffic } from '../src/vehicles/traffic.js';
 
@@ -47,4 +47,43 @@ test('the convoy of off-roaders drives round the outer road one behind another',
   for (const follower of [second, third]) assert.ok(follower.speed > 5, 'still moving');
   const gap = Math.hypot(lead.x - second.x, lead.z - second.z);
   assert.ok(gap > 6 && gap < 30, `${gap.toFixed(1)} m behind`);
+});
+
+test('the rough trail climbs steeply over a ridge to a lookout on the summit and comes down to the road again', () => {
+  const { path, lookout, boulders, gully } = ROUGH;
+  const height = s => terrainHeight(path.at(s).x, path.at(s).z);
+  // It starts and ends on the outer road, and stays inside the rugged sector.
+  for (const end of [path.at(0), path.at(path.length)]) assert.ok(OUTER_ROAD.isNear(end.x, end.z, 1), 'on the road');
+  for (const { x, z } of path.samples) {
+    const angle = ((Math.atan2(z, x) * 180) / Math.PI + 360) % 360;
+    assert.ok(angle >= RUGGED.from && angle <= RUGGED.to, `${angle.toFixed(1)} degrees`);
+    assert.ok(Math.hypot(x, z) > RUGGED.near && Math.hypot(x, z) < RUGGED.far);
+    assert.ok(isDriveable(x, z));
+  }
+  // The long climb is steep, but never steeper than the car can crawl up at cruise.
+  let climb = 0;
+  let steepest = 0;
+  for (let s = 10; s < path.length; s += 2) {
+    const grade = Math.abs(height(s) - height(s - 10)) / 10;
+    steepest = Math.max(steepest, grade);
+    if (grade > 0.4) climb += 2;
+  }
+  assert.ok(climb > 80, `only ${climb} m of it is steep`);
+  assert.ok(steepest < 0.6, `${steepest.toFixed(2)} at the steepest`);
+  // The summit is the top of the trail, over 40 m above the road, and the lookout is level and on it.
+  const top = Math.max(...path.samples.map(p => terrainHeight(p.x, p.z)));
+  assert.ok(top > height(0) + 40, 'it climbs');
+  for (const spot of [lookout, lookout.bench]) {
+    assert.ok(Math.abs(terrainHeight(spot.x, spot.z) - terrainHeight(lookout.x, lookout.z)) < 0.3, 'level');
+    assert.ok(terrainHeight(spot.x, spot.z) > top - 1, 'at the top');
+  }
+  // The gully is a dip in the trail, deeper than the rock steps and ruts.
+  const middle = gully.path.at(gully.path.length * 0.6);
+  const crossing = path.nearest(middle.x, middle.z).s;
+  assert.ok(height(crossing) < Math.min(height(crossing - 16), height(crossing + 16)) - 2, 'dips through the gully');
+  // Every boulder leaves the car room to pass between it and the trail.
+  for (const b of boulders) {
+    const gap = path.nearest(b.x, b.z).distance - b.size * 1.05 - 1.15;
+    assert.ok(gap > 0.5, `a boulder ${gap.toFixed(2)} m from the car at ${b.x.toFixed(0)}, ${b.z.toFixed(0)}`);
+  }
 });
