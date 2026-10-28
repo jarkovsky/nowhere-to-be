@@ -343,7 +343,15 @@ export function createGame(canvas) {
     tilt.setLeanBack(on);
   }
 
+  // Played on a touch screen, and whether tilt steering has been switched on for the first game yet.
+  let touchScreen = false;
+  let tiltOffered = false;
+
   function play() {
+    // On a phone or a tablet, steering by tilting starts on with the first game. It asks for
+    // the motion sensors here, from the tap on the play button, as the browser requires.
+    if (touchScreen && !tiltOffered) tilt.enable();
+    tiltOffered = true;
     sound.start();
     mode = 'driving';
     ui.startPlaying();
@@ -874,7 +882,10 @@ export function createGame(canvas) {
     .compileAsync(scene, camera)
     .catch(() => {})
     .then(() => {
-      ui.ready(matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
+      touchScreen = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+      ui.ready(touchScreen);
+      // And cruise control is on, so the car drives itself and the tilt steers it.
+      if (touchScreen && !controls.cruise) toggleCruise();
       requestAnimationFrame(frame);
     });
 

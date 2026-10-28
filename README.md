@@ -84,11 +84,13 @@ To carry on after pausing, press the big play button or tap the game around the 
 
 <img src="docs/phone.jpg" width="200" align="right" alt="The game on a phone, with touch pedals">
 
-The game works on phones and tablets with on-screen pedals. You can also steer by turning the device like a steering wheel:
+The game works on phones and tablets. There, cruise control and tilt steering are on from the start: the car drives itself, and you steer by turning the device like a steering wheel.
 
 1. Open [nowhere-to-be.jarkovsky.com](https://nowhere-to-be.jarkovsky.com) on your phone.
-2. Tap ❚❚, then the button with the tilted phone on it, and allow motion access.
-3. Hold the phone like a wheel and turn it. The button with the target on it resets the straight-ahead position.
+2. Tap play, and allow motion access when asked.
+3. Hold the phone like a wheel and turn it. The car sets off once it has found the straight-ahead position; the button with the target on it in the menu resets it.
+
+Both can be switched off in the menu (❚❚): with tilt steering off, the arrows on screen steer, and with cruise control off, the pedals drive.
 
 Lying the device flat stops the car. With the reverse button in the menu switched on (it only shows while tilt steering is on), leaning the device back past the way you hold it for a moment reverses, and the reverse pedal is hidden.
 

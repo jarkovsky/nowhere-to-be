@@ -233,23 +233,43 @@ try {
   console.log('Phone');
   const phone = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await phone.getByRole('button', { name: 'Play' }).tap();
+  // Cruise control and tilt steering are on from the start: the car drives itself, and only
+  // the pedal for braking and reversing shows.
+  assert.equal(await phone.getByRole('button', { name: 'Drive', exact: true }).isVisible(), false);
+  assert.ok(await phone.getByRole('button', { name: 'Brake and reverse' }).isVisible());
+  assert.notEqual((await state(phone)).tilt.status, 'off');
+  // The car waits while tilt finds its centre. There are no motion sensors here, so tilt gives
+  // up after a few seconds, and then the car drives off by itself.
+  await phone.waitForFunction(
+    () => {
+      const { pending, enabled, ready } = window.__game.getState().tilt;
+      return !pending && (!enabled || ready);
+    },
+    null,
+    { timeout: 10000 },
+  );
+  const start = (await state(phone)).car.distance;
+  await phone.waitForTimeout(1200);
+  assert.ok((await state(phone)).car.distance > start + 2, 'it drives off');
+  await phone.getByRole('button', { name: 'Pause' }).tap();
+  assert.equal(await phone.getByRole('switch', { name: 'Cruise control' }).getAttribute('aria-checked'), 'true');
+  step('on a phone, cruise control and tilt steering are on from the start');
+
+  // Cruise control off, the pedals drive it.
+  await phone.getByRole('switch', { name: 'Cruise control' }).tap();
+  await phone.getByRole('button', { name: 'Resume' }).tap();
   assert.ok(await phone.getByRole('button', { name: 'Drive', exact: true }).isVisible());
+  await phone.waitForTimeout(800);
+  const stopped = (await state(phone)).car.distance;
   const gas = await phone.getByRole('button', { name: 'Drive', exact: true }).boundingBox();
   const cdp = await phone.context().newCDPSession(phone);
   const touch = { x: gas.x + gas.width / 2, y: gas.y + gas.height / 2, id: 1 };
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [touch] });
   await phone.waitForTimeout(1200);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  assert.ok((await state(phone)).car.distance > 2);
+  assert.ok((await state(phone)).car.distance > stopped + 1);
   assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-  step('drives with the touch pedals and fits the screen');
-
-  await phone.getByRole('button', { name: 'Pause' }).tap();
-  await phone.getByRole('switch', { name: 'Cruise control' }).tap();
-  await phone.getByRole('button', { name: 'Resume' }).tap();
-  assert.equal(await phone.getByRole('button', { name: 'Drive', exact: true }).isVisible(), false);
-  assert.ok(await phone.getByRole('button', { name: 'Brake and reverse' }).isVisible());
-  step('with cruise control on, only the brake and reverse pedal shows');
+  step('with cruise control off, drives with the touch pedals, and fits the screen');
 
   await phone.evaluate(() => window.__game.toDepot(-3, 14));
   await phone.waitForTimeout(600);
