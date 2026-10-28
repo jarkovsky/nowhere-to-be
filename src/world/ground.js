@@ -58,6 +58,7 @@ function tileSpans() {
 /**
  * The normal and colour of every grid point, as bytes: the normal from the slope between its
  * neighbours, and the colour from `colorAt(x, z, height, up, out)`, where `up` is 1 on level ground.
+ * What `colorAt` returns, how grassy the ground is from 0 to 1, goes in the colour's alpha.
  */
 function gridShading(colorAt) {
   const normals = new Int8Array(GRID * GRID * 3);
@@ -75,11 +76,11 @@ function gridShading(colorAt) {
       normals[i * 3] = Math.round(normal.x * 127);
       normals[i * 3 + 1] = Math.round(normal.y * 127);
       normals[i * 3 + 2] = Math.round(normal.z * 127);
-      colorAt(AXIS[ix], AXIS[iz], height(ix, iz), normal.y, color);
+      const grass = colorAt(AXIS[ix], AXIS[iz], height(ix, iz), normal.y, color);
       colors[i * 4] = Math.round(THREE.MathUtils.clamp(color.r, 0, 1) * 255);
       colors[i * 4 + 1] = Math.round(THREE.MathUtils.clamp(color.g, 0, 1) * 255);
       colors[i * 4 + 2] = Math.round(THREE.MathUtils.clamp(color.b, 0, 1) * 255);
-      colors[i * 4 + 3] = 255;
+      colors[i * 4 + 3] = Math.round(THREE.MathUtils.clamp(grass, 0, 1) * 255);
     }
   }
   return { normals, colors };
@@ -192,8 +193,7 @@ function tileGeometry(xs, zs, stride, shading, depths) {
 }
 
 /** Every tile, with its versions from the most detailed down. */
-function buildTiles(colorAt, material) {
-  const shading = gridShading(colorAt);
+function buildTiles(shading, material) {
   const spans = tileSpans();
   const tiles = [];
   for (const zs of spans) {
@@ -218,16 +218,27 @@ function buildTiles(colorAt, material) {
   return tiles;
 }
 
-/** Builds the ground. `colorAt(x, z, height, up, out)` colours a grid point; `up` is 1 on level ground. */
+/**
+ * Builds the ground. `colorAt(x, z, height, up, out)` colours a grid point, where `up` is 1 on
+ * level ground, and returns how grassy it is.
+ */
 export function createGround(colorAt) {
   const group = new THREE.Group();
   group.name = 'ground';
-  // Built in a function of its own, so the shading of every grid point can be let go afterwards.
-  const tiles = buildTiles(colorAt, groundMaterial());
+  const shading = gridShading(colorAt);
+  const tiles = buildTiles(shading, groundMaterial());
   for (const tile of tiles) group.add(tile.mesh);
+  // The colours are kept, for the grass to take on (see grass.js).
+  const { colors } = shading;
+  const texture = new THREE.DataTexture(colors, GRID, GRID, THREE.RGBAFormat);
+  texture.magFilter = texture.minFilter = THREE.LinearFilter;
+  texture.needsUpdate = true;
 
   return {
     group,
+    /** The colour of every grid point, with how grassy it is in the alpha, as a texture and as bytes. */
+    colors,
+    texture,
     /** Picks each tile's level of detail for a camera at `eye`. */
     update(eye) {
       for (const tile of tiles) {

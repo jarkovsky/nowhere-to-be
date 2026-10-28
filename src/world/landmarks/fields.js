@@ -50,7 +50,7 @@ const CROPS = {
   stubble: ['#cdbb7e', '#c1ad6f'],
   rapeseed: ['#e8ce4b', '#dcc23f'],
   young: ['#a3bc70', '#8ea85f'],
-  mown: ['#a9bd6e', '#bdc77c'], // the short grass the mower leaves, in stripes
+  mown: ['#b3a466', '#c3b375'], // the short grass the mower leaves, in stripes
   cut: ['#dccb90', '#cfbc7e'], // the stubble the combine leaves, in rows
 };
 /** The ploughed ground: the tops of the furrows, their faces, and the bottoms between them. */
@@ -133,7 +133,7 @@ function bladeGeometry() {
   if (blades) return blades;
   const positions = [];
   const colors = [];
-  const [root, tip] = ['#3f5a28', '#a3bb62'].map(hex => new THREE.Color(hex));
+  const [root, tip] = ['#4b4826', '#c2ab60'].map(hex => new THREE.Color(hex));
   for (let k = 0; k < 6; k++) {
     const turn = k * 2.4;
     const height = [1, 0.7, 0.85, 0.6, 0.8, 0.9][k];
@@ -211,20 +211,20 @@ const MEADOW = {
   bumps: [0.12, 0.3],
   piece: 0.75,
   colors: {
-    main: new THREE.Color('#7fa04a'),
-    pale: new THREE.Color('#b1b46a'),
-    deep: new THREE.Color('#5f8a3e'),
-    furrow: new THREE.Color('#75984a'),
-    foot: new THREE.Color('#25331a'),
+    main: new THREE.Color('#a69550'),
+    pale: new THREE.Color('#c2ad68'),
+    deep: new THREE.Color('#887e40'),
+    furrow: new THREE.Color('#988849'),
+    foot: new THREE.Color('#2e2a17'),
   },
-  laid: '#9ab45a',
+  laid: '#b8a361',
   stalk: bladeGeometry,
   gap: 0.14,
   ears: 0.3,
   spread: 1,
   poke: [0.15, 0.3],
   range: 26,
-  // Some tufts have gone over to seed, golden among the green.
+  // Some tufts have gone over to seed, more golden than the rest.
   tint(random) {
     if (random() < 0.15) return new THREE.Color(1.35, 1.15, 0.62).multiplyScalar(0.9 + random() * 0.2);
     const dry = random();
@@ -1145,7 +1145,7 @@ export function wheatField(plot, point, route = null) {
 
 /** The straw the combine leaves in a row down the middle of each pass, and the grass the mower leaves: [top, sides]. */
 const STRAW = [new THREE.Color('#ead99a'), new THREE.Color('#d3bd78')];
-const HAY = [new THREE.Color('#86a24a'), new THREE.Color('#6d8c3f')];
+const HAY = [new THREE.Color('#a89c56'), new THREE.Color('#918741')];
 
 function wheel(radius, width) {
   return new PartsBuilder()

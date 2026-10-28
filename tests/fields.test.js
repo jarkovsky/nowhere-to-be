@@ -118,8 +118,10 @@ test('nothing grows in the crop fields, and they keep clear of the farms, the vi
   const matrix = new THREE.Matrix4();
   // From each spot, the scenery close by is drawn one way and the rest another: between them, all of it.
   const wheat = localFrame(FARM.x, FARM.z, FARM.rotation)(16, 18);
+  const camera = new THREE.PerspectiveCamera();
   for (const eye of [wheat, fieldPoint(42, -35), fieldPoint(60, 86)]) {
-    scenery.update(0, new THREE.Vector3(eye.x, 0, eye.z));
+    camera.position.set(eye.x, 0, eye.z);
+    scenery.update(0, camera);
     scene.traverse(mesh => {
       if (!mesh.isInstancedMesh) return;
       for (let i = 0; i < mesh.count; i++) {

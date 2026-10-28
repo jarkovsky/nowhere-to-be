@@ -127,6 +127,11 @@ const GROUND_DETAIL = /* glsl */ `
     // Snow keeps most of its brightness.
     float snowy = smoothstep( 0.72, 0.88, min( diffuseColor.r, diffuseColor.b ) );
     diffuseColor.rgb *= 1.0 + shade * ( 1.0 - 0.7 * snowy );
+    #ifdef USE_COLOR_ALPHA
+      // Under the grass (how grassy it is comes in the alpha) the ground is a little darker, as
+      // the roots are, and so is the grass seen from further off than it is drawn.
+      diffuseColor.rgb *= 1.0 - 0.14 * vColor.a;
+    #endif
   }
 `;
 

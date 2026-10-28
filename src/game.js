@@ -851,7 +851,7 @@ export function createGame(canvas) {
     chase.update(dt, carView(), cameraOptions());
     minimap.update(now);
     // After the camera has moved, so the scenery around it is filled in for where it is now.
-    scenery.update(dt, camera.position, sun);
+    scenery.update(dt, camera, sun);
 
     sound.update({
       speed: driving ? state.speed : 0,
