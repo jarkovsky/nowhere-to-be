@@ -10,8 +10,7 @@ import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferG
 import { clamp, createRandom, fractalNoise, lerp, smoothstep } from '../../core/math.js';
 import { ROCK_FIN, ROCK_GATE } from '../layout.js';
 import { GATE_GROUND, GATE_TOP, finLevel, terrainHeight } from '../terrain.js';
-import { vertexColorMaterial } from '../build.js';
-import { boulderGeometry } from '../rocks.js';
+import { boulderGeometry, rockMaterial, softenRock } from '../rocks.js';
 
 const BANDS = ['#b9ad95', '#a99d86', '#c2b69c', '#9f947f'];
 const TOP = new THREE.Color('#c9bea4');
@@ -212,9 +211,9 @@ function footings(obstacles) {
 }
 
 export function buildRockGate(scene, obstacles) {
-  const gate = new THREE.Mesh(archGeometry(), vertexColorMaterial);
-  const fin = new THREE.Mesh(finGeometry(), vertexColorMaterial);
-  const boulders = new THREE.Mesh(rims(obstacles), vertexColorMaterial);
+  const gate = new THREE.Mesh(softenRock(archGeometry()), rockMaterial);
+  const fin = new THREE.Mesh(softenRock(finGeometry()), rockMaterial);
+  const boulders = new THREE.Mesh(rims(obstacles), rockMaterial);
   for (const mesh of [gate, fin, boulders]) {
     mesh.castShadow = mesh.receiveShadow = true;
     scene.add(mesh);

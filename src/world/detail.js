@@ -136,7 +136,8 @@ const GROUND_DETAIL = /* glsl */ `
 `;
 
 /**
- * The material for scattered trees (`kind` 'trees') or grass ('grass'): coloured by its
+ * The material for scattered trees (`kind` 'trees', or 'crowns' for trees shaded as one soft
+ * crown, see crownShading in scenery.js) or grass ('grass'): coloured by its
  * vertices, and by each one's own tint where the geometry's `tinted` attribute is 1 (the
  * leaves, but not the trunks), swaying in the wind, and with some grain in the leaves.
  * Grass also lies down where a car has driven through it and bends ahead of one pushing
@@ -153,7 +154,8 @@ export function foliageMaterial(kind, range = 0, crop = null) {
   if (!crop && materials.has(key)) return materials.get(key);
   const groundDetail = detailMap();
   const grass = kind === 'grass';
-  const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: !grass, name: kind });
+  const smooth = grass || kind === 'crowns';
+  const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: !smooth, name: kind });
   material.defines = { [grass ? 'SWAY_GRASS' : 'SWAY_TREES']: '' };
   if (range) material.defines.GRASS_RANGE = range.toFixed(1);
   if (crop) material.defines.CROP_SPAN = '';

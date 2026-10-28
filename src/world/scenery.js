@@ -90,7 +90,7 @@ import { growsTall } from './trample.js';
 import { createGround } from './ground.js';
 import { createGrass } from './grass.js';
 import { PAD_RADIUS } from './landmarks/helipad.js';
-import { boulderGeometry } from './rocks.js';
+import { boulderGeometry, rockMaterial } from './rocks.js';
 import { createScatter } from './scatter.js';
 import { buildDesertScenery, desertGround, desertTakes } from './sand.js';
 
@@ -409,7 +409,7 @@ const DETAIL_RANGE = 170;
 /** Bushes, stumps and logs are a little bigger. */
 const UNDERGROWTH_RANGE = 250;
 /** Beyond this, rocks are all drawn with one simpler shape. */
-const ROCK_DETAIL = 300;
+const ROCK_DETAIL = 140;
 /** The fence beyond this is thinner than a pixel. */
 const FENCE_RANGE = 450;
 /**
@@ -532,6 +532,30 @@ function tierGeometry(radius, height, branches) {
   return prism(points);
 }
 
+/**
+ * Shades a tree's leaves as one soft crown: each corner's normal points out from the middle of
+ * the crown, round (x, `middle`, z) and squashed by `squash` up and down, mixed with a little of
+ * its own face's, so the light runs round the whole tree while its tiers and clumps still show.
+ * Faces turned down are darker, as little light gets under the branches. The trunk is left be.
+ */
+function crownShading(geometry, middle, squash = 1) {
+  const { position, normal, color, tinted } = geometry.attributes;
+  const out = new THREE.Vector3();
+  const face = new THREE.Vector3();
+  for (let i = 0; i < position.count; i++) {
+    if (!tinted.getX(i)) continue;
+    face.fromBufferAttribute(normal, i);
+    out.set(position.getX(i), (position.getY(i) - middle) * squash, position.getZ(i)).normalize();
+    out.multiplyScalar(0.7).addScaledVector(face, 0.3).normalize();
+    normal.setXYZ(i, out.x, out.y, out.z);
+    const shade = face.y < -0.2 ? 0.62 : 1;
+    color.setXYZ(i, color.getX(i) * shade, color.getY(i) * shade, color.getZ(i) * shade);
+  }
+  // Drawn with the 'crowns' foliage material, which shades it smoothly.
+  geometry.userData.crown = true;
+  return geometry;
+}
+
 /** Near the camera, a pine has five ragged tiers of branches; further off, three plain cones. */
 export function pineGeometry(detailed) {
   const parts = new PartsBuilder();
@@ -553,16 +577,25 @@ export function pineGeometry(detailed) {
       parts.add(new THREE.ConeGeometry(radius, height, 6, 1, true), LEAVES, { y, ry: y }),
     );
   }
-  return tintable(parts.geometry(), [TRUNK]);
+  return crownShading(tintable(parts.geometry(), [TRUNK]), 5, 0.55);
 }
 
+/** A broadleaved tree: a crown of leafy clumps round a big one, on a short trunk. */
 export function roundTreeGeometry() {
   const parts = new PartsBuilder();
   parts.add(new THREE.CylinderGeometry(0.2, 0.3, 3.4, 5), TRUNK, { y: 1.7 });
-  parts.add(new THREE.IcosahedronGeometry(2.4, 0), LEAVES, { y: 4.6, sy: 1.15 });
-  parts.add(new THREE.IcosahedronGeometry(1.6, 0), LEAVES, { x: 0.9, y: 5.8, z: 0.4 });
-  parts.add(new THREE.IcosahedronGeometry(1.3, 0), LEAVES, { x: -1.1, y: 4.2, z: -0.6, ry: 1 });
-  return tintable(parts.geometry(), [TRUNK]);
+  parts.add(new THREE.IcosahedronGeometry(2.2, 0), LEAVES, { y: 4.8, sy: 1.1 });
+  for (const [r, x, y, z] of [
+    [1.6, 0.9, 5.9, 0.4],
+    [1.3, -1.2, 4.3, -0.6],
+    [1.35, -0.4, 6.2, -1],
+    [1.2, 1.3, 4.1, -0.9],
+    [1.15, 0.1, 3.9, 1.4],
+    [1.0, -1.3, 5.6, 1],
+  ]) {
+    parts.add(new THREE.IcosahedronGeometry(r, 0), LEAVES, { x, y, z, ry: x * 2 });
+  }
+  return crownShading(tintable(parts.geometry(), [TRUNK]), 4.9);
 }
 
 export function birchGeometry() {
@@ -578,7 +611,9 @@ export function birchGeometry() {
   parts.add(new THREE.IcosahedronGeometry(1.5, 0), LEAVES, { y: 5.4, sy: 1.5 });
   parts.add(new THREE.IcosahedronGeometry(1.05, 0), LEAVES, { x: 0.7, y: 4.4, z: -0.3, sy: 1.3 });
   parts.add(new THREE.IcosahedronGeometry(0.9, 0), LEAVES, { x: -0.6, y: 6.6, z: 0.3 });
-  return tintable(parts.geometry(), [BIRCH_BARK, BIRCH_MARKS]);
+  parts.add(new THREE.IcosahedronGeometry(0.8, 0), LEAVES, { x: -0.7, y: 4.8, z: 0.6, sy: 1.2 });
+  parts.add(new THREE.IcosahedronGeometry(0.75, 0), LEAVES, { x: 0.5, y: 6.1, z: 0.7 });
+  return crownShading(tintable(parts.geometry(), [BIRCH_BARK, BIRCH_MARKS]), 5.4, 0.7);
 }
 
 export function bushGeometry() {
@@ -586,7 +621,7 @@ export function bushGeometry() {
   parts.add(new THREE.IcosahedronGeometry(0.9, 0), LEAVES, { y: 0.55, sy: 0.75 });
   parts.add(new THREE.IcosahedronGeometry(0.65, 0), LEAVES, { x: 0.75, y: 0.45, z: 0.2, sy: 0.8 });
   parts.add(new THREE.IcosahedronGeometry(0.55, 0), LEAVES, { x: -0.6, y: 0.4, z: -0.3, sy: 0.8 });
-  return tintable(parts.geometry());
+  return crownShading(tintable(parts.geometry()), 0.4);
 }
 
 export function stumpGeometry() {
@@ -621,18 +656,18 @@ const PINE_DETAIL = 150;
 
 /**
  * Tints for the leaves, as [hue, saturation, lightness] and how far each may vary. The woods
- * are just starting to turn: a few larches among the pines have gone gold, and some of the
- * broadleaved trees yellow, orange or red.
+ * have turned: many larches among the spruces have gone gold, most broadleaved trees are
+ * yellow, orange or red, and most birches gold.
  */
 const TINTS = {
-  spruce: [0.29, 0.34, 0.27, 0.035, 0.08, 0.05],
-  larch: [0.11, 0.78, 0.45, 0.012, 0.08, 0.05],
-  green: [0.22, 0.4, 0.38, 0.04, 0.1, 0.06],
+  spruce: [0.3, 0.33, 0.25, 0.035, 0.08, 0.05],
+  larch: [0.11, 0.78, 0.47, 0.012, 0.08, 0.05],
+  green: [0.2, 0.38, 0.36, 0.04, 0.1, 0.06],
   yellow: [0.125, 0.76, 0.47, 0.012, 0.08, 0.05],
   orange: [0.07, 0.76, 0.45, 0.015, 0.08, 0.05],
   red: [0.015, 0.66, 0.38, 0.012, 0.08, 0.04],
   birch: [0.19, 0.45, 0.47, 0.03, 0.1, 0.06],
-  bush: [0.23, 0.38, 0.34, 0.05, 0.1, 0.06],
+  bush: [0.09, 0.45, 0.33, 0.04, 0.1, 0.06],
 };
 
 function tint(name) {
@@ -647,7 +682,7 @@ function tint(name) {
 /** What colour a broadleaved tree has turned. */
 function turned() {
   const roll = random();
-  return roll < 0.55 ? 'green' : roll < 0.75 ? 'yellow' : roll < 0.9 ? 'orange' : 'red';
+  return roll < 0.2 ? 'green' : roll < 0.52 ? 'yellow' : roll < 0.8 ? 'orange' : 'red';
 }
 
 function buildTrees(scatter, obstacles) {
@@ -694,8 +729,8 @@ function buildTrees(scatter, obstacles) {
     });
   // Larches grow among the spruces on the lower slopes.
   const conifer = tree =>
-    random() < 0.2 * (1 - smoothstep(terrainHeight(tree.x, tree.z), 60, 90)) ? 'larch' : 'spruce';
-  const trees = foliageMaterial('trees');
+    random() < 0.38 * (1 - smoothstep(terrainHeight(tree.x, tree.z), 60, 90)) ? 'larch' : 'spruce';
+  const trees = foliageMaterial('crowns');
   const round = roundTreeGeometry();
   const birch = birchGeometry();
   scatter.add({
@@ -712,7 +747,7 @@ function buildTrees(scatter, obstacles) {
     far: birch,
     cell: FAR_CELL,
     material: trees,
-    items: birches.map(tinted(() => (random() < 0.4 ? 'yellow' : 'birch'))),
+    items: birches.map(tinted(() => (random() < 0.75 ? 'yellow' : 'birch'))),
   });
   scatter.add({
     geometry: bushGeometry(),
@@ -791,7 +826,7 @@ function buildBrookStones(scene) {
     const d = SPRING.radius + 0.8 + stoneRandom() * 0.8;
     stone(SPRING.x + Math.cos(a) * d, SPRING.z + Math.sin(a) * d, 0.3 + stoneRandom() * 0.45);
   }
-  const mesh = new THREE.Mesh(mergeGeometries(parts), vertexColorMaterial);
+  const mesh = new THREE.Mesh(mergeGeometries(parts), rockMaterial);
   mesh.castShadow = mesh.receiveShadow = true;
   scene.add(mesh);
 }
@@ -807,7 +842,7 @@ function buildTrackRocks(scatter) {
     const matrix = stoneMatrix(rock.x, rock.z, rock.r * 0.85, rock.h / 0.72, stoneRandom() * 6.3);
     return { matrix, shape: Math.floor(stoneRandom() * shapes.length) };
   });
-  scatter.add({ geometry: shapes, far: shapes[0], near: UNDERGROWTH_RANGE, range: 600, items });
+  scatter.add({ geometry: shapes, far: shapes[0], near: UNDERGROWTH_RANGE, range: 600, material: rockMaterial, items });
 }
 
 /** Stones along the rivers' edges, though not where the roads ford them. They have numbers of their own. */
@@ -828,11 +863,11 @@ function buildRiverStones(scatter) {
       items.push({ matrix: stoneMatrix(p.x, p.z, size, size * 0.7, turn), shape });
     }
   }
-  scatter.add({ geometry: shapes, near: UNDERGROWTH_RANGE, items });
+  scatter.add({ geometry: shapes, near: UNDERGROWTH_RANGE, material: rockMaterial, items });
 }
 
 function buildRocks(scatter, obstacles) {
-  const shapes = [0, 1, 2, 3, 4].map(seed => boulderGeometry(seed));
+  const shapes = [0, 1, 2, 3, 4].map(seed => boulderGeometry(seed, { detail: 2 }));
   const lists = shapes.map(() => []);
   const add = rock => lists[Math.floor(random() * shapes.length)].push(rock);
 
@@ -900,7 +935,14 @@ function buildRocks(scatter, obstacles) {
     }
   });
   // Far off, one plainer shape stands in for all five.
-  scatter.add({ geometry: shapes, far: boulderGeometry(5, { detail: 0 }), near: ROCK_DETAIL, cell: FAR_CELL, items });
+  scatter.add({
+    geometry: shapes,
+    far: boulderGeometry(5, { detail: 0 }),
+    near: ROCK_DETAIL,
+    cell: FAR_CELL,
+    material: rockMaterial,
+    items,
+  });
 }
 
 /**
@@ -1217,10 +1259,10 @@ function buildPeaks(scene) {
   const colors = [];
   const indices = [];
   const snow = new THREE.Color('#edf0ec');
-  const forest = new THREE.Color('#62764f');
+  const forest = new THREE.Color('#4f5f3d');
   const rock = new THREE.Color();
   const color = new THREE.Color();
-  const tones = ['#7d898c', '#858f8c', '#8a9291', '#7a8689'];
+  const tones = ['#7c8094', '#84889a', '#8a8d9c', '#787d91'];
   const mouth = FJORD.path.at(FJORD.path.length);
   const fjordAngle = Math.atan2(mouth.x, mouth.z);
   for (let m = 0; m < MOUNTAINS; m++) {
@@ -1259,7 +1301,7 @@ function buildPeaks(scene) {
         if (j === 0) feet[k] = Math.min(base, naturalHeight(x, z) - 25);
         positions.push(x, lerp(feet[k], summit, f ** 1.35) + ridge * height * 0.05 * (1 - f) * f, z);
         const snowline = 0.62 - 0.17 * (1 - ridge) + (valueNoise(a * 6 + m, 3.1, 77) - 0.5) * 0.16;
-        color.copy(rock).lerp(forest, 1 - smoothstep(f, 0.05, 0.3));
+        color.copy(rock).lerp(forest, 1 - smoothstep(f, 0.12, 0.42));
         color.lerp(snow, smoothstep(f, snowline - 0.03, snowline + 0.03));
         color.multiplyScalar(0.94 + random() * 0.1);
         colors.push(color.r, color.g, color.b);

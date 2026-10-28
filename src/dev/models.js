@@ -38,7 +38,7 @@ import {
   roundTreeGeometry,
   stumpGeometry,
 } from '../world/scenery.js';
-import { boulderGeometry } from '../world/rocks.js';
+import { boulderGeometry, rockMaterial } from '../world/rocks.js';
 import {
   barrelCactusGeometry,
   dryBushGeometry,
@@ -79,8 +79,9 @@ function garageVehicle(vehicle, color, decorations = [], night = 0) {
 }
 
 /** A plain mesh of a geometry painted by its vertices, or by tints like the foliage. */
-function plant(geometry, tint) {
-  const mesh = new THREE.InstancedMesh(geometry, tint ? foliageMaterial('trees') : vertexColorMaterial, 1);
+function plant(geometry, tint, material = vertexColorMaterial) {
+  const foliage = tint && foliageMaterial(geometry.userData.crown ? 'crowns' : 'trees');
+  const mesh = new THREE.InstancedMesh(geometry, foliage || material, 1);
   mesh.setMatrixAt(0, new THREE.Matrix4());
   if (tint) mesh.setColorAt(0, new THREE.Color(tint));
   return mesh;
@@ -259,7 +260,7 @@ export const MODELS = [
     ['bush', 'Bush', () => plant(bushGeometry(), '#5f7d45')],
     ['stump', 'Stump', () => plant(stumpGeometry())],
     ['log', 'Fallen log', () => plant(logGeometry())],
-    ['boulder', 'Boulder', () => plant(boulderGeometry(1))],
+    ['boulder', 'Boulder', () => plant(boulderGeometry(1), null, rockMaterial)],
     ['stalk', 'Wheat stalk', () => plant(stalkGeometry(), '#ffffff')],
     ['palm', 'Date palm', () => plant(palmGeometry(), '#f2f4ea')],
     ...[1, 2, 3].map(arms => [

@@ -8,7 +8,7 @@ import { createRandom, lerp, smoothstep } from '../../core/math.js';
 import { OXBOW, TRACKS } from '../layout.js';
 import { OXBOW_LEVEL, terrainHeight } from '../terrain.js';
 import { PartsBuilder, prism, vertexColorMaterial } from '../build.js';
-import { boulderGeometry } from '../rocks.js';
+import { boulderGeometry, rockMaterial } from '../rocks.js';
 
 const SHALLOW = new THREE.Color('#a3cfc6');
 const DEEP = new THREE.Color('#5b989a');
@@ -265,12 +265,15 @@ export function buildOxbow(scene, obstacles) {
   water.receiveShadow = true;
   scene.add(water);
 
-  // Everything else is drawn as one.
+  // Everything else is drawn as one, and the stones, which are shaded smoothly, as another.
   const parts = new PartsBuilder();
   addReeds(parts, random);
   addLilies(parts, random);
   addFootbridge(parts, obstacles);
-  const mesh = new THREE.Mesh(mergeGeometries([parts.geometry(), ...stones(obstacles, random)]), vertexColorMaterial);
-  mesh.castShadow = mesh.receiveShadow = true;
-  scene.add(mesh);
+  const mesh = new THREE.Mesh(parts.geometry(), vertexColorMaterial);
+  const pebbles = new THREE.Mesh(mergeGeometries(stones(obstacles, random)), rockMaterial);
+  for (const each of [mesh, pebbles]) {
+    each.castShadow = each.receiveShadow = true;
+    scene.add(each);
+  }
 }
