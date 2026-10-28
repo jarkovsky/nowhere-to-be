@@ -268,6 +268,69 @@ try {
   `,
   );
   await capture(page, 'desert', 2500);
+
+  // The snowy log crossing over the river in the winter, in the north-east.
+  await inGame(
+    page,
+    `
+    g.followCar();
+    g.setSky('day');
+    const b = L.BRIDGES.find(b => b.style === 'log');
+    g.teleport(b.x - b.dx * 16, b.z - b.dz * 16, Math.atan2(-b.dx, -b.dz));
+  `,
+  );
+  // Long enough for the rain to clear and the light to settle into day.
+  await page.waitForTimeout(6000);
+  await page.keyboard.down('ArrowUp');
+  await page.waitForTimeout(500);
+  await page.keyboard.up('ArrowUp');
+  await capture(page, 'winter', 3500);
+
+  // The old plane lying in its meadow, from the end of its track.
+  await inGame(
+    page,
+    `
+    const t = L.TRACKS.find(t => t.id === 'crash').path;
+    const p = t.at(t.length - 10);
+    g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz));
+    // From 16 m short of the plane on the way in, a little to one side, so the plane fills the frame.
+    const { x, z } = L.CRASH;
+    const [ax, az] = [(p.x - x) / Math.hypot(p.x - x, p.z - z), (p.z - z) / Math.hypot(p.x - x, p.z - z)];
+    const eye = { x: x + ax * 16 - az * 6, z: z + az * 16 + ax * 6 };
+    const y = T.terrainHeight(x, z);
+    g.shot([eye.x, T.terrainHeight(eye.x, eye.z) + 2.4, eye.z], [x, y + 1, z]);
+  `,
+  );
+  await capture(page, 'crash', 3000);
+  await inGame(page, `g.followCar();`);
+
+  // Climbing the rough trail over the ridge.
+  await inGame(
+    page,
+    `
+    const p = L.ROUGH.path.at(150);
+    g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz));
+  `,
+  );
+  await page.keyboard.down('ArrowUp');
+  await page.waitForTimeout(1500);
+  await page.keyboard.up('ArrowUp');
+  await capture(page, 'rough', 2500);
+
+  // The cairn and the bench at the top, looking out over the outlands the way the bench faces.
+  await inGame(
+    page,
+    `
+    const { x, z, view } = L.ROUGH.lookout;
+    const [dx, dz] = [Math.sin(view), Math.cos(view)];
+    // Parked beside the cairn, facing out the way the bench does, seen from behind and to one side.
+    g.teleport(x + dz * 3 + dx * 0.5, z - dx * 3 + dz * 0.5, view + Math.PI);
+    const y = T.terrainHeight(x, z);
+    g.shot([x - dx * 11 + dz * 7, y + 3.6, z - dz * 11 - dx * 7], [x + dx * 10, y - 1, z + dz * 10]);
+  `,
+  );
+  await capture(page, 'lookout', 2500);
+  await inGame(page, `g.followCar();`);
   await inGame(page, `g.followCar();`);
 
   await inGame(
@@ -366,6 +429,28 @@ try {
       const eye = { x: p.x + f.x * 15 - f.z * 7, z: p.z + f.z * 15 + f.x * 7 };
       const y = T.terrainHeight(p.x, p.z);
       g.shot([eye.x, Math.max(y, T.terrainHeight(eye.x, eye.z)) + 2.6, eye.z], [p.x - f.x * 4, y + 2.2, p.z - f.z * 4]);`,
+    ],
+    [
+      'Flatbed with a digger',
+      'flatbed',
+      `const p = L.RING_ROAD.offset(1400, 2.2);
+      const heading = Math.atan2(-p.dx, -p.dz);
+      g.teleport(p.x, p.z, heading);
+      const f = { x: -Math.sin(heading), z: -Math.cos(heading) };
+      const eye = { x: p.x + f.x * 14 + f.z * 7, z: p.z + f.z * 14 - f.x * 7 };
+      const y = T.terrainHeight(p.x, p.z);
+      g.shot([eye.x, Math.max(y, T.terrainHeight(eye.x, eye.z)) + 2.6, eye.z], [p.x - f.x * 3, y + 2, p.z - f.z * 3]);`,
+    ],
+    [
+      'Expedition truck',
+      'expedition',
+      `const p = L.ROUGH.path.at(250);
+      const heading = Math.atan2(-p.dx, -p.dz);
+      g.teleport(p.x, p.z, heading);
+      const f = { x: -Math.sin(heading), z: -Math.cos(heading) };
+      const eye = { x: p.x + f.x * 9 - f.z * 5, z: p.z + f.z * 9 + f.x * 5 };
+      const y = T.terrainHeight(p.x, p.z);
+      g.shot([eye.x, Math.max(y, T.terrainHeight(eye.x, eye.z)) + 1.8, eye.z], [p.x, y + 1.6, p.z]);`,
     ],
     [
       'Hyundai',

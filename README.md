@@ -7,6 +7,14 @@ Play it at [nowhere-to-be.jarkovsky.com](https://nowhere-to-be.jarkovsky.com).
 ![Title screen over the valley](docs/title.jpg)
 
 <p>
+  <img src="docs/winter.jpg" width="49%" alt="About to cross the snowy log crossing over the half-frozen river in the winter">
+  <img src="docs/crash.jpg" width="49%" alt="An old plane lying on its belly in a meadow, one wing torn off behind it">
+</p>
+<p>
+  <img src="docs/rough.jpg" width="49%" alt="Climbing the rough trail over the rocky ridge">
+  <img src="docs/lookout.jpg" width="49%" alt="The cairn and the bench at the lookout on top of the rough trail">
+</p>
+<p>
   <img src="docs/bridge.jpg" width="49%" alt="Crossing the timber bridge at sunset, with the waterfall upstream">
   <img src="docs/farm.jpg" width="49%" alt="The farm, with cows in the paddock and a wheat field">
 </p>
@@ -52,6 +60,10 @@ Play it at [nowhere-to-be.jarkovsky.com](https://nowhere-to-be.jarkovsky.com).
 <p>
   <img src="docs/lorry.jpg" width="49%" alt="The lorry with its trailer on the upland road">
   <img src="docs/rally.jpg" width="49%" alt="A rally car on the track up to the summit">
+</p>
+<p>
+  <img src="docs/flatbed.jpg" width="49%" alt="The flatbed lorry carrying a digger on the upland road">
+  <img src="docs/expedition.jpg" width="49%" alt="The expedition truck on the rough trail">
 </p>
 <p>
   <img src="docs/menu.jpg" width="49%" alt="The pause menu: a play button and picture buttons for the car, the map, sound, cruise control, its speed, the minimap, a night at camp and going back to the start">
