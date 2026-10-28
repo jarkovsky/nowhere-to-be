@@ -43,7 +43,6 @@ import {
   UPLANDS_RADIUS,
   HABITATS,
   SURFACES,
-  YETI,
   GLADES,
   RING_ROAD,
   LINKS,
@@ -167,14 +166,15 @@ function groundColor(x, z, h, up, out) {
     const ux = (x - patch.x) / patch.rx;
     const uz = (z - patch.z) / patch.rz;
     const d = Math.sqrt(ux * ux + uz * uz) + ragged;
-    if (d < 1 && patch.id === 'snow') out.copy(GROUND.snow);
     if (d < 1 && patch.id === 'leaves') out.lerp(GROUND.leaves, 0.75);
     if (d < 1.2 && patch.id === 'mud') out.lerp(GROUND.mud, 0.85 * (1 - smoothstep(d, 0.8, 1.2)));
     // The mud's colour reaches out past its edge, so the grass starts a little further out.
     if (patch.id === 'mud') grass *= smoothstep(d, 1.15, 1.45);
-    else if (patch.id === 'snow') grass *= smoothstep(d, 0.9, 1.2);
     else if (d < 1) grass *= 0.4;
   }
+  // A patch of snow by the trail had its ragged edge drawn here too; the draw is kept so the
+  // trees placed after the ground stay where they are.
+  random();
   desertGround(x, z, up, out);
   if (grass > 0) grass *= 1 - smoothstep(desertness(x, z), 0.05, 0.45);
   out.multiplyScalar(0.96 + random() * 0.08);
@@ -188,7 +188,6 @@ function groundNormal(x, z) {
   return new THREE.Vector3(-dx, 1, -dz).normalize().toArray();
 }
 
-const SNOW = SURFACES.find(patch => patch.id === 'snow');
 const PACKED_SNOW = new THREE.Color('#e3e8e4');
 
 /**
@@ -231,8 +230,7 @@ export function ribbonGeometry(
       const side = offset + ((j / across) * 2 - 1) * halfWidth;
       const x = sample.x - sample.dz * side;
       const z = sample.z + sample.dx * side;
-      const patch = 1 - smoothstep(Math.hypot((x - SNOW.x) / SNOW.rx, (z - SNOW.z) / SNOW.rz), 0.78, 1);
-      const snow = Math.max(patch, snowCover(x, z));
+      const snow = snowCover(x, z);
       positions.set([x, terrainHeight(x, z) + lift, z], v);
       normals.set(groundNormal(x, z), v);
       tint.copy(base).lerp(PACKED_SNOW, snow).toArray(colors, v);
@@ -433,7 +431,8 @@ const CLEARINGS = [
   { x: JETTY.x - 4, z: JETTY.z, r: 16 },
   { x: HABITATS.sheep.x, z: HABITATS.sheep.z, r: 18 },
   { x: HABITATS.burrow.x, z: HABITATS.burrow.z, r: 10 },
-  { x: YETI.x, z: YETI.z, r: 10 },
+  // Where the yeti hid: the glade stays, so no tree moves.
+  { x: -78, z: -146, r: 10 },
   { ...RAILWAY.at((HALT.from + HALT.to) / 2), r: 24 },
   { ...ROADWORKS.path.at(0), r: 20 },
   { ...ROADWORKS.path.at(ROADWORKS.gravel), r: 40 },

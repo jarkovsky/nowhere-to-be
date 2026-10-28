@@ -1316,7 +1316,6 @@ function patchOnTrack(id, fraction) {
 export const SURFACES = [
   { id: 'puddle', ...patchOnRoad(40, 110), rx: 9, rz: 6 },
   { id: 'leaves', ...patchOnRoad(-150, 40), rx: 20, rz: 18 },
-  { id: 'snow', ...patchOnRoad(-92, -116), rx: 26, rz: 22 },
   // Muddy stretches of the side tracks.
   { id: 'mud', ...patchOnTrack('farm', 0.5), rx: 6, rz: 6 },
   { id: 'mud', ...patchOnTrack('tower', 0.5), rx: 7, rz: 6 },
@@ -1381,6 +1380,3 @@ export const YARDS = [
   { x: FARM.x, z: FARM.z, rotation: FARM.rotation, x0: -4, x1: 3, z0: -1, z1: 6, hens: 6 },
   { x: FARMSTEAD.x, z: FARMSTEAD.z, rotation: FARMSTEAD.rotation, x0: -6, x1: 4, z0: 2.5, z1: 8, hens: 4 },
 ];
-
-/** Something large and shy lives in the snow. */
-export const YETI = { x: -78, z: -146 };

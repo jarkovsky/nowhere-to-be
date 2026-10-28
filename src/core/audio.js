@@ -366,15 +366,6 @@ export function createAudio() {
       }
     },
 
-    /** A wooden fence going over: two soft hollow knocks and a rattle. */
-    knock() {
-      if (!playable()) return;
-      const now = context.currentTime;
-      tone(210, now, 0.12, { end: 150, volume: 0.07 });
-      tone(170, now + 0.09, 0.14, { end: 120, volume: 0.05 });
-      burst('bandpass', 900, 0.25, 0.04);
-    },
-
     bump(strength) {
       if (!playable()) return;
       tone(90, context.currentTime, 0.18, { end: 45, volume: Math.min(0.14, strength * 0.025) });

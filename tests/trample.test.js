@@ -25,13 +25,16 @@ function wait(seconds, x, z) {
 
 growsTall(0, -10, 30);
 
-test('the stalks lie flat where the wheels went, well over under the car, and not at all away from it', () => {
+test('the stalks lie flat where the wheels went, lean a little under the car, and not at all away from it', () => {
   drive(0, 0, -30);
   for (const z of [-8, -14, -20]) {
     assert.ok(trampledAt(1.08, z) > 0.95, `under the right wheels at ${z}`);
     assert.ok(trampledAt(-1.08, z) > 0.95, `under the left wheels at ${z}`);
-    const between = trampledAt(0, z);
-    assert.ok(between > 0.6 && between < 0.9, `between the wheels at ${z}: ${between}`);
+    // Two tracks, not a mown strip the width of the car.
+    for (const x of [0, 0.5, -0.5]) {
+      const between = trampledAt(x, z);
+      assert.ok(between > 0.1 && between < 0.3, `between the wheels at ${x}, ${z}: ${between}`);
+    }
     assert.equal(trampledAt(3.5, z), 0, `beside the car at ${z}`);
   }
 });

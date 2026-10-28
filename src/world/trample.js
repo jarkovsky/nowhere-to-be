@@ -1,5 +1,6 @@
 // Where a car drives through long grass or a crop, the stalks lie down the way it went: flat in
-// a track under each wheel, bent well over under the car and a little beside it. They stand up
+// a track under each wheel, and only leaning a little between and beside them, where the car's
+// body has passed over them without pressing them down. They stand up
 // again over a couple of minutes, and at once where the crop is cut. It is all kept in one small
 // texture that moves along with the car, so it costs the same wherever the car goes: each texel
 // holds how far the stalks there are laid over (R) and which way they lie (G, B). The texture
@@ -16,10 +17,10 @@ const SPAN = SIZE * TEXEL;
 const SLACK = SPAN / 4;
 /** How far the stalks rise again each second, out of 255: a flat track stands up in about two minutes. */
 const RISE = 2;
-/** How far over the stalks are laid: flat under the wheels, well over under the car, a little beside it. */
+/** How far over the stalks are laid: flat under the wheels, leaning a little under the car and beside it. */
 const WHEEL = 1;
-const BODY = 0.8;
-const BRUSH = 0.35;
+const BODY = 0.22;
+const BRUSH = 0.12;
 /** Room beside the car where it brushes the stalks aside. */
 const BRUSH_WIDTH = 0.35;
 /** Cars that bend the stalks as they push through: the player's and the friends following it. */
@@ -283,7 +284,7 @@ export const TRAMPLE_PARS = /* glsl */ `
       float reach = step( abs( p.y - size.w ), 3.0 ) * step( -size.y, u );
       float ahead = 1.0 - smoothstep( size.x, size.x + 1.4, u );
       float aside = smoothstep( size.z - 0.4, size.z + 0.2, abs( v ) );
-      float bend = reach * ahead * ( 1.0 - smoothstep( size.z, size.z + 0.7, abs( v ) ) ) * mix( 0.7, 0.45, aside );
+      float bend = reach * ahead * ( 1.0 - smoothstep( size.z, size.z + 0.7, abs( v ) ) ) * mix( 0.5, 0.35, aside );
       if ( bend > lay.x ) {
         // Forward ahead of the car, and outward along its sides.
         vec2 way = car.zw * ( 1.0 - aside * step( u, size.x ) ) + vec2( car.w, -car.z ) * sign( v ) * ( 0.35 + aside );

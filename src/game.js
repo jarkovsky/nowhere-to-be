@@ -84,7 +84,7 @@ function surfaceUnder(x, z) {
   if (onDeck(x, z)) return 'road';
   if (waterDepth(x, z) > 0.15) return 'water';
   const patch = surfaceAt(x, z);
-  if (patch === 'snow' || patch === 'leaves' || patch === 'mud') return patch;
+  if (patch === 'leaves' || patch === 'mud') return patch;
   if (snowCover(x, z) > 0.5) return 'snow';
   if (ROAD.isNear(x, z, ROAD_HALF_WIDTH + 0.6) || CAMP_TRAIL.isNear(x, z, 2.6)) return 'road';
   if (onPaved(x, z, ROAD_HALF_WIDTH + 0.6) || onAirfield(x, z)) return 'road';
@@ -208,7 +208,6 @@ export function createGame(canvas) {
 
   const wildlife = createWildlife(scene, { onCall: kind => sound.animal(kind) });
   const secrets = createSecrets(scene, { onCall: kind => sound.animal(kind) });
-  obstacles.push(...secrets.obstacles);
   const helicopters = [VALLEY_RESCUE, AIR_AMBULANCE].map(spec => createHelicopter(scene, spec));
   const planes = createPlanes(scene, obstacles);
 
@@ -770,8 +769,6 @@ export function createGame(canvas) {
       let impact = 0;
       steps.advance(dt, step => {
         Object.assign(before, { x: state.x, z: state.z, heading: state.heading, speed: state.speed });
-        // A paddock fence driven into fast enough goes over.
-        if (landmarks.knockFences(state, step)) sound.knock();
         // On the tractor's rope, the car goes where it is pulled, and on the ferry where it is taken.
         if (!mudHole.holding() && !ferry.holding()) stepDriving(state, input, step, world);
         Object.assign(after, { x: state.x, z: state.z, heading: state.heading, speed: state.speed });
