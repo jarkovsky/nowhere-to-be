@@ -107,3 +107,24 @@ test('the other vehicles have no pop-up lamps, and their lamps stay put', () => 
   run(car, 0, 1);
   assert.deepEqual(lampHeights(car), before);
 });
+
+test('the flatbed and the expedition truck take the paint on their cabs only', () => {
+  for (const vehicle of ['flatbed', 'expedition']) {
+    const car = createCar();
+    car.customize('blue', [], vehicle);
+    const painted = [];
+    car.body.traverse(object => {
+      if (object.isMesh && object.material.vertexColors && object.material.color.getHexString() !== 'ffffff')
+        painted.push(object);
+    });
+    assert.equal(painted.length, 1, `${vehicle} has one painted mesh`);
+    assert.equal(car.trailer, null, `${vehicle} pulls nothing`);
+  }
+  const truck = createCar();
+  truck.customize('orange', [], 'expedition');
+  assert.ok(
+    truck.spec.voice.engine < 1 && truck.spec.voice.engine > 0.7,
+    'lower than the off-roader, higher than the lorry',
+  );
+  assert.ok(truck.spec.camera > 1 && truck.spec.camera < 1.6);
+});

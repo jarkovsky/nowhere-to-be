@@ -9,7 +9,7 @@ function memoryStorage(initial) {
   return { getItem: key => map.get(key) ?? null, setItem: (key, value) => map.set(key, value) };
 }
 
-test('car choices survive a reload', () => {
+test('colour, roof items and settings survive a reload, but the vehicle does not', () => {
   const storage = memoryStorage();
   const journal = createJournal(storage);
   journal.save({
@@ -18,7 +18,14 @@ test('car choices survive a reload', () => {
     decorations: ['flag', 'teddy', 'tent'],
     camp: true,
   });
-  assert.deepEqual(createJournal(storage).get(), journal.get());
+  assert.equal(journal.get().vehicle, 'lorry', 'it is the vehicle for the rest of the visit');
+  assert.deepEqual(createJournal(storage).get(), { ...journal.get(), vehicle: 'offroader' });
+  assert.equal(JSON.parse(storage.getItem(SAVE_KEY)).vehicle, undefined);
+});
+
+test('a save from before still starts in the off-roader', () => {
+  const journal = createJournal(memoryStorage({ vehicle: 'tractor', color: 'sage' }));
+  assert.deepEqual(pick(journal.get()), { vehicle: 'offroader', color: 'sage' });
 });
 
 test('corrupt or edited saves fall back to safe values', () => {
@@ -58,18 +65,20 @@ test('saves with another vehicle keep their paint', () => {
   assert.deepEqual(pick(sanitise({ vehicle: 'hyundai', color: 'sage' })), { vehicle: 'hyundai', color: 'sage' });
   assert.deepEqual(pick(sanitise({ vehicle: 'lorry', color: 'berry' })), { vehicle: 'lorry', color: 'berry' });
   assert.deepEqual(pick(sanitise({ vehicle: 'miata', color: 'yellow' })), { vehicle: 'miata', color: 'yellow' });
+  assert.deepEqual(pick(sanitise({ vehicle: 'flatbed', color: 'sage' })), { vehicle: 'flatbed', color: 'sage' });
+  assert.deepEqual(pick(sanitise({ vehicle: 'expedition', color: 'blue' })), { vehicle: 'expedition', color: 'blue' });
   assert.deepEqual(pick(sanitise({ vehicle: 'mercedes', color: 'rainbow', rainbow: true })), {
     vehicle: 'mercedes',
     color: 'rainbow',
   });
 });
 
-test('an old lorry save is changed over once, and then kept', () => {
+test('an old lorry save has its colour changed over once, and then kept', () => {
   const storage = memoryStorage({ vehicle: 'ruda', color: 'yellow' });
   const journal = createJournal(storage);
-  assert.deepEqual(pick(journal.get()), { vehicle: 'lorry', color: 'orange' });
+  assert.deepEqual(pick(journal.get()), { vehicle: 'offroader', color: 'orange' });
   journal.save({ color: 'yellow' });
-  assert.deepEqual(pick(createJournal(storage).get()), { vehicle: 'lorry', color: 'yellow' });
+  assert.deepEqual(pick(createJournal(storage).get()), { vehicle: 'offroader', color: 'yellow' });
 });
 
 test('rainbow paint needs to be unlocked first', () => {

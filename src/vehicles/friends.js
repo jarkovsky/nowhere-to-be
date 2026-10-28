@@ -1,9 +1,10 @@
-// Friends who tag along. Four of the garage's vehicles wait at the depot by the trail: a
-// blue lorry and a red one, and the two race cars. Drive up close and an arrow bobs over each one, with a ripple
+// Friends who tag along. Five of the garage's vehicles wait at the depot by the trail: a
+// blue lorry and a red one, and the two race cars in the bays, and the flatbed lorry with its
+// digger on the apron beside the building. Drive up close and an arrow bobs over each one, with a ripple
 // on the ground round it like the one round the play button. Tap one (or press F) and it
 // honks, flashes its lamps, pulls out and follows: along the way the player drove, a little
-// way behind, stopping when the player stops and honking back when the player honks. All
-// four can come along, each behind the one before.
+// way behind, stopping when the player stops and honking back when the player honks. Four
+// can come along, each behind the one before.
 // Tapping one that follows while stopped, or parking at the depot with them, lets them
 // stay, and they go back to their bays once nobody is looking. One left far behind, or one
 // that has lost the player (after going back to the start), catches up out of sight.
@@ -52,7 +53,11 @@ const LINEUP = [
   { vehicle: 'saloon' },
   { vehicle: 'tractor' },
   { vehicle: 'miata' },
+  // Too long for a bay: it waits on the apron, and the vehicle the player has taken its place.
+  { vehicle: 'flatbed' },
 ];
+/** Who waits on the apron rather than in a bay. */
+const APRON = 'flatbed';
 /** The other friends' paints, each a different one in the order they wait, leaving out the player's. */
 const PAINTS = ['blue', 'orange', 'yellow', 'sage', 'berry'];
 
@@ -65,7 +70,7 @@ const NEAR = 20;
 const TAP_RANGE = 24;
 /** How many can come along at once. */
 const MOST = 4;
-/** The clear gap a friend keeps behind whoever it follows, more when a lorry is involved; and the least. */
+/** The clear gap a friend keeps behind whoever it follows, more when a lorry or a long truck is involved; and the least. */
 const GAP = 6;
 const LORRY_GAP = 8;
 const LEAST = 2.5;
@@ -97,19 +102,23 @@ function touches(list, x, z, reach) {
   return false;
 }
 
-/** Where the bay at `index` puts a vehicle whose nose is `front` metres ahead of its middle. */
+/**
+ * Where the bay at `index` puts a vehicle whose nose is `front` metres ahead of its middle: the
+ * apron, past the last bay, has the place for the flatbed.
+ */
 function bayPose(index, front, out) {
   const cos = Math.cos(DEPOT.rotation);
   const sin = Math.sin(DEPOT.rotation);
-  const lx = DEPOT.bays[index];
-  const lz = DEPOT.noses - front;
+  const apron = index >= DEPOT.bays.length;
+  const lx = apron ? DEPOT.apron.lx : DEPOT.bays[index];
+  const lz = (apron ? DEPOT.apron.nose : DEPOT.noses) - front;
   out.x = DEPOT.x + lx * cos + lz * sin;
   out.z = DEPOT.z - lx * sin + lz * cos;
   out.heading = Math.atan2(-sin, -cos);
   return out;
 }
 
-/** Whether (x, z) is in the depot's yard, in front of the doors. */
+/** Whether (x, z) is in the depot's yard, in front of the doors or on the apron beside them. */
 function inYard(x, z) {
   const dx = x - DEPOT.x;
   const dz = z - DEPOT.z;
@@ -117,7 +126,7 @@ function inYard(x, z) {
   const sin = Math.sin(DEPOT.rotation);
   const lx = dx * cos - dz * sin;
   const lz = dx * sin + dz * cos;
-  return Math.abs(lx) < 15 && lz > -1 && lz < 20;
+  return lx > -15 && lx < DEPOT.apron.lx + 6 && lz > -3 && lz < 20;
 }
 
 export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle, color: playerColor }) {
@@ -151,10 +160,13 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
     depthWrite: false,
   });
 
-  // Everyone but the player: their vehicle, or the lorry in their own paint.
-  const waiting = LINEUP.filter(entry => !fits(entry, playerVehicle, playerColor))
-    .slice(0, DEPOT.bays.length)
-    .map(entry => ({ ...entry }));
+  // Everyone but the player: their vehicle, or the lorry in their own paint. The first of them
+  // fill the bays, and the flatbed waits on the apron, or whoever is next in line if the player has it.
+  const others = LINEUP.filter(entry => entry.vehicle !== APRON && !fits(entry, playerVehicle, playerColor));
+  const waiting = [
+    ...others.slice(0, DEPOT.bays.length),
+    playerVehicle === APRON ? others[DEPOT.bays.length] : { vehicle: APRON },
+  ].map(entry => ({ ...entry }));
   const colors = paintAll(waiting);
   const friends = waiting.map(({ vehicle }, bay) => {
     const color = colors[bay];
@@ -169,6 +181,7 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
       color,
       size: sizeOf(vehicle),
       bay,
+      apron: bay === DEPOT.bays.length,
       mode: 'home', // 'home' | 'following' | 'staying'
       x: 0,
       z: 0,
@@ -298,14 +311,14 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
     return i > 0 ? party[i - 1] : player;
   };
   /**
-   * The gap a friend keeps behind its leader, more when a lorry is involved. The first in line
+   * The gap a friend keeps behind its leader, more when a lorry or a long truck is involved. The first in line
    * keeps back behind the camera, so it never fills the view from close up, except when it has
    * just been asked along: then it rolls straight out of its bay, to show it is coming; and
    * when the player is aboard a ferry, where they all close up to fit on.
    */
   function gapBehind(friend, leader) {
     if (friend.follower.s < 5 && friend.mode === 'following' && !friend.lost) return LEAST + 1.5;
-    const gap = friend.size.lorry || leader.size.lorry ? LORRY_GAP : GAP;
+    const gap = [friend.size, leader.size].some(size => size.lorry || size.long) ? LORRY_GAP : GAP;
     return leader === player && chasing && !closeUp ? Math.max(gap, cameraBack + 2 - leader.size.back) : gap;
   }
 
@@ -748,7 +761,7 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
 
   /** Puts the friends at home in their bays in order. */
   function arrange() {
-    const sorted = [...friends].sort((a, b) => rank(a) - rank(b));
+    const sorted = friends.filter(friend => !friend.apron).sort((a, b) => rank(a) - rank(b));
     sorted.forEach((friend, bay) => {
       friend.bay = bay;
       if (friend.mode === 'home') placeStatue(friend);
@@ -849,6 +862,15 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
           ? { ...previous }
           : { vehicle: friend.vehicle, color: friend.color },
       );
+      // The flatbed, put down by the player, goes back to the apron whichever friend was taken
+      // in its place: it would not fit a bay.
+      const apron = friends.findIndex(friend => friend.apron);
+      if (previous.vehicle === APRON && vehicle !== APRON) {
+        const swapped = next.findIndex(entry => entry.vehicle === APRON);
+        if (swapped >= 0 && swapped !== apron)
+          next[swapped] = { vehicle: friends[apron].vehicle, color: friends[apron].color };
+        next[apron] = { ...previous };
+      }
       const colors = paintAll(next);
       friends.forEach((friend, i) => become(friend, next[i].vehicle, colors[i]));
       arrange();

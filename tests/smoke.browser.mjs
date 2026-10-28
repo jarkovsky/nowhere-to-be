@@ -96,7 +96,14 @@ try {
   await page.getByRole('button', { name: 'Miata', exact: true }).click();
   assert.equal((await state(page)).journal.vehicle, 'miata');
   assert.ok(await page.locator('#color-options').isVisible());
-  await page.getByRole('button', { name: 'Off-roader' }).click();
+  // The flatbed carries its digger and leaves the depot with one lorry fewer; the expedition truck is a vehicle of its own.
+  await page.getByRole('button', { name: 'Flatbed with a digger' }).click();
+  assert.equal((await state(page)).journal.vehicle, 'flatbed');
+  assert.ok(!(await state(page)).friends.some(friend => friend.vehicle === 'flatbed'), 'only one flatbed at a time');
+  await page.getByRole('button', { name: 'Expedition truck' }).click();
+  assert.equal((await state(page)).journal.vehicle, 'expedition');
+  assert.equal((await state(page)).friends.filter(friend => friend.vehicle === 'flatbed').length, 1);
+  await page.getByRole('button', { name: 'Tractor' }).click();
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   assert.equal((await state(page)).cameraMode, 'chase');
@@ -115,7 +122,8 @@ try {
   const reloaded = await state(page);
   assert.equal(reloaded.journal.color, 'blue');
   assert.deepEqual(reloaded.journal.decorations, ['flag', 'teddy', 'tent']);
-  step('remembers car choices after a reload');
+  assert.equal(reloaded.journal.vehicle, 'offroader', 'the game always starts in the off-roader');
+  step('remembers the colour and roof items after a reload, and starts in the off-roader');
 
   const canvas = await page.locator('#world').boundingBox();
   await page.mouse.move(canvas.width / 2, canvas.height / 2);
@@ -237,6 +245,13 @@ try {
   const along = (await state(page)).friends.find(friend => friend.bay === asked[0].bay);
   assert.ok(Math.hypot(along.x - asked[0].x, along.z - asked[0].z) > 1, 'it pulls out after the car');
   step('F by the depot asks the nearest friend along, and it follows');
+
+  await page.evaluate(() => window.__game.toDepot(16, 16));
+  await page.waitForTimeout(600);
+  await page.keyboard.press('KeyF');
+  await page.waitForTimeout(300);
+  assert.equal((await state(page)).friends.find(friend => friend.vehicle === 'flatbed').mode, 'following');
+  step('the flatbed waits on the apron beside the depot and can be asked along');
 
   console.log('Phone');
   const phone = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });

@@ -20,6 +20,8 @@ const LABELS = {
     hyundai: 'Hyundai',
     mercedes: 'Mercedes',
     miata: 'Miata',
+    flatbed: 'Flatbed with a digger',
+    expedition: 'Expedition truck',
   },
   colors: { orange: 'Orange', sage: 'Sage', blue: 'Blue', berry: 'Berry', yellow: 'Yellow', rainbow: 'Rainbow' },
   decorations: { flag: 'Flag', teddy: 'Teddy', tent: 'Roof tent', gnome: 'Gnome' },

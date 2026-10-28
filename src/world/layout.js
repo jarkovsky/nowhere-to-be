@@ -1733,13 +1733,22 @@ export const SPAWN = { x: start.x, z: start.z, heading: headingOf(start.dx, star
  * where friends wait to be asked along. Its front faces the trail (its own +Z) from the left
  * of the way the player sets off, and `s` is how far along the trail it is. Each of `bays` is a
  * door, `x` metres along the front, and the vehicles in them stand with their noses `noses`
- * metres out from the doors.
+ * metres out from the doors. The flatbed lorry is too long for a bay and waits on the `apron`
+ * beside the building instead, `lx` along the front with its nose `nose` metres out.
  */
 export const DEPOT = (() => {
   const s = ROAD.nearest(SPAWN.x, SPAWN.z).s + 62;
   // Far enough back that its yard is clear of where the trail is banked into the slope.
   const p = ROAD.offset(s, -25);
-  return { x: p.x, z: p.z, rotation: Math.atan2(-p.dz, p.dx), s, bays: [-8.25, -2.75, 2.75, 8.25], noses: 4.6 };
+  return {
+    x: p.x,
+    z: p.z,
+    rotation: Math.atan2(-p.dz, p.dx),
+    s,
+    bays: [-8.25, -2.75, 2.75, 8.25],
+    noses: 4.6,
+    apron: { lx: 18, nose: 7.6 },
+  };
 })();
 
 /** A point `lx` across and `lz` out from a place's front, in the world. */
@@ -1756,6 +1765,8 @@ function inFrame({ x, z, rotation }, lx, lz) {
  */
 export const FORECOURTS = [
   { id: 'depot', frame: DEPOT, x0: -13, x1: 13, z0: 0, z1: 9 },
+  // Beside the building, where the flatbed lorry waits: it joins the yard so it can drive out.
+  { id: 'depot apron', frame: DEPOT, x0: 12.5, x1: 22, z0: -2.8, z1: 8.4 },
   { id: 'fire station', frame: VILLAGE.fireStation, x0: -5.5, x1: 5.5, z0: 1, z1: 8 },
   { id: 'petrol station', frame: DESERT.station, ...DESERT.station.forecourt },
 ];
@@ -1863,6 +1874,7 @@ export const PADS = [
   { x: FARMSTEAD.x, z: FARMSTEAD.z, radius: 12, falloff: 10 },
   // Cut into the slope a little above the trail, so the yard runs gently up from it.
   { x: DEPOT.x, z: DEPOT.z, radius: 17, falloff: 9, level: 1 },
+  { ...inFrame(DEPOT, DEPOT.apron.lx, 3), radius: 9, falloff: 6, level: 1 },
   // The petrol station, the houses and the wind pump in the desert.
   { x: DESERT.station.x, z: DESERT.station.z, radius: 9, falloff: 6 },
   ...DESERT.houses.map(({ x, z }) => ({ x, z, radius: 5.5, falloff: 5 })),

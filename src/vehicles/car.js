@@ -38,15 +38,25 @@ export const paintMaterial = new THREE.MeshPhongMaterial({
 
 /**
  * A wheel with a plain hub, or with `holes` an alloy one: a wider rim with a ring of holes round
- * it. The tyre and the hub are one mesh, built along its own Y axis and turned on its side.
+ * it, or with `lugs` a tyre with a chunky tread. The tyre and the hub are one mesh, built along its own Y axis and turned on its side.
  */
-export function createWheel(radius = WHEEL_RADIUS, width = 0.4, hub = CREAM, holes = 0) {
+export function createWheel(radius = WHEEL_RADIUS, width = 0.4, hub = CREAM, holes = 0, lugs = 0) {
   const pivot = new THREE.Group();
   const spin = new THREE.Group();
   pivot.add(spin);
   const rim = holes ? 0.62 : 0.5;
-  const parts = new PartsBuilder()
-    .add(new THREE.CylinderGeometry(radius, radius, width, 12), RUBBER)
+  const parts = new PartsBuilder();
+  if (lugs) {
+    // A chunky tread: each half of the tyre is a polygon of `lugs` sides, one turned half a side
+    // from the other, so the edges zig-zag across it like blocks.
+    for (const side of [-1, 1]) {
+      parts.add(new THREE.CylinderGeometry(radius, radius, width / 2, lugs), RUBBER, {
+        y: (side * width) / 4,
+        ry: side > 0 ? Math.PI / lugs : 0,
+      });
+    }
+  } else parts.add(new THREE.CylinderGeometry(radius, radius, width, 12), RUBBER);
+  parts
     .add(new THREE.CylinderGeometry(radius * rim, radius * rim, width + 0.02, 10), hub)
     .add(new THREE.CylinderGeometry(radius * 0.19, radius * 0.19, width + 0.04, 8), METAL);
   for (let i = 0; i < holes; i++) {
@@ -280,6 +290,193 @@ function raceNumber(parts, side, { x, y, z }) {
   for (const dy of [-0.112, 0.112]) parts.box(0.02, 0.036, 0.145, ink, { x: at, y: y + dy, z: zero });
   parts.box(0.02, 0.26, 0.035, ink, { x: at, y, z: one });
   parts.box(0.02, 0.035, 0.06, ink, { x: at, y: y + 0.105, z: one + side * 0.035 });
+}
+
+/**
+ * The cab of a European lorry, shared by the lorry and the flatbed: flat-fronted and sitting over
+ * the front wheels (`frontWheel`, one of them), with its front corners cut off, a raised roof and an
+ * opening over each front wheel lined with a black mudguard. It reaches back to z = -0.05.
+ */
+function lorryCab(painted, trim, frontWheel) {
+  const line = shade('#ffffff', 0.78); // seams, a little darker than the paint
+  // The cab sits over the front wheels, with its front corners cut off, a raised roof
+  // and an opening over each front wheel lined with a black mudguard.
+  const cab = back => [
+    [-1.22, back],
+    [-1.22, -2.17],
+    [-1.06, -2.35],
+    [1.06, -2.35],
+    [1.22, -2.17],
+    [1.22, back],
+  ];
+  painted.add(plan(cab(-0.05), 1.26, 3.4), '#ffffff');
+  painted.add(plan(cab(-2.06), 1.0, 1.26), '#ffffff');
+  painted.box(2.44, 0.26, 0.89, '#ffffff', { y: 1.13, z: -0.495 });
+  painted.add(
+    profile(
+      [
+        [-2.22, 3.39],
+        [-1.98, 3.82],
+        [-0.05, 3.88],
+        [-0.05, 3.39],
+      ],
+      2.3,
+    ),
+    '#ffffff',
+  );
+  const mudguard = profile(archBand(frontWheel, 0.6, 0.68, 0.75), 0.42); // over the front wheels
+  // The front: a big windscreen in a black surround with its wipers, a sun visor with marker
+  // lamps, the grille with its bright bars and the bumper with the lamps.
+  trim.box(2.1, 1.1, 0.03, DARK, { y: 2.7, z: -2.355 });
+  trim.box(2.0, 1.0, 0.04, GLASS, { y: 2.72, z: -2.365 });
+  for (const x of [-0.5, 0.45]) {
+    trim.beam({ x: x - 0.38, y: 2.27, z: -2.39 }, { x: x + 0.38, y: 2.33, z: -2.39 }, 0.03, DARK);
+  }
+  trim.box(2.12, 0.14, 0.42, DARK, { y: 3.27, z: -2.5 });
+  for (let i = -2; i <= 2; i++) trim.box(0.14, 0.06, 0.03, '#f2c14e', { x: i * 0.42, y: 3.27, z: -2.72 });
+  trim.box(1.76, 0.74, 0.03, DARK, { y: 1.7, z: -2.36 });
+  for (let i = 0; i < 4; i++) trim.box(1.76, 0.06, 0.03, CHROME, { y: 1.43 + i * 0.18, z: -2.375 });
+  painted.add(
+    plan(
+      [
+        [-1.2, -2.05],
+        [-1.2, -2.27],
+        [-1.04, -2.46],
+        [1.04, -2.46],
+        [1.2, -2.27],
+        [1.2, -2.05],
+      ],
+      0.6,
+      1.0,
+    ),
+    '#ffffff',
+  );
+  trim.add(
+    plan(
+      [
+        [-1.14, -2.1],
+        [-1.14, -2.27],
+        [-1.0, -2.43],
+        [1.0, -2.43],
+        [1.14, -2.27],
+        [1.14, -2.1],
+      ],
+      0.47,
+      0.6,
+    ),
+    DARK,
+  );
+  for (const side of [-1, 1]) {
+    trim.box(0.16, 0.12, 0.03, '#e39a3b', { x: side * 1.13, y: 0.82, z: -2.375, ry: -side * 0.87 });
+    trim.add(mudguard, DARK, { x: side * 1.05 });
+    trim.box(0.02, 0.26, 1.12, DARK, { x: side * 0.82, y: 1.13, z: -1.5 });
+    trim.box(0.04, 0.72, 0.92, GLASS, { x: side * 1.225, y: 2.72, z: -1.66 });
+    painted.box(0.03, 2.25, 0.03, line, { x: side * 1.225, y: 2.125, z: -0.5 }); // back of the door
+    trim.box(0.04, 0.06, 0.24, CHROME, { x: side * 1.235, y: 2.15, z: -0.72 });
+    // Big mirrors on arms, and steps up to the door.
+    trim.beam({ x: side * 1.15, y: 3.0, z: -2.27 }, { x: side * 1.5, y: 2.95, z: -2.36 }, 0.06, DARK);
+    painted.box(0.13, 0.62, 0.26, '#ffffff', { x: side * 1.52, y: 2.7, z: -2.36 });
+    trim.box(0.09, 0.52, 0.02, '#b9cfd0', { x: side * 1.52, y: 2.7, z: -2.22 });
+    for (const y of [0.45, 0.78]) trim.box(0.34, 0.06, 0.34, DARK, { x: side * 1.08, y, z: -0.62 });
+    trim.box(0.04, 0.6, 0.34, DARK, { x: side * 1.235, y: 0.7, z: -0.62 }); // the steps hang from it
+  }
+}
+
+/**
+ * A compact tracked digger travelling on a flatbed, facing the cab, with its boom and arm folded
+ * and the bucket resting on the bed. `at` is the middle of its tracks on the bed's surface. It
+ * is yellow whatever the paint: `trim` has the chunky parts and `flat` the small fittings.
+ */
+function compactDigger(trim, flat, at) {
+  const yellow = '#e0a82c';
+  const worn = '#b98621';
+  const steel = '#5f6661';
+  const strap = '#cf5a2a';
+  /** A box of the digger, `y` up from the bed and `z` along it from the middle of the tracks. */
+  const box = (parts, width, height, depth, color, { x = 0, y = 0, z = 0, ...turn } = {}) =>
+    parts.box(width, height, depth, color, { x: at.x + x, y: at.y + y, z: at.z + z, ...turn });
+  const at3 = (x, y, z) => ({ x: at.x + x, y: at.y + y, z: at.z + z });
+
+  // The tracks, with the sprockets and rollers on their outer faces, and the lugs of the rubber.
+  const track = profile(
+    [
+      [-0.95, -0.02],
+      [0.95, -0.02],
+      [1.25, 0.2],
+      [1.25, 0.32],
+      [1.0, 0.5],
+      [-1.0, 0.5],
+      [-1.25, 0.32],
+      [-1.25, 0.2],
+    ],
+    0.42,
+  );
+  for (const side of [-1, 1]) {
+    trim.add(track, RUBBER, { ...at3(side * 0.8, 0, 0) });
+    for (let k = 0; k < 8; k++)
+      box(flat, 0.03, 0.4, 0.06, '#232a27', { x: side * 1.01, y: 0.26, z: -0.875 + k * 0.25 });
+    for (const z of [-1.0, 1.0]) {
+      flat.add(new THREE.CylinderGeometry(0.15, 0.15, 0.03, 8), steel, {
+        ...at3(side * 1.02, 0.26, z),
+        rz: Math.PI / 2,
+      });
+    }
+    for (const z of [-0.45, 0.45]) {
+      flat.add(new THREE.CylinderGeometry(0.08, 0.08, 0.03, 8), steel, {
+        ...at3(side * 1.02, 0.1, z),
+        rz: Math.PI / 2,
+      });
+    }
+  }
+
+  // The undercarriage between them and the dozer blade on its arms at the front.
+  box(trim, 1.2, 0.3, 2.0, worn, { y: 0.4 });
+  for (const side of [-1, 1]) box(trim, 0.12, 0.14, 0.7, worn, { x: side * 0.42, y: 0.3, z: -1.25 });
+  box(trim, 2.04, 0.34, 0.1, yellow, { y: 0.24, z: -1.58, rx: 0.12 });
+  box(flat, 2.04, 0.06, 0.14, steel, { y: 0.06, z: -1.6 });
+
+  // The turntable and the body on it: the platform, the engine under its cover at the back and
+  // the tank and valves at the side.
+  flat.add(new THREE.CylinderGeometry(0.72, 0.72, 0.12, 14), steel, { ...at3(0, 0.61, 0) });
+  box(trim, 1.7, 0.24, 2.0, yellow, { y: 0.8, z: 0.1 });
+  box(trim, 1.7, 0.7, 0.9, yellow, { y: 1.27, z: 0.7 });
+  box(trim, 1.74, 0.12, 0.94, worn, { y: 1.68, z: 0.7 });
+  box(trim, 0.6, 0.5, 0.8, yellow, { x: 0.55, y: 1.17, z: -0.15 });
+
+  // The cab on the right, glass all round between its pillars, with the seat inside.
+  box(trim, 0.86, 0.95, 0.94, GLASS, { x: 0.2, y: 1.6, z: -0.15 });
+  box(trim, 0.4, 0.4, 0.4, DARK, { x: 0.2, y: 1.28, z: 0.1 });
+  for (const x of [-0.2, 0.6]) {
+    for (const z of [-0.6, 0.3]) box(trim, 0.07, 1.2, 0.07, yellow, { x, y: 1.55, z });
+  }
+  box(trim, 1.02, 0.07, 1.1, yellow, { x: 0.2, y: 2.17, z: -0.15 });
+
+  // The boom folded back on itself at the left of the cab, the arm hanging from its end, and the
+  // bucket resting on the bed with its teeth to the front.
+  const pivot = at3(-0.5, 1.0, -0.8);
+  const knee = at3(-0.5, 1.5, -1.7);
+  const elbow = at3(-0.5, 1.22, -2.4);
+  const wrist = at3(-0.5, 0.4, -2.55);
+  trim.beam(pivot, knee, 0.22, yellow, 0.28);
+  trim.beam(knee, elbow, 0.22, yellow, 0.28);
+  trim.beam(elbow, wrist, 0.16, yellow, 0.2);
+  box(trim, 0.6, 0.36, 0.55, worn, { x: -0.5, y: 0.19, z: -2.7 });
+  for (const x of [-0.7, -0.57, -0.43, -0.3]) box(flat, 0.06, 0.1, 0.1, steel, { x, y: 0.07, z: -3.0 });
+  for (const [a, b] of [
+    [at3(-0.35, 0.8, -0.9), at3(-0.35, 1.5, -1.6)],
+    [at3(-0.35, 1.62, -1.7), at3(-0.35, 1.25, -2.35)],
+  ]) {
+    flat.beam(a, b, 0.08, steel, 0.08);
+  }
+
+  // The straps: two over each track, down to a ring on the bed, with a ratchet on each, and one
+  for (const side of [-1, 1]) {
+    for (const z of [-0.6, 0.6]) {
+      box(flat, 0.44, 0.03, 0.08, strap, { x: side * 0.8, y: 0.515, z });
+      flat.beam(at3(side * 1.01, 0.5, z), at3(side * 1.27, -0.04, z), 0.08, strap, 0.03);
+      box(flat, 0.1, 0.06, 0.12, steel, { x: side * 1.14, y: 0.22, z });
+    }
+  }
 }
 
 /**
@@ -590,86 +787,8 @@ const VEHICLE_BUILDERS = {
       ...[-1.02, 1.02].map(x => ({ x, z: -1.5, radius: 0.52, width: 0.36, hub: CHROME })),
       ...[-0.98, 0.98].map(x => ({ x, z: 2.1, radius: 0.52, width: 0.56, hub: CHROME })),
     ];
-    // The cab sits over the front wheels, with its front corners cut off, a raised roof
-    // and an opening over each front wheel lined with a black mudguard.
-    const cab = back => [
-      [-1.22, back],
-      [-1.22, -2.17],
-      [-1.06, -2.35],
-      [1.06, -2.35],
-      [1.22, -2.17],
-      [1.22, back],
-    ];
-    painted.add(plan(cab(-0.05), 1.26, 3.4), '#ffffff');
-    painted.add(plan(cab(-2.06), 1.0, 1.26), '#ffffff');
-    painted.box(2.44, 0.26, 0.89, '#ffffff', { y: 1.13, z: -0.495 });
-    painted.add(
-      profile(
-        [
-          [-2.22, 3.39],
-          [-1.98, 3.82],
-          [-0.05, 3.88],
-          [-0.05, 3.39],
-        ],
-        2.3,
-      ),
-      '#ffffff',
-    );
-    const mudguard = profile(archBand(wheels[0], 0.6, 0.68, 0.75), 0.42); // over the front wheels
-    // The front: a big windscreen in a black surround with its wipers, a sun visor with marker
-    // lamps, the grille with its bright bars and the bumper with the lamps.
-    trim.box(2.1, 1.1, 0.03, DARK, { y: 2.7, z: -2.355 });
-    trim.box(2.0, 1.0, 0.04, GLASS, { y: 2.72, z: -2.365 });
-    for (const x of [-0.5, 0.45]) {
-      trim.beam({ x: x - 0.38, y: 2.27, z: -2.39 }, { x: x + 0.38, y: 2.33, z: -2.39 }, 0.03, DARK);
-    }
-    trim.box(2.12, 0.14, 0.42, DARK, { y: 3.27, z: -2.5 });
-    for (let i = -2; i <= 2; i++) trim.box(0.14, 0.06, 0.03, '#f2c14e', { x: i * 0.42, y: 3.27, z: -2.72 });
-    trim.box(1.76, 0.74, 0.03, DARK, { y: 1.7, z: -2.36 });
-    for (let i = 0; i < 4; i++) trim.box(1.76, 0.06, 0.03, CHROME, { y: 1.43 + i * 0.18, z: -2.375 });
-    painted.add(
-      plan(
-        [
-          [-1.2, -2.05],
-          [-1.2, -2.27],
-          [-1.04, -2.46],
-          [1.04, -2.46],
-          [1.2, -2.27],
-          [1.2, -2.05],
-        ],
-        0.6,
-        1.0,
-      ),
-      '#ffffff',
-    );
-    trim.add(
-      plan(
-        [
-          [-1.14, -2.1],
-          [-1.14, -2.27],
-          [-1.0, -2.43],
-          [1.0, -2.43],
-          [1.14, -2.27],
-          [1.14, -2.1],
-        ],
-        0.47,
-        0.6,
-      ),
-      DARK,
-    );
+    lorryCab(painted, trim, wheels[0]);
     for (const side of [-1, 1]) {
-      trim.box(0.16, 0.12, 0.03, '#e39a3b', { x: side * 1.13, y: 0.82, z: -2.375, ry: -side * 0.87 });
-      trim.add(mudguard, DARK, { x: side * 1.05 });
-      trim.box(0.02, 0.26, 1.12, DARK, { x: side * 0.82, y: 1.13, z: -1.5 });
-      trim.box(0.04, 0.72, 0.92, GLASS, { x: side * 1.225, y: 2.72, z: -1.66 });
-      painted.box(0.03, 2.25, 0.03, line, { x: side * 1.225, y: 2.125, z: -0.5 }); // back of the door
-      trim.box(0.04, 0.06, 0.24, CHROME, { x: side * 1.235, y: 2.15, z: -0.72 });
-      // Big mirrors on arms, and steps up to the door.
-      trim.beam({ x: side * 1.15, y: 3.0, z: -2.27 }, { x: side * 1.5, y: 2.95, z: -2.36 }, 0.06, DARK);
-      painted.box(0.13, 0.62, 0.26, '#ffffff', { x: side * 1.52, y: 2.7, z: -2.36 });
-      trim.box(0.09, 0.52, 0.02, '#b9cfd0', { x: side * 1.52, y: 2.7, z: -2.22 });
-      for (const y of [0.45, 0.78]) trim.box(0.34, 0.06, 0.34, DARK, { x: side * 1.08, y, z: -0.62 });
-      trim.box(0.04, 0.6, 0.34, DARK, { x: side * 1.235, y: 0.7, z: -0.62 }); // the steps hang from it
       // The chassis behind the cab: fuel tanks, mudguards over the back wheels and the frame.
       trim.add(new THREE.CylinderGeometry(0.3, 0.3, 1.0, 10), CHROME, {
         x: side * 0.98,
@@ -711,6 +830,7 @@ const VEHICLE_BUILDERS = {
       brakeLights: { x: 0.9, y: 0.9, z: 3.36 },
       mounts: { flag: [0.95, 3.88, -0.3], teddy: [-0.45, 3.86, -1.75], gnome: [0.45, 3.86, -1.75] },
       tent: [0, 3.88, -1.05, 1.9, 1.42],
+      plateEnds: [-1], // the rear plate is fixed to the panel by hand, as the front bumper's back face would take it
       voice: { engine: 0.7, horn: 'air' },
       camera: 1.6,
       trailer: {
@@ -728,6 +848,261 @@ const VEHICLE_BUILDERS = {
         axle: 6.85,
         track: 1.96,
       },
+    };
+  },
+
+  flatbed(painted, trim) {
+    // A rigid lorry with the lorry's cab and a long flat bed of boards on a steel frame, carrying
+    // a compact digger strapped down. Small fittings are plain boxes: bevelled ones cost four
+    // times as many triangles, and their edges would be lost at that size.
+    const flat = new PartsBuilder();
+    const wheels = [
+      ...[-1.02, 1.02].map(x => ({ x, z: -1.5, radius: 0.52, width: 0.36, hub: CHROME })),
+      ...[3.9, 5.2].flatMap(z => [-0.98, 0.98].map(x => ({ x, z, radius: 0.52, width: 0.56, hub: CHROME }))),
+    ];
+    lorryCab(painted, trim, wheels[0]);
+
+    // The chassis behind the cab: the frame, a fuel tank and a battery box, and guards over the
+    // back wheels hung from the bed, with a flap behind each.
+    const [from, to] = [0.05, 7.05];
+    const middle = (from + to) / 2;
+    const deck = 1.62;
+    trim.box(2.1, 0.4, 0.12, DARK, { y: 0.95, z: 7.3 }); // the panel the brake lights sit on
+    plate(trim, 0.95, 7.36, 1);
+    for (const side of [-1, 1]) {
+      trim.box(0.18, 0.28, 9.45, DARK, { x: side * 0.5, y: 0.82, z: 2.52 });
+      trim.box(0.62, 0.05, 2.3, DARK, { x: side * 0.98, y: 1.14, z: 4.55 });
+      for (const z of [3.7, 5.4]) trim.box(0.12, 0.2, 0.12, DARK, { x: side * 1.16, y: 1.22, z });
+      trim.box(0.6, 0.5, 0.03, DARK, { x: side * 0.98, y: 0.55, z: 5.92 });
+      trim.box(0.12, 0.2, 0.12, DARK, { x: side * 0.98, y: 0.98, z: 5.92 });
+    }
+    trim.add(new THREE.CylinderGeometry(0.3, 0.3, 1.0, 10), CHROME, { x: -0.98, y: 0.72, z: 1.2, rx: Math.PI / 2 });
+    trim.box(0.5, 0.5, 0.9, DARK, { x: 0.98, y: 0.72, z: 1.2 });
+    for (const side of [-1, 1]) trim.box(0.3, 0.12, 0.5, DARK, { x: side * 0.66, y: 0.82, z: 1.2 }); // what they hang from
+
+    // The bed: two steel side beams on cross members, which stand on the frame, boards laid
+    // lengthways across the top, and rings along the edges to strap the load to.
+    for (const side of [-1, 1]) trim.box(0.16, 0.24, to - from, DARK, { x: side * 1.18, y: 1.4, z: middle });
+    for (let z = 0.5; z < to; z += 1.2) {
+      trim.box(2.3, 0.22, 0.12, DARK, { y: 1.4, z });
+      for (const side of [-1, 1]) trim.box(0.2, 0.33, 0.2, DARK, { x: side * 0.5, y: 1.125, z });
+    }
+    for (let i = 0; i < 8; i++) {
+      trim.box(0.3, 0.1, to - from, i % 2 ? '#a97f4c' : '#b58a56', {
+        x: (i - 3.5) * 0.3125,
+        y: deck - 0.05,
+        z: middle,
+      });
+    }
+    for (const side of [-1, 1]) {
+      for (const z of [1.6, 2.8, 4.0, 5.2, 6.4]) flat.box(0.1, 0.06, 0.12, METAL, { x: side * 1.29, y: deck - 0.1, z });
+    }
+
+    // The headboard behind the cab: a frame of steel tubes to stop the load sliding forward.
+    for (const x of [-1.1, -0.55, 0, 0.55, 1.1]) trim.box(0.1, 1.5, 0.1, METAL, { x, y: deck + 0.72, z: 0.17 });
+    for (const y of [0.3, 0.75, 1.2, 1.46]) trim.box(2.3, 0.1, 0.1, METAL, { y: deck + y, z: 0.17 });
+
+    // The ramps folded up at the back, one each side, leaning a little forward against the load.
+    const lean = 0.12;
+    const at = (x, height) => ({ x, y: deck + height * Math.cos(lean), z: 6.95 - height * Math.sin(lean) });
+    for (const x of [-0.4, 0.4]) {
+      for (const side of [-1, 1]) flat.beam(at(x + side * 0.3, 0), at(x + side * 0.3, 2.2), 0.09, METAL, 0.14);
+      for (let k = 0; k <= 6; k++) {
+        const { y, z } = at(x, 0.1 + k * 0.35);
+        flat.box(0.6, 0.06, 0.07, '#8b948c', { x, y, z, rx: lean });
+      }
+    }
+    trim.box(2.1, 0.2, 0.2, DARK, { y: deck - 0.18, z: to + 0.06 }); // the rear cross member they rest on
+
+    // The beacon on the cab roof.
+    trim.add(new THREE.CylinderGeometry(0.15, 0.17, 0.06, 10), DARK, { x: -0.95, y: 3.9, z: -0.35 });
+    trim.add(new THREE.CylinderGeometry(0.1, 0.13, 0.17, 10), '#f0a43a', { x: -0.95, y: 4.0, z: -0.35 });
+
+    compactDigger(trim, flat, { x: 0, y: deck, z: 4.5 });
+    trim.parts.push(...flat.parts);
+
+    // Built from the front of its cab, but standing with its middle halfway between the front
+    // axle and the middle of the back ones, as the others do, so it turns about the right place.
+    const back = (wheels[0].z + (wheels[2].z + wheels[4].z) / 2) / 2;
+    for (const builder of [painted, trim]) for (const part of builder.parts) part.translate(0, 0, -back);
+    const shift = ([x, y, z, ...rest]) => [x, y, z - back, ...rest];
+    for (const wheel of wheels) wheel.z -= back;
+
+    return {
+      wheels,
+      headlamps: { x: 0.8, y: 0.82, z: -2.47 - back, square: true, size: [0.42, 0.2] },
+      brakeLights: { x: 0.9, y: 0.95, z: 7.36 - back },
+      mounts: {
+        flag: shift([0.95, 3.88, -0.3]),
+        teddy: shift([-0.45, 3.86, -1.75]),
+        gnome: shift([0.45, 3.86, -1.75]),
+      },
+      tent: shift([0, 3.88, -1.05, 1.9, 1.42]),
+      voice: { engine: 0.7, horn: 'air' },
+      camera: 1.6,
+    };
+  },
+
+  expedition(painted, trim, cargo) {
+    // An expedition truck on a 1960s Unimog 406: a short rounded bonnet and a narrow upright cab
+    // with a flat windscreen on portal axles, which lift the axles well clear of the ground, and
+    // a cream habitation box behind the cab. The cab takes the paint; the box stays cream.
+    const flat = new PartsBuilder();
+    const wheels = [-1.03, 1.03].flatMap(x =>
+      [-1.7, 1.45].map(z => ({ x, z, radius: 0.72, width: 0.5, hub: '#c8c0a4', lugs: 14 })),
+    );
+    const sand = '#9aa39c';
+    const hull = '#d9ccaa';
+
+    // The bonnet, lofted through rounded sections: narrow at the grille and wider at the cab.
+    const section = (width, low, high, round) => {
+      const half = width / 2;
+      const k = 1 - Math.SQRT1_2;
+      const right = [
+        [half - 0.1, low],
+        [half, low + 0.1],
+        [half, high - round],
+        [half - k * round, high - k * round],
+        [half - round, high],
+      ];
+      return [...right, ...right.map(([x, y]) => [-x, y]).reverse()];
+    };
+    painted.add(
+      loft([
+        [-2.4, section(1.3, 1.42, 1.86, 0.2)],
+        [-2.3, section(1.52, 1.36, 1.94, 0.22)],
+        [-1.1, section(1.68, 1.34, 2.02, 0.22)],
+      ]),
+      '#ffffff',
+    );
+    arches(
+      painted,
+      wheels.filter(wheel => wheel.z < 0),
+    );
+    trim.box(0.7, 0.36, 0.05, RUBBER, { y: 1.62, z: -2.41 }); // the grille, with its bars
+    for (let i = -2; i <= 2; i++) trim.box(0.05, 0.3, 0.025, METAL, { x: i * 0.12, y: 1.62, z: -2.44 });
+
+    // The cab: a lower body in paint and glass all round above it between the pillars, a flat
+    // windscreen with its wipers, a roof that reaches forward a little, and a light bar on top.
+    painted.box(1.84, 0.62, 1.6, '#ffffff', { y: 1.82, z: -0.3 });
+    trim.box(1.78, 0.72, 1.56, GLASS, { y: 2.5, z: -0.3 });
+    wipers(trim, { width: 1.78, height: 0.72, depth: 1.56, y: 2.5, z: -0.3 });
+    painted.box(1.9, 0.1, 1.72, '#ffffff', { y: 2.91, z: -0.3 });
+    for (const side of [-1, 1]) {
+      for (const z of [-1.04, -0.35, 0.44]) painted.box(0.1, 0.74, 0.13, '#ffffff', { x: side * 0.92, y: 2.5, z });
+      trim.box(0.05, 0.06, 0.27, CREAM, { x: side * 0.95, y: 1.9, z: -0.62 }); // door handles
+      trim.box(0.04, 0.62, 0.04, RUBBER, { x: side * 0.93, y: 1.82, z: -0.35 }); // door seams
+      // Big square mirrors on arms, and a step under each door.
+      trim.beam({ x: side * 0.95, y: 2.5, z: -1.05 }, { x: side * 1.2, y: 2.5, z: -1.12 }, 0.05, DARK);
+      painted.box(0.1, 0.5, 0.28, '#ffffff', { x: side * 1.27, y: 2.5, z: -1.12 });
+      trim.box(0.08, 0.4, 0.02, '#b9cfd0', { x: side * 1.27, y: 2.5, z: -0.97 });
+      trim.box(0.34, 0.06, 0.45, DARK, { x: side * 1.0, y: 1.22, z: -0.3 });
+      trim.box(0.1, 0.3, 0.1, DARK, { x: side * 0.86, y: 1.4, z: -0.3 });
+    }
+    trim.box(1.7, 0.2, 1.6, DARK, { y: 1.42, z: -0.3 }); // the floor of the cab
+    trim.box(1.3, 0.08, 0.1, DARK, { y: 3.04, z: -1.0 }); // the light bar
+    for (const x of [-0.5, 0.5]) trim.box(0.06, 0.06, 0.06, DARK, { x, y: 2.99, z: -1.0 });
+    for (const x of [-0.5, -0.17, 0.17, 0.5]) flat.box(0.22, 0.12, 0.05, '#fff3ce', { x, y: 3.04, z: -1.06 });
+
+    // The snorkel up the right-hand pillar, with its head facing forward over the roof.
+    trim.add(new THREE.CylinderGeometry(0.07, 0.07, 1.5, 8), DARK, { x: 1.03, y: 2.52, z: -1.16 });
+    trim.add(new THREE.CylinderGeometry(0.1, 0.09, 0.28, 8), DARK, { x: 1.03, y: 3.34, z: -1.24, rx: Math.PI / 2 });
+    trim.box(0.06, 0.06, 0.18, DARK, { x: 1.03, y: 3.27, z: -1.16 });
+
+    // The chassis: a ladder frame, bumpers at both ends, the axles with their portals (the gear
+    // boxes that carry each wheel's hub below the axle tube) and the differentials.
+    for (const side of [-1, 1]) {
+      trim.box(0.2, 0.26, 6.0, DARK, { x: side * 0.55, y: 1.18, z: 0.55 });
+      trim.box(0.24, 0.5, 0.3, DARK, { x: side * 0.55, y: 1.5, z: 0.85 }); // what carries the box
+      trim.box(0.24, 0.5, 0.3, DARK, { x: side * 0.55, y: 1.5, z: 3.0 });
+    }
+    trim.box(1.9, 0.3, 0.22, DARK, { y: 1.1, z: -2.52 });
+    trim.box(1.9, 0.34, 0.22, DARK, { y: 1.0, z: 3.3 });
+    for (const z of [-1.7, 1.45]) {
+      trim.box(1.32, 0.14, 0.16, DARK, { y: 0.98, z });
+      trim.box(0.42, 0.34, 0.46, METAL, { y: 0.84, z });
+      for (const side of [-1, 1]) trim.box(0.2, 0.46, 0.28, '#4a504b', { x: side * 0.66, y: 0.88, z });
+    }
+
+    // The habitation box: cream, with rounded edges, two small windows each side, a roof hatch
+    // and the rack above, a door at the back with its ladder folded up against it, the spare wheel beside
+    // it and sand ladders along both sides.
+    const crate = (inset, front) => {
+      const [low, high] = [1.74 + inset, 3.58 - inset];
+      return [front, section(2.16 - inset * 2, low, high, 0.22)];
+    };
+    trim.add(loft([crate(0.1, 0.62), crate(0, 0.74), crate(0, 3.5), crate(0.1, 3.62)]), CREAM);
+    trim.box(1.8, 0.4, 0.14, DARK, { y: 1.9, z: 0.5 }); // the bellows between cab and box
+    for (const side of [-1, 1]) {
+      for (const z of [1.5, 2.7]) {
+        flat.box(0.03, 0.46, 0.62, '#b9ad8c', { x: side * 1.095, y: 2.75, z });
+        flat.box(0.03, 0.34, 0.5, GLASS, { x: side * 1.11, y: 2.75, z });
+      }
+      // A sand ladder: a perforated plate on three brackets.
+      flat.box(0.025, 0.34, 2.6, sand, { x: side * 1.14, y: 3.2, z: 2.1 });
+      for (let k = 0; k < 7; k++) flat.box(0.03, 0.14, 0.2, DARK, { x: side * 1.15, y: 3.2, z: 0.95 + k * 0.37 });
+      for (const z of [0.9, 2.1, 3.3]) flat.box(0.08, 0.06, 0.08, DARK, { x: side * 1.1, y: 3.2, z });
+    }
+    // The door, in a frame, with its handle, hinges and the ladder.
+    flat.box(0.82, 1.54, 0.03, '#b9ad8c', { x: 0.64, y: 2.62, z: 3.63 });
+    flat.box(0.74, 1.46, 0.03, hull, { x: 0.64, y: 2.62, z: 3.65 });
+    flat.box(0.05, 0.22, 0.05, DARK, { x: 0.38, y: 2.62, z: 3.69 });
+    for (const y of [2.1, 2.62, 3.14]) flat.box(0.06, 0.1, 0.05, DARK, { x: 0.99, y, z: 3.68 });
+    flat.box(0.76, 0.06, 0.12, DARK, { x: 0.64, y: 1.9, z: 3.68 });
+    // The ladder is stowed folded up flat against the door.
+    for (const x of [0.5, 0.86]) flat.beam({ x, y: 1.98, z: 3.7 }, { x, y: 3.28, z: 3.7 }, 0.06, METAL, 0.04);
+    for (let k = 0; k <= 6; k++) flat.box(0.4, 0.04, 0.05, METAL, { x: 0.68, y: 2.05 + k * 0.19, z: 3.7 });
+    // The spare wheel on a bracket at the left of the door.
+    trim.add(new THREE.CylinderGeometry(0.66, 0.66, 0.3, 14), RUBBER, { x: -0.38, y: 2.7, z: 3.8, rx: Math.PI / 2 });
+    trim.add(new THREE.CylinderGeometry(0.36, 0.36, 0.32, 10), '#c8c0a4', {
+      x: -0.38,
+      y: 2.7,
+      z: 3.8,
+      rx: Math.PI / 2,
+    });
+    trim.box(0.24, 0.24, 0.2, DARK, { x: -0.38, y: 2.7, z: 3.7 });
+
+    // The hatch on the roof, and the rack: rails on legs with cross bars, where the roof tent
+    // goes and the jerry cans ride when it isn't up.
+    trim.box(0.64, 0.08, 0.64, hull, { y: 3.62, z: 1.0 });
+    flat.box(0.4, 0.03, 0.4, GLASS, { y: 3.675, z: 1.0 });
+    for (const side of [-1, 1]) {
+      trim.box(0.06, 0.06, 2.9, METAL, { x: side * 0.8, y: 3.68, z: 2.05 });
+      for (const z of [0.62, 1.45, 2.4, 3.4]) flat.box(0.06, 0.12, 0.06, METAL, { x: side * 0.8, y: 3.64, z });
+    }
+    for (const z of [0.62, 1.45, 2.4, 3.4]) trim.box(1.66, 0.05, 0.06, METAL, { y: 3.7, z });
+    const can = (parts, x, y, z, color) => {
+      parts.box(0.36, 0.5, 0.17, color, { x, y, z });
+      parts.box(0.12, 0.05, 0.05, DARK, { x: x - 0.1, y: y + 0.27, z }); // the handle
+      parts.box(0.08, 0.06, 0.08, '#b9bdb3', { x: x + 0.12, y: y + 0.27, z }); // the cap
+    };
+    for (const [x, z] of [
+      [-0.45, 2.4],
+      [0, 2.4],
+      [0.45, 2.4],
+    ]) {
+      can(cargo, x, 3.98, z, '#667744');
+    }
+    cargo.box(1.3, 0.18, 0.5, '#8a6446', { y: 3.83, z: 3.3 }); // a bundle of canvas
+    // Two more at the back, on the bumper, where they stay whatever is on the roof.
+    for (const x of [-0.85, -0.4]) can(flat, x, 1.42, 3.3, '#667744');
+
+    // The rear mudguards, hung from the box, with a flap behind each wheel.
+    for (const side of [-1, 1]) {
+      trim.box(0.7, 0.14, 1.7, DARK, { x: side * 1.03, y: 1.69, z: 1.45 });
+      trim.box(0.6, 0.64, 0.03, DARK, { x: side * 1.03, y: 1.3, z: 2.32 });
+    }
+
+    trim.parts.push(...flat.parts);
+
+    return {
+      wheels,
+      headlamps: { x: 0.52, y: 1.62, z: -2.41, radius: 0.15 },
+      brakeLights: { x: 0.8, y: 1.0, z: 3.43, size: [0.2, 0.14] },
+      mounts: { flag: [0.8, 3.7, 3.3], teddy: [-0.45, 2.96, -0.3], gnome: [0, 2.02, -1.75] },
+      tent: [0, 3.7, 2.5, 1.9, 1.2],
+      voice: { engine: 0.84, diesel: 0.6 },
+      camera: 1.25,
     };
   },
 
@@ -1326,8 +1701,8 @@ export function createCar({ mud = true, headlight: beam = true } = {}) {
     const trim = new PartsBuilder({ bevel: BEVEL });
     const cargoParts = new PartsBuilder({ bevel: BEVEL });
     const spec = VEHICLE_BUILDERS[name](painted, trim, cargoParts);
-    // A race car has none.
-    if (spec.plates !== false) numberPlates([trim, painted]);
+    // A race car has none, and the flatbed fits its own at the back (`plateEnds` are the ends left to this).
+    if (spec.plates !== false) numberPlates([trim, painted], { ends: spec.plateEnds });
     const shell = new THREE.Group();
     if (!painted.isEmpty) shell.add(painted.mesh({ material: paint }));
     shell.add(trim.mesh());
@@ -1362,8 +1737,8 @@ export function createCar({ mud = true, headlight: beam = true } = {}) {
     if (trailer) towed.add(trailer.root);
 
     // Wheels hang from the root rather than the body, so they don't lean with it.
-    const wheels = spec.wheels.map(({ x, z, radius, width, hub, holes }) => {
-      const wheel = createWheel(radius, width, hub, holes);
+    const wheels = spec.wheels.map(({ x, z, radius, width, hub, holes, lugs }) => {
+      const wheel = createWheel(radius, width, hub, holes, lugs);
       // At rest each wheel sits a little above its own radius, leaving room to droop.
       wheel.rest = radius + 0.06;
       wheel.pivot.position.set(x, wheel.rest, z);
