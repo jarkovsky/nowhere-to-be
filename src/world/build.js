@@ -187,11 +187,11 @@ export function localFrame(x, z, rotation) {
   return (lx, lz) => ({ x: x + lx * cos + lz * sin, z: z - lx * sin + lz * cos });
 }
 
-/** A leg or a head on its own pivot at (x, y, z) on `parent`, built as its own small mesh, for animating. */
-export function limb(parent, x, y, z, build) {
+/** A leg or a head on its own pivot at (x, y, z) on `parent`, built as its own small mesh of `material`, for animating. */
+export function limb(parent, x, y, z, build, material = vertexColorMaterial) {
   const pivot = new THREE.Group();
   pivot.position.set(x, y, z);
-  pivot.add(build(new PartsBuilder()).mesh({ receiveShadow: false }));
+  pivot.add(build(new PartsBuilder()).mesh({ material, receiveShadow: false }));
   parent.add(pivot);
   return pivot;
 }
