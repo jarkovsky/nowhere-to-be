@@ -59,15 +59,15 @@ function cruise(fields, [lx, lz], [dx, dz], seconds) {
   return { lx: ox * cos - oz * sin, lz: ox * sin + oz * cos, speed: car.speed };
 }
 
-test('the car pushes slowly through standing wheat, and drives on at its usual pace over what is cut', () => {
+test('the car drives into standing wheat at cruising speed, and on over what is cut', () => {
   const fields = buildFields(new THREE.Scene(), []);
   run(fields, 0.1, { x: 0, z: 0 });
   const { wheat, rapeseed } = FIELD_PLOTS;
   const lane = x => [x, wheat.z0 - 6];
-  // Up a lane the combine has yet to cut: into the wheat, at a walk.
+  // Up a lane the combine has yet to cut: into the wheat, without slowing down.
   const standing = cruise(fields, lane(wheat.x1 - 3), [0, 1], 6);
-  assert.ok(standing.lz > wheat.z0 + 4, `into the wheat, ${standing.lz - wheat.z0} m`);
-  assert.ok(standing.speed > 2.5 && standing.speed < 4.5, `pushing through at ${standing.speed} m/s`);
+  assert.ok(standing.lz > wheat.z0 + 20, `into the wheat, ${standing.lz - wheat.z0} m`);
+  assert.ok(Math.abs(standing.speed - 6) < 0.3, `through it at ${standing.speed} m/s`);
   // Up one it has cut, over the stubble.
   const cut = cruise(fields, lane(wheat.x0 + 3), [0, 1], 6);
   assert.ok(Math.abs(cut.speed - 6) < 0.3, `over the stubble at ${cut.speed} m/s`);
