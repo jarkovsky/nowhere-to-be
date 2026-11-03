@@ -215,7 +215,8 @@ function lofotenHeight(x, z, wild) {
     (1 - smoothstep(d, LOFOTEN.radius + 250, LOFOTEN.radius + 450)) * smoothstep(Math.hypot(x, z), 1060, 1200);
   if (d > LOFOTEN.radius + 620) return wild + jaggedPeaks(x, z, broken);
   // Close to the bay the land lies low and level, so the quay's road meets it gently.
-  const inland = smoothstep(Math.hypot(x - FJORD.bay.x, z - FJORD.bay.z), FJORD.bay.radius, FJORD.bay.radius + 90);
+  const fromBay = Math.hypot(x - FJORD.bay.x, z - FJORD.bay.z);
+  const inland = fromBay > FJORD.bay.reach + 90 ? 1 : smoothstep(fromBay - FJORD.bay.shore(x, z), 0, 90);
   const swell = (fractalNoise(x / 140 + 11.3, z / 140 + 5.1, 3, 301) - 0.5) * 3.2 * (0.35 + 0.65 * inland);
   const ripple = (valueNoise(x / 33, z / 33, 307) - 0.5) * 0.9;
   const across = x * COAST_WIND.x + z * COAST_WIND.z + (fractalNoise(x / 90, z / 90, 2, 311) - 0.5) * 60;
@@ -623,17 +624,12 @@ RIVERS.forEach((river, i) => levelAlong(river.path, s => river.halfWidth(s) + 14
 // shore is a gentle beach rising to the flat coast.
 for (const [vertex, { index, distance }] of nearestSamples(FJORD.path, 230)) {
   const { s } = FJORD.path.samples[index];
-  const halfWidth = FJORD.halfWidth(s);
+  const [x, z] = [AXIS[vertex % GRID], AXIS[Math.floor(vertex / GRID)]];
+  const halfWidth = FJORD.widthAt(s, x, z);
   const bed = FJORD.level - 0.6;
   const bay = FJORD.bayness(s);
   // The beach takes over from the sheer walls where the land is the Lofoten coast's.
-  const coast =
-    1 -
-    smoothstep(
-      Math.hypot(AXIS[vertex % GRID] - LOFOTEN.x, AXIS[Math.floor(vertex / GRID)] - LOFOTEN.z),
-      LOFOTEN.radius - 20,
-      LOFOTEN.radius + 60,
-    );
+  const coast = 1 - smoothstep(Math.hypot(x - LOFOTEN.x, z - LOFOTEN.z), LOFOTEN.radius - 20, LOFOTEN.radius + 60);
   const slope = lerp(lerp(0.22, 2.4, smoothstep(s, 20, 90)), 0.16, coast);
   // Back from the water the land rises out of the way of the carving: from further off the middle
   // of the fjord, and from further off the water's edge on the coast.

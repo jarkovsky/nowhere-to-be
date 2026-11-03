@@ -311,6 +311,30 @@ test('the coast cannot be reached over land from the valley: it is far from the 
   }
 });
 
+test('the bay is not round: coves and rocky points across the water, while the shore by the village keeps to the round', () => {
+  const shoreAt = bearing => {
+    const p = LOFOTEN.shore(bearing, 100);
+    return FJORD.bay.shore(p.x, p.z);
+  };
+  const across = Array.from({ length: 200 }, (_, k) => shoreAt(80 + k * 0.5)).concat(
+    Array.from({ length: 200 }, (_, k) => shoreAt(-80 - k * 0.5)),
+  );
+  assert.ok(Math.max(...across) - Math.min(...across) > 35, 'coves and points across the water');
+  // By the quay, the cabins on stilts and the jetty, the shore is where they were built for.
+  for (let bearing = -46; bearing <= 46; bearing++) assert.ok(Math.abs(shoreAt(bearing) - FJORD.bay.radius) < 1);
+  // The ground follows it round the open bay: water out into a cove, dry land on a point. Further
+  // round the bay narrows into the fjord, and the fjord's walls take over.
+  for (const side of [1, -1]) {
+    for (let bearing = 50; bearing <= 100; bearing += 1) {
+      const shore = shoreAt(side * bearing);
+      const wet = LOFOTEN.shore(side * bearing, shore - 8);
+      const dry = LOFOTEN.shore(side * bearing, shore + 8);
+      assert.ok(waterDepth(wet.x, wet.z) > 0.5, `water inside the shore at ${side * bearing}°`);
+      assert.ok(waterDepth(dry.x, dry.z) < 0.05, `land outside the shore at ${side * bearing}°`);
+    }
+  }
+});
+
 test('the polar bears, the foxes and the reindeer stand inside the fence on dry ground, and so does the whole village', () => {
   const animals = HERDS.filter(h => ['polarBear', 'arcticFox', 'reindeer'].includes(h.kind));
   const bears = animals.filter(h => h.kind === 'polarBear');

@@ -13,8 +13,9 @@ function weather() {
   const sun = new THREE.DirectionalLight();
   const atmosphere = createAtmosphere(scene, sun, new THREE.HemisphereLight());
   const lines = scene.children.find(child => child.isLineSegments && child.geometry.attributes.position.count === 1800);
-  const points = scene.children.filter(child => child.isPoints && child.material.size >= 3);
-  const [snowfall, blizzard] = points.sort((a, b) => a.material.size - b.material.size);
+  const snowfall = scene.children.find(child => child.isPoints && child.geometry.attributes.position.count === 260);
+  // The blizzard's flakes drift on the graphics card.
+  const blizzard = scene.children.find(child => child.isPoints && child.geometry.attributes.drift);
   return { scene, sun, atmosphere, lines, snowfall, blizzard };
 }
 

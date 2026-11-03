@@ -358,7 +358,11 @@ function mapLines() {
   // no picture), and the ferry's route down it, both drawn without the fence's clip.
   const fjord = new Path2D();
   const bank = side =>
-    FJORD.path.samples.map(p => [p.x - p.dz * FJORD.halfWidth(p.s) * side, p.z + p.dx * FJORD.halfWidth(p.s) * side]);
+    FJORD.path.samples.map(p => {
+      const edge = width => [p.x - p.dz * width * side, p.z + p.dx * width * side];
+      // Out to the shore, bent round the bay's coves and points.
+      return edge(FJORD.widthAt(p.s, ...edge(FJORD.halfWidth(p.s))));
+    });
   const [left, right] = [bank(1), bank(-1).reverse()];
   [...left, ...right].forEach(([x, z], i) => (i ? fjord.lineTo(x, z) : fjord.moveTo(x, z)));
   fjord.closePath();
@@ -587,7 +591,7 @@ function waterBoxes() {
     around([WATERFALL], WATERFALL.poolRadius + 6),
     around([SPRING], SPRING.radius + 2),
     around(OXBOW.path.samples, 12),
-    around(FJORD.path.samples, FJORD.halfWidth(FJORD.path.length) + 6),
+    around(FJORD.path.samples, FJORD.bay.reach + 6),
     ...PONDS.map(pond => around([pond], pond.radius + 2)),
   ];
 }

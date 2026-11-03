@@ -240,34 +240,67 @@ export function createAtmosphere(scene, sun, ambient) {
   snowfall.frustumCulled = false;
   scene.add(snowfall);
 
-  // The flakes of a blizzard: many more, bigger and driven at a slant by a wind that rises and falls, so
-  // they swirl past the car. Not drawn at all when there is no storm.
-  const BLIZZARD_COUNT = 3600;
-  const BLIZZARD_SIZE = 44;
-  const BLIZZARD_HEIGHT = 16;
-  const blizzardPositions = new Float32Array(BLIZZARD_COUNT * 3);
-  const blizzardSeeds = Array.from({ length: BLIZZARD_COUNT }, () => ({
-    x: (random() - 0.5) * BLIZZARD_SIZE,
-    z: (random() - 0.5) * BLIZZARD_SIZE,
-    y: random() * BLIZZARD_HEIGHT,
-    speed: 2 + random() * 1.8,
-    phase: random() * 7,
-  }));
-  const blizzardGeometry = new THREE.BufferGeometry().setAttribute(
-    'position',
-    new THREE.BufferAttribute(blizzardPositions, 3),
-  );
-  const blizzardFlakes = new THREE.Points(
-    blizzardGeometry,
-    new THREE.PointsMaterial({
-      color: '#ffffff',
-      size: 5,
-      sizeAttenuation: false,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-    }),
-  );
+  // The flakes of a blizzard: many more, driven at a slant by a wind that rises and falls, so they
+  // swirl past the car, and bigger the nearer they are, so the storm has depth. Each flake's place
+  // is worked out on the graphics card from where it started, so there can be thousands of them.
+  // Not drawn at all when there is no storm.
+  const BLIZZARD_COUNT = 10000;
+  const BLIZZARD_SIZE = 40;
+  const BLIZZARD_HEIGHT = 14;
+  // Where each flake starts, and how fast it falls and where it is in its swirl.
+  const blizzardStarts = new Float32Array(BLIZZARD_COUNT * 3);
+  const blizzardDrift = new Float32Array(BLIZZARD_COUNT * 2);
+  for (let i = 0; i < BLIZZARD_COUNT; i++) {
+    blizzardStarts.set(
+      [(random() - 0.5) * BLIZZARD_SIZE, random() * BLIZZARD_HEIGHT, (random() - 0.5) * BLIZZARD_SIZE],
+      i * 3,
+    );
+    blizzardDrift.set([2 + random() * 1.8, random() * 7], i * 2);
+  }
+  const blizzardGeometry = new THREE.BufferGeometry()
+    .setAttribute('position', new THREE.BufferAttribute(blizzardStarts, 3))
+    .setAttribute('drift', new THREE.BufferAttribute(blizzardDrift, 2));
+  const blizzardMaterial = new THREE.PointsMaterial({
+    color: '#ffffff',
+    size: 0.13,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
+  // The wind and the car, for the flakes: how far the wind has carried the air, the time, and the
+  // middle of the box of snow round the car, on the ground.
+  const storming = { carried: { value: 0 }, time: { value: 0 }, middle: { value: new THREE.Vector3() } };
+  blizzardMaterial.onBeforeCompile = shader => {
+    Object.assign(shader.uniforms, storming);
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        'void main() {',
+        `attribute vec2 drift;
+uniform float carried;
+uniform float time;
+uniform vec3 middle;
+// Brings a flake round to the box of snow round the car, as it is carried out of one side of it.
+float around(float start, float centre, float size) {
+  return centre + mod(start - centre + size * 0.5, size) - size * 0.5;
+}
+void main() {`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `float swirl = time * 0.9 + drift.y;
+vec3 transformed = vec3(
+  around(position.x + carried * 0.94 + sin(swirl) * 2.5, middle.x, ${BLIZZARD_SIZE.toFixed(1)}),
+  middle.y + mod(position.y - time * drift.x, ${BLIZZARD_HEIGHT.toFixed(1)}),
+  around(position.z + carried * 0.34 + cos(swirl * 0.8) * 2.5, middle.z, ${BLIZZARD_SIZE.toFixed(1)})
+);`,
+      )
+      // A flake right in front of the camera is drawn no bigger than one 4 m away, so none fills the screen.
+      .replace(
+        '#include <logdepthbuf_vertex>',
+        'gl_PointSize = min(gl_PointSize, size * scale / 4.0);\n#include <logdepthbuf_vertex>',
+      );
+  };
+  const blizzardFlakes = new THREE.Points(blizzardGeometry, blizzardMaterial);
   blizzardFlakes.frustumCulled = false;
   scene.add(blizzardFlakes);
 
@@ -465,17 +498,9 @@ export function createAtmosphere(scene, sun, ambient) {
       blizzardFlakes.material.opacity = Math.min(1, storm * 1.5) * 0.95;
       if (blizzardFlakes.visible) {
         // How far the wind has carried the air by now: it gusts, so it is the sum of its speeds.
-        const carried = 6 * time - 5 * Math.cos(time * 0.5);
-        blizzardSeeds.forEach((flake, i) => {
-          const swirl = time * 0.9 + flake.phase;
-          const x = around(flake.x + carried * 0.94 + Math.sin(swirl) * 2.5, centre.x, BLIZZARD_SIZE);
-          const z = around(flake.z + carried * 0.34 + Math.cos(swirl * 0.8) * 2.5, centre.z, BLIZZARD_SIZE);
-          blizzardPositions[i * 3] = x;
-          blizzardPositions[i * 3 + 1] =
-            ground + ((((flake.y - time * flake.speed) % BLIZZARD_HEIGHT) + BLIZZARD_HEIGHT) % BLIZZARD_HEIGHT);
-          blizzardPositions[i * 3 + 2] = z;
-        });
-        blizzardGeometry.attributes.position.needsUpdate = true;
+        storming.carried.value = 6 * time - 5 * Math.cos(time * 0.5);
+        storming.time.value = time;
+        storming.middle.value.set(centre.x, ground, centre.z);
       }
 
       flies.visible = day < 0.5;
