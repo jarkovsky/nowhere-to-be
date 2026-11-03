@@ -63,6 +63,7 @@ import {
   ROCK_FIN,
   FJORD,
   FJORD_VILLAGE,
+  LOFOTEN,
   FARMS,
   VILLAGE,
   PONDS,
@@ -105,10 +106,19 @@ import { PAD_RADIUS } from './landmarks/helipad.js';
 import { boulderGeometry, rockMaterial } from './rocks.js';
 import { createScatter } from './scatter.js';
 import { buildDesertScenery, desertGround, desertTakes } from './sand.js';
-import { WINTER_TINTS, winterGround } from './snow.js';
+import { WINTER_TINTS, coastRock, winterGround } from './snow.js';
 import { buildIce } from './ice.js';
 
 const random = createRandom(82741);
+
+/**
+ * The ground's colours have numbers of their own for the specks of variation in them. The shared
+ * numbers above are used up by the ground as they always were, one run of them for every point
+ * of the valley's old grid, so that every tree, rock and flower beyond it stays where it is
+ * however the grid changes (see buildScenery).
+ */
+const groundRandom = createRandom(5339);
+const LEGACY_GROUND_DRAWS = 625 * 625 * 4;
 
 // Autumn: golden meadows with olive-green and russet patches, browner high up, and cool grey rock.
 const GROUND = {
@@ -197,7 +207,7 @@ function groundColor(x, z, h, up, out) {
   for (const patch of SURFACES) {
     // Mud's ragged edge comes from noise rather than the shared random numbers, so that
     // adding a patch of it doesn't move every tree placed after the ground.
-    const ragged = patch.id === 'mud' ? (valueNoise(x / 2.5, z / 2.5, 9) - 0.5) * 0.5 : (random() - 0.5) * 0.12;
+    const ragged = patch.id === 'mud' ? (valueNoise(x / 2.5, z / 2.5, 9) - 0.5) * 0.5 : (groundRandom() - 0.5) * 0.12;
     const ux = (x - patch.x) / patch.rx;
     const uz = (z - patch.z) / patch.rz;
     const d = Math.sqrt(ux * ux + uz * uz) + ragged;
@@ -207,9 +217,6 @@ function groundColor(x, z, h, up, out) {
     if (patch.id === 'mud') grass *= smoothstep(d, 1.15, 1.45);
     else if (d < 1) grass *= 0.4;
   }
-  // A patch of snow by the trail had its ragged edge drawn here too; the draw is kept so the
-  // trees placed after the ground stay where they are.
-  random();
   // Earth trodden bare in the logging camp's glade, and rubble round the mine. Their ragged edges come from
   // noise, not the shared random numbers, so that they don't move anything placed after the ground.
   for (const patch of WORN) {
@@ -223,8 +230,11 @@ function groundColor(x, z, h, up, out) {
   desertGround(x, z, up, out);
   if (grass > 0) grass *= 1 - smoothstep(desertness(x, z), 0.05, 0.45);
   const winter = winterness(x, z);
-  if (winter > 0) grass = winterGround(x, z, up, winter, out, grass);
-  out.multiplyScalar(0.96 + random() * 0.08);
+  if (winter > 0) {
+    grass = winterGround(x, z, up, winter, out, grass);
+    coastRock(x, z, up, out);
+  }
+  out.multiplyScalar(0.96 + groundRandom() * 0.08);
   return grass;
 }
 
@@ -1561,6 +1571,30 @@ function grassMask() {
   return { clear: texture, clearBytes: bytes, area: GRASS_AREA };
 }
 
+/** One clump of long grass: seven flat blades leaning out from the middle, each with a face on both sides. */
+function grassClumpGeometry() {
+  const blades = new PartsBuilder();
+  for (let k = 0; k < 7; k++) {
+    const height = 0.7 + ((k * 0.37) % 1) * 0.5;
+    for (const face of [1, -1]) {
+      const blade = new THREE.BufferGeometry();
+      blade.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute([-0.065 * face, 0, 0, 0.065 * face, 0, 0, 0, height, 0], 3),
+      );
+      blade.computeVertexNormals();
+      const spot = 0.06 + (k % 3) * 0.1;
+      blades.add(blade, '#ffffff', {
+        x: Math.cos(k * 2.4) * spot,
+        z: Math.sin(k * 2.4) * spot,
+        ry: Math.PI / 2 - k * 2.4,
+        rx: 0.18 + (k % 2) * 0.17,
+      });
+    }
+  }
+  return blades.geometry();
+}
+
 /**
  * Long grass in patches across the meadows and along the edges of the woods, taller in the
  * middle of a patch than at its edges. It sways, bends ahead of the car and lies down where the
@@ -1640,32 +1674,136 @@ function buildLongGrass(scatter) {
       );
     }
   }
-  // Seven flat blades leaning out from the middle, each with a face on both sides.
-  const blades = new PartsBuilder();
-  for (let k = 0; k < 7; k++) {
-    const height = 0.7 + ((k * 0.37) % 1) * 0.5;
-    for (const face of [1, -1]) {
-      const blade = new THREE.BufferGeometry();
-      blade.setAttribute(
-        'position',
-        new THREE.Float32BufferAttribute([-0.065 * face, 0, 0, 0.065 * face, 0, 0, 0, height, 0], 3),
-      );
-      blade.computeVertexNormals();
-      const spot = 0.06 + (k % 3) * 0.1;
-      blades.add(blade, '#ffffff', {
-        x: Math.cos(k * 2.4) * spot,
-        z: Math.sin(k * 2.4) * spot,
-        ry: Math.PI / 2 - k * 2.4,
-        rx: 0.18 + (k % 2) * 0.17,
-      });
-    }
-  }
   scatter.add({
-    geometry: tintable(blades.geometry()),
+    geometry: tintable(grassClumpGeometry()),
     near: LONG_GRASS_RANGE,
     shadows: false,
     material: foliageMaterial('grass', LONG_GRASS_RANGE),
     items,
+  });
+}
+
+/**
+ * True on the Lofoten coast where something may stand: on dry land, `room` metres from every
+ * road, and clear of the village, the quay and the jetty.
+ */
+function coastIsClear(x, z, room) {
+  if (terrainHeight(x, z) < FJORD.level + 0.9 || inFjord(x, z, 4)) return false;
+  if (Object.values(LOFOTEN.roads).some(road => road.nearest(x, z).distance < room)) return false;
+  const near = (list, reach) => list.some(spot => Math.hypot(spot.x - x, spot.z - z) < reach);
+  const { church, lighthouse, jetty } = LOFOTEN;
+  return (
+    !near([...LOFOTEN.cabins, ...LOFOTEN.houses, ...LOFOTEN.racks, church, lighthouse, jetty], room + 14) &&
+    Math.hypot(x - LOFOTEN.quay.x, z - LOFOTEN.quay.z) > 30
+  );
+}
+
+/**
+ * What lies on the snow of the Lofoten coast: snow-capped stones to look at and drive over on the
+ * flats, a few big boulders in the foothills under the mountains where nobody drives, scrub of
+ * snowy birch there and in the lee of the village, and tufts of frosted grass. It has numbers of
+ * its own, so it doesn't move anything else.
+ */
+function buildCoastScenery(scatter, obstacles) {
+  const coastRandom = createRandom(9161);
+  const centre = LOFOTEN;
+  const spot = (inner, outer) => {
+    const a = coastRandom() * Math.PI * 2;
+    const r = Math.sqrt(inner ** 2 + coastRandom() * (outer ** 2 - inner ** 2));
+    return { x: centre.x + Math.cos(a) * r, z: centre.z + Math.sin(a) * r };
+  };
+  const capped = snowyStones();
+  const grey = () => new THREE.Color().setScalar(0.9 + coastRandom() * 0.14);
+
+  // Small stones, only for looking at, over all the flats.
+  const stones = [];
+  for (let tries = 0; tries < 900 && stones.length < 190; tries++) {
+    const { x, z } = spot(10, centre.radius - 20);
+    if (!coastIsClear(x, z, 2.5)) continue;
+    const size = 0.3 + coastRandom() ** 2 * 0.7;
+    stones.push({
+      matrix: placed({ x, z, scale: size, rotation: coastRandom() * 6.3, sy: 0.7 }, 0.15),
+      color: grey(),
+      shape: Math.floor(coastRandom() * capped.length),
+    });
+  }
+  scatter.add({ geometry: capped, near: UNDERGROWTH_RANGE, material: rockMaterial, items: stones });
+
+  // Boulders, solid, in the foothills and no nearer the roads than a long way.
+  const boulders = [];
+  for (let tries = 0; tries < 900 && boulders.length < 34; tries++) {
+    const { x, z } = spot(centre.radius - 80, centre.radius - 6);
+    if (!coastIsClear(x, z, 30)) continue;
+    const size = 1.2 + coastRandom() ** 2 * 2.4;
+    boulders.push({
+      matrix: placed(
+        { x, z, scale: size, rotation: coastRandom() * 6.3, tilt: (coastRandom() - 0.5) * 0.3, sx: 1.25, sy: 1.2 },
+        0.18,
+      ),
+      color: grey(),
+      shape: Math.floor(coastRandom() * capped.length),
+    });
+    obstacles.push({ x, z, radius: size * 1.05 });
+  }
+  scatter.add({
+    geometry: capped,
+    far: capped[0],
+    near: ROCK_DETAIL,
+    cell: FAR_CELL,
+    material: rockMaterial,
+    items: boulders,
+  });
+
+  // Scrub: birches stunted by the wind, in small groups, in the foothills and behind the village.
+  const birch = birchGeometry();
+  const trees = [];
+  for (let tries = 0; tries < 1200 && trees.length < 34; tries++) {
+    const { x, z } = spot(170, centre.radius - 10);
+    if (!coastIsClear(x, z, 22) || coastRandom() > smoothstep(Math.hypot(x - centre.x, z - centre.z), 190, 260))
+      continue;
+    for (let k = 1 + Math.floor(coastRandom() * 3); k > 0; k--) {
+      const a = coastRandom() * Math.PI * 2;
+      const d = coastRandom() * 6;
+      const [tx, tz] = [x + Math.cos(a) * d, z + Math.sin(a) * d];
+      if (!coastIsClear(tx, tz, 20)) continue;
+      const scale = 0.55 + coastRandom() * 0.35;
+      const [h, sat, l, dh, ds, dl] = WINTER_TINTS.birch;
+      const [u, v, w] = [coastRandom() - 0.5, coastRandom() - 0.5, coastRandom() - 0.5];
+      trees.push({
+        matrix: placed({ x: tx, z: tz, scale, rotation: coastRandom() * 6.3 }, 0.2),
+        color: new THREE.Color().setHSL(h + u * 2 * dh, sat + v * 2 * ds, l + w * 2 * dl),
+      });
+      obstacles.push({ x: tx, z: tz, radius: 0.3 * scale });
+    }
+  }
+  scatter.add({ geometry: birch, far: birch, cell: FAR_CELL, material: foliageMaterial('crowns'), items: trees });
+
+  // Tufts of grass poking out of the snow, frosted pale blue, in loose patches.
+  const tufts = [];
+  for (let patches = 0, tries = 0; patches < 70 && tries < 900; tries++) {
+    const { x, z } = spot(20, centre.radius - 10);
+    if (!coastIsClear(x, z, 4)) continue;
+    patches++;
+    const radius = 2 + coastRandom() * 5;
+    for (let k = Math.round(radius * radius * 1.6); k > 0; k--) {
+      const a = coastRandom() * Math.PI * 2;
+      const d = Math.sqrt(coastRandom()) * radius;
+      const [tx, tz] = [x + Math.cos(a) * d, z + Math.sin(a) * d];
+      if (!coastIsClear(tx, tz, 3)) continue;
+      const [h, sat, l, dh, ds, dl] = WINTER_TINTS.grass;
+      const spread = coastRandom() - 0.5;
+      tufts.push({
+        matrix: placed({ x: tx, z: tz, scale: 0.5 + coastRandom() * 0.7, rotation: coastRandom() * 6.3 }, 0.05),
+        color: new THREE.Color().setHSL(h + spread * 2 * dh, sat + spread * 2 * ds, l + spread * 2 * dl),
+      });
+    }
+  }
+  scatter.add({
+    geometry: tintable(grassClumpGeometry()),
+    near: LONG_GRASS_RANGE,
+    shadows: false,
+    material: foliageMaterial('grass', LONG_GRASS_RANGE),
+    items: tufts,
   });
 }
 
@@ -1686,7 +1824,7 @@ function buildPeaks(scene) {
   const rock = new THREE.Color();
   const color = new THREE.Color();
   const tones = ['#7c8094', '#84889a', '#8a8d9c', '#787d91'];
-  const mouth = FJORD.path.at(FJORD.path.length);
+  const mouth = FJORD.mouth;
   const fjordAngle = Math.atan2(mouth.x, mouth.z);
   for (let m = 0; m < MOUNTAINS; m++) {
     let angle = (m / MOUNTAINS) * Math.PI * 2;
@@ -1696,6 +1834,15 @@ function buildPeaks(scene) {
     const clear = (radius + 70) / distance;
     const off = angleDelta(fjordAngle, angle);
     if (Math.abs(off) < clear) angle = fjordAngle + (off < 0 ? -clear : clear);
+    // Nor does one stand on the Lofoten coast, which has mountains of its own: it moves aside too.
+    for (
+      let k = 0;
+      k < 60 &&
+      Math.hypot(Math.sin(angle) * distance - LOFOTEN.x, Math.cos(angle) * distance - LOFOTEN.z) <
+        radius + LOFOTEN.radius + 60;
+      k++
+    )
+      angle += (off < 0 ? -1 : 1) * 0.02;
     const cx = Math.sin(angle) * distance;
     const cz = Math.cos(angle) * distance;
     const height = 140 + random() * 150;
@@ -1749,38 +1896,54 @@ function buildPeaks(scene) {
   scene.add(peaks);
 }
 
-/** Split-rail fence around the valley and low posts beside the trail. */
+/**
+ * Split-rail fence around the valley, and round the Lofoten coast wherever that is on land, and
+ * low posts beside the trail.
+ */
 function buildFences(scene, scatter) {
-  const radius = VALLEY_RADIUS + 1.8;
-  const count = Math.ceil((2 * Math.PI * radius) / 6);
-  const points = Array.from({ length: count }, (_, i) => {
-    const a = (i / count) * Math.PI * 2;
-    const x = Math.sin(a) * radius;
-    const z = Math.cos(a) * radius;
-    return { x, z, y: terrainHeight(x, z) };
-  });
+  const rings = [
+    { x: 0, z: 0, radius: VALLEY_RADIUS + 1.8, kept: () => true },
+    // Not across the water, where nothing can be driven in any case.
+    {
+      x: LOFOTEN.x,
+      z: LOFOTEN.z,
+      radius: LOFOTEN.radius + 1.8,
+      kept: (x, z) => !inFjord(x, z, 14) && terrainHeight(x, z) > FJORD.level + 0.2,
+    },
+  ];
   const posts = [];
   const rails = [];
   const dummy = new THREE.Object3D();
   const a = new THREE.Vector3();
   const b = new THREE.Vector3();
-  points.forEach((p, i) => {
-    const next = points[(i + 1) % count];
-    dummy.position.set(p.x, p.y + 0.55, p.z);
-    dummy.rotation.set(0, 0, 0);
-    dummy.scale.set(1, 1, 1);
-    dummy.updateMatrix();
-    posts.push({ matrix: dummy.matrix.clone() });
-    for (const height of [0.65, 1.3]) {
-      a.set(p.x, p.y + height, p.z);
-      b.set(next.x, next.y + height, next.z);
-      dummy.position.copy(a).add(b).multiplyScalar(0.5);
-      dummy.lookAt(b);
-      dummy.scale.set(1, 1, a.distanceTo(b));
+  for (const ring of rings) {
+    const count = Math.ceil((2 * Math.PI * ring.radius) / 6);
+    const points = Array.from({ length: count }, (_, i) => {
+      const angle = (i / count) * Math.PI * 2;
+      const x = ring.x + Math.sin(angle) * ring.radius;
+      const z = ring.z + Math.cos(angle) * ring.radius;
+      return { x, z, y: terrainHeight(x, z), on: ring.kept(x, z) };
+    });
+    points.forEach((p, i) => {
+      const next = points[(i + 1) % count];
+      if (!p.on) return;
+      dummy.position.set(p.x, p.y + 0.55, p.z);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(1, 1, 1);
       dummy.updateMatrix();
-      rails.push({ matrix: dummy.matrix.clone() });
-    }
-  });
+      posts.push({ matrix: dummy.matrix.clone() });
+      if (!next.on) return;
+      for (const height of [0.65, 1.3]) {
+        a.set(p.x, p.y + height, p.z);
+        b.set(next.x, next.y + height, next.z);
+        dummy.position.copy(a).add(b).multiplyScalar(0.5);
+        dummy.lookAt(b);
+        dummy.scale.set(1, 1, a.distanceTo(b));
+        dummy.updateMatrix();
+        rails.push({ matrix: dummy.matrix.clone() });
+      }
+    });
+  }
   const wood = '#8d886b';
   const post = new PartsBuilder().box(0.24, 2.2, 0.24, wood).geometry();
   const rail = new PartsBuilder().box(0.14, 0.15, 1, wood).geometry();
@@ -1885,6 +2048,7 @@ export function buildScenery(parent) {
   scene.name = 'scenery';
   const obstacles = [];
   const ground = createGround(groundColor);
+  for (let i = 0; i < LEGACY_GROUND_DRAWS; i++) random();
   scene.add(ground.group);
   scene.add(ribbon(ROAD, ROAD_HALF_WIDTH, '#cfc29c', { skip: onBridge }));
   scene.add(ribbon(CAMP_TRAIL, 2.1, '#c7b994', { lift: 0.05 }));
@@ -1930,6 +2094,7 @@ export function buildScenery(parent) {
   buildRiverStones(scatter, obstacles);
   buildGroundCover(scatter);
   buildLongGrass(scatter);
+  buildCoastScenery(scatter, obstacles);
   const grass = createGrass({ ground: ground.texture, colors: ground.colors, ...grassMask() });
   scene.add(grass.group);
   // Wherever it grows, a car driving through lays it over.

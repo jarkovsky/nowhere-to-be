@@ -3,7 +3,7 @@
 // dragged about and zoomed with a finger, a mouse or the keys. Tapping a place's picture picks
 // it as the place to go to, which the minimap then points the way to; tapping it again lets go.
 import { clamp } from '../core/math.js';
-import { VALLEY_RADIUS } from '../world/layout.js';
+import { FERRY_LANE, LOFOTEN, VALLEY_RADIUS } from '../world/layout.js';
 import { MAP_EXTENT, MAP_PLACES, PAPER, arrowMarkup, badgeMarkup, drawMapLines } from './mapart.js';
 
 /** How many metres fit across the shorter side of the screen when the map opens. */
@@ -17,6 +17,8 @@ const PAN_STEP = 80;
 /** A touch that moves less than this, in CSS pixels, and lifts within `TAP_TIME` ms is a tap. */
 const TAP_SLOP = 10;
 const TAP_TIME = 500;
+/** The map can be centred this far from the ferry's route along the fjord, in metres. */
+const FJORD_REACH = 90;
 /** How close to a picture, in CSS pixels, a tap picks it. */
 const TAP_REACH = 30;
 
@@ -76,14 +78,32 @@ export function createMapView(page, picture, car, target = { place: null }, onPi
   const farthest = () => Math.min(box.width, box.height) / (2 * VALLEY_RADIUS + 80);
   const opening = () => Math.min(box.width, box.height) / OPENING_SPAN;
 
-  /** Keeps the zoom in range and the middle of the screen inside the fence. */
+  /**
+   * Keeps the zoom in range and the middle of the screen inside the fence: the valley's, the
+   * Lofoten coast's, or the fjord's water between them, which it can be panned along.
+   */
   function settle() {
     camera.scale = clamp(camera.scale, farthest(), CLOSEST);
-    const reach = Math.hypot(camera.x, camera.z);
-    if (reach > VALLEY_RADIUS) {
-      camera.x *= VALLEY_RADIUS / reach;
-      camera.z *= VALLEY_RADIUS / reach;
+    // The nearest point of each place the map may be centred on.
+    const discs = [
+      { x: 0, z: 0, radius: VALLEY_RADIUS },
+      { x: LOFOTEN.x, z: LOFOTEN.z, radius: LOFOTEN.radius },
+    ];
+    let best = null;
+    for (const { x, z, radius } of discs) {
+      const reach = Math.hypot(camera.x - x, camera.z - z);
+      if (reach <= radius) return;
+      const point = { x: x + ((camera.x - x) * radius) / reach, z: z + ((camera.z - z) * radius) / reach };
+      if (!best || reach - radius < best.apart) best = { ...point, apart: reach - radius };
     }
+    const { sample, distance } = FERRY_LANE.nearest(camera.x, camera.z);
+    if (distance <= FJORD_REACH) return;
+    if (distance - FJORD_REACH < best.apart) {
+      const k = FJORD_REACH / distance;
+      best = { x: sample.x + (camera.x - sample.x) * k, z: sample.z + (camera.z - sample.z) * k };
+    }
+    camera.x = best.x;
+    camera.z = best.z;
   }
 
   function panBy(dx, dy) {
@@ -147,6 +167,9 @@ export function createMapView(page, picture, car, target = { place: null }, onPi
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(picture.canvas, ox - MAP_EXTENT * s, oy - MAP_EXTENT * s, 2 * MAP_EXTENT * s, 2 * MAP_EXTENT * s);
+      for (const inset of picture.insets) {
+        ctx.drawImage(inset.canvas, ox + inset.x0 * s, oy + inset.z0 * s, inset.size * s, inset.size * s);
+      }
       // The lines again on top, sharp at any zoom and never thinner than they show from afar;
       // once the map stops moving, as there are a lot of them.
       if (!moving && !wheeling) {

@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { lerp } from '../../core/math.js';
 import { HULL } from '../../core/ferry.js';
-import { FERRY_QUAY, FJORD, FJORD_VILLAGE, TRACKS } from '../layout.js';
+import { FERRY_QUAY, FJORD, FJORD_VILLAGE, TRACKS, winterness } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder, hipRoof, createSmoke, flatMaterial, prism } from '../build.js';
 import { gabledHouse } from './house.js';
@@ -145,13 +145,13 @@ function staveChurch(parts, obstacles, spot) {
 }
 
 /**
- * The ferry quay at the end of the road: a concrete abutment, and from it a steel ramp out over
- * the water to where the ferry ties up, hung at its far end from a gantry on two towers, with
- * timber piles either side of the berth to guide the ferry in.
+ * A ferry quay (one of FERRY_QUAYS): a concrete abutment, and from it a steel ramp out over the
+ * water to where the ferry ties up, hung at its far end from a gantry on two towers, with timber
+ * piles either side of the berth to guide the ferry in.
  */
-function quay(parts, obstacles) {
-  const { at, local } = framer(FERRY_QUAY, 0);
-  const { from, to, width, low, high } = FERRY_QUAY;
+export function ferryQuay(parts, obstacles, spec = FERRY_QUAY) {
+  const { at, local } = framer(spec, 0);
+  const { from, to, width, low, high } = spec;
   const point = (lx, y, lz) => ({ ...local(lx, lz), y });
   const bed = FJORD.level - 3;
   const top = FJORD.level + 7.5;
@@ -235,26 +235,47 @@ function ferrySign(scene, parts) {
   });
 }
 
-/** The water: a strip down the fjord, wider than the water itself so the walls hide its edges, and a disc at the head. */
+/**
+ * The water: a strip down the fjord, wider than the water itself so the walls hide its edges, a
+ * disc at the head and another at the bay's far end. Colder and bluer in the Lofoten winter.
+ */
 function water(scene) {
   const positions = [];
+  const colors = [];
+  const tone = new THREE.Color();
+  const warm = new THREE.Color('#4f8a91');
+  const cold = new THREE.Color('#3b6d92');
+  const paint = (x, z) => tone.copy(warm).lerp(cold, winterness(x, z)).toArray();
   let previous = null;
   for (const { x, z, dx, dz, s } of FJORD.path.samples) {
     const half = FJORD.halfWidth(s) + 12;
     const left = [x + dz * half, FJORD.level, z - dx * half];
     const right = [x - dz * half, FJORD.level, z + dx * half];
-    if (previous) positions.push(...previous[0], ...previous[1], ...left, ...previous[1], ...right, ...left);
+    if (previous) {
+      const corners = [previous[0], previous[1], left, previous[1], right, left];
+      positions.push(...corners.flat());
+      for (const [cx, , cz] of corners) colors.push(...paint(cx, cz));
+    }
     previous = [left, right];
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geometry.computeVertexNormals();
-  const material = flatMaterial('#4f8a91', { emissive: '#163f45', emissiveIntensity: 0.3 });
+  const material = flatMaterial('#ffffff', { emissive: '#163f45', emissiveIntensity: 0.3, vertexColors: true });
   const strip = new THREE.Mesh(geometry, material);
-  const head = FJORD_VILLAGE.head;
-  const disc = new THREE.Mesh(new THREE.CircleGeometry(FJORD.halfWidth(0) + 8, 28).rotateX(-Math.PI / 2), material);
-  disc.position.set(head.x, FJORD.level, head.z);
-  for (const mesh of [strip, disc]) {
+  const round = (centre, radius) => {
+    const disc = new THREE.Mesh(
+      new THREE.CircleGeometry(radius + 8, 40).rotateX(-Math.PI / 2),
+      flatMaterial(`#${warm.clone().lerp(cold, winterness(centre.x, centre.z)).getHexString()}`, {
+        emissive: '#163f45',
+        emissiveIntensity: 0.3,
+      }),
+    );
+    disc.position.set(centre.x, FJORD.level, centre.z);
+    return disc;
+  };
+  for (const mesh of [strip, round(FJORD_VILLAGE.head, FJORD.halfWidth(0)), round(FJORD.bay, FJORD.bay.radius)]) {
     mesh.receiveShadow = true;
     scene.add(mesh);
   }
@@ -411,7 +432,7 @@ export function buildFjord(scene, obstacles) {
   const chimneys = FJORD_VILLAGE.houses.map(spot => house(parts, obstacles, spot));
   for (const spot of FJORD_VILLAGE.boathouses) boathouse(parts, obstacles, spot);
   staveChurch(parts, obstacles, FJORD_VILLAGE.church);
-  quay(parts, obstacles);
+  ferryQuay(parts, obstacles);
   trollSign(scene, parts);
   ferrySign(scene, parts);
   scene.add(parts.mesh());

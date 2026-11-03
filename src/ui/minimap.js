@@ -64,6 +64,7 @@ export function createMinimap(button, picture, car, target = { place: null }) {
       ctx.scale(s, s);
       ctx.translate(-x, -z);
       ctx.drawImage(picture.canvas, -MAP_EXTENT, -MAP_EXTENT, 2 * MAP_EXTENT, 2 * MAP_EXTENT);
+      for (const inset of picture.insets) ctx.drawImage(inset.canvas, inset.x0, inset.z0, inset.size, inset.size);
       ctx.restore();
       // The badges stay upright as the map turns under them. Where they would crowd each
       // other, the more important ones show (the picked place first), and it goes on top.

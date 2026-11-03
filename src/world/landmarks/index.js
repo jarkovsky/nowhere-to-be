@@ -20,6 +20,7 @@ import { buildSigns } from './signs.js';
 import { buildAirfield } from './airfield.js';
 import { buildRockGate } from './rockgate.js';
 import { buildFjord } from './fjord.js';
+import { buildLofoten } from './lofoten.js';
 import { buildFarms } from './farms.js';
 import { buildVillage } from './village.js';
 import { buildDepot } from './depot.js';
@@ -76,6 +77,7 @@ export function buildLandmarks(scene, obstacles) {
   const airfield = own('airfield', buildAirfield);
   const gate = own('rockgate', buildRockGate);
   const fjord = own('fjord', buildFjord);
+  const lofoten = own('lofoten', buildLofoten);
   const farms = own('farms', buildFarms);
   const village = own('village', buildVillage);
   const depot = own('depot', buildDepot);
@@ -125,6 +127,7 @@ export function buildLandmarks(scene, obstacles) {
       for (const helipad of helipads) helipad.update(time, night);
       airfield.update(time, night, player);
       fjord.update(dt);
+      lofoten.update(dt);
       farms.update(time);
       village.update(dt);
       depot.update(night);

@@ -225,7 +225,15 @@ try {
   await page.keyboard.press('KeyE');
   await page.waitForFunction(() => window.__game.getState().ferry.carrying, null, { timeout: 20000 });
   const taken = await state(page);
-  await page.waitForTimeout(6000);
+  // Once the ramp is up it sails off slowly, gathering speed.
+  await page.waitForFunction(
+    ({ x, z }) => {
+      const { car } = window.__game.getState();
+      return Math.hypot(car.x - x, car.z - z) > 3;
+    },
+    taken.car,
+    { timeout: 30000 },
+  );
   const sailing = await state(page);
   assert.equal(sailing.ferry.phase, 'sailing');
   assert.ok(sailing.ferry.carrying);
