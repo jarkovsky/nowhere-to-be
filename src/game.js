@@ -18,6 +18,7 @@ import { createMapPicture } from './ui/mapart.js';
 import { createMinimap } from './ui/minimap.js';
 import { createVehiclePictures } from './ui/pictures.js';
 import { createUI } from './ui/ui.js';
+import { createScreen } from './ui/screen.js';
 import { createCar } from './vehicles/car.js';
 import { createFriends } from './vehicles/friends.js';
 import { OUTER, RING, createTraffic } from './vehicles/traffic.js';
@@ -176,6 +177,8 @@ export function createGame(canvas) {
     minimap.refresh(),
   );
   const minimap = createMinimap(document.getElementById('corner-map'), mapPicture, state, target);
+  // The page never zooms, and can fill the screen.
+  const page = createScreen({ onChange: full => ui.setSwitch('fullscreen', full) });
   const ui = createUI({
     journal,
     pictures,
@@ -197,6 +200,7 @@ export function createGame(canvas) {
       },
       tiltCenter: () => tilt.center(),
       tiltReverse: toggleTiltReverse,
+      fullscreen: () => page.toggleFull(),
       showroom: setShowroom,
       map: open => (open ? mapView.open() : mapView.close()),
       openMap: () => pause('map'),
@@ -883,6 +887,7 @@ export function createGame(canvas) {
   ui.setSwitch('minimap', journal.get().minimap);
   ui.setSwitch('tilt-reverse', journal.get().tiltReverse);
   tilt.setLeanBack(journal.get().tiltReverse);
+  document.getElementById('fullscreen').hidden = !page.canFill;
   updateCarModel(0);
   updateIntroShot(0);
   chase.snap(carView(), cameraOptions());
