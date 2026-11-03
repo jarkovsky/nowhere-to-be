@@ -31,6 +31,7 @@ function emptyMesh(geometry, material, capacity, colors) {
 
 const box = new THREE.Box3();
 const corner = new THREE.Vector3();
+const unpacked = new THREE.Matrix4();
 
 /** Copies the listed items into `mesh`, uploads just that part of its buffers and fits its bounds to them. */
 function fill(mesh, kind, indices, count) {
@@ -188,22 +189,36 @@ export function createScatter(parent) {
   return {
     /**
      * Adds a kind of scenery. `items` are { matrix, color?, shape? }; `geometry` is one
-     * shape, or a list of them that `shape` picks from. `far` is the shape drawn beyond
-     * `near` metres from the camera (none: nothing is), and nothing is drawn beyond `range`.
-     * `material` is for the near and far meshes.
+     * shape, or a list of them that `shape` picks from. Items of one shape can come packed
+     * instead, as `matrices`, 16 numbers to an item, and `colors`, 3 to an item (if any).
+     * `far` is the shape drawn beyond `near` metres from the camera (none: nothing is), and
+     * nothing is drawn beyond `range`. `material` is for the near and far meshes.
      */
-    add({ geometry, items, near = 0, far = null, range = Infinity, cell = 175, shadows = true, material }) {
+    add({
+      geometry,
+      items,
+      matrices = null,
+      colors: packedColors = null,
+      near = 0,
+      far = null,
+      range = Infinity,
+      cell = 175,
+      shadows = true,
+      material,
+    }) {
       material ??= vertexColorMaterial;
-      if (!items.length) return;
+      const count = items ? items.length : matrices.length / 16;
+      if (!count) return;
       const shapes = [geometry].flat();
-      const count = items.length;
-      const perShape = shapes.map((_, shape) => items.filter(item => (item.shape ?? 0) === shape).length);
+      const perShape = items
+        ? shapes.map((_, shape) => items.filter(item => (item.shape ?? 0) === shape).length)
+        : [count];
       const kind = {
         near,
         range,
-        matrices: new Float32Array(count * 16),
-        colors: items[0].color ? new Float32Array(count * 3) : null,
-        shapes: shapes.length > 1 ? Uint8Array.from(items, item => item.shape) : null,
+        matrices: matrices ?? new Float32Array(count * 16),
+        colors: items ? (items[0].color ? new Float32Array(count * 3) : null) : packedColors,
+        shapes: items && shapes.length > 1 ? Uint8Array.from(items, item => item.shape) : null,
         xz: new Float32Array(count * 2),
         // Room to list the items of each shape, and of all shapes together, while refilling.
         scratch: perShape.map(n => new Int32Array(n)),
@@ -215,13 +230,19 @@ export function createScatter(parent) {
         filledAt: { x: Infinity, z: Infinity },
       };
       let maxScale = 0;
-      items.forEach((item, i) => {
+      items?.forEach((item, i) => {
         item.matrix.toArray(kind.matrices, i * 16);
         item.color?.toArray(kind.colors, i * 3);
         kind.xz[i * 2] = item.matrix.elements[12];
         kind.xz[i * 2 + 1] = item.matrix.elements[14];
         maxScale = Math.max(maxScale, item.matrix.getMaxScaleOnAxis());
       });
+      for (let i = 0; !items && i < count; i++) {
+        unpacked.fromArray(matrices, i * 16);
+        kind.xz[i * 2] = matrices[i * 16 + 12];
+        kind.xz[i * 2 + 1] = matrices[i * 16 + 14];
+        maxScale = Math.max(maxScale, unpacked.getMaxScaleOnAxis());
+      }
       for (const shape of shapes) {
         if (!shape.boundingSphere) shape.computeBoundingSphere();
         const { center, radius } = shape.boundingSphere;

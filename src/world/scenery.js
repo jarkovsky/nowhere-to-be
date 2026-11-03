@@ -10,13 +10,11 @@ import {
   BROOK,
   BROOK_HALF_WIDTH,
   SPRING,
-  OXBOW,
   TRACK_ROCKS,
   FORD,
   CAMP_TRAIL,
   TRACKS,
   DRIVEWAYS,
-  onDriveway,
   inOrchard,
   ORCHARD,
   CRASH,
@@ -25,22 +23,18 @@ import {
   onForecourt,
   RAILWAY,
   HALT,
-  BRIDGES,
   onBridgeDeck,
   FISHING,
   TUNNEL,
   WATERFALL,
-  CAMP,
   CABIN,
   FARM,
   TOWER,
   WINDMILL,
-  JETTY,
   ROADWORKS,
   HELIPAD,
   KRYSTOF,
   CHAPEL,
-  SUMMIT,
   FIELDS,
   FARMSTEAD,
   KNOLLS,
@@ -48,9 +42,6 @@ import {
   DEPOT,
   VALLEY_RADIUS,
   UPLANDS_RADIUS,
-  HABITATS,
-  SURFACES,
-  GLADES,
   RING_ROAD,
   LINKS,
   AIRFIELD,
@@ -59,28 +50,22 @@ import {
   GRAVEL_HALF_WIDTH,
   RIVERS,
   ROCK_FIELDS,
-  ROCK_GATE,
-  ROCK_FIN,
   FJORD,
   FJORD_VILLAGE,
   LOFOTEN,
+  inFjord,
   FARMS,
   VILLAGE,
-  PONDS,
-  DESERT,
-  inFjord,
   inCrop,
   onAirfield,
   onPaved,
   onGravel,
-  nearRiver,
   rockiness,
   ruggedness,
   gullyDepth,
   ROUGH,
   RUGGED,
   lakeDistance,
-  desertness,
   winterness,
 } from './layout.js';
 import {
@@ -91,7 +76,6 @@ import {
   creekLevel,
   riverLevel,
   snowCover,
-  highSnow,
   waterLevel,
   POOL,
   FORDS,
@@ -102,141 +86,25 @@ import { SWAY, foliageMaterial, groundMaterial } from './detail.js';
 import { growsTall } from './trample.js';
 import { createGround } from './ground.js';
 import { createGrass } from './grass.js';
+import { groundwork } from './groundwork.js';
+import { LONG_GRASS_RANGE, addLongGrass, grassClumpGeometry } from './longgrass.js';
+import { grows, inMud, isClearGround, steepness } from './placing.js';
 import { PAD_RADIUS } from './landmarks/helipad.js';
 import { boulderGeometry, rockMaterial } from './rocks.js';
 import { createScatter } from './scatter.js';
-import { buildDesertScenery, desertGround, desertTakes } from './sand.js';
-import { WINTER_TINTS, coastRock, winterGround } from './snow.js';
+import { buildDesertScenery, desertTakes } from './sand.js';
+import { WINTER_TINTS } from './snow.js';
 import { buildIce } from './ice.js';
 
 const random = createRandom(82741);
 
 /**
- * The ground's colours have numbers of their own for the specks of variation in them. The shared
- * numbers above are used up by the ground as they always were, one run of them for every point
- * of the valley's old grid, so that every tree, rock and flower beyond it stays where it is
- * however the grid changes (see buildScenery).
+ * The ground's colours used to be drawn from the numbers above, one run of them for every point of
+ * the valley's old grid, before anything else was placed by them. They have numbers of their own
+ * now (see groundcolor.js), and that many are skipped instead, so that every tree, rock and flower
+ * stays where it is however the grid changes (see buildScenery).
  */
-const groundRandom = createRandom(5339);
 const LEGACY_GROUND_DRAWS = 625 * 625 * 4;
-
-// Autumn: golden meadows with olive-green and russet patches, browner high up, and cool grey rock.
-const GROUND = {
-  meadow: new THREE.Color('#b08e48'),
-  lush: new THREE.Color('#7b8946'),
-  dry: new THREE.Color('#c49850'),
-  russet: new THREE.Color('#a4673a'),
-  high: new THREE.Color('#978359'),
-  rock: new THREE.Color('#8f9097'),
-  alpine: new THREE.Color('#a4a1a0'),
-  shore: new THREE.Color('#d8c996'),
-  bank: new THREE.Color('#a6a387'),
-  snow: new THREE.Color('#eef1ea'),
-  leaves: new THREE.Color('#c4873f'),
-  mud: new THREE.Color('#7a6446'),
-  stone: new THREE.Color('#b3a891'),
-  gravel: new THREE.Color('#c3b9a0'),
-};
-const rockTone = new THREE.Color();
-/** Ground worn bare or covered over (see WORN_GROUND), with its colours made. */
-const WORN = WORN_GROUND.map(patch => ({ ...patch, color: new THREE.Color(patch.color) }));
-
-/**
- * Colour of the ground at a grid point, into `out`. `up` is the Y of its normal: 1 on flat
- * ground. Returns how grassy it is there, from 0 to 1, for the grass (see grass.js).
- */
-function groundColor(x, z, h, up, out) {
-  let grass = Math.hypot(x, z) < VALLEY_RADIUS - 3 ? 1 : 0;
-  out
-    .copy(GROUND.meadow)
-    .lerp(GROUND.dry, Math.min(1, 0.3 + 0.25 * Math.sin(x * 0.009 + z * 0.017) + Math.max(0, h - 15) * 0.006));
-  // Patches of greener grass and of grass gone russet, so the meadows aren't one flat colour.
-  out.lerp(GROUND.lush, smoothstep(fractalNoise(x / 70 + 4.1, z / 70 + 1.7, 2, 31), 0.5, 0.72) * 0.8);
-  out.lerp(GROUND.russet, smoothstep(fractalNoise(x / 52 + 9.2, z / 52 + 3.4, 2, 47), 0.56, 0.76) * 0.6);
-  if (h > 45) out.lerp(GROUND.high, Math.min(1, (h - 45) / 80));
-  // Bare rock and scree where the ground is steep.
-  const steep = smoothstep(up, 0.86, 0.7);
-  out.lerp(GROUND.rock, steep * 0.85);
-  grass *= 1 - steep;
-  // High up, the grass gives way to stony ground and then snow, which doesn't settle on cliffs.
-  out.lerp(GROUND.alpine, smoothstep(h, 86, 108) * 0.75);
-  grass *= 1 - smoothstep(h, 84, 100);
-  if (h > 90) out.lerp(GROUND.snow, highSnow(x, z, h) * smoothstep(up, 0.6, 0.78));
-  // Along the water: sand, gravel and stones, then nothing under the water itself.
-  const shore = amount => {
-    out.lerp(GROUND.bank, amount);
-    grass *= 1 - Math.min(1, amount * 1.3);
-  };
-  if (lakeDistance(x, z) < 2.2) {
-    const sand = 1 - smoothstep(h, LAKE.level + 0.35, LAKE.level + 0.9);
-    out.lerp(GROUND.shore, sand);
-    grass *= 1 - sand;
-  }
-  if (h < FJORD.level + 1.5 && inFjord(x, z, 6)) shore(1 - smoothstep(h, FJORD.level + 0.4, FJORD.level + 1.5));
-  if (CREEK.isNear(x, z, 9)) shore(1 - smoothstep(CREEK.nearest(x, z).distance, 5, 9));
-  if (BROOK.isNear(x, z, 6)) shore(1 - smoothstep(BROOK.nearest(x, z).distance, 2.5, 6));
-  const river = nearRiver(x, z, 14);
-  if (river) {
-    const halfWidth = river.river.halfWidth(river.s);
-    shore(1 - smoothstep(river.distance, halfWidth + 1, halfWidth + 7));
-    // Gravel bars and the shallows are pale stones, with the odd darker one.
-    const near = 1 - smoothstep(h - waterLevel(x, z), 0.08, 0.5);
-    if (near > 0) out.lerp(GROUND.gravel, near * (0.7 + 0.3 * valueNoise(x / 1.7, z / 1.7, 83)));
-  }
-  // Gravel on the oxbow's shore and over its bed, where it shows through the shallows.
-  if (OXBOW.path.isNear(x, z, 16)) {
-    const { s, distance } = OXBOW.path.nearest(x, z);
-    shore(1 - smoothstep(distance - OXBOW.halfWidth(s), 0.5, 2.5));
-  }
-  if (grass > 0 && waterLevel(x, z) > h - 0.3) grass = 0;
-  // Bare rock, paler in places and darker in others.
-  const rocky = rockiness(x, z);
-  if (rocky > 0) out.lerp(rockTone.copy(GROUND.stone).lerp(GROUND.rock, valueNoise(x / 9, z / 9, 61)), rocky * 0.9);
-  grass *= 1 - Math.min(1, rocky * 1.6);
-  // The rugged country is stonier and its grass thinner, and the dry gully is gravel.
-  const rugged = ruggedness(x, z);
-  if (rugged > 0) {
-    out.lerp(rockTone.copy(GROUND.stone).lerp(GROUND.rock, valueNoise(x / 9, z / 9, 61)), rugged * 0.3);
-    grass *= 1 - rugged * 0.45;
-  }
-  const gully = gullyDepth(x, z);
-  if (gully > 0) {
-    out.lerp(GROUND.bank, smoothstep(gully, 0.3, 2) * 0.9);
-    grass *= 1 - smoothstep(gully, 0.1, 0.9);
-  }
-  for (const patch of SURFACES) {
-    // Mud's ragged edge comes from noise rather than the shared random numbers, so that
-    // adding a patch of it doesn't move every tree placed after the ground.
-    const ragged = patch.id === 'mud' ? (valueNoise(x / 2.5, z / 2.5, 9) - 0.5) * 0.5 : (groundRandom() - 0.5) * 0.12;
-    const ux = (x - patch.x) / patch.rx;
-    const uz = (z - patch.z) / patch.rz;
-    const d = Math.sqrt(ux * ux + uz * uz) + ragged;
-    if (d < 1 && patch.id === 'leaves') out.lerp(GROUND.leaves, 0.75);
-    if (d < 1.2 && patch.id === 'mud') out.lerp(GROUND.mud, 0.85 * (1 - smoothstep(d, 0.8, 1.2)));
-    // The mud's colour reaches out past its edge, so the grass starts a little further out.
-    if (patch.id === 'mud') grass *= smoothstep(d, 1.15, 1.45);
-    else if (d < 1) grass *= 0.4;
-  }
-  // Earth trodden bare in the logging camp's glade, and rubble round the mine. Their ragged edges come from
-  // noise, not the shared random numbers, so that they don't move anything placed after the ground.
-  for (const patch of WORN) {
-    const reach = Math.hypot(x - patch.x, z - patch.z) + (valueNoise(x / 3, z / 3, 17) - 0.5) * 4;
-    const worn = 1 - smoothstep(reach, patch.r, patch.r + patch.soft);
-    if (worn > 0) {
-      out.lerp(patch.color, worn * 0.85);
-      grass *= 1 - worn;
-    }
-  }
-  desertGround(x, z, up, out);
-  if (grass > 0) grass *= 1 - smoothstep(desertness(x, z), 0.05, 0.45);
-  const winter = winterness(x, z);
-  if (winter > 0) {
-    grass = winterGround(x, z, up, winter, out, grass);
-    coastRock(x, z, up, out);
-  }
-  out.multiplyScalar(0.96 + groundRandom() * 0.08);
-  return grass;
-}
 
 /** Which way the ground faces at a point, from the slope around it. */
 function groundNormal(x, z) {
@@ -614,98 +482,6 @@ const FENCE_RANGE = 450;
  * plain that drawing some out of view costs less than drawing more, smaller squares.
  */
 const FAR_CELL = 480;
-
-/** Circles kept clear of trees and rocks. */
-const CLEARINGS = [
-  { x: SPAWN.x, z: SPAWN.z, r: 16 },
-  { x: DEPOT.x, z: DEPOT.z, r: 26 },
-  { x: CAMP.x, z: CAMP.z, r: 24 },
-  { x: CABIN.x, z: CABIN.z, r: 14 },
-  { x: TUNNEL.x, z: TUNNEL.z, r: 34 },
-  ...BRIDGES.map(({ x, z, length }) => ({ x, z, r: length / 2 + 8 })),
-  { x: WATERFALL.x, z: WATERFALL.z, r: 26 },
-  { x: FARM.x, z: FARM.z, r: 40 },
-  { x: TOWER.x, z: TOWER.z, r: 14 },
-  { x: WINDMILL.x, z: WINDMILL.z, r: 20 },
-  { x: JETTY.x - 4, z: JETTY.z, r: 16 },
-  { x: HABITATS.sheep.x, z: HABITATS.sheep.z, r: 18 },
-  { x: HABITATS.burrow.x, z: HABITATS.burrow.z, r: 10 },
-  // Where the yeti hid: the glade stays, so no tree moves.
-  { x: -78, z: -146, r: 10 },
-  { ...RAILWAY.at((HALT.from + HALT.to) / 2), r: 24 },
-  { ...ROADWORKS.path.at(0), r: 20 },
-  { ...ROADWORKS.path.at(ROADWORKS.gravel), r: 40 },
-  { x: HELIPAD.x, z: HELIPAD.z, r: 20 },
-  { x: CHAPEL.x, z: CHAPEL.z, r: 9 },
-  { x: SUMMIT.x, z: SUMMIT.z, r: 16 },
-  { x: FISHING.x, z: FISHING.z, r: 15 },
-  { x: FARMSTEAD.x, z: FARMSTEAD.z, r: 22 },
-  { x: FIELDS.x, z: FIELDS.z, r: FIELDS.radius },
-  { ...AIRFIELD.hangar, r: 22 },
-  { ...AIRFIELD.tower, r: 12 },
-  { x: ROCK_GATE.x, z: ROCK_GATE.z, r: ROCK_GATE.span },
-  // Along the fin of rock out to the arch: its sides lean out a long way where it stands tall.
-  ...ROCK_FIN.path.samples.filter((_, i) => i % 6 === 0).map(({ x, z }) => ({ x, z, r: 13 })),
-  ...[...FJORD_VILLAGE.houses, ...FJORD_VILLAGE.boathouses].map(({ x, z }) => ({ x, z, r: 9 })),
-  { x: FJORD_VILLAGE.church.x, z: FJORD_VILLAGE.church.z, r: 12 },
-  ...FARMS.flatMap(farm => [
-    { x: farm.x, z: farm.z, r: 28 },
-    { x: farm.paddock.x, z: farm.paddock.z, r: farm.paddock.radius + 4 },
-    ...(farm.sty ? [{ x: farm.sty.x, z: farm.sty.z, r: farm.sty.radius + 3 }] : []),
-  ]),
-  ...VILLAGE.houses.map(({ x, z }) => ({ x, z, r: 10 })),
-  { x: VILLAGE.fireStation.x, z: VILLAGE.fireStation.z, r: 14 },
-  ...PONDS.filter(pond => pond !== DESERT.oasis).map(({ x, z, radius }) => ({ x, z, r: radius + 6 })),
-  ...GLADES.map(glade => ({ ...glade, r: 4 })),
-  // The mud lies on the tracks, which are kept clear anyway.
-  ...SURFACES.filter(p => p.id !== 'mud').map(p => ({ x: p.x, z: p.z, r: Math.max(p.rx, p.rz) + 4 })),
-];
-
-/**
- * The tracks that the trees, rocks and grass are kept off. The desert's track and its oasis are
- * left out of these and of the clearings: everything is tried in turn from the same run of random
- * numbers, so keeping something off them would move everything placed after it. The desert
- * clears its own ground instead (see desertTakes).
- */
-const PLACED_TRACKS = TRACKS.filter(track => !track.desert);
-
-/** True in or just around a patch of mud. */
-const inMud = (x, z) =>
-  SURFACES.some(p => p.id === 'mud' && ((x - p.x) / p.rx) ** 2 + ((z - p.z) / p.rz) ** 2 < 1.15 ** 2);
-
-/** Nothing grows in the crop fields, nor within a couple of metres of them. */
-const outsideCrops = (x, z) => !inCrop(x, z, 2);
-
-function nearWalkway({ start, end }, x, z, clearance) {
-  const dx = end.x - start.x;
-  const dz = end.z - start.z;
-  const t = Math.max(0, Math.min(1, ((x - start.x) * dx + (z - start.z) * dz) / (dx * dx + dz * dz)));
-  return Math.hypot(x - start.x - dx * t, z - start.z - dz * t) < clearance;
-}
-
-function isClearGround(x, z, { road = 9 } = {}) {
-  const r = Math.hypot(x, z);
-  if (Math.abs(r - VALLEY_RADIUS - 1.8) < 4) return false;
-  if (lakeDistance(x, z) < 2.2 && terrainHeight(x, z) < LAKE.level + 0.8) return false;
-  if (CLEARINGS.some(c => (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r)) return false;
-  if (nearWalkway(HABITATS.deer, x, z, 5) || nearWalkway(HABITATS.ducks, x, z, 5)) return false;
-  if (ROAD.isNear(x, z, road) || CAMP_TRAIL.isNear(x, z, 6) || RAILWAY.isNear(x, z, 9)) return false;
-  if (PLACED_TRACKS.some(track => track.path.isNear(x, z, 5))) return false;
-  if (onPaved(x, z, road) || onGravel(x, z, road - 1) || onDriveway(x, z, 4)) return false;
-  // The airfield's levelled ground is kept as open, mown grass.
-  const { ground } = AIRFIELD;
-  if (x > ground.x0 - 6 && x < ground.x1 + 6 && z > ground.z0 - 6 && z < ground.z1 + 6) return false;
-  if (CREEK.isNear(x, z, 10)) return false;
-  if (BROOK.isNear(x, z, 7) || Math.hypot(x - SPRING.x, z - SPRING.z) < SPRING.radius + 6) return false;
-  if (OXBOW.path.isNear(x, z, 14)) return false;
-  return !nearRiver(x, z, 11) && !inFjord(x, z, 3);
-}
-
-/** Rise over run of the land at a point, as it was before the desert (see placementHeight). */
-function steepness(x, z) {
-  const h = placementHeight(x, z);
-  return Math.hypot(placementHeight(x + 1, z) - h, placementHeight(x, z + 1) - h);
-}
 
 const TRUNK = '#7a6d52';
 const BIRCH_BARK = '#ece8dc';
@@ -1430,26 +1206,6 @@ function buildGroundCover(scatter) {
   for (let i = 0; i < tufts.length * 4; i++) random();
 }
 
-/** Long grass grows this close to the camera, rising out of the ground as it comes into range. */
-const LONG_GRASS_RANGE = 150;
-
-/** True where long grass can grow: off every trail, road and track, and out of the water, the mud and the snow. */
-function isLongGrassGround(x, z) {
-  if (Math.hypot(x, z) > VALLEY_RADIUS - 3) return false;
-  if (ROAD.isNear(x, z, ROAD_HALF_WIDTH + 0.8) || CAMP_TRAIL.isNear(x, z, 2.8) || RAILWAY.isNear(x, z, 4.5))
-    return false;
-  if (onPaved(x, z, ROAD_HALF_WIDTH + 0.8) || onAirfield(x, z, 2)) return false;
-  if (onGravel(x, z, GRAVEL_HALF_WIDTH + 0.8)) return false;
-  if (PLACED_TRACKS.some(track => track.path.isNear(x, z, track.ruts ? 1.6 : 1.3))) return false;
-  if (onDriveway(x, z, 0.8)) return false;
-  if (CLEARINGS.some(c => (x - c.x) ** 2 + (z - c.z) ** 2 < (c.r * 0.7) ** 2) || inMud(x, z)) return false;
-  if (Math.hypot(x - FIELDS.x, z - FIELDS.z) < FIELDS.radius + 4) return false;
-  if (lakeDistance(x, z) < 2.4 || CREEK.isNear(x, z, 6)) return false;
-  if (BROOK.isNear(x, z, 3.2) || nearRiver(x, z, 7) || inFjord(x, z, 3) || OXBOW.path.isNear(x, z, 11)) return false;
-  const h = placementHeight(x, z);
-  return h < 92 && highSnow(x, z, h) < 0.2 && steepness(x, z) < 0.5;
-}
-
 /** The square the grass mask covers, a metre to a texel: everywhere inside the fence. */
 const GRASS_AREA = { x0: -1024, z0: -1024, size: 2048 };
 
@@ -1457,7 +1213,7 @@ const GRASS_AREA = { x0: -1024, z0: -1024, size: 2048 };
  * Where the grass doesn't grow, or only short, at a metre to a texel (see grass.js): the
  * trails, roads, tracks and railway, with a short verge either side and short grass between
  * the ruts of a track, the yards round buildings, the crop fields and the airfield. The water,
- * rock, snow, sand and mud are left out by the ground's colouring instead (see groundColor).
+ * rock, snow, sand and mud are left out by the ground's colouring instead (see groundcolor.js).
  */
 function grassMask() {
   const { x0, z0, size } = GRASS_AREA;
@@ -1569,118 +1325,6 @@ function grassMask() {
   texture.magFilter = texture.minFilter = THREE.LinearFilter;
   texture.needsUpdate = true;
   return { clear: texture, clearBytes: bytes, area: GRASS_AREA };
-}
-
-/** One clump of long grass: seven flat blades leaning out from the middle, each with a face on both sides. */
-function grassClumpGeometry() {
-  const blades = new PartsBuilder();
-  for (let k = 0; k < 7; k++) {
-    const height = 0.7 + ((k * 0.37) % 1) * 0.5;
-    for (const face of [1, -1]) {
-      const blade = new THREE.BufferGeometry();
-      blade.setAttribute(
-        'position',
-        new THREE.Float32BufferAttribute([-0.065 * face, 0, 0, 0.065 * face, 0, 0, 0, height, 0], 3),
-      );
-      blade.computeVertexNormals();
-      const spot = 0.06 + (k % 3) * 0.1;
-      blades.add(blade, '#ffffff', {
-        x: Math.cos(k * 2.4) * spot,
-        z: Math.sin(k * 2.4) * spot,
-        ry: Math.PI / 2 - k * 2.4,
-        rx: 0.18 + (k % 2) * 0.17,
-      });
-    }
-  }
-  return blades.geometry();
-}
-
-/**
- * Long grass in patches across the meadows and along the edges of the woods, taller in the
- * middle of a patch than at its edges. It sways, bends ahead of the car and lies down where the
- * car has driven through it (see trample.js). It has numbers of its own, so it doesn't move
- * anything else.
- */
-function buildLongGrass(scatter) {
-  const grassRandom = createRandom(6011);
-  const dummy = new THREE.Object3D();
-  const items = [];
-  /** A clump at (x, z), `height` from 0 to 1 of the tallest, tinted round the patch's own `hue`. */
-  const clump = (x, z, height, hue) => {
-    if (!isLongGrassGround(x, z)) return;
-    if (!desertTakes(x, z)) growsTall(x, z, 1);
-    dummy.position.set(x, terrainHeight(x, z) - 0.05, z);
-    dummy.rotation.set(0, grassRandom() * 6.3, 0);
-    const width = 1 + grassRandom() * 0.5;
-    dummy.scale.set(width, height * (0.8 + grassRandom() * 0.4), width);
-    dummy.updateMatrix();
-    // Most clumps have gone over to seed, golden, among a few still olive green.
-    const golden = grassRandom() < 0.6 + hue;
-    const color = new THREE.Color().setHSL(
-      golden ? 0.09 + grassRandom() * 0.03 : 0.17 - hue * 0.05 + grassRandom() * 0.03,
-      golden ? 0.55 : 0.36 + grassRandom() * 0.1,
-      golden ? 0.44 + grassRandom() * 0.08 : 0.3 + grassRandom() * 0.08,
-    );
-    // In the winter the clumps are frosted pale blue.
-    const winter = winterness(x, z);
-    if (winter > 0) {
-      const [h, s, l, dh, ds, dl] = WINTER_TINTS.grass;
-      const spread = (hue - 0.2) * 5;
-      color.lerp(new THREE.Color().setHSL(h + spread * dh, s + spread * ds, l + spread * dl), winter);
-    }
-    items.push({ matrix: dummy.matrix.clone(), color });
-  };
-  // Patches of it, a few metres to ten across, in some meadows and along the edges of the woods:
-  // a try for every 35 square metres inside the fence, and no more than a patch for every 1580.
-  let patches = 0;
-  const area = Math.PI * VALLEY_RADIUS ** 2;
-  for (let attempt = 0; attempt < area / 35 && patches < area / 1580; attempt++) {
-    const a = grassRandom() * Math.PI * 2;
-    const r = Math.sqrt(grassRandom()) * (VALLEY_RADIUS - 8);
-    const cx = Math.cos(a) * r;
-    const cz = Math.sin(a) * r;
-    const meadow = smoothstep(fractalNoise(cx / 90 + 1.3, cz / 90 + 7.7, 2, 91), 0.45, 0.68);
-    // The same noise as the woods: there is more of it where the woods begin.
-    const woods = fractalNoise(cx / 150 + 3.3, cz / 150 + 8.1, 2, 5);
-    const edge = 1 - smoothstep(Math.abs(woods - 0.42), 0, 0.08);
-    // Most of it within sight of the trails and tracks, though not along them.
-    const seen =
-      ROAD.isNear(cx, cz, 60) ||
-      CAMP_TRAIL.isNear(cx, cz, 40) ||
-      onPaved(cx, cz, 50) ||
-      onGravel(cx, cz, 50) ||
-      PLACED_TRACKS.some(track => track.path.isNear(cx, cz, 40));
-    const chance = Math.max(meadow, edge * 0.8) * (seen ? 1 : 0.2);
-    if (grassRandom() > chance || !isLongGrassGround(cx, cz)) continue;
-    patches++;
-    const hue = grassRandom() * 0.4;
-    const radius = 3 + grassRandom() * 8;
-    const stretch = 0.55 + grassRandom() * 0.7;
-    const turn = grassRandom() * Math.PI;
-    const ragged = grassRandom() * 6.3;
-    const count = Math.round(radius * radius * stretch * Math.PI * 0.55);
-    for (let k = 0; k < count; k++) {
-      // Thicker and taller towards the middle, with a ragged edge.
-      const t = Math.sqrt(grassRandom());
-      const b = grassRandom() * Math.PI * 2;
-      const reach = t * radius * (0.75 + 0.25 * Math.sin(b * 3 + ragged));
-      const u = Math.cos(b) * reach;
-      const v = Math.sin(b) * reach * stretch;
-      clump(
-        cx + u * Math.cos(turn) - v * Math.sin(turn),
-        cz + u * Math.sin(turn) + v * Math.cos(turn),
-        1 - 0.5 * t * t,
-        hue,
-      );
-    }
-  }
-  scatter.add({
-    geometry: tintable(grassClumpGeometry()),
-    near: LONG_GRASS_RANGE,
-    shadows: false,
-    material: foliageMaterial('grass', LONG_GRASS_RANGE),
-    items,
-  });
 }
 
 /**
@@ -2047,9 +1691,8 @@ export function buildScenery(parent) {
   const scene = new THREE.Group();
   scene.name = 'scenery';
   const obstacles = [];
-  const ground = createGround(groundColor);
-  for (let i = 0; i < LEGACY_GROUND_DRAWS; i++) random();
-  scene.add(ground.group);
+  // The ground's old share of the shared numbers is skipped (see LEGACY_GROUND_DRAWS).
+  random.skip(LEGACY_GROUND_DRAWS);
   scene.add(ribbon(ROAD, ROAD_HALF_WIDTH, '#cfc29c', { skip: onBridge }));
   scene.add(ribbon(CAMP_TRAIL, 2.1, '#c7b994', { lift: 0.05 }));
   buildPavedRoads(scene);
@@ -2077,7 +1720,6 @@ export function buildScenery(parent) {
   // What would grow in the crop fields, or in the desert, is left out as it is added rather than
   // where it is placed, so that leaving it out doesn't move everything placed after it.
   const everything = createScatter(scene);
-  const grows = (x, z) => outsideCrops(x, z) && !desertTakes(x, z) && !inOrchard(x, z) && !inDiscovery(x, z);
   const scatter = {
     ...everything,
     add: kind =>
@@ -2093,12 +1735,8 @@ export function buildScenery(parent) {
   buildRoughRocks(scatter, obstacles);
   buildRiverStones(scatter, obstacles);
   buildGroundCover(scatter);
-  buildLongGrass(scatter);
   buildCoastScenery(scatter, obstacles);
-  const grass = createGrass({ ground: ground.texture, colors: ground.colors, ...grassMask() });
-  scene.add(grass.group);
-  // Wherever it grows, a car driving through lays it over.
-  grass.eachTile((x, z, half) => growsTall(x, z, half));
+  const mask = grassMask();
   buildPeaks(scene);
   buildFences(scene, scatter);
   // The logs' obstacles are left out with them, by their middles.
@@ -2112,17 +1750,37 @@ export function buildScenery(parent) {
   mergeByArea(scene, RIBBON, 480);
   freeze(scene);
   parent.add(scene);
+  // The ground, the long grass and the grass over the meadows, which takes on the ground's
+  // colours, are added once the worker has sent them (see groundwork.js).
+  let ground = null;
+  let grass = null;
+  const ready = groundwork().then(({ shading, longGrass }) => {
+    ground = createGround(shading);
+    scene.add(ground.group);
+    // The long grass was kept out of the crops and the desert where it was placed.
+    addLongGrass(everything, longGrass);
+    grass = createGrass({ ground: ground.texture, colors: ground.colors, ...mask });
+    scene.add(grass.group);
+    // Wherever it grows, a car driving through lays it over.
+    grass.eachTile((x, z, half) => growsTall(x, z, half));
+    freeze(scene);
+  });
   return {
     obstacles: kept,
-    grass,
+    /** Settled once the ground and the grass are in. */
+    ready,
+    /** The grass over the meadows, once it is in. */
+    get grass() {
+      return grass;
+    },
     /** `camera` is the camera, and `sun` the light whose shadows are drawn (if any). */
     update(dt, camera, sun) {
       const eye = camera.position;
       SWAY.time.value += dt;
       water.update(dt, eye);
-      ground.update(eye);
+      ground?.update(eye);
       scatter.update(eye, sun);
-      grass.update(camera);
+      grass?.update(camera);
     },
   };
 }

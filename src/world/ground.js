@@ -1,11 +1,11 @@
 // The ground: triangles over the height field, two to a grid cell. Each grid point has its
-// own colour and a normal worked out from the slope around it, so the light and the colours
-// change smoothly across the hills, and a detail texture drawn over it in the shader gives it
-// grain up close (see detail.js). It is split into square tiles so tiles out of view are
-// skipped, and tiles far from the camera are drawn with one triangle for every four or
-// sixteen, so what it costs to draw follows how much ground is near the camera rather than
-// how big the world is. Neighbouring tiles of different detail don't quite meet, so every
-// tile has a narrow skirt hanging down from its edges to hide the gaps.
+// own colour and a normal worked out from the slope around it (see groundcolor.js), so the
+// light and the colours change smoothly across the hills, and a detail texture drawn over it
+// in the shader gives it grain up close (see detail.js). It is split into square tiles so
+// tiles out of view are skipped, and tiles far from the camera are drawn with one triangle
+// for every four or sixteen, so what it costs to draw follows how much ground is near the
+// camera rather than how big the world is. Neighbouring tiles of different detail don't quite
+// meet, so every tile has a narrow skirt hanging down from its edges to hide the gaps.
 import * as THREE from 'three';
 import { groundMaterial } from './detail.js';
 import { AXIS, GRID, heights } from './terrain.js';
@@ -53,37 +53,6 @@ function tileSpans() {
       size,
     }));
   });
-}
-
-/**
- * The normal and colour of every grid point, as bytes: the normal from the slope between its
- * neighbours, and the colour from `colorAt(x, z, height, up, out)`, where `up` is 1 on level ground.
- * What `colorAt` returns, how grassy the ground is from 0 to 1, goes in the colour's alpha.
- */
-function gridShading(colorAt) {
-  const normals = new Int8Array(GRID * GRID * 3);
-  const colors = new Uint8Array(GRID * GRID * 4);
-  const normal = new THREE.Vector3();
-  const color = new THREE.Color();
-  for (let iz = 0; iz < GRID; iz++) {
-    const [z0, z1] = [Math.max(0, iz - 1), Math.min(CELLS, iz + 1)];
-    for (let ix = 0; ix < GRID; ix++) {
-      const [x0, x1] = [Math.max(0, ix - 1), Math.min(CELLS, ix + 1)];
-      const dx = (height(x1, iz) - height(x0, iz)) / (AXIS[x1] - AXIS[x0]);
-      const dz = (height(ix, z1) - height(ix, z0)) / (AXIS[z1] - AXIS[z0]);
-      normal.set(-dx, 1, -dz).normalize();
-      const i = iz * GRID + ix;
-      normals[i * 3] = Math.round(normal.x * 127);
-      normals[i * 3 + 1] = Math.round(normal.y * 127);
-      normals[i * 3 + 2] = Math.round(normal.z * 127);
-      const grass = colorAt(AXIS[ix], AXIS[iz], height(ix, iz), normal.y, color);
-      colors[i * 4] = Math.round(THREE.MathUtils.clamp(color.r, 0, 1) * 255);
-      colors[i * 4 + 1] = Math.round(THREE.MathUtils.clamp(color.g, 0, 1) * 255);
-      colors[i * 4 + 2] = Math.round(THREE.MathUtils.clamp(color.b, 0, 1) * 255);
-      colors[i * 4 + 3] = Math.round(THREE.MathUtils.clamp(grass, 0, 1) * 255);
-    }
-  }
-  return { normals, colors };
 }
 
 /**
@@ -219,13 +188,12 @@ function buildTiles(shading, material) {
 }
 
 /**
- * Builds the ground. `colorAt(x, z, height, up, out)` colours a grid point, where `up` is 1 on
- * level ground, and returns how grassy it is.
+ * Builds the ground from `shading`, the normal and colour of every grid point as bytes (see
+ * gridShading in groundcolor.js).
  */
-export function createGround(colorAt) {
+export function createGround(shading) {
   const group = new THREE.Group();
   group.name = 'ground';
-  const shading = gridShading(colorAt);
   const tiles = buildTiles(shading, groundMaterial());
   for (const tile of tiles) group.add(tile.mesh);
   // The colours are kept, for the grass to take on (see grass.js).

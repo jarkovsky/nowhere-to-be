@@ -147,9 +147,10 @@ test('the machines take turns where their headlands meet, and never run into eac
   assert.ok(finished > 0);
 });
 
-test('nothing grows in the crop fields, and they keep clear of the farms, the village and the herds', () => {
+test('nothing grows in the crop fields, and they keep clear of the farms, the village and the herds', async () => {
   const scene = new THREE.Scene();
   const scenery = buildScenery(scene);
+  await scenery.ready;
   const position = new THREE.Vector3();
   const matrix = new THREE.Matrix4();
   // From each spot, the scenery close by is drawn one way and the rest another: between them, all of it.

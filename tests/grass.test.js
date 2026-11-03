@@ -5,7 +5,9 @@ import { buildScenery } from '../src/world/scenery.js';
 import { CAMP_TRAIL, FARM, LAKE, PAVED, GRAVEL, RAILWAY, ROAD, TRACKS, inCrop } from '../src/world/layout.js';
 import { localFrame } from '../src/world/build.js';
 
-const { grass } = buildScenery(new THREE.Scene());
+const scenery = buildScenery(new THREE.Scene());
+await scenery.ready;
+const { grass } = scenery;
 
 test('no grass grows on the trails, roads, tracks or railway, nor in the lake', () => {
   const along = (path, every = 7) => path.samples.filter((_, i) => i % every === 0);
