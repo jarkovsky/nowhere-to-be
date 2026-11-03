@@ -115,6 +115,7 @@ export function createUI({ journal, pictures, on }) {
   $('tilt-reverse').addEventListener('click', () => on.tiltReverse());
   $('camp').addEventListener('click', () => on.camp());
   $('home').addEventListener('click', () => on.home());
+  $('fullscreen').addEventListener('click', () => on.fullscreen());
 
   /**
    * A row of picture buttons. `art(value)` draws each one, `isPressed(value)` marks the
