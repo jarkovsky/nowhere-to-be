@@ -768,12 +768,13 @@ export function createGame(canvas) {
       player: driving ? state : null,
       corners: driving ? footprint() : [],
       others: driving ? friends.outlines(OUTLINE) : [],
+      ready: friends.ready(),
       blockers: towed,
       listener: camera.position,
     });
     if (driving && ferry.holding()) {
       if (car.trailer && trailer.ready) ferry.carry(trailer);
-      friends.carry(ferry.carry, ferry.onDeck);
+      friends.carry(ferry.carry, ferry.onDeck, ferry.from());
     }
 
     if (driving) {
@@ -826,6 +827,7 @@ export function createGame(canvas) {
       dynamic: moving,
       close: driving && ferry.aboard(),
       crowded: driving ? ferry.crowded() : null,
+      ferry: driving ? ferry.deck() : null,
     });
     towed.length = 0;
     towed.push(...tail, ...friends.points, ...ferry.points);
@@ -963,7 +965,7 @@ export function createGame(canvas) {
       },
       followCar: () => chase.setMode('chase'),
       /** Ties the ferry up at the quay at once, empty and waiting; or brings it in now with cars aboard. */
-      dockFerry: () => ferry.dock(),
+      dockFerry: (at = 0) => ferry.dock(at),
       callFerry: () => ferry.callIn(),
       /** Puts the car in the depot's yard, `lx` along the doors and `lz` out from them, facing them. */
       toDepot(lx, lz) {

@@ -19,6 +19,7 @@ import { buildFields } from '../world/landmarks/fields.js';
 import { buildAirfield } from '../world/landmarks/airfield.js';
 import { buildRockGate } from '../world/landmarks/rockgate.js';
 import { buildFjord } from '../world/landmarks/fjord.js';
+import { buildLofoten } from '../world/landmarks/lofoten.js';
 import { buildFarms } from '../world/landmarks/farms.js';
 import { buildVillage } from '../world/landmarks/village.js';
 import { buildDepot } from '../world/landmarks/depot.js';
@@ -60,6 +61,7 @@ export const LANDMARKS = {
   krystofPad: (scene, obstacles) => buildHelipad(scene, obstacles, KRYSTOF.pad),
   chapel: buildChapel,
   orchard: buildOrchard,
+  lofoten: buildLofoten,
   snowman: buildSnowman,
   fishing: buildFishing,
   summit: buildSummit,

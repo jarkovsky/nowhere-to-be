@@ -4,7 +4,7 @@
 // firs, whose crowns are loaded with snow.
 import * as THREE from 'three';
 import { fractalNoise, smoothstep, valueNoise } from '../core/math.js';
-import { winterness } from './layout.js';
+import { LOFOTEN, winterness } from './layout.js';
 
 const SNOW = new THREE.Color('#eef5ff');
 const HOLLOW = new THREE.Color('#9fb8e0');
@@ -68,4 +68,28 @@ export function snowOver(parts) {
       }
     }
   }
+}
+
+const COAST_ROCK = new THREE.Color('#4d535f');
+const COAST_ROCK_PALE = new THREE.Color('#6c7380');
+const COAST_SNOW = new THREE.Color('#dfe8f8');
+const rockTone = new THREE.Color();
+
+/**
+ * Turns the steep ground round the Lofoten coast to the dark grey rock of its mountains, with
+ * snow left lying in streaks down it. `out` is the colour so far; `up` is 1 on level ground. The
+ * snow on the flat coast is left as it is.
+ */
+export function coastRock(x, z, up, out) {
+  if (Math.hypot(x - LOFOTEN.x, z - LOFOTEN.z) > LOFOTEN.radius + 600) return;
+  const steep = smoothstep(up, 0.93, 0.7);
+  if (steep <= 0) return;
+  // Streaks running down the slope: stretched along the way the ground falls, which is mostly
+  // away from the coast's middle.
+  const [dx, dz] = [x - LOFOTEN.x, z - LOFOTEN.z];
+  const along = (dx * 0.7 + dz * 0.71) / 5;
+  const across = (dx * 0.71 - dz * 0.7) / 26;
+  const streak = smoothstep(fractalNoise(across + 3.1, along * 0.15 + 8.4, 3, 181), 0.5, 0.64);
+  rockTone.copy(COAST_ROCK).lerp(COAST_ROCK_PALE, valueNoise(x / 9, z / 9, 187));
+  out.lerp(rockTone.lerp(COAST_SNOW, streak * 0.9), steep);
 }

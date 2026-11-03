@@ -398,6 +398,13 @@ export const WINTER = (() => {
 
 /** How wintry it is at a point: 1 in the middle of the snow, 0 in autumn, with a ragged edge between. */
 export function winterness(x, z) {
+  // The Lofoten coast in the north-west is under snow throughout, up its mountains. The valley's fence is more than 550 m from its middle, so the edge of the snow stays well clear of it.
+  if (x < -700 && z < -700) {
+    const d = Math.hypot(x - LOFOTEN.x, z - LOFOTEN.z);
+    if (d > LOFOTEN.radius + 200) return 0;
+    const wander = (valueNoise(x / 55, z / 55, 137) - 0.5) * 30;
+    return 1 - smoothstep(d + wander, LOFOTEN.radius + 120, LOFOTEN.radius + 190);
+  }
   // The snow lies in the north-east quarter, so most of the world is turned away before any
   // trigonometry: this is asked for every point of the ground at load, and of the ribbons.
   if (z > -150 || x < 100 || x * x + z * z < 560 * 560) return 0;
@@ -436,37 +443,68 @@ export const ROCK_GATE = (() => {
   return { ...p, span: 25, height: 18, thickness: 4.5, crown: 26.5 };
 })();
 
+// The fjord runs straight on into the Lofoten bay along the line through these two points.
+const FJORD_BEND = polar(225, 1120);
+const FJORD_MOUTH = polar(224, 1320);
+/** Which way the fjord runs, away from its head, along that last reach: a unit vector. */
+const FJORD_REACH = (() => {
+  const [dx, dz] = [FJORD_MOUTH[0] - FJORD_BEND[0], FJORD_MOUTH[1] - FJORD_BEND[1]];
+  return { dx: dx / Math.hypot(dx, dz), dz: dz / Math.hypot(dx, dz) };
+})();
+/** How far across the bay is from its middle to its shore, in metres. */
+const BAY_RADIUS = 150;
+
 /**
  * A fjord in the north-west: a long arm of still, deep water between steep rock walls,
  * reaching in from beyond the fence. Its head ends in a gentler slope with a small village
- * at the water's edge, and a road comes down that slope in hairpins from the outer road.
- * `level` is the height of the water; it is wider towards its mouth.
+ * at the water's edge, and a road comes down that slope in hairpins from the outer road. Its
+ * other end opens out into a round bay on the Lofoten coast (see LOFOTEN), the path ending at
+ * the bay's middle. `level` is the height of the water; the fjord is wider towards its mouth
+ * and `bayness(s)` says how far into the bay it has opened out by `s` metres along it.
  */
-export const FJORD = {
-  level: 30,
-  depth: 8,
-  halfWidth: s => 28 + Math.min(s, 260) * 0.06,
-  path: createPath([polar(228, 860), polar(227, 940), polar(226, 1020), polar(225, 1120), polar(224, 1320)], {
-    spacing: 2,
-  }),
-};
-
-// The fjord's extent, so points far from it are turned away at once.
-const fjordBox = (() => {
-  const reach = FJORD.halfWidth(FJORD.path.length) + 10;
-  const xs = FJORD.path.samples.map(p => p.x);
-  const zs = FJORD.path.samples.map(p => p.z);
-  return {
-    x0: Math.min(...xs) - reach,
-    x1: Math.max(...xs) + reach,
-    z0: Math.min(...zs) - reach,
-    z1: Math.max(...zs) + reach,
+export const FJORD = (() => {
+  const bay = {
+    x: FJORD_MOUTH[0] + FJORD_REACH.dx * 20,
+    z: FJORD_MOUTH[1] + FJORD_REACH.dz * 20,
+    radius: BAY_RADIUS,
+    // How far out from the quay its middle is, along the line the fjord runs in on.
+    lz: BAY_RADIUS + 4,
   };
+  const path = createPath(
+    [polar(228, 860), polar(227, 940), polar(226, 1020), FJORD_BEND, FJORD_MOUTH, [bay.x, bay.z]],
+    { spacing: 2 },
+  );
+  return {
+    level: 30,
+    depth: 8,
+    bay,
+    mouth: { x: FJORD_MOUTH[0], z: FJORD_MOUTH[1] },
+    path,
+    halfWidth: s => lerp(28 + Math.min(s, 260) * 0.06, bay.radius, smoothstep(s, 280, path.length)),
+    bayness: s => smoothstep(s, 300, path.length - 20),
+  };
+})();
+
+// The fjord's extent in stretches, so points far from it are turned away at once.
+const fjordBoxes = (() => {
+  const boxes = [];
+  const { samples } = FJORD.path;
+  for (let i = 0; i < samples.length; i += 40) {
+    const run = samples.slice(i, i + 41);
+    const reach = Math.max(...run.map(p => FJORD.halfWidth(p.s))) + 10;
+    boxes.push({
+      x0: Math.min(...run.map(p => p.x)) - reach,
+      x1: Math.max(...run.map(p => p.x)) + reach,
+      z0: Math.min(...run.map(p => p.z)) - reach,
+      z1: Math.max(...run.map(p => p.z)) + reach,
+    });
+  }
+  return boxes;
 })();
 
 /** True on the fjord's water, or within `margin` metres of it. */
 export function inFjord(x, z, margin = 0) {
-  if (x < fjordBox.x0 - margin || x > fjordBox.x1 + margin || z < fjordBox.z0 - margin || z > fjordBox.z1 + margin)
+  if (!fjordBoxes.some(b => x >= b.x0 - margin && x <= b.x1 + margin && z >= b.z0 - margin && z <= b.z1 + margin))
     return false;
   const { s, distance } = FJORD.path.nearest(x, z);
   return distance < FJORD.halfWidth(s) + margin;
@@ -511,21 +549,205 @@ export const FJORD_VILLAGE = (() => {
 })();
 
 /**
- * The ferry quay at the end of the road down to the fjord. In its own frame, with +Z out over the
- * water, a steel ramp runs out from the shore at `from` to `to`, `width` wide, rising from `low`
- * to `high`, a little below the ferry's deck. The ferry ties up end on just beyond it, its own
- * ramp resting on the end of the quay's, with its middle `berth` metres out at `dock`, facing out
- * over the water.
+ * A ferry quay at a shore point (x, z), with +Z out over the water when turned by `rotation`
+ * like a localFrame. In its own frame a steel ramp runs out from the shore at `from` to `to`,
+ * `width` wide, rising from `low` to `high`, a little below the ferry's deck. The ferry ties up
+ * end on just beyond it, its own ramp resting on the end of the quay's, with its middle `berth`
+ * metres out at `dock`, facing out over the water.
  */
-export const FERRY_QUAY = (() => {
-  const { x, z, rotation } = FJORD_VILLAGE.quay;
+function ferryQuay(x, z, rotation) {
   const [from, to] = [1.5, 9];
   // The ferry's ramp, when it is down, lies over the last 0.4 m of the quay's.
   const berth = to + RAMP - 0.4 + HULL.halfLength;
   const dock = { ...localFrame(x, z, rotation)(0, berth), heading: rotation + Math.PI };
   const [low, high] = [FJORD.level + 0.35, FJORD.level + HULL.deck - 0.12];
-  return { x, z, rotation, from, to, width: 7, low, high, berth, dock };
+  return { x, z, rotation, from, to, width: 2 * HULL.lanes + 0.4, low, high, berth, dock };
+}
+
+/** The ferry quay at the end of the road down to the fjord. */
+export const FERRY_QUAY = ferryQuay(FJORD_VILLAGE.quay.x, FJORD_VILLAGE.quay.z, FJORD_VILLAGE.quay.rotation);
+
+/**
+ * A winter coast at the far end of the fjord, after the Lofoten islands in midwinter, out past
+ * the fence: only the ferry goes there. The car may drive anywhere within `radius` of (x, z).
+ * The fjord opens out into a round bay (`bay`) with the quay on its far shore, and the low
+ * coastal land round it, the strandflat, is ringed by mountains. Places are given in the quay's
+ * own frame (`at(lx, lz)`): +Z out over the water, back up the fjord, and +X to the left looking
+ * that way; the bay's middle is 154 m out, the village stands along its shore and the land
+ * reaches 300 m and more inland behind the quay.
+ */
+export const LOFOTEN = (() => {
+  const quay = {
+    x: FJORD.bay.x + FJORD_REACH.dx * FJORD.bay.lz,
+    z: FJORD.bay.z + FJORD_REACH.dz * FJORD.bay.lz,
+    rotation: Math.atan2(-FJORD_REACH.dx, -FJORD_REACH.dz),
+  };
+  const frame = localFrame(quay.x, quay.z, quay.rotation);
+  const at = (lx, lz) => {
+    const p = frame(lx, lz);
+    return [p.x, p.z];
+  };
+  const place = (lx, lz, extra = {}) => {
+    const p = frame(lx, lz);
+    return { x: p.x, z: p.z, ...extra };
+  };
+  const [x, z] = at(0, -60);
+  /** A point on the shore `bearing` degrees round the bay from the quay (positive to the left), `distance` from the bay's middle. */
+  const shore = (bearing, distance, extra = {}) => {
+    const a = (bearing * Math.PI) / 180;
+    const [lx, lz] = [distance * Math.sin(a), FJORD.bay.lz - distance * Math.cos(a)];
+    // Facing the water, from the shore towards the bay's middle.
+    return { ...place(lx, lz), lx, lz, rotation: quay.rotation + Math.atan2(-lx, FJORD.bay.lz - lz), ...extra };
+  };
+  const road = points => createPath(points.map(([lx, lz]) => at(lx, lz)));
+  const loop = createPath(
+    [
+      [0, -20],
+      [60, -10],
+      [113, 20],
+      [160, 20],
+      [192, -30],
+      [198, -100],
+      [160, -165],
+      [90, -208],
+      [0, -222],
+      [-90, -208],
+      [-160, -165],
+      [-198, -100],
+      [-192, -30],
+      [-160, 20],
+      [-113, 20],
+      [-60, -10],
+    ].map(([lx, lz]) => at(lx, lz)),
+    { closed: true },
+  );
+  return {
+    x,
+    z,
+    radius: 330,
+    quay,
+    at,
+    place,
+    shore,
+    bay: FJORD.bay,
+    /** Roads of packed snow: the quay's, a loop round the village and the flats behind it, and spurs. */
+    roads: {
+      loop,
+      quay: road([
+        [0, 0.5],
+        [0, -8],
+        [0, -20],
+      ]),
+      church: road([
+        [0, -20],
+        [0, -45],
+        [0, -75],
+      ]),
+      lighthouse: road([
+        [113, 20],
+        [140, 58],
+        [158, 92],
+        [166, 118],
+      ]),
+      jetty: road([
+        [-90, 4.5],
+        [-86, 11],
+        [-82.4, 17],
+      ]),
+    },
+    /** Rounded rocky knolls on the strandflat, away from the roads. */
+    knolls: [
+      { ...place(-150, -150), radius: 22, height: 5 },
+      { ...place(120, -110), radius: 26, height: 6 },
+      { ...place(40, -170), radius: 18, height: 3.5 },
+      { ...place(-60, -120), radius: 16, height: 3 },
+      { ...place(172, 136), radius: 15, height: 5.5 },
+      { ...place(-185, 90), radius: 20, height: 5 },
+    ],
+    /** The cabins on stilts at the water's edge, wooden racks for drying fish, boats, the church, jetty and lighthouse. */
+    cabins: [
+      ...[20, 27, 34, 41, -18, -24, -40, -46].map((bearing, i) =>
+        shore(bearing, 160, { paint: i % 2 ? '#d8a43f' : '#a5382b', long: 6.2 + (i % 3) * 0.6 }),
+      ),
+    ],
+    houses: [
+      { ...place(-26, -48), rotation: quay.rotation + Math.PI / 2, paint: '#efe8da', roof: '#4a3f3a' },
+      { ...place(26, -52), rotation: quay.rotation - Math.PI / 2, paint: '#d8a43f', roof: '#a5382b' },
+      { ...place(-27, -78), rotation: quay.rotation + Math.PI / 2, paint: '#a5382b', roof: '#4a3f3a' },
+    ],
+    church: { ...place(0, -100), rotation: quay.rotation },
+    racks: [
+      { ...place(-120, -60), rotation: quay.rotation, length: 11 },
+      { ...place(-120, -74), rotation: quay.rotation, length: 11 },
+      { ...place(-120, -88), rotation: quay.rotation, length: 9 },
+      { ...place(118, -75), rotation: quay.rotation, length: 11 },
+      { ...place(118, -89), rotation: quay.rotation, length: 11 },
+    ],
+    lighthouse: { ...place(173, 134), rotation: quay.rotation },
+    jetty: (() => {
+      const root = shore(-31, 152);
+      const to = shore(-31, 120);
+      return { ...root, to: { x: to.x, z: to.z }, width: 2.2 };
+    })(),
+  };
 })();
+
+/**
+ * The quay on the Lofoten coast where the ferry ties up after sailing down the fjord: on the
+ * shore of the bay the fjord opens into, facing back up the fjord.
+ */
+export const LOFOTEN_QUAY = ferryQuay(LOFOTEN.quay.x, LOFOTEN.quay.z, LOFOTEN.quay.rotation);
+
+/** Both ferry quays: the one at the head of the fjord first. */
+export const FERRY_QUAYS = [FERRY_QUAY, LOFOTEN_QUAY];
+
+/**
+ * The way the ferry sails along the fjord, from where it ties up at the head to where it ties up
+ * on the Lofoten coast: straight out from the first dock, down the middle of the fjord, and
+ * straight in to the second along the line it ties up on, the last 80 metres and more of it
+ * (the fjord runs straight there). It is never tighter than a few hundred metres round.
+ */
+export const FERRY_LANE = (() => {
+  const [from, to] = [FERRY_QUAY.dock, LOFOTEN_QUAY.dock];
+  const forward = dock => ({ x: -Math.sin(dock.heading), z: -Math.cos(dock.heading) });
+  const out = forward(from);
+  // The far dock faces out over the water, back up the fjord: the ferry comes in along that line.
+  const back = forward(to);
+  const ahead = k => [to.x + back.x * k, to.z + back.z * k];
+  // After 70 m straight out it turns gently, on an arc 200 m round, towards the fjord's middle.
+  const arc = [];
+  let [x, z, heading] = [from.x + out.x * 70, from.z + out.z * 70, Math.atan2(out.z, out.x)];
+  for (let k = 0; k < 3; k++) {
+    heading -= 0.22 / 3;
+    x += Math.cos(heading) * ((200 * 0.22) / 3);
+    z += Math.sin(heading) * ((200 * 0.22) / 3);
+    arc.push([x, z]);
+  }
+  return createPath([
+    [from.x, from.z],
+    [from.x + out.x * 20, from.z + out.z * 20],
+    [from.x + out.x * 45, from.z + out.z * 45],
+    [from.x + out.x * 70, from.z + out.z * 70],
+    ...arc,
+    polar(226, 1020),
+    FJORD_BEND,
+    ahead(120),
+    ahead(60),
+    [to.x, to.z],
+  ]);
+})();
+
+/** True inside the fence, `margin` in from it: in the valley, or on the Lofoten coast. */
+export function insideFence(x, z, margin = 0) {
+  if (x * x + z * z < (VALLEY_RADIUS - margin) ** 2) return true;
+  return Math.hypot(x - LOFOTEN.x, z - LOFOTEN.z) < LOFOTEN.radius - margin;
+}
+
+/** How far into the Lofoten coast a point is: 1 within 140 m of its middle, 0 beyond 410 m. */
+export function lofotenness(x, z) {
+  const d = Math.hypot(x - LOFOTEN.x, z - LOFOTEN.z);
+  return d > LOFOTEN.radius + 80 ? 0 : 1 - smoothstep(d, 140, LOFOTEN.radius + 80);
+}
 
 /**
  * Points for a road down a slope round the head of a valley, given as legs of
@@ -626,6 +848,14 @@ export const HERDS = [
   { kind: 'deer', ...spot(306, 750), radius: 50, count: 4, young: 1 },
   { kind: 'mouflon', x: ROCK_HILL.x, z: ROCK_HILL.z, radius: ROCK_HILL.radius, count: 5, young: 2 },
   { kind: 'camel', ...DESERT.herd, count: 4, young: 1 },
+  // On the Lofoten coast: a mother polar bear with her two cubs on the beach to the right of the
+  // quay, a lone bear on the shore at each end of the village, arctic foxes by the fish racks and a
+  // herd of reindeer on the flats behind.
+  { kind: 'polarBear', ...LOFOTEN.place(-135, -20), radius: 26, count: 3, young: 2 },
+  { kind: 'polarBear', ...LOFOTEN.place(185, 95), radius: 22, count: 1 },
+  { kind: 'polarBear', ...LOFOTEN.place(-178, 42), radius: 20, count: 1 },
+  { kind: 'arcticFox', ...LOFOTEN.place(-95, -100), radius: 18, count: 2 },
+  { kind: 'reindeer', ...LOFOTEN.place(70, -150), radius: 50, count: 6, young: 2 },
 ];
 
 /** Like `polar`, as { x, z }. */
@@ -2021,6 +2251,7 @@ export const PLACES = [
   { id: 'airfield', x: AIRFIELD.x - 30, z: (AIRFIELD.z0 + AIRFIELD.z1) / 2 },
   { id: 'rockhill', x: ROCK_HILL.x, z: ROCK_HILL.z },
   { id: 'fjord', x: FJORD_VILLAGE.quay.x, z: FJORD_VILLAGE.quay.z },
+  { id: 'lofoten', ...LOFOTEN.place(0, -40) },
   { id: 'village', x: VILLAGE.fireStation.x, z: VILLAGE.fireStation.z },
   ...FARMS.map(({ id, x, z }) => ({ id, x, z })),
   { id: 'desert', x: DESERT.oasis.x, z: DESERT.oasis.z },
@@ -2078,6 +2309,13 @@ export const PADS = [
   { x: MINE.headframe.x, z: MINE.headframe.z, radius: 3.5, falloff: 5 },
   { x: MINE.shed.x, z: MINE.shed.z, radius: 3.5, falloff: 5 },
   { x: LOGGING.x, z: LOGGING.z, radius: 16, falloff: 12 },
+  // On the Lofoten coast the quay's land end is raised to the ramp, and each building's ground is
+  // levelled where it stands.
+  { ...LOFOTEN.place(0, -2), radius: 3.5, falloff: 8, level: LOFOTEN_QUAY.low - 0.03 },
+  ...LOFOTEN.cabins.map(({ x, z }) => ({ x, z, radius: 4.5, falloff: 4, level: 'ground' })),
+  ...LOFOTEN.houses.map(({ x, z }) => ({ x, z, radius: 6, falloff: 5, level: 'ground' })),
+  { x: LOFOTEN.church.x, z: LOFOTEN.church.z, radius: 9, falloff: 6, level: 'ground' },
+  { x: LOFOTEN.lighthouse.x, z: LOFOTEN.lighthouse.z, radius: 5, falloff: 6, level: 'ground' },
 ];
 
 function patchOnRoad(x, z) {
@@ -2126,6 +2364,11 @@ export const HABITATS = {
   mousingFox: fieldPoint(-74, 22),
   geese: { x: -20, z: 10, radius: 170, height: 58, period: 80 },
   eagle: { x: SERLICH.x, z: SERLICH.z, radius: 34, height: 30, period: 38 },
+  /** Sea eagles circling above the Lofoten bay and the shore, `height` above the water. */
+  seaEagles: [
+    { x: FJORD.bay.x, z: FJORD.bay.z, radius: 95, height: 42, period: 52, phase: 0 },
+    { x: FJORD.bay.x, z: FJORD.bay.z, radius: 130, height: 60, period: 66, phase: 3.1 },
+  ],
 };
 
 /** Small glades kept clear of trees and rocks, a few metres across. */

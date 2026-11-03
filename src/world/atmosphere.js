@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 import { createRandom, smoothstep } from '../core/math.js';
 import { terrainHeight } from './terrain.js';
-import { winterness } from './layout.js';
+import { lofotenness, winterness } from './layout.js';
+import { createAurora } from './aurora.js';
 import { HAZE, createSkyDome } from './sky.js';
 
 const SKY_PRESETS = ['auto', 'sunset', 'night', 'rain', 'day'];
@@ -80,6 +81,14 @@ const COLORS = Object.fromEntries(
     winterGround: '#5a7cc8',
     winterSun: '#e8f0ff',
     winterCloud: '#e3ecf7',
+    // On the Lofoten coast by day the sun stays low: pink haze, peach glow and light, soft blue sky.
+    coastHaze: '#e8bfc9',
+    coastZenith: '#7f9bd8',
+    coastGlow: '#ffc9a0',
+    coastSky: '#b4c1f0',
+    coastGround: '#d6a6b6',
+    coastSun: '#ffcba6',
+    coastCloud: '#f5cdd2',
   }).map(([name, hex]) => [name, new THREE.Color(hex)]),
 );
 
@@ -97,6 +106,8 @@ export function createAtmosphere(scene, sun, ambient) {
   let rain = 0;
   // How far into the winter the car is, a little behind where it is, so a jump takes a moment.
   let winter = 0;
+  // And how far into the Lofoten coast, the same way.
+  let coast = 0;
 
   const dome = createSkyDome(scene.fog.color);
   scene.add(dome);
@@ -195,6 +206,8 @@ export function createAtmosphere(scene, sun, ambient) {
   snowfall.frustumCulled = false;
   scene.add(snowfall);
 
+  const aurora = createAurora(scene);
+
   function updateShootingStar(dt, centre) {
     meteor.next -= dt;
     if (meteor.life <= 0 && meteor.next <= 0 && day < 0.25 && rain < 0.2) {
@@ -243,15 +256,19 @@ export function createAtmosphere(scene, sun, ambient) {
       sunset += (target.sunset - sunset) * blend;
       rain += (target.rain - rain) * blend;
       winter += (winterness(centre.x, centre.z) - winter) * (1 - Math.exp(-dt * 2));
+      coast += (lofotenness(centre.x, centre.z) - coast) * (1 - Math.exp(-dt * 2));
       // By day only: at night the snow is lit by the moon and stars, and the sky stays dark.
       const cold = winter * day;
+      // The pink and peach of the low sun, by day, over the cold blue.
+      const low = coast * day;
 
       const haze = scene.fog.color
         .copy(COLORS.nightHaze)
         .lerp(COLORS.dayHaze, day)
         .lerp(COLORS.sunsetHaze, sunset * 0.8)
         .lerp(COLORS.rainHaze, rain * 0.65)
-        .lerp(COLORS.winterHaze, cold * 0.8);
+        .lerp(COLORS.winterHaze, cold * 0.8)
+        .lerp(COLORS.coastHaze, low * 0.7);
       scene.background.copy(haze);
       scene.fog.density = 0.0011 + rain * 0.0035 + winter * 0.0007;
       sky.zenith.value
@@ -259,27 +276,32 @@ export function createAtmosphere(scene, sun, ambient) {
         .lerp(COLORS.dayZenith, day)
         .lerp(COLORS.sunsetZenith, sunset * 0.7)
         .lerp(COLORS.rainZenith, rain * 0.7)
-        .lerp(COLORS.winterZenith, cold * 0.7);
+        .lerp(COLORS.winterZenith, cold * 0.7)
+        .lerp(COLORS.coastZenith, low * 0.65);
       glow
         .copy(COLORS.nightGlow)
         .lerp(COLORS.dayGlow, day)
         .lerp(COLORS.sunsetGlow, sunset)
         .lerp(COLORS.rainGlow, rain * 0.8)
         .lerp(COLORS.winterGlow, cold * 0.7)
+        .lerp(COLORS.coastGlow, low * 0.85)
         .toArray(HAZE.sunColor);
-      ambient.intensity = 0.85 + day * 0.4 + sunset * 0.3 + cold * 0.15;
+      // Never so dark that nothing can be seen: the snow gives back a little of the stars at night.
+      ambient.intensity = 0.85 + day * 0.4 + sunset * 0.3 + cold * 0.15 + coast * (1 - day) * 0.15;
       ambient.color
         .copy(COLORS.skyNight)
         .lerp(COLORS.skyDay, day)
         .lerp(COLORS.skyEvening, sunset * 0.55)
-        .lerp(COLORS.winterSky, winter * 0.75 * (0.4 + 0.6 * day));
+        .lerp(COLORS.winterSky, winter * 0.75 * (0.4 + 0.6 * day))
+        .lerp(COLORS.coastSky, low * 0.6);
       ambient.groundColor
         .copy(COLORS.groundNight)
         .lerp(COLORS.groundDay, day)
-        .lerp(COLORS.winterGround, winter * 0.8 * day);
+        .lerp(COLORS.winterGround, winter * 0.8 * day)
+        .lerp(COLORS.coastGround, low * 0.6);
 
       // The sun is never high, and low on the horizon in the evening, where the haze glows round it.
-      const elevation = 0.03 + day * 0.42 - sunset * 0.06;
+      const elevation = 0.03 + day * 0.42 * (1 - 0.65 * coast) - sunset * 0.06;
       const sunDirection = sky.sunDirection.value.set(
         SUN_BEARING.x * Math.cos(elevation),
         Math.sin(elevation),
@@ -299,19 +321,21 @@ export function createAtmosphere(scene, sun, ambient) {
         .lerp(COLORS.dayCloud, day)
         .lerp(COLORS.sunsetCloud, sunset * 0.8)
         .lerp(COLORS.rainCloud, rain)
-        .lerp(COLORS.winterCloud, cold * 0.6);
+        .lerp(COLORS.winterCloud, cold * 0.6)
+        .lerp(COLORS.coastCloud, low * 0.7);
       sky.cloudCover.value = 0.3 + rain * 0.7;
       sky.time.value = time;
 
       // The light comes from the same side, a little higher, so the evening shadows are long.
       const ground = terrainHeight(centre.x, centre.z);
-      const light = 0.32 + day * 0.58 - sunset * 0.22;
+      const light = 0.32 + day * 0.58 * (1 - 0.5 * coast) - sunset * 0.22;
       sun.intensity = Math.max(0.25, 0.4 + day * 2.7 + sunset * 1.1 - rain * 1.6);
       sun.color
         .copy(COLORS.sunNight)
         .lerp(COLORS.sunDay, day)
         .lerp(COLORS.sunEvening, sunset)
-        .lerp(COLORS.winterSun, cold * 0.7);
+        .lerp(COLORS.winterSun, cold * 0.7)
+        .lerp(COLORS.coastSun, low * 0.8);
       sun.target.position.set(centre.x, ground, centre.z);
       sun.position.set(
         centre.x + SUN_BEARING.x * Math.cos(light) * 200,
@@ -326,6 +350,8 @@ export function createAtmosphere(scene, sun, ambient) {
       stars.material.opacity = (1 - day) * 0.85 * (1 - rain);
       stars.visible = day < 0.9;
       updateShootingStar(running ? dt : 0, centre);
+      // The northern lights, on clear nights on the coast.
+      aurora.update(time, centre, coast * smoothstep(1 - day, 0.45, 0.8) * (1 - rain));
 
       rainLines.visible = rain > 0.02;
       rainLines.material.opacity = rain * 0.55;

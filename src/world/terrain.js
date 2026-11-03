@@ -52,8 +52,10 @@ import {
   ROCK_GATE,
   ROCK_FIN,
   FJORD,
-  FERRY_QUAY,
+  FERRY_QUAYS,
+  LOFOTEN,
   inFjord,
+  insideFence,
   PONDS,
   DESERT,
   lakeDistance,
@@ -72,15 +74,19 @@ import { createPath } from './path.js';
 const HALF = WORLD_SIZE / 2;
 const INNER = 560;
 const MIDDLE = 1060;
+/** The fine cells continue on the negative side of both axes this far, to cover the Lofoten coast. */
+const COAST = 1480;
 
 /**
  * The grid along each axis: fine 3.5 m cells across the middle, cells of about
- * 4.5 m out to the far side of the fence, then coarse ones under the distant mountains.
+ * 4.5 m out to the far side of the fence (and on the negative side, out past the Lofoten coast),
+ * then coarse ones under the distant mountains.
  * Every band starts on a multiple of four grid lines, so the ground can be drawn far off with
  * every second or fourth line (see ground.js).
  */
 const BANDS = [
-  { from: -HALF, to: -MIDDLE, cells: 40 },
+  { from: -HALF, to: -COAST, cells: 16 },
+  { from: -COAST, to: -MIDDLE, cells: 96 },
   { from: -MIDDLE, to: -INNER, cells: 112 },
   { from: -INNER, to: INNER, cells: 320 },
   { from: INNER, to: MIDDLE, cells: 112 },
@@ -93,7 +99,7 @@ const BANDS = [
     start += band.cells;
   }
 }
-const FINE = BANDS[2];
+const FINE = BANDS[3];
 /** The bands of the grid, for shaders that look heights up: where each starts, its first grid line and its cell size. */
 export const GRID_BANDS = BANDS.map(({ from, to, start, size }) => ({ from, to, start, size }));
 
@@ -184,7 +190,56 @@ function wildHeight(x, z) {
   }
   // A shelf behind the waterfall, so the stream drops off real high ground.
   h += 12 * smoothstep(x - WATERFALL.x, 4, 36) * (1 - smoothstep(Math.abs(z - WATERFALL.z), 26, 70));
-  return h;
+  // The Lofoten coast and its mountains take over beyond the fence, and nothing in the valley changes.
+  const outside = x < -700 && z < -700 ? smoothstep(Math.hypot(x, z), 1060, 1180) : 0;
+  return outside > 0 ? lerp(h, lofotenHeight(x, z, h), outside) : h;
+}
+
+/** Where the snow is blown into long low drifts on the Lofoten coast: the wind comes from the north-west. */
+const COAST_WIND = { x: 0.7, z: 0.71 };
+
+/** The flat land on the Lofoten coast sits this high above the water, give or take its swells and drifts. */
+const STRANDFLAT = FJORD.level + 2.4;
+/** Inside this far from the coast's middle the land is the strandflat; it rises to the foot of the mountains by the fence. */
+const FLATS = LOFOTEN.radius - 90;
+
+/**
+ * The Lofoten coast: a low, flat shore (the strandflat) with soft swells and long drifts and a
+ * few rounded knolls of rock, rising gently to the foot of the mountains by the fence and then
+ * steeply into jagged peaks. `wild` is the landscape there otherwise, a wall of rock.
+ */
+function lofotenHeight(x, z, wild) {
+  const d = Math.hypot(x - LOFOTEN.x, z - LOFOTEN.z);
+  // Far from the coast the mountains are only a little more broken up, and not at all near the valley.
+  const broken =
+    (1 - smoothstep(d, LOFOTEN.radius + 250, LOFOTEN.radius + 450)) * smoothstep(Math.hypot(x, z), 1060, 1200);
+  if (d > LOFOTEN.radius + 620) return wild + jaggedPeaks(x, z, broken);
+  // Close to the bay the land lies low and level, so the quay's road meets it gently.
+  const inland = smoothstep(Math.hypot(x - FJORD.bay.x, z - FJORD.bay.z), FJORD.bay.radius, FJORD.bay.radius + 90);
+  const swell = (fractalNoise(x / 140 + 11.3, z / 140 + 5.1, 3, 301) - 0.5) * 3.2 * (0.35 + 0.65 * inland);
+  const ripple = (valueNoise(x / 33, z / 33, 307) - 0.5) * 0.9;
+  const across = x * COAST_WIND.x + z * COAST_WIND.z + (fractalNoise(x / 90, z / 90, 2, 311) - 0.5) * 60;
+  const drift = Math.sin(across / 11) * 0.28 * (0.5 + valueNoise(x / 70, z / 70, 313));
+  let flat = STRANDFLAT + swell + ripple + drift - 1.3 * (1 - inland);
+  for (const knoll of LOFOTEN.knolls) flat += bump(x, z, knoll.x, knoll.z, knoll.radius, knoll.height);
+  const lowland = flat + smoothstep(d, FLATS, LOFOTEN.radius) * 24;
+  if (d <= LOFOTEN.radius) return lowland;
+  // Past the fence the ground climbs steeply, at first about as steep as the ground is high, into
+  // jagged mountains, which in the end join the wall of rock there is out beyond them.
+  const out = d - LOFOTEN.radius;
+  const crown = lowland + 340 * (1 - Math.exp(-out / 240)) + jaggedPeaks(x, z, smoothstep(out, 15, 220) * broken);
+  return lerp(crown, Math.max(crown, wild + jaggedPeaks(x, z, broken)), smoothstep(out, 380, 620));
+}
+
+/** Ridges, crags and spires for the mountains round the Lofoten coast, up to 250 m, `amount` of them. */
+function jaggedPeaks(x, z, amount) {
+  if (amount <= 0) return 0;
+  const u = x * 0.8 - z * 0.6;
+  const v = x * 0.6 + z * 0.8;
+  const ridge = 1 - Math.abs(2 * fractalNoise(u / 85 + 5.7, v / 85 + 1.3, 3, 321) - 1);
+  const crag = 1 - Math.abs(2 * fractalNoise(u / 34 + 1.1, v / 34 + 6.2, 2, 337) - 1);
+  const spire = Math.max(0, fractalNoise(u / 40 + 2.2, v / 40 + 9.1, 2, 331) - 0.35);
+  return amount * (ridge ** 2.2 * 120 + crag * crag * 30 + spire * 90);
 }
 
 // The upland road runs along a broad shelf: near its line the ground eases towards
@@ -564,19 +619,39 @@ RIVERS.forEach((river, i) => levelAlong(river.path, s => river.halfWidth(s) + 14
 
 // The fjord is dug out of the land before any road is laid: deep still water, sheer walls
 // along its sides and a gentle slope round its head that steepens further back to meet the hills.
-for (const [vertex, { index, distance }] of nearestSamples(FJORD.path, 170)) {
+// At its far end it opens out into the bay, where the water shelves quickly to its depth and the
+// shore is a gentle beach rising to the flat coast.
+for (const [vertex, { index, distance }] of nearestSamples(FJORD.path, 230)) {
   const { s } = FJORD.path.samples[index];
   const halfWidth = FJORD.halfWidth(s);
   const bed = FJORD.level - 0.6;
-  const slope = lerp(0.22, 2.4, smoothstep(s, 20, 90));
+  const bay = FJORD.bayness(s);
+  // The beach takes over from the sheer walls where the land is the Lofoten coast's.
+  const coast =
+    1 -
+    smoothstep(
+      Math.hypot(AXIS[vertex % GRID] - LOFOTEN.x, AXIS[Math.floor(vertex / GRID)] - LOFOTEN.z),
+      LOFOTEN.radius - 20,
+      LOFOTEN.radius + 60,
+    );
+  const slope = lerp(lerp(0.22, 2.4, smoothstep(s, 20, 90)), 0.16, coast);
+  // Back from the water the land rises out of the way of the carving: from further off the middle
+  // of the fjord, and from further off the water's edge on the coast.
+  const wall = lerp(smoothstep(distance, 100, 170) * 70, smoothstep(distance - halfWidth, 20, 60) * 600, coast);
+  const offshore = halfWidth - distance;
   const ground =
     distance < halfWidth
-      ? bed - FJORD.depth * (1 - (distance / halfWidth) ** 2)
-      : bed + (distance - halfWidth) * slope + smoothstep(distance, 100, 170) * 70;
+      ? bed - FJORD.depth * lerp(1 - (distance / halfWidth) ** 2, smoothstep(offshore, 0, 12), bay)
+      : bed + (distance - halfWidth) * slope + wall;
   heights[vertex] = Math.min(heights[vertex], ground);
 }
 
 levelAlong(CAMP_TRAIL, () => 2.4, 6);
+// The Lofoten coast's roads of packed snow are laid on its flat land, level across and gentle along.
+// The quay's short road is left to the ground raised under it to meet the ramp (see PADS).
+for (const [name, road] of Object.entries(LOFOTEN.roads)) {
+  if (name !== 'quay') levelAlong(road, () => 3, 8, { window: 20, grade: 0.08 });
+}
 // Tracks off the gravel roads are laid after the roads, so they leave them where the roads now are.
 const offGravel = ({ path }) => GRAVEL.some(road => road.isNear(path.samples[0].x, path.samples[0].z, 1));
 const levelTrack = track =>
@@ -1004,14 +1079,17 @@ export function jettyHeight(x, z) {
 
 /** Top of the steel ramp out from the ferry quay at a point, or null off it. */
 export function quayHeight(x, z) {
-  const { x: qx, z: qz, rotation, from, to, width, low, high } = FERRY_QUAY;
-  const cos = Math.cos(rotation);
-  const sin = Math.sin(rotation);
-  const dx = x - qx;
-  const dz = z - qz;
-  const lz = dx * sin + dz * cos;
-  if (lz < from || lz > to || Math.abs(dx * cos - dz * sin) > width / 2) return null;
-  return lerp(low, high, (lz - from) / (to - from));
+  for (const { x: qx, z: qz, rotation, from, to, width, low, high } of FERRY_QUAYS) {
+    const dx = x - qx;
+    const dz = z - qz;
+    if (dx * dx + dz * dz > (to + width) ** 2) continue;
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    const lz = dx * sin + dz * cos;
+    if (lz < from || lz > to || Math.abs(dx * cos - dz * sin) > width / 2) continue;
+    return lerp(low, high, (lz - from) / (to - from));
+  }
+  return null;
 }
 
 /** Decks that move about, like the ferry's: each { height(x, z) } says how high it is at a point, or null off it. */
@@ -1273,7 +1351,7 @@ export function wadingDepth(x, z) {
 
 /** True where the car is allowed to be: inside the fence and out of deep water. */
 export function isDriveable(x, z) {
-  if (Math.hypot(x, z) > VALLEY_RADIUS) return false;
+  if (!insideFence(x, z)) return false;
   if (bridgeHeight(x, z) !== null || jettyHeight(x, z) !== null) return true;
   if (quayHeight(x, z) !== null || floatingHeight(x, z) !== null) return true;
   return waterDepth(x, z) < 0.95;

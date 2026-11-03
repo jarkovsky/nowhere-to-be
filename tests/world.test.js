@@ -14,6 +14,7 @@ import {
   PLACES,
   PADS,
   VALLEY_RADIUS,
+  insideFence,
   UPLANDS_RADIUS,
   SUMMIT,
   polar,
@@ -220,7 +221,7 @@ test('the tunnel floor is level across the whole bore', () => {
 
 test('every place on the map is inside the fence', () => {
   for (const spot of PLACES) {
-    assert.ok(Math.hypot(spot.x, spot.z) < VALLEY_RADIUS, `${spot.x}, ${spot.z} is outside the fence`);
+    assert.ok(insideFence(spot.x, spot.z), `${spot.x}, ${spot.z} is outside the fence`);
   }
 });
 

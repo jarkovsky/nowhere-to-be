@@ -621,6 +621,7 @@ function paintMap(ctx, w, h) {
     airfield: 'Airfield',
     rockhill: 'Rocky hill',
     fjord: 'Fjord',
+    lofoten: 'Lofoten',
     village: 'Fire station',
     depot: 'Depot',
     horses: 'Horses',

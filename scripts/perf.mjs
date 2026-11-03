@@ -19,6 +19,7 @@ const PLACES = [
     'orchard',
     "const p = L.TRACKS.find(t => t.id === 'orchard').path.at(55); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))",
   ],
+  ['lofoten', 'const p = L.LOFOTEN.roads.loop.at(60); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))'],
   [
     'winter',
     'const s = L.OUTER_ROAD.nearest(L.WINTER.snowman.x, L.WINTER.snowman.z).s; const p = L.OUTER_ROAD.at(s - 30); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))',
