@@ -6,6 +6,7 @@ import {
   leanBackThresholds,
   screenPitch,
   screenRoll,
+  screenTurn,
   stepLeanBack,
   steeringFromRoll,
 } from '../src/input/tilt.js';
@@ -20,6 +21,14 @@ function host(permission) {
   Object.assign(target, {
     isSecureContext: true,
     screen: { orientation },
+    innerWidth: 820,
+    innerHeight: 1180,
+    /** Turns the page round as the browser would: `angle` as it reports it, and the page's shape. */
+    turn(angle, wide = angle % 180 !== 0, says = angle) {
+      [target.innerWidth, target.innerHeight] = wide ? [1180, 820] : [820, 1180];
+      orientation.angle = says;
+      orientation.dispatchEvent(new Event('change'));
+    },
     DeviceOrientationEvent: permission
       ? {
           requestPermission: () => {
@@ -60,7 +69,12 @@ const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-8,
 
 test('turning the device steers the same way in portrait and both landscape orientations', () => {
   for (const screen of [0, 90, -90, 180, 270]) {
-    for (const turn of [-30, 0, 30]) near(screenRoll(...sampleForRoll(turn, screen), screen), turn);
+    for (const turn of [-30, 0, 30]) {
+      const reading = sampleForRoll(turn, screen);
+      near(screenRoll(...reading, screen), turn);
+      // Which way the picture is turned is read from the screen's shape and the device's tilt.
+      near(screenRoll(...reading, screenTurn(...reading, screen % 180 !== 0)), turn);
+    }
   }
   near(screenRoll(70, -90), 20);
   near(screenRoll(70, 90), -20);
@@ -138,8 +152,7 @@ test('straight ahead is always the screen held level, however it was held when t
   tilt.update(0.05, false);
   assert.equal(tilt.getState().steering, 0, 'no steering while paused');
 
-  h.screen.orientation.angle = 90;
-  h.screen.orientation.dispatchEvent(new Event('change'));
+  h.turn(90);
   assert.equal(tilt.getState().ready, false, 'rotation waits for a fresh reading');
   h.reading(...sampleForRoll(9, 90));
   settle();
@@ -179,16 +192,45 @@ test('turning tilt off while permission is pending keeps it off', async () => {
   assert.equal(tilt.getState().ready, false);
 });
 
-test('older iOS versions report the screen angle on window.orientation', async () => {
-  const h = host();
-  delete h.screen.orientation;
-  h.orientation = -90;
-  const tilt = createTiltSteering(h);
-  await tilt.enable();
-  h.reading(...sampleForRoll(0, -90));
-  h.reading(...sampleForRoll(30, -90));
-  tilt.update(0.05, true);
-  assert.ok(tilt.getState().steering > 0);
+test('held level in landscape it goes straight, whatever the browser says about the screen', async () => {
+  const settle = tilt => {
+    for (let i = 0; i < 40; i++) tilt.update(0.05, true);
+  };
+  // Safari on the iPad can say the screen isn't turned while it is in landscape (and older iOS
+  // has no screen.orientation at all); the other two say a landscape turned the other way round.
+  for (const says of [0, undefined, 90, -90, 270]) {
+    for (const held of [90, -90]) {
+      const h = host();
+      const tilt = createTiltSteering(h);
+      await tilt.enable();
+      h.turn(held, true, says);
+      const label = `held ${held}°, browser says ${says}°`;
+      h.reading(...sampleForRoll(0, held));
+      settle(tilt);
+      assert.equal(tilt.getState().steering, 0, `${label}: level goes straight`);
+      assert.equal(tilt.getState().turn, held, label);
+      h.reading(...sampleForRoll(20, held));
+      settle(tilt);
+      assert.ok(tilt.getState().steering > 0.5, `${label}: turned left steers left`);
+      h.reading(...sampleForRoll(-20, held));
+      settle(tilt);
+      assert.ok(tilt.getState().steering < -0.5, `${label}: turned right steers right`);
+    }
+  }
+});
+
+test('the way the picture is turned holds until the device is turned well past side-on', () => {
+  // Held in landscape and turned 85° and then 100° the same way, it is still the same landscape.
+  assert.equal(screenTurn(...sampleForRoll(0, 90), true), 90);
+  assert.equal(screenTurn(...sampleForRoll(85, 90), true, 90), 90);
+  assert.equal(screenTurn(...sampleForRoll(100, 90), true, 90), 90);
+  // Turned right round, it is the other landscape.
+  assert.equal(screenTurn(...sampleForRoll(180, 90), true, 90), -90);
+  assert.equal(screenTurn(...sampleForRoll(0, -90), true, 90), -90);
+  // Portrait, the right way up or upside down.
+  assert.equal(screenTurn(...sampleForRoll(10, 0), false, 90), 0);
+  assert.equal(screenTurn(...sampleForRoll(10, 180), false), 180);
+  assert.equal(screenTurn(null, 0, true, 90), 90, 'no reading keeps what it had');
 });
 
 /** Sensor angles for a device leaned back `pitch` degrees from upright and turned by `roll`. */

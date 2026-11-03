@@ -5,6 +5,28 @@ const difference = (angle, center) => ((angle - center + 540) % 360) - 180;
 // Project world-up into the screen plane using the W3C Z-X-Y rotation matrix.
 // Unlike gamma alone, this also works with the screen upright like a steering wheel.
 // Positive roll means counterclockwise (left), matching the driving model.
+/**
+ * Which way the picture is turned on the device, in degrees counterclockwise from upright
+ * portrait, the way screenRoll takes it: 0 or 180 on a screen taller than it is wide, 90 or -90 on
+ * a wider one, whichever puts the top of the picture nearer the sky. It is read from the shape of
+ * the screen and which edge of the device is up rather than asked of the browser, because Safari
+ * on the iPad can say the screen isn't turned while it is in landscape, and held level it would
+ * then steer hard to one side. `previous` stays until the device is turned well past side-on, so
+ * the answer can't flip back and forth there.
+ */
+export function screenTurn(beta, gamma, wide, previous = null) {
+  if (![beta, gamma].every(Number.isFinite)) return previous;
+  const b = beta * radians,
+    g = gamma * radians;
+  const x = -Math.cos(b) * Math.sin(g),
+    y = Math.sin(b);
+  // How much of world-up points to the top of the picture, turned `turn` degrees.
+  const up = turn => x * Math.sin(turn * radians) + y * Math.cos(turn * radians);
+  const [one, other] = wide ? [90, -90] : [0, 180];
+  if ((previous === one || previous === other) && up(previous) > -0.3 * Math.hypot(x, y)) return previous;
+  return up(one) >= up(other) ? one : other;
+}
+
 export function screenRoll(beta, gamma, screenAngle = 0) {
   if (![beta, gamma, screenAngle].every(Number.isFinite)) return null;
   const b = beta * radians,
@@ -77,7 +99,7 @@ export function createTiltSteering(host = window, onChange = () => {}) {
   let roll = null,
     target = 0,
     steering = 0,
-    angle = null;
+    turn = null;
   // Leaning back to reverse: the latest pitch, the pitch it was centred at, and whether it's on.
   let pitch = null,
     upright = null,
@@ -87,9 +109,9 @@ export function createTiltSteering(host = window, onChange = () => {}) {
     generation = 0,
     listening = false;
   const orientation = host.screen?.orientation;
-  const screenAngle = () =>
-    Number.isFinite(orientation?.angle) ? orientation.angle : Number.isFinite(host.orientation) ? host.orientation : 0;
-  const getState = () => ({ enabled, pending, ready, status, steering, reversing: lean.reversing, roll, pitch });
+  /** Whether the page is wider than it is tall, landscape. */
+  const wide = () => host.innerWidth > host.innerHeight;
+  const getState = () => ({ enabled, pending, ready, status, steering, reversing: lean.reversing, roll, pitch, turn });
   /** A centre for leaning back is only taken from a pose well short of lying flat. */
   const uprightFrom = value => (value !== null && value < LEAN_BACK.level ? value : null);
   function report(next) {
@@ -104,12 +126,6 @@ export function createTiltSteering(host = window, onChange = () => {}) {
   }
   function received(event) {
     if (!enabled) return;
-    const currentAngle = screenAngle();
-    if (currentAngle !== angle) {
-      angle = currentAngle;
-      upright = null;
-      steering = 0;
-    }
     if (![event.beta, event.gamma].every(Number.isFinite)) {
       roll = pitch = null;
       ready = false;
@@ -117,7 +133,13 @@ export function createTiltSteering(host = window, onChange = () => {}) {
       report('waiting');
       return;
     }
-    roll = screenRoll(event.beta, event.gamma, currentAngle);
+    const nextTurn = screenTurn(event.beta, event.gamma, wide(), turn);
+    if (nextTurn !== turn) {
+      turn = nextTurn;
+      upright = null;
+      steering = 0;
+    }
+    roll = screenRoll(event.beta, event.gamma, turn);
     pitch = screenPitch(event.beta, event.gamma);
     clearTimeout();
     if (roll === null) {
@@ -133,7 +155,7 @@ export function createTiltSteering(host = window, onChange = () => {}) {
   }
   function rotationChanged() {
     if (!enabled) return;
-    roll = pitch = upright = null;
+    roll = pitch = upright = turn = null;
     target = steering = 0;
     ready = false;
     report('waiting');
@@ -150,7 +172,7 @@ export function createTiltSteering(host = window, onChange = () => {}) {
     generation++;
     detach();
     enabled = pending = ready = false;
-    roll = angle = pitch = upright = null;
+    roll = turn = pitch = upright = null;
     target = steering = 0;
     lean = RESTING;
     report(next);
@@ -182,8 +204,7 @@ export function createTiltSteering(host = window, onChange = () => {}) {
         pending = false;
         enabled = true;
         ready = false;
-        roll = pitch = upright = null;
-        angle = screenAngle();
+        roll = pitch = upright = turn = null;
         report('waiting');
         host.addEventListener('deviceorientation', received);
         host.addEventListener('orientationchange', rotationChanged);
