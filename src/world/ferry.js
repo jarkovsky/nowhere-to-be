@@ -1,11 +1,14 @@
-// The car ferry at the head of the fjord, and the cars it brings. When it ties up at the quay the
-// cars drive off and away up the road, and the ferry waits with its ramp down and an arrow over
-// its deck. Drive aboard and stop, and it takes the car out for a short trip round and back. What
-// the ferry does is worked out in core/ferry.js; this builds it and the cars, and moves them.
+// The car ferry on the fjord, and the cars it brings. It sails between the quay at the head of
+// the fjord and the one on the Lofoten coast at its far end. When it ties up at the head the
+// cars it brought drive off and away up the road, and the ferry waits with its ramp down and an
+// arrow over its deck. Drive aboard and stop, and once any friends coming along are aboard too
+// it takes them all across. What the ferry does is worked out in core/ferry.js; this builds it
+// and the cars, and moves them.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   HULL,
+  LANES,
   RAMP,
   RAMP_UP,
   allAboard,
@@ -13,6 +16,7 @@ import {
   carry,
   createFerry as createFerryState,
   deckHeight,
+  headEnd,
   isCarrying,
   onCarDeck,
   quayEnd,
@@ -26,9 +30,11 @@ import { chassisPose } from '../core/suspension.js';
 import { camperVan, createVehicle, deliveryVan, offRoader, pickup, saloon } from '../vehicles/traffic.js';
 import { PartsBuilder } from './build.js';
 import { canvasTexture } from './landmarks/signs.js';
-import { FERRY_QUAY, FJORD, OUTER_ROAD, TRACKS } from './layout.js';
+import * as layout from './layout.js';
 import { createPath, headingOf } from './path.js';
 import { addFloatingDeck, drivingHeight } from './terrain.js';
+
+const { FERRY_QUAY, FJORD, LOFOTEN_QUAY, OUTER_ROAD, TRACKS } = layout;
 
 const WHITE = '#f2efe6';
 const HULL_PAINT = '#2b3a46';
@@ -60,13 +66,12 @@ const PASSENGERS = [
   pickup,
   offRoader('#c9a13e', 'cans'),
 ];
-/** Where the cars stand on the deck, in its own frame from the end at the quay: across, and in from that end. */
+/** Where the cars it brings stand on the deck, in its own frame from the end at the head of the fjord: across, and in from that end. */
 const SLOTS = [
-  { x: -1.7, in: 3.4 },
-  { x: 1.7, in: 3.6 },
-  { x: -1.7, in: 10 },
+  { x: LANES[0], in: 3.4 },
+  { x: LANES[2], in: 3.6 },
+  { x: LANES[1], in: 4 },
 ];
-
 /** The ferry: a hull with a ramp at each end, casings along both sides, the wheelhouse on one and the funnel on the other. */
 export function ferryModel() {
   const root = new THREE.Group();
@@ -76,24 +81,27 @@ export function ferryModel() {
   parts.box(2 * B, 0.35, 2 * L, WHITE, { y: 0.6 });
   parts.box(2 * B + 0.04, 0.12, 2 * L + 0.04, RED, { y: 0.83 });
   parts.box(2 * lanes, 0.06, 2 * L, DECK, { y: deck - 0.03 });
-  // A dashed line between the two lanes.
-  for (let z = -L + 1.5; z < L - 1; z += 3) parts.box(0.14, 0.02, 1.6, WHITE, { y: deck + 0.005, z });
+  // Dashed lines between the three lanes.
+  for (const x of [(LANES[0] + LANES[1]) / 2, (LANES[1] + LANES[2]) / 2]) {
+    for (let z = -L + 1.5; z < L - 1; z += 3) parts.box(0.14, 0.02, 1.6, WHITE, { x, y: deck + 0.005, z });
+  }
   const side = (lanes + B) / 2;
   const wide = B - lanes;
+  const casing = 2 * L - 8;
   for (const sx of [-1, 1]) {
     // A casing along each side, with windows out and in, and a low wall on to each end.
-    parts.box(wide, 2.4, 22, WHITE, { x: sx * side, y: deck + 1.2 });
-    parts.box(0.04, 0.6, 19, GLASS, { x: sx * (B + 0.01), y: deck + 1.55 });
-    parts.box(0.04, 0.5, 6, GLASS, { x: sx * (lanes - 0.01), y: deck + 1.6, z: -5 });
-    parts.box(0.04, 1.9, 0.9, '#8a8f8a', { x: sx * (lanes - 0.01), y: deck + 0.95, z: 3 }); // door
+    parts.box(wide, 2.4, casing, WHITE, { x: sx * side, y: deck + 1.2 });
+    parts.box(0.04, 0.6, casing - 3, GLASS, { x: sx * (B + 0.01), y: deck + 1.55 });
+    for (const z of [-9, 9]) parts.box(0.04, 0.5, 7, GLASS, { x: sx * (lanes - 0.01), y: deck + 1.6, z });
+    parts.box(0.04, 1.9, 0.9, '#8a8f8a', { x: sx * (lanes - 0.01), y: deck + 0.95, z: 2 }); // door
     for (const ez of [-1, 1]) parts.box(wide, 1, 4, WHITE, { x: sx * side, y: deck + 0.5, z: ez * (L - 2) });
     // A rail round the top of the casing.
-    for (const x of [lanes + 0.05, B - 0.05]) parts.box(0.06, 0.06, 22, WHITE, { x: sx * x, y: deck + 3.4 });
-    for (let z = -10.5; z <= 10.5; z += 3) {
+    for (const x of [lanes + 0.05, B - 0.05]) parts.box(0.06, 0.06, casing, WHITE, { x: sx * x, y: deck + 3.4 });
+    for (let z = -casing / 2 + 1.5; z <= casing / 2 - 1.5; z += 3) {
       for (const x of [lanes + 0.05, B - 0.05]) parts.box(0.06, 1, 0.06, WHITE, { x: sx * x, y: deck + 2.9, z });
     }
     // Lifebuoys on the outside.
-    for (const z of [-7, 7]) {
+    for (const z of [-12, 0, 12]) {
       parts.add(new THREE.TorusGeometry(0.32, 0.09, 6, 12), '#e2632e', {
         x: sx * (B + 0.1),
         y: deck + 0.7,
@@ -103,15 +111,15 @@ export function ferryModel() {
     }
   }
   // The wheelhouse on one casing, its wings out over the side, and a mast on its roof.
-  parts.box(2.2, 1.8, 5.4, WHITE, { x: lanes + 1.1, y: deck + 3.3 });
-  parts.box(2.24, 0.7, 5.44, GLASS, { x: lanes + 1.1, y: deck + 3.55 });
-  parts.box(2.5, 0.16, 5.8, RED, { x: lanes + 1.1, y: deck + 4.28 });
+  parts.box(2.2, 1.8, 6.4, WHITE, { x: lanes + 1.1, y: deck + 3.3 });
+  parts.box(2.24, 0.7, 6.44, GLASS, { x: lanes + 1.1, y: deck + 3.55 });
+  parts.box(2.5, 0.16, 6.8, RED, { x: lanes + 1.1, y: deck + 4.28 });
   parts.box(0.12, 2, 0.12, WHITE, { x: lanes + 1.3, y: deck + 5.36 });
   parts.box(0.8, 0.08, 0.08, WHITE, { x: lanes + 1.3, y: deck + 5.9 });
   // The funnel on the other, with a lifeboat canister either side of it.
-  parts.box(1.1, 1.7, 1.8, RED, { x: -side, y: deck + 3.25 });
-  parts.box(1.14, 0.3, 1.84, '#24282a', { x: -side, y: deck + 4 });
-  for (const z of [-4, 4]) {
+  parts.box(1.1, 1.9, 2.2, RED, { x: -side, y: deck + 3.35 });
+  parts.box(1.14, 0.3, 2.24, '#24282a', { x: -side, y: deck + 4.2 });
+  for (const z of [-6, 6]) {
     parts.add(new THREE.CylinderGeometry(0.4, 0.4, 1.3, 10), WHITE, { x: -side, y: deck + 2.8, z, rx: Math.PI / 2 });
   }
   const hull = parts.mesh();
@@ -157,43 +165,36 @@ function flagTexture() {
   });
 }
 
-/** The short trip: straight out from the dock, round in a loop and straight back in, a teardrop on the water. */
-function spinRoute(dock) {
-  const out = { x: -Math.sin(dock.heading), z: -Math.cos(dock.heading) };
-  const across = { x: out.z, z: -out.x };
-  const [reach, width] = [52, 17];
-  const points = [];
-  for (let k = 0; k <= 48; k++) {
-    const a = (k / 48) * Math.PI * 2;
-    const along = (reach * (1 - Math.cos(a))) / 2;
-    const side = (width * Math.sin(a) * (1 - Math.cos(a))) / 2;
-    points.push([dock.x + out.x * along + across.x * side, dock.z + out.z * along + across.z * side]);
-  }
-  return createPath(points);
-}
-
-/** The long trip, out along the fjord until it is out of sight. */
-function voyageRoute(dock) {
-  const out = { x: -Math.sin(dock.heading), z: -Math.cos(dock.heading) };
+/**
+ * The way the ferry sails, from the dock at the head of the fjord to the one on the Lofoten
+ * coast: FERRY_LANE, laid out with the coast. Without it, straight out from the dock, down the
+ * middle of the fjord and straight in to the far dock.
+ */
+function ferryRoute() {
+  if (layout.FERRY_LANE) return layout.FERRY_LANE;
+  const [head, far] = [FERRY_QUAY.dock, LOFOTEN_QUAY.dock];
+  const out = h => ({ x: -Math.sin(h), z: -Math.cos(h) });
+  const [a, b] = [out(head.heading), out(far.heading)];
   const points = [
-    [dock.x, dock.z],
-    [dock.x + out.x * 12, dock.z + out.z * 12],
+    [head.x, head.z],
+    [head.x + a.x * 20, head.z + a.z * 20],
   ];
-  for (let s = 24; s <= 330; s += 8) {
+  for (let s = 50; s <= FJORD.path.length - 20; s += 10) {
     const p = FJORD.path.at(s);
     points.push([p.x, p.z]);
   }
+  points.push([far.x + b.x * 40, far.z + b.z * 40], [far.x, far.z]);
   return createPath(points);
 }
 
 export function createFerry(scene, { onHorn }) {
   const random = createRandom(5501);
-  const { dock } = FERRY_QUAY;
   const ferry = createFerryState({
-    dock,
-    quay: FERRY_QUAY,
-    spin: spinRoute(dock),
-    voyage: voyageRoute(dock),
+    docks: [
+      { dock: FERRY_QUAY.dock, quay: FERRY_QUAY },
+      { dock: LOFOTEN_QUAY.dock, quay: LOFOTEN_QUAY },
+    ],
+    route: ferryRoute(),
     level: FJORD.level,
   });
   addFloatingDeck({ height: (x, z) => deckHeight(ferry, x, z) });
@@ -355,10 +356,10 @@ export function createFerry(scene, { onHorn }) {
    * someone is driving, or null; `corners` the corners of its outline, `others` the outlines of
    * friends that come along, and `blockers` points the cars leaving must not run into.
    */
-  function update(dt, { player = null, corners = [], others = [], blockers = [], listener }) {
+  function update(dt, { player = null, corners = [], others = [], ready = true, blockers = [], listener }) {
     time += dt;
     const busy = passengers.some(p => p.mode === 'aboard' || (p.mode === 'leaving' && anyOn(ferry, [p], p.length / 2)));
-    stepFerry(ferry, dt, { car: player, corners, others, busy });
+    stepFerry(ferry, dt, { car: player, corners, others, ready, busy });
     boarding = player !== null && anyOn(ferry, corners);
     aboard = player !== null && allAboard(ferry, corners);
     crowded = ferry.phase === 'docked' && aboard && Math.abs(player.speed) < 0.3;
@@ -380,15 +381,21 @@ export function createFerry(scene, { onHorn }) {
     model.ramps.forEach((pivot, i) => {
       const end = i === 0 ? -1 : 1;
       // Down, a ramp rests on the end of the quay's.
-      const rest = Math.atan2(HULL.deck + ferry.y - FERRY_QUAY.high, RAMP);
+      const rest = Math.atan2(HULL.deck + ferry.y - ferry.quay.high, RAMP);
       const angle = -rest + (RAMP_UP + rest) * ferry.ramps[i];
       pivot.rotation.x = -end * angle;
     });
     model.flag.rotation.y = Math.sin(time * 2.3) * 0.2;
 
     for (const p of passengers) {
+      // Brought back to the far side after all, the cars aboard are gone again.
+      if (p.mode === 'aboard' && ferry.at === 1 && ferry.phase === 'docked') {
+        p.mode = 'gone';
+        p.root.visible = false;
+      }
       if (p.mode === 'aboard') {
-        const end = quayEnd(ferry);
+        // They face the end that ties up at the head of the fjord, to drive straight off there.
+        const end = headEnd(ferry);
         const q = toWorld(ferry, p.slot.x, end * (HULL.halfLength - p.slot.in - p.length / 2));
         p.root.visible = ferry.shown;
         place(p, q.x, q.z, ferry.heading + (end > 0 ? Math.PI : 0), 0);
@@ -399,17 +406,19 @@ export function createFerry(scene, { onHorn }) {
 
     // The arrow over the deck while the ferry waits for a car.
     const waiting = ferry.phase === 'docked' && !busy && !isCarrying(ferry);
-    const near = player && Math.hypot(player.x - FERRY_QUAY.x, player.z - FERRY_QUAY.z) < 70;
+    const near = player && Math.hypot(player.x - ferry.quay.x, player.z - ferry.quay.z) < 70;
     const askable = waiting && near && !allAboard(ferry, corners);
     cue = damp(cue, askable ? 1 : 0, 4, dt);
     arrow.visible = ripple.visible = cue > 0.02;
     if (arrow.visible) {
       const deck = ferry.y + HULL.deck;
-      arrow.position.set(ferry.x, deck + 3.6 + Math.sin(time * 2.6) * 0.3, ferry.z);
+      // Well in along the deck, where the car leaves room behind it for any friends coming along.
+      const spot = toWorld(ferry, 0, -quayEnd(ferry) * (HULL.halfLength - 9));
+      arrow.position.set(spot.x, deck + 3.6 + Math.sin(time * 2.6) * 0.3, spot.z);
       arrow.rotation.y = time * 1.1;
       arrow.scale.setScalar(1.6 * cue);
       const spread = 1 + ((time / 2.2) % 1) * 0.3;
-      ripple.position.set(ferry.x, deck + 0.04, ferry.z);
+      ripple.position.set(spot.x, deck + 0.04, spot.z);
       ripple.rotation.y = ferry.heading;
       ripple.scale.set(2.6 * spread * cue, 1, 5 * spread * cue);
       rippleMaterial.opacity = 0.7 * (1 - ((time / 2.2) % 1)) ** 1.5;
@@ -475,9 +484,32 @@ export function createFerry(scene, { onHorn }) {
     hearHorn(x, z) {
       if (ferry.shown && answerAt === null && Math.hypot(x - ferry.x, z - ferry.z) < 120) answerAt = 0.7;
     },
+    /**
+     * The deck while the ferry is tied up with its ramp down, for the friends coming aboard and
+     * driving off: where it is ({ x, z, heading }), which `end` is at the quay, which dock it is
+     * at, and whether the car stands aboard, waiting to go (`loading`). Otherwise null.
+     */
+    deck() {
+      if (ferry.phase !== 'docked') return null;
+      return {
+        x: ferry.x,
+        z: ferry.z,
+        heading: ferry.heading,
+        end: quayEnd(ferry),
+        at: ferry.at,
+        aboard,
+        loading: aboard && ferry.settled > 0.3,
+      };
+    },
+    /**
+     * The dock the ferry is leaving or has left, while it carries the car: 0 at the head of the
+     * fjord, 1 on the Lofoten coast. Lowering its ramp, it is already tied up at the other one.
+     */
+    from: () => (ferry.phase === 'lowering' ? 1 - ferry.at : ferry.at),
     getState: () => ({
       phase: ferry.phase,
-      trip: ferry.trip,
+      at: ferry.at,
+      to: ferry.to,
       x: ferry.x,
       z: ferry.z,
       heading: ferry.heading,
@@ -488,17 +520,22 @@ export function createFerry(scene, { onHorn }) {
       cue,
       passengers: passengers.map(({ mode, x, z, heading, speed }) => ({ mode, x, z, heading, speed })),
     }),
-    /** For tests and screenshots: ties the ferry up at the quay at once, empty, with its ramp down. */
-    dock() {
+    /** For tests and screenshots: ties the ferry up at a dock at once (0 the head of the fjord, 1 the far one), empty, with its ramp down. */
+    dock(at = 0) {
       for (const p of passengers) Object.assign(p, { mode: 'gone' }).root.visible = false;
+      const { dock, quay } = ferry.docks[at];
+      Object.assign(ferry, { phase: 'docked', at, to: at, dock, quay, time: 0, speed: 0, carrying: null });
+      Object.assign(ferry, { x: dock.x, z: dock.z, s: at === 1 ? ferry.route.length : 0 });
+      ferry.heading = at === 0 ? dock.heading : dock.heading + Math.PI;
+      Object.assign(ferry.last, { x: ferry.x, z: ferry.z, heading: ferry.heading });
       const end = quayEnd(ferry);
-      Object.assign(ferry, { phase: 'docked', trip: 'in', time: 0, shown: true, speed: 0, carrying: null });
       ferry.ramps[end < 0 ? 0 : 1] = 0;
       ferry.ramps[end < 0 ? 1 : 0] = 1;
     },
-    /** For tests and screenshots: brings the ferry in from the far end now, with cars aboard. */
+    /** For tests and screenshots: sends the ferry over from the far side now, with cars aboard. */
     callIn() {
-      Object.assign(ferry, { phase: 'away', time: 1e3, shown: false });
+      this.dock(1);
+      ferry.time = 1e3;
     },
   };
 }

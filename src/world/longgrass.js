@@ -145,7 +145,18 @@ export function placeLongGrass() {
  */
 export function addLongGrass(scatter, { matrices, colors, tall }) {
   for (let i = 0; i < tall.length; i += 2) growsTall(tall[i], tall[i + 1], 1);
-  // Seven flat blades leaning out from the middle, each with a face on both sides.
+  scatter.add({
+    geometry: tintable(grassClumpGeometry()),
+    near: LONG_GRASS_RANGE,
+    shadows: false,
+    material: foliageMaterial('grass', LONG_GRASS_RANGE),
+    matrices,
+    colors,
+  });
+}
+
+/** One clump of long grass: seven flat blades leaning out from the middle, each with a face on both sides. */
+export function grassClumpGeometry() {
   const blades = new PartsBuilder();
   for (let k = 0; k < 7; k++) {
     const height = 0.7 + ((k * 0.37) % 1) * 0.5;
@@ -165,12 +176,5 @@ export function addLongGrass(scatter, { matrices, colors, tall }) {
       });
     }
   }
-  scatter.add({
-    geometry: tintable(blades.geometry()),
-    near: LONG_GRASS_RANGE,
-    shadows: false,
-    material: foliageMaterial('grass', LONG_GRASS_RANGE),
-    matrices,
-    colors,
-  });
+  return blades.geometry();
 }

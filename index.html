@@ -2,7 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <!-- Added to the home screen, it opens without the browser's bars. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Nowhere to Be" />
+    <link rel="apple-touch-icon" href="/icon-180.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#dce5da" />
     <meta
       name="description"
@@ -132,14 +142,6 @@
             </svg>
             <span class="tile-label" aria-hidden="true">Tilt</span>
           </button>
-          <button class="tile" id="tilt-center" aria-label="Re-centre tilt" hidden>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="7.5" />
-              <circle cx="12" cy="12" r="1.6" />
-              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
-            </svg>
-            <span class="tile-label" aria-hidden="true">Centre</span>
-          </button>
           <button
             class="tile"
             id="tilt-reverse"
@@ -160,6 +162,15 @@
               <path d="M17.2 3.2a3.6 3.6 0 1 0 3.6 5.4 3 3 0 0 1-3.6-5.4Z" />
             </svg>
             <span class="tile-label" aria-hidden="true">Sleep</span>
+          </button>
+          <button class="tile" id="fullscreen" role="switch" aria-checked="false" aria-label="Full screen" hidden>
+            <svg class="when-off" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
+            </svg>
+            <svg class="when-on" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5" />
+            </svg>
+            <span class="tile-label" aria-hidden="true">Full screen</span>
           </button>
           <button class="tile" id="home" aria-label="Back to the start">
             <svg viewBox="0 0 24 24" aria-hidden="true">

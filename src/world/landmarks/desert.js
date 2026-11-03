@@ -17,7 +17,7 @@ import { createPath, headingOf } from '../path.js';
 import { camperVan, createVehicle } from '../../vehicles/traffic.js';
 import { framer } from './frame.js';
 
-/** The way the wind blows across the desert, from the west-south-west (see the dunes in terrain.js). */
+/** The way the wind blows across the desert, from the west-south-west (see the dunes in heightfield.js). */
 const WIND = new THREE.Vector2(0.89, -0.45);
 
 // --- The buttes ------------------------------------------------------------------------------

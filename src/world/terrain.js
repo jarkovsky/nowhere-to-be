@@ -3,7 +3,6 @@
 // coarser out in the outlands and coarse under the distant mountains (see heightfield.js).
 import { clamp, lerp, smoothstep, valueNoise } from '../core/math.js';
 import {
-  VALLEY_RADIUS,
   LAKE,
   ROAD,
   ROAD_HALF_WIDTH,
@@ -26,8 +25,9 @@ import {
   ROCK_GATE,
   ROCK_FIN,
   FJORD,
-  FERRY_QUAY,
+  FERRY_QUAYS,
   inFjord,
+  insideFence,
   PONDS,
   lakeDistance,
   nearRiver,
@@ -239,14 +239,17 @@ export function jettyHeight(x, z) {
 
 /** Top of the steel ramp out from the ferry quay at a point, or null off it. */
 export function quayHeight(x, z) {
-  const { x: qx, z: qz, rotation, from, to, width, low, high } = FERRY_QUAY;
-  const cos = Math.cos(rotation);
-  const sin = Math.sin(rotation);
-  const dx = x - qx;
-  const dz = z - qz;
-  const lz = dx * sin + dz * cos;
-  if (lz < from || lz > to || Math.abs(dx * cos - dz * sin) > width / 2) return null;
-  return lerp(low, high, (lz - from) / (to - from));
+  for (const { x: qx, z: qz, rotation, from, to, width, low, high } of FERRY_QUAYS) {
+    const dx = x - qx;
+    const dz = z - qz;
+    if (dx * dx + dz * dz > (to + width) ** 2) continue;
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    const lz = dx * sin + dz * cos;
+    if (lz < from || lz > to || Math.abs(dx * cos - dz * sin) > width / 2) continue;
+    return lerp(low, high, (lz - from) / (to - from));
+  }
+  return null;
 }
 
 /** Decks that move about, like the ferry's: each { height(x, z) } says how high it is at a point, or null off it. */
@@ -508,7 +511,7 @@ export function wadingDepth(x, z) {
 
 /** True where the car is allowed to be: inside the fence and out of deep water. */
 export function isDriveable(x, z) {
-  if (Math.hypot(x, z) > VALLEY_RADIUS) return false;
+  if (!insideFence(x, z)) return false;
   if (bridgeHeight(x, z) !== null || jettyHeight(x, z) !== null) return true;
   if (quayHeight(x, z) !== null || floatingHeight(x, z) !== null) return true;
   return waterDepth(x, z) < 0.95;

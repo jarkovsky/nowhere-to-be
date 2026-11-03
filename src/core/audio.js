@@ -37,6 +37,7 @@ export function createAudio() {
   let engine;
   let windGain;
   let rainGain;
+  let stormGain;
   let bed;
   let rotor;
   let music;
@@ -184,6 +185,7 @@ export function createAudio() {
 
     windGain = noiseSource('lowpass', 260, 0);
     rainGain = noiseSource('highpass', 2400, 0);
+    stormGain = noiseSource('lowpass', 520, 0);
     music = createMusic(context, master);
   }
 
@@ -404,7 +406,7 @@ export function createAudio() {
      * Called every frame. `throttle` is 0 to 1; `engineOn` is false when the car
      * is parked (paused, or the night at camp), which lets the engine fall silent.
      */
-    update({ speed, throttle = 0, engineOn = true, active, rain }) {
+    update({ speed, throttle = 0, engineOn = true, active, rain, blizzard = 0 }) {
       if (!context) return;
       const now = context.currentTime;
       glide(master.gain, enabled && active ? 0.6 : 0, now, 0.15);
@@ -429,6 +431,9 @@ export function createAudio() {
       const gust = (0.5 + 0.5 * Math.sin(now * 0.11) * Math.sin(now * 0.047 + 1.3)) ** 2;
       glide(windGain.gain, 0.003 + gust * 0.007 + Math.min(8, Math.abs(speed)) * 0.0003, now, 0.8);
       glide(rainGain.gain, rain * 0.028, now, 0.5);
+      // The wind of a blizzard: a soft, low rush that swells and eases off, never loud.
+      const squall = 0.5 + 0.5 * Math.sin(now * 0.31) * Math.sin(now * 0.13 + 0.7);
+      glide(stormGain.gain, blizzard * (0.008 + squall * 0.014), now, 1.2);
     },
   };
 }

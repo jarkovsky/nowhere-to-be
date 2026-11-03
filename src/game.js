@@ -18,6 +18,7 @@ import { createMapPicture } from './ui/mapart.js';
 import { createMinimap } from './ui/minimap.js';
 import { createVehiclePictures } from './ui/pictures.js';
 import { createUI } from './ui/ui.js';
+import { createScreen } from './ui/screen.js';
 import { createCar } from './vehicles/car.js';
 import { createFriends } from './vehicles/friends.js';
 import { OUTER, RING, createTraffic } from './vehicles/traffic.js';
@@ -65,6 +66,7 @@ import {
 } from './world/terrain.js';
 import { createWake } from './world/wake.js';
 import { createWildlife } from './world/wildlife.js';
+import { createDiagnostics } from './ui/diagnostics.js';
 
 const MAX_PIXEL_RATIO = 1.5;
 // Development builds can measure raw rendering cost with ?uncapped (no frame cap, fixed resolution).
@@ -176,6 +178,8 @@ export async function createGame(canvas) {
     minimap.refresh(),
   );
   const minimap = createMinimap(document.getElementById('corner-map'), mapPicture, state, target);
+  // The page never zooms, and can fill the screen.
+  const page = createScreen({ onChange: full => ui.setSwitch('fullscreen', full) });
   const ui = createUI({
     journal,
     pictures,
@@ -195,8 +199,8 @@ export async function createGame(canvas) {
         if (tilt.getState().enabled || tilt.getState().pending) tilt.disable();
         else tilt.enable();
       },
-      tiltCenter: () => tilt.center(),
       tiltReverse: toggleTiltReverse,
+      fullscreen: () => page.toggleFull(),
       showroom: setShowroom,
       map: open => (open ? mapView.open() : mapView.close()),
       openMap: () => pause('map'),
@@ -260,6 +264,8 @@ export async function createGame(canvas) {
     isDriving: () => mode === 'driving',
     onAction: handleAction,
   });
+  // A record of what tilt and the screen's zoom did, shown with #debug on the address.
+  const diagnostics = createDiagnostics({ tilt });
 
   // The camera keeps above the water as well as the ground.
   const aboveGround = (x, z) => Math.max(terrainHeight(x, z), waterLevel(x, z));
@@ -764,16 +770,18 @@ export async function createGame(canvas) {
       player: driving ? state : null,
       corners: driving ? footprint() : [],
       others: driving ? friends.outlines(OUTLINE) : [],
+      ready: friends.ready(),
       blockers: towed,
       listener: camera.position,
     });
     if (driving && ferry.holding()) {
       if (car.trailer && trailer.ready) ferry.carry(trailer);
-      friends.carry(ferry.carry, ferry.onDeck);
+      friends.carry(ferry.carry, ferry.onDeck, ferry.from());
     }
 
     if (driving) {
       const input = controls.read();
+      diagnostics.update(dt, { driving, steering: state.steering, held: input.left || input.right });
       moving.length = 0;
       moving.push(
         ...traffic.colliders,
@@ -821,6 +829,7 @@ export async function createGame(canvas) {
       dynamic: moving,
       close: driving && ferry.aboard(),
       crowded: driving ? ferry.crowded() : null,
+      ferry: driving ? ferry.deck() : null,
     });
     towed.length = 0;
     towed.push(...tail, ...friends.points, ...ferry.points);
@@ -837,7 +846,7 @@ export async function createGame(canvas) {
     if (driving) {
       // Puddles lie on the trail, so the tyres find them rather than the driving surface.
       const surface = surfaces.getState().surface === 'puddle' ? 'puddle' : world.surface(state.x, state.z);
-      dirt = stepDirt(dirt, { surface, speed: state.speed + mudHole.slip, rain: sky.rain }, dt);
+      dirt = stepDirt(dirt, { surface, speed: state.speed + mudHole.slip, rain: sky.rainfall }, dt);
     }
     car.setMud(dirt);
     blockers.length = 0;
@@ -865,7 +874,9 @@ export async function createGame(canvas) {
       throttle: driving ? throttle : 0,
       engineOn: driving,
       active: mode !== 'title' && !document.hidden,
-      rain: sky.rain,
+      // In the snowy places it snows rather than rains, and a blizzard blows now and then.
+      rain: sky.rainfall,
+      blizzard: sky.blizzard,
     });
     // The helicopters and the plane share one engine sound: whichever is loudest.
     const rotor = [
@@ -887,6 +898,7 @@ export async function createGame(canvas) {
   ui.setSwitch('minimap', journal.get().minimap);
   ui.setSwitch('tilt-reverse', journal.get().tiltReverse);
   tilt.setLeanBack(journal.get().tiltReverse);
+  document.getElementById('fullscreen').hidden = !page.canFill;
   updateCarModel(0);
   updateIntroShot(0);
   chase.snap(carView(), cameraOptions());
@@ -960,7 +972,7 @@ export async function createGame(canvas) {
       },
       followCar: () => chase.setMode('chase'),
       /** Ties the ferry up at the quay at once, empty and waiting; or brings it in now with cars aboard. */
-      dockFerry: () => ferry.dock(),
+      dockFerry: (at = 0) => ferry.dock(at),
       callFerry: () => ferry.callIn(),
       /** Puts the car in the depot's yard, `lx` along the doors and `lz` out from them, facing them. */
       toDepot(lx, lz) {

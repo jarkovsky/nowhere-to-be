@@ -23,15 +23,10 @@ import {
 } from './layout.js';
 import { AXIS, GRID, heights, highSnow, waterLevel } from './terrain.js';
 import { desertGround } from './sand.js';
-import { winterGround } from './snow.js';
+import { coastRock, winterGround } from './snow.js';
 
-/**
- * The ground's colours are drawn first from the run of random numbers that the trees, rocks and
- * flowers are then placed by (see scenery.js), which skips the numbers drawn here: one for each
- * patch of SURFACES that isn't mud and two more, at every grid point.
- */
-export const SCENERY_SEED = 82741;
-export const GROUND_DRAWS = GRID * GRID * (SURFACES.filter(patch => patch.id !== 'mud').length + 2);
+/** The ground's colours have random numbers of their own, for the specks of variation in them. */
+const GROUND_SEED = 5339;
 
 // Autumn: golden meadows with olive-green and russet patches, browner high up, and cool grey rock.
 const GROUND = {
@@ -131,9 +126,6 @@ function groundColor(x, z, h, up, out, random) {
     if (patch.id === 'mud') grass *= smoothstep(d, 1.15, 1.45);
     else if (d < 1) grass *= 0.4;
   }
-  // A patch of snow by the trail had its ragged edge drawn here too; the draw is kept so the
-  // trees placed after the ground stay where they are.
-  random();
   // Earth trodden bare in the logging camp's glade, and rubble round the mine. Their ragged edges come from
   // noise, not the shared random numbers, so that they don't move anything placed after the ground.
   for (const patch of WORN) {
@@ -147,7 +139,10 @@ function groundColor(x, z, h, up, out, random) {
   desertGround(x, z, up, out);
   if (grass > 0) grass *= 1 - smoothstep(desertness(x, z), 0.05, 0.45);
   const winter = winterness(x, z);
-  if (winter > 0) grass = winterGround(x, z, up, winter, out, grass);
+  if (winter > 0) {
+    grass = winterGround(x, z, up, winter, out, grass);
+    coastRock(x, z, up, out);
+  }
   out.multiplyScalar(0.96 + random() * 0.08);
   return grass;
 }
@@ -187,6 +182,6 @@ export function gridShading(colorAt) {
 }
 
 /** The ground's normals and colours, as gridShading() gives them, coloured by groundColor(). */
-export function shadeGround(random = createRandom(SCENERY_SEED)) {
+export function shadeGround(random = createRandom(GROUND_SEED)) {
   return gridShading((x, z, h, up, out) => groundColor(x, z, h, up, out, random));
 }

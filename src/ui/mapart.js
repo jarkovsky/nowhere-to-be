@@ -17,9 +17,12 @@ const {
   FARM,
   FIELDS,
   FIELD_PLOTS,
+  FERRY_LANE,
   FJORD,
   GRAVEL,
+  inFjord,
   LAKE,
+  LOFOTEN,
   OXBOW,
   PAVED,
   PLACES,
@@ -41,10 +44,15 @@ const {
 export const MAP_EXTENT = 1060;
 /** Its size in pixels, about a metre each. */
 const SIZE = 2048;
-/** The ground's colours are worked out at half that and smoothed up: the height grid is 3.5 m apart anyway. */
-const HALF = SIZE / 2;
 /** Pixels per metre in the picture. */
 export const MAP_SCALE = SIZE / (2 * MAP_EXTENT);
+
+/**
+ * Smaller pictures of places out past the fence, drawn at their real positions: the Lofoten
+ * coast, `half` metres each way from its middle and `px` pixels square, so it is a little
+ * sharper than the valley. The valley's picture stays as it is.
+ */
+export const MAP_INSETS = [{ id: 'lofoten', x: LOFOTEN.x, z: LOFOTEN.z, half: 380, px: 1024 }];
 
 export const PAPER = '#efe9d6';
 const WATER = '#8cc3d3';
@@ -124,6 +132,12 @@ export const PLACE_ICONS = {
     name: 'Fjord',
     color: BLUE,
     d: 'M2 15.5 6 4l3.5 11.5M22 15.5 18 4l-3.5 11.5M3.5 19.5q2.1-1.8 4.2 0t4.3 0 4.3 0 4.2 0',
+  },
+  lofoten: {
+    name: 'Lofoten coast',
+    color: '#4e8fb8',
+    d: 'M4.8 9.6a2.5 2.5 0 1 1 3.9-2.8M19.2 9.6a2.5 2.5 0 1 0-3.9-2.8M8.7 6.8C9.6 6.3 10.7 6 12 6s2.4.3 3.3.8M4.8 9.6C4.2 10.7 4 11.8 4 13c0 4 3.6 7 8 7s8-3 8-7c0-1.2-.2-2.3-.8-3.4',
+    solid: 'M8.2 11.4a1 1 0 1 0 2 0 1 1 0 1 0-2 0ZM13.8 11.4a1 1 0 1 0 2 0 1 1 0 1 0-2 0ZM9.8 14.4h4.4L12 17.2Z',
   },
   desert: {
     name: 'Desert',
@@ -340,7 +354,18 @@ function mapLines() {
     z1: AIRFIELD.z1,
   };
   const taxiway = { x0: apron.x1 - 1, x1: AIRFIELD.x, z0: AIRFIELD.taxiZ - 5, z1: AIRFIELD.taxiZ + 5 };
+  // The fjord's water as a polygon (so it shows between the valley and the coast, where there is
+  // no picture), and the ferry's route down it, both drawn without the fence's clip.
+  const fjord = new Path2D();
+  const bank = side =>
+    FJORD.path.samples.map(p => [p.x - p.dz * FJORD.halfWidth(p.s) * side, p.z + p.dx * FJORD.halfWidth(p.s) * side]);
+  const [left, right] = [bank(1), bank(-1).reverse()];
+  [...left, ...right].forEach(([x, z], i) => (i ? fjord.lineTo(x, z) : fjord.moveTo(x, z)));
+  fjord.closePath();
+  const roads = Object.values(LOFOTEN.roads);
   lines = [
+    { shape: fjord, fill: WATER, edge: '#6aa5b8', open: true },
+    { shape: shapeOf([FERRY_LANE], 4), color: '#fdfcf6', width: 3, min: 2, dash: [14, 10], open: true },
     ...RIVERS.map(river => ({ shape: shapeOf([river.path], 4), color: WATER, width: river.typical * 2, min: 2.5 })),
     { shape: shapeOf([CREEK], 4), color: WATER, width: CREEK_HALF_WIDTH * 2, min: 2 },
     { shape: shapeOf([BROOK], 4), color: WATER, width: BROOK_HALF_WIDTH * 2, min: 2 },
@@ -361,6 +386,7 @@ function mapLines() {
     { shape: shapeOf(PAVED), color: '#fdfcf6', width: 8.8, min: 4, casing: 1.6, edge: '#8f918a' },
     { shape: shapeOf([CAMP_TRAIL]), color: '#f6e7bd', width: 5.2, min: 3, casing: 1.5, edge: '#b0915c' },
     { shape: shapeOf([ROAD]), color: '#f6e7bd', width: 8.8, min: 4.5, casing: 1.6, edge: '#b0915c' },
+    { shape: shapeOf(roads), color: '#fdfcf6', width: 6, min: 3.5, casing: 1.4, edge: '#8f9aa8' },
     { shape: shapeOf([RAILWAY]), color: '#55584f', width: 2.8, min: 3 },
     { shape: shapeOf([RAILWAY]), color: '#fbfaf5', width: 1.1, min: 1.2, dash: [5, 5] },
   ];
@@ -375,16 +401,39 @@ export function drawMapLines(ctx, scale) {
   const px = value => value / scale;
   ctx.save();
   ctx.lineCap = ctx.lineJoin = 'round';
+  // The fjord and the ferry's route run on past the fence, so they are drawn first, unclipped.
+  drawLines(
+    ctx,
+    px,
+    mapLines().filter(line => line.open),
+  );
+  // Everything else stops at the fence: the valley's, and round the Lofoten coast, which is
+  // drawn dashed.
+  const fences = [
+    [0, 0, VALLEY_RADIUS],
+    [LOFOTEN.x, LOFOTEN.z, LOFOTEN.radius],
+  ];
   ctx.beginPath();
-  ctx.arc(0, 0, VALLEY_RADIUS, 0, Math.PI * 2);
+  for (const [x, z, radius] of fences) {
+    ctx.moveTo(x + radius, z);
+    ctx.arc(x, z, radius, 0, Math.PI * 2);
+  }
   ctx.setLineDash([Math.max(7, px(7)), Math.max(6, px(6))]);
   ctx.lineWidth = Math.max(1.2, px(1.5));
   ctx.strokeStyle = '#a58b62';
   ctx.stroke();
   ctx.clip();
-  // Each kind of road is one shape, its darker edge drawn under all of it before its middle,
-  // so where two of them meet they join up cleanly.
-  for (const line of mapLines()) {
+  drawLines(
+    ctx,
+    px,
+    mapLines().filter(line => !line.open),
+  );
+  ctx.restore();
+}
+
+/** Draws some of the lines, each kind as one shape, its darker edge drawn under all of it before its middle, so where two of them meet they join up cleanly. */
+function drawLines(ctx, px, list) {
+  for (const line of list) {
     const width = Math.max(line.width ?? 0, px(line.min ?? 0));
     if (line.fill) {
       ctx.setLineDash([]);
@@ -406,7 +455,6 @@ export function drawMapLines(ctx, scale) {
     ctx.strokeStyle = line.color;
     ctx.stroke(line.shape);
   }
-  ctx.restore();
 }
 
 // --- The picture ---------------------------------------------------------------------------
@@ -422,6 +470,7 @@ const TINT = {
   alpine: rgb('#c9c6b6'),
   snow: rgb('#f7f8f3'),
   winter: rgb('#e4edf9'),
+  coastRock: rgb('#838a97'),
   sand: rgb('#e8dcb2'),
   desert: rgb('#eed9a8'),
   paper: rgb(PAPER),
@@ -480,7 +529,10 @@ function groundTint(x, z, h, slope, c) {
   if (h > 90) mix(c, TINT.snow, snowCover(x, z, h) * (1 - smoothstep(slope, 0.85, 1.3)));
   if (rocky > 0) mix(c, TINT.stone, rocky * 0.85);
   if (sand > 0) mix(c, TINT.desert, smoothstep(sand, 0.25, 0.75));
-  mix(c, TINT.winter, winterness(x, z) * 0.9);
+  const winter = winterness(x, z);
+  mix(c, TINT.winter, winter * 0.9);
+  // The mountains round the Lofoten coast show as dark grey rock, streaked with snow.
+  if (winter > 0) mix(c, TINT.coastRock, smoothstep(slope, 0.55, 1.1) * winter * 0.8);
   if (lakeDistance(x, z) < 2.2) mix(c, TINT.sand, 1 - smoothstep(h, LAKE.level + 0.35, LAKE.level + 1.2));
   const crop = r < 400 ? cropAt(x, z) : null;
   if (crop) mix(c, crop, 0.9);
@@ -488,6 +540,39 @@ function groundTint(x, z, h, slope, c) {
 
 /** Beyond the fence the ground fades into the paper, all the way by the picture's edge. */
 const fadeBeyond = (x, z) => smoothstep(Math.hypot(x, z), VALLEY_RADIUS + 2, MAP_EXTENT - 2);
+
+/** The same round the Lofoten coast: out past its fence, the ground fades into the paper. */
+const fadeBeyondCoast = (x, z) =>
+  smoothstep(Math.hypot(x - LOFOTEN.x, z - LOFOTEN.z), LOFOTEN.radius + 2, LOFOTEN.radius + 40);
+
+/**
+ * A picture's place in the world and how it is painted: its square's corner (x0, z0), `size`
+ * metres across and `px` pixels, `fade(x, z)` how far the ground has faded into the paper,
+ * and the boxes round its still water.
+ */
+function regions() {
+  const inset = MAP_INSETS[0];
+  return {
+    valley: { x0: -MAP_EXTENT, z0: -MAP_EXTENT, size: 2 * MAP_EXTENT, px: SIZE, fade: fadeBeyond, boxes: waterBoxes() },
+    // The whole inset's square is asked about its water, but only where it is the bay's or the fjord's.
+    lofoten: {
+      x0: inset.x - inset.half,
+      z0: inset.z - inset.half,
+      size: 2 * inset.half,
+      px: inset.px,
+      fade: fadeBeyondCoast,
+      boxes: [
+        {
+          x0: inset.x - inset.half,
+          x1: inset.x + inset.half,
+          z0: inset.z - inset.half,
+          z1: inset.z + inset.half,
+          only: (x, z) => inFjord(x, z, 8),
+        },
+      ],
+    },
+  };
+}
 
 /** World boxes round the still water, the only places worth asking whether a pixel is wet. */
 function waterBoxes() {
@@ -523,12 +608,13 @@ const smoothHeight = (x, z) =>
     terrainHeight(x + 1.8, z + 1.8)) /
   6;
 
-/** Paints the still water in one world box onto the picture, pixel by pixel, deeper water darker. */
-function* paintWater(ctx, box) {
-  const i0 = clamp(Math.floor((box.x0 + MAP_EXTENT) * MAP_SCALE), 0, SIZE);
-  const i1 = clamp(Math.ceil((box.x1 + MAP_EXTENT) * MAP_SCALE), 0, SIZE);
-  const j0 = clamp(Math.floor((box.z0 + MAP_EXTENT) * MAP_SCALE), 0, SIZE);
-  const j1 = clamp(Math.ceil((box.z1 + MAP_EXTENT) * MAP_SCALE), 0, SIZE);
+/** Paints the still water in one world box onto the picture of `region`, pixel by pixel, deeper water darker. */
+function* paintWater(ctx, region, box) {
+  const scale = region.px / region.size;
+  const i0 = clamp(Math.floor((box.x0 - region.x0) * scale), 0, region.px);
+  const i1 = clamp(Math.ceil((box.x1 - region.x0) * scale), 0, region.px);
+  const j0 = clamp(Math.floor((box.z0 - region.z0) * scale), 0, region.px);
+  const j1 = clamp(Math.ceil((box.z1 - region.z0) * scale), 0, region.px);
   if (i1 <= i0 || j1 <= j0) return;
   const image = new ImageData(i1 - i0, j1 - j0);
   const c = [0, 0, 0];
@@ -536,9 +622,10 @@ function* paintWater(ctx, box) {
   const rows = Math.max(1, Math.floor(2000 / (i1 - i0)));
   for (let j = j0; j < j1; j++) {
     if ((j - j0) % rows === rows - 1) yield;
-    const z = (j + 0.5) / MAP_SCALE - MAP_EXTENT;
+    const z = (j + 0.5) / scale + region.z0;
     for (let i = i0; i < i1; i++) {
-      const x = (i + 0.5) / MAP_SCALE - MAP_EXTENT;
+      const x = (i + 0.5) / scale + region.x0;
+      if (box.only && !box.only(x, z)) continue;
       const level = waterLevel(x, z);
       if (level === -Infinity) continue;
       const depth = level - smoothHeight(x, z);
@@ -547,7 +634,7 @@ function* paintWater(ctx, box) {
       c[1] = TINT.shallow[1];
       c[2] = TINT.shallow[2];
       mix(c, TINT.deep, smoothstep(depth, 0.3, 3));
-      mix(c, TINT.paper, fadeBeyond(x, z));
+      mix(c, TINT.paper, region.fade(x, z));
       const k = ((j - j0) * (i1 - i0) + (i - i0)) * 4;
       image.data[k] = c[0];
       image.data[k + 1] = c[1];
@@ -561,38 +648,41 @@ function* paintWater(ctx, box) {
 }
 
 /**
- * Paints the picture, yielding every so often so the work can be spread over frames: the
- * ground shaded by the lie of the land as if lit from the north-west, the still water, then
- * the lines. Returns the finished canvas.
+ * Paints the picture of one region, yielding every so often so the work can be spread over
+ * frames: the ground shaded by the lie of the land as if lit from the north-west, the still
+ * water, then the lines. Returns the finished canvas.
  */
-function* paintPicture() {
-  const cell = (2 * MAP_EXTENT) / HALF;
-  const at = i => -MAP_EXTENT + (i + 0.5) * cell;
-  const heights = new Float32Array(HALF * HALF);
-  for (let j = 0; j < HALF; j++) {
-    const z = at(j);
-    for (let i = 0; i < HALF; i++) heights[j * HALF + i] = terrainHeight(at(i), z);
+function* paintRegion(region) {
+  // The ground's colours are worked out at half the pixels and smoothed up: the height grid is 4 m apart anyway.
+  const half = region.px / 2;
+  const cell = region.size / half;
+  const atX = i => region.x0 + (i + 0.5) * cell;
+  const atZ = j => region.z0 + (j + 0.5) * cell;
+  const heights = new Float32Array(half * half);
+  for (let j = 0; j < half; j++) {
+    const z = atZ(j);
+    for (let i = 0; i < half; i++) heights[j * half + i] = terrainHeight(atX(i), z);
     if (j % 32 === 31) yield;
   }
-  const ground = new ImageData(HALF, HALF);
+  const ground = new ImageData(half, half);
   const c = [0, 0, 0];
   // Slopes are taken across a few cells, which smooths over the facets of the ground, and
   // exaggerated a little so the gentle valley floor still shows its shape.
   const relief = 1.5;
   const reach = 2;
   const [lx, ly, lz] = [-0.5, Math.SQRT1_2, -0.5];
-  for (let j = 0; j < HALF; j++) {
-    const z = at(j);
-    const up = Math.max(j - reach, 0) * HALF;
-    const down = Math.min(j + reach, HALF - 1) * HALF;
-    for (let i = 0; i < HALF; i++) {
-      const x = at(i);
-      const k = j * HALF + i;
+  for (let j = 0; j < half; j++) {
+    const z = atZ(j);
+    const up = Math.max(j - reach, 0) * half;
+    const down = Math.min(j + reach, half - 1) * half;
+    for (let i = 0; i < half; i++) {
+      const x = atX(i);
+      const k = j * half + i;
       const h = heights[k];
-      const left = heights[j * HALF + Math.max(i - reach, 0)];
-      const sx = (heights[j * HALF + Math.min(i + reach, HALF - 1)] - left) / (2 * reach * cell);
+      const left = heights[j * half + Math.max(i - reach, 0)];
+      const sx = (heights[j * half + Math.min(i + reach, half - 1)] - left) / (2 * reach * cell);
       const sz = (heights[down + i] - heights[up + i]) / (2 * reach * cell);
-      const fade = fadeBeyond(x, z);
+      const fade = region.fade(x, z);
       if (fade < 1) groundTint(x, z, h, Math.hypot(sx, sz), c);
       // Lit from the north-west: 1 on flat ground, darker on slopes facing away.
       const nx = -sx * relief;
@@ -605,22 +695,33 @@ function* paintPicture() {
     }
     if (j % 8 === 7) yield;
   }
-  const small = makeCanvas(HALF);
+  const small = makeCanvas(half);
   small.getContext('2d').putImageData(ground, 0, 0);
   yield;
-  const picture = makeCanvas(SIZE);
+  const picture = makeCanvas(region.px);
   const ctx = picture.getContext('2d');
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(small, 0, 0, SIZE, SIZE);
+  ctx.drawImage(small, 0, 0, region.px, region.px);
   yield;
-  for (const box of waterBoxes()) {
-    yield* paintWater(ctx, box);
+  for (const box of region.boxes) {
+    yield* paintWater(ctx, region, box);
     yield;
   }
-  ctx.setTransform(MAP_SCALE, 0, 0, MAP_SCALE, SIZE / 2, SIZE / 2);
-  drawMapLines(ctx, MAP_SCALE);
+  const scale = region.px / region.size;
+  ctx.setTransform(scale, 0, 0, scale, -region.x0 * scale, -region.z0 * scale);
+  drawMapLines(ctx, scale);
   return picture;
+}
+
+/** Paints the valley's picture and then the insets', one after the other. */
+function* paintPicture() {
+  const { valley, lofoten } = regions();
+  const canvas = yield* paintRegion(valley);
+  const insets = [
+    { ...MAP_INSETS[0], x0: lofoten.x0, z0: lofoten.z0, size: lofoten.size, canvas: yield* paintRegion(lofoten) },
+  ];
+  return { canvas, insets };
 }
 
 /**
@@ -630,6 +731,7 @@ function* paintPicture() {
  */
 export function createMapPicture() {
   let canvas = null;
+  let insets = [];
   let painting = null;
   let waiting = null;
   let budget = 0;
@@ -641,7 +743,7 @@ export function createMapPicture() {
     do {
       const { done, value } = painting.next();
       if (done) {
-        canvas = value;
+        ({ canvas, insets } = value);
         painting = null;
         return true;
       }
@@ -652,6 +754,10 @@ export function createMapPicture() {
   return {
     get canvas() {
       return canvas;
+    },
+    /** The smaller pictures of places out past the fence, each { x0, z0, size, canvas }: empty until it is painted. */
+    get insets() {
+      return insets;
     },
     prepare(ms = 6) {
       budget = ms;

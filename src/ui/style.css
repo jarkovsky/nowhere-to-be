@@ -24,6 +24,20 @@
   box-sizing: border-box;
 }
 
+/* A game screen: a pinch or a double tap never zooms the page (see screen.js), except to
+   pinch it back out if it has been zoomed in all the same. */
+html,
+body {
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+html.zoomed,
+html.zoomed body,
+html.zoomed #world {
+  touch-action: pinch-zoom;
+}
+
 body {
   margin: 0;
   overflow: hidden;
@@ -377,7 +391,7 @@ body.playing .shade {
     0 4px 0 rgba(40, 62, 53, 0.18),
     0 8px 18px rgba(30, 50, 40, 0.12);
   overflow: hidden;
-  touch-action: manipulation;
+  touch-action: none;
   z-index: 2;
 }
 
@@ -544,6 +558,7 @@ body.camping .touch-controls {
     0 24px 60px rgba(20, 40, 30, 0.25);
   overflow-y: auto;
   overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .menu[open] {
@@ -649,6 +664,11 @@ body.camping .touch-controls {
 
 .tile[aria-checked='false'] .when-off {
   opacity: 0.55;
+}
+
+/* Not filling the screen isn't a switch turned off: its picture is drawn as strongly as the others. */
+#fullscreen[aria-checked='false'] .when-off {
+  opacity: 1;
 }
 
 #camp {
@@ -1155,4 +1175,27 @@ body.touch .keys {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* The record of what tilt and the zoom did, shown with #debug on the address. */
+.diagnostics {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  max-width: min(640px, 92vw);
+  max-height: 46vh;
+  margin: 0;
+  padding: 8px 10px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: rgba(20, 28, 24, 0.72);
+  color: #f4f1e4;
+  font:
+    11px/1.35 ui-monospace,
+    Menlo,
+    monospace;
+  white-space: pre-wrap;
+  pointer-events: none;
 }

@@ -5,12 +5,13 @@
 // ground let the car come close, and run out of its way at the last moment (see dodge.js).
 import * as THREE from 'three';
 import { angleDelta, createRandom, smoothstep } from '../core/math.js';
-import { FARM, HABITATS, LAKE } from './layout.js';
+import { FARM, FJORD, HABITATS, LAKE } from './layout.js';
 import { terrainHeight } from './terrain.js';
 import { ANIMAL_BEVEL, PartsBuilder, limb, localFrame } from './build.js';
 import { createWolves } from './wolves.js';
 import { createChickens } from './chickens.js';
 import { createHerds } from './herds.js';
+import { createOrcas } from './orcas.js';
 import { createDodge, stepDodge } from './dodge.js';
 
 const DARK = '#394439';
@@ -192,14 +193,17 @@ function geeseFlock(scene, count) {
   };
 }
 
-/** A golden eagle with its wings spread for soaring, as one rigid mesh. */
-export function eagle() {
-  const brown = '#5e4632';
+/**
+ * A golden eagle with its wings spread for soaring, as one rigid mesh. A sea eagle, with `sea`,
+ * has a paler head, a bigger yellow beak and a white tail.
+ */
+export function eagle(sea = false) {
+  const brown = sea ? '#6b5a49' : '#5e4632';
   const parts = new PartsBuilder({ bevel: ANIMAL_BEVEL })
     .box(1.1, 0.34, 0.42, brown)
-    .box(0.36, 0.3, 0.3, '#b48a4e', { x: 0.66, y: 0.06 })
-    .box(0.18, 0.12, 0.12, '#e0b649', { x: 0.88, y: 0.02 })
-    .box(0.5, 0.06, 0.62, brown, { x: -0.72, y: 0.04 });
+    .box(0.36, 0.3, 0.3, sea ? '#ddd3bf' : '#b48a4e', { x: 0.66, y: 0.06 })
+    .box(sea ? 0.26 : 0.18, sea ? 0.16 : 0.12, 0.12, '#e0b649', { x: 0.9, y: 0.02 })
+    .box(0.5, 0.06, 0.62, sea ? '#f1ede2' : brown, { x: -0.72, y: 0.04 });
   for (const side of [-1, 1]) {
     // Broad inner wing, narrower outer wing tipped up a little more, and splayed tip feathers,
     // each going on from the end of the one inside it.
@@ -295,6 +299,14 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
   const eyrie = HABITATS.eagle;
   const eagleHeight = terrainHeight(eyrie.x, eyrie.z) + eyrie.height;
   scene.add(soarer);
+  // Sea eagles over the Lofoten bay, a long way off from everything else.
+  const seaEagles = HABITATS.seaEagles.map(circuit => {
+    const bird = eagle(true);
+    bird.visible = false;
+    scene.add(bird);
+    return { bird, ...circuit };
+  });
+  const orcas = createOrcas(scene);
 
   const jumper = fish();
   const splash = new THREE.Mesh(
@@ -418,6 +430,21 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
       eyrie.z + Math.sin(a) * eyrie.radius,
     );
     soarer.rotation.set(0.35, Math.atan2(-Math.cos(a), -Math.sin(a)), 0, 'YXZ'); // inner wing down
+  }
+
+  /** The sea eagles circle slowly over the bay, banking into the turn; only drawn when the player is near. */
+  function updateSeaEagles(player) {
+    for (const { bird, x, z, radius, height, period, phase } of seaEagles) {
+      bird.visible = Math.hypot(player.x - x, player.z - z) < 700;
+      if (!bird.visible) continue;
+      const a = (time / period) * Math.PI * 2 + phase;
+      bird.position.set(
+        x + Math.cos(a) * radius,
+        FJORD.level + height + Math.sin(time * 0.3 + phase) * 3,
+        z + Math.sin(a) * radius,
+      );
+      bird.rotation.set(0.35, Math.atan2(-Math.cos(a), -Math.sin(a)), 0, 'YXZ');
+    }
   }
 
   function updateGeese() {
@@ -611,6 +638,7 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
       geese: leadGoose.clone(),
       wolves: wolves.getState(),
       herds: herds.getState(),
+      orcas: orcas.getState(),
     }),
     update(dt, player, night = 0) {
       time += dt;
@@ -641,6 +669,8 @@ export function createWildlife(scene, { onCall = () => {} } = {}) {
       updateHerd(dt, player);
       updateGeese();
       updateEagle();
+      updateSeaEagles(player);
+      orcas.update(dt, player);
       updateFish(dt, player);
       updateHunter(dt, player);
       wolves.update(dt, player, night);

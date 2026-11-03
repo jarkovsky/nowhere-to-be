@@ -3,19 +3,23 @@
 // digger on the apron beside the building. Drive up close and an arrow bobs over each one, with a ripple
 // on the ground round it like the one round the play button. Tap one (or press F) and it
 // honks, flashes its lamps, pulls out and follows: along the way the player drove, a little
-// way behind, stopping when the player stops and honking back when the player honks. Four
-// can come along, each behind the one before.
+// way behind, stopping when the player stops and honking back when the player honks. All of
+// them can come along, each behind the one before.
 // Tapping one that follows while stopped, or parking at the depot with them, lets them
 // stay, and they go back to their bays once nobody is looking. One left far behind, or one
 // that has lost the player (after going back to the start), catches up out of sight.
+// Following the player onto the ferry, each finds a lane on the deck with room for it and
+// drives in as far as it goes, and the ferry waits for them all; on the other side they drive
+// off after the player, the ones nearest the ramp first.
 //
 // Waiting in their bays, the friends are each drawn as one merged mesh, so they cost little.
 // The ones out driving are full copies of the player's car, borrowed from a small pool (copies.js).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { angleDelta, damp, segmentDistance } from '../core/math.js';
+import { angleDelta, damp, lerp, segmentDistance, smoothstep } from '../core/math.js';
 import { penetration } from '../core/collision.js';
 import { DEFAULT_BODY } from '../core/driving.js';
+import { berthFor, deckPoint, deckSpan, fromDeck, inward } from '../core/ferry.js';
 import {
   addCrumb,
   createFollower,
@@ -68,8 +72,6 @@ const rank = ({ vehicle, color }) => LINEUP.findIndex(entry => fits(entry, vehic
 /** How close the player has to be for a friend to show it can come along, and to tap one. */
 const NEAR = 20;
 const TAP_RANGE = 24;
-/** How many can come along at once. */
-const MOST = 4;
 /** The clear gap a friend keeps behind whoever it follows, more when a lorry or a long truck is involved; and the least. */
 const GAP = 6;
 const LORRY_GAP = 8;
@@ -78,6 +80,11 @@ const TOP = 14;
 const CATCH_UP = 16;
 /** Further behind than this along the way, a friend catches up out of sight. */
 const FAR = 80;
+/** How fast a friend drives on and off the ferry, and how hard it slows to stop in its place on the deck. */
+const DECK_SPEED = 3.5;
+const DECK_BRAKE = 1.5;
+/** How far in from the end of the deck at the quay its ramp and the quay's reach: the land end of the quay's ramp. */
+const QUAY_END = -9.6;
 /** How far round the camera swings, in radians, to look back at the friends waiting behind the parked car. */
 const LOOK_BACK = 2.7;
 /** Friends further than this from the player aren't drawn. */
@@ -197,6 +204,13 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
       /** Partly on a ferry with no room for the rest of it, and backing off it. */
       crowded: false,
       backOff: false,
+      /**
+       * Its place on the ferry's deck, once it has one: the dock it came aboard at, and whether it
+       * has stopped there; whether it is driving off at the other side; and whether it found no room.
+       */
+      berth: null,
+      leaving: false,
+      ashore: false,
       since: 0,
       retry: 0,
       away: false,
@@ -412,6 +426,10 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
   }
 
   function follow(friend, dt) {
+    // On and off the ferry it drives a way of its own.
+    if (friend.leaving) return leave(friend, dt);
+    if (!friend.berth && deck?.loading && !friend.lost && !friend.starting && !friend.ashore) board(friend);
+    if (friend.berth) return park(friend, dt);
     const leader = leaderOf(friend);
     const { route, follower, size } = friend;
     // Backing off a ferry with no room left on it, the way it came, and waiting once it is clear.
@@ -512,6 +530,191 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
     if (!inYard(friend.x, friend.z) && Math.hypot(friend.x - DEPOT.x, friend.z - DEPOT.z) > 50) friend.away = true;
   }
 
+  // --- On and off the ferry ------------------------------------------------------------------
+
+  const deckAt = (deck, x, z) => deckPoint(deck, deck.end, x, z);
+  const deckXZ = (deck, across, depth) => {
+    const q = fromDeck(deck, deck.end, across, depth);
+    return [q.x, q.z];
+  };
+
+  /** The span of the deck a friend takes up, or will once it stops in its place there. */
+  function spanOf(friend) {
+    if (!friend.berth) return deckSpan(deck, deck.end, friend.circles.slice(0, friend.used), 1.4);
+    const { across, nose } = friend.berth;
+    const { half, front, back } = friend.size;
+    return { across, half, near: nose - front - back, far: nose };
+  }
+
+  /** How far ahead along its way a friend has before the player's car or another friend is in the way. */
+  function clearAhead(friend) {
+    const { route, follower, size } = friend;
+    const reach = size.half - 0.4;
+    const car = body.slice(0, body.used);
+    for (let k = 0; k < 6; k++) {
+      poseAt(route, follower.s + size.front + k * 1.5, 0, pose);
+      if (touches(car, pose.x, pose.z, reach)) return k * 1.5;
+      for (const other of party) {
+        if (other !== friend && touches(other.circles.slice(0, other.used), pose.x, pose.z, reach)) return k * 1.5;
+      }
+    }
+    return Infinity;
+  }
+
+  /**
+   * Drives a friend on along its way over the deck, slowly, stopping short of anything in the
+   * way and at the end of it, or wherever it is when `go` is false. True once stopped at the end.
+   */
+  function deckDrive(friend, dt, go) {
+    const { route, follower, size } = friend;
+    const left = routeEnd(route) - follower.s;
+    const clear = clearAhead(friend);
+    const target = go ? Math.min(DECK_SPEED, Math.sqrt(2 * DECK_BRAKE * left), Math.max(0, (clear - 1.5) * 1.2)) : 0;
+    follower.speed = damp(follower.speed, target, target < follower.speed ? 5 : 1.4, dt);
+    follower.s = Math.min(routeEnd(route), follower.s + Math.max(0, follower.speed) * dt);
+    const there = routeEnd(route) - follower.s < 0.05;
+    if (there) follower.speed = 0;
+    poseAt(route, follower.s, size.wheelbase, friend);
+    friend.speed = follower.speed;
+    friend.stuck = follower.speed < 0.1 && !there ? friend.stuck + dt : 0;
+    return there;
+  }
+
+  /**
+   * Finds a friend coming up to the ferry, while the player stands aboard, a place on the deck
+   * with room for all of it, and the way there: on along its way to the quay's ramp, over into
+   * its lane and in as far as the lane goes. With no room it stays ashore.
+   */
+  function board(friend) {
+    const { size, route, follower } = friend;
+    const me = deckAt(deck, friend.x, friend.z);
+    // Once it is on the quay's ramp, or has stopped close behind whoever it follows on the way down to it.
+    if (me.depth < QUAY_END - 14 || (me.depth < QUAY_END && Math.abs(friend.speed) > 0.3)) return;
+    const taken = [deckSpan(deck, deck.end, body.slice(0, body.used), 1.2)];
+    for (const other of party) {
+      if (other !== friend && !other.lost && (other.berth || deckAt(deck, other.x, other.z).depth > 0)) {
+        taken.push(spanOf(other));
+      }
+    }
+    // Already aboard, it stays in the lane it is in.
+    const berth = berthFor(
+      taken,
+      { half: size.half, length: size.front + size.back },
+      me.depth > 1 ? [me.across] : undefined,
+      me.depth - size.back,
+    );
+    const middle = berth ? berth.nose - size.front : -Infinity;
+    if (middle < me.depth) {
+      friend.ashore = true;
+      return;
+    }
+    // A little of the way it came, so it keeps facing the way it was going.
+    const points = [];
+    for (let back = 3; back > 0; back--) {
+      if (follower.s - back < routeStart(route)) continue;
+      poseAt(route, follower.s - back, 0, pose);
+      points.push([pose.x, pose.z]);
+    }
+    points.push([friend.x, friend.z]);
+    const at = points.length - 1;
+    // On along its way while that is still short of the quay's ramp.
+    let from = me;
+    for (let s = follower.s + 1; from.depth < QUAY_END && s < routeEnd(route); s++) {
+      poseAt(route, s, 0, pose);
+      from = deckAt(deck, pose.x, pose.z);
+      points.push([pose.x, pose.z]);
+    }
+    // Over into its lane by the time it is aboard, and in along it.
+    const into = Math.min(middle, Math.max(from.depth + Math.abs(berth.across - from.across) * 3, 0));
+    for (let depth = from.depth + 1; depth < into; depth++) {
+      points.push(deckXZ(deck, lerp(from.across, berth.across, smoothstep(depth, from.depth, into)), depth));
+    }
+    for (let depth = Math.max(into, from.depth + 1); depth < middle; depth += 2)
+      points.push(deckXZ(deck, berth.across, depth));
+    points.push(deckXZ(deck, berth.across, middle));
+    startRoute(route, points);
+    follower.s = route.s[at];
+    friend.berth = { at: deck.at, across: berth.across, nose: berth.nose, parked: false };
+    friend.ashore = false;
+    friend.stuck = 0;
+  }
+
+  /** Drives a friend in to its place on the deck while the ferry is tied up, and stops there. */
+  function park(friend, dt) {
+    const { berth } = friend;
+    if (berth.parked) {
+      friend.speed = friend.follower.speed = 0;
+      return;
+    }
+    if (deckDrive(friend, dt, deck !== null)) berth.parked = true;
+    // Held up for a while by something in the way: all aboard, it stops where it is; partly on
+    // the ferry, it has no room after all, and backs off.
+    if (friend.stuck > 3 && deck) {
+      if (spanOf({ ...friend, berth: null }).near > 0) berth.parked = true;
+      else Object.assign(friend, { berth: null, ashore: true });
+    }
+  }
+
+  /**
+   * Brought across, the friends aboard drive off after the player, the ones nearest the ramp
+   * first: each follows the one before it off, in that order.
+   */
+  function arrive() {
+    const aboard = party.filter(friend => friend.berth && friend.berth.at !== deck.at);
+    const depth = friend => deckAt(deck, friend.x, friend.z).depth;
+    aboard.sort((a, b) => depth(a) - depth(b));
+    const rest = party.filter(friend => !aboard.includes(friend));
+    party.splice(0, party.length, ...aboard, ...rest);
+    for (const friend of aboard) {
+      // One facing back into the deck finds its own way off later, out of sight.
+      if (Math.cos(friend.heading - inward(deck, deck.end)) > 0) {
+        Object.assign(friend, { berth: null, lost: true, lostAt: time, retry: 0 });
+        continue;
+      }
+      // The way off: straight out of its lane, over to the middle of the ramps and off the quay.
+      const { route, follower } = friend;
+      const me = deckAt(deck, friend.x, friend.z);
+      const points = [
+        deckXZ(deck, me.across, me.depth + 3),
+        deckXZ(deck, me.across, me.depth + 1.5),
+        [friend.x, friend.z],
+      ];
+      const turn = Math.min(me.depth - 1, 4);
+      for (let d = me.depth - 1.5; d > turn; d -= 1.5) points.push(deckXZ(deck, me.across, d));
+      for (let d = turn; d > -8; d--) points.push(deckXZ(deck, lerp(me.across, 0, smoothstep(d, turn, -8)), d));
+      for (let d = -8; d >= QUAY_END - 1.5; d -= 1.5) points.push(deckXZ(deck, 0, d));
+      startRoute(route, points);
+      Object.assign(follower, { s: route.s[2], speed: 0 });
+      Object.assign(friend, { berth: null, leaving: true, stuck: 0 });
+    }
+  }
+
+  /** Drives a friend off the ferry once whoever it follows is out of its way, and then follows on. */
+  function leave(friend, dt) {
+    const leader = leaderOf(friend);
+    const ahead = deck ? deckAt(deck, leader.x, leader.z).depth : -Infinity;
+    const go = deck !== null && (leader === player ? ahead < -2 : !leader.leaving || ahead < -4);
+    if (!deckDrive(friend, dt, go)) return;
+    // Off the quay: it takes up the way its leader went from where it is.
+    friend.leaving = false;
+    const path = leader === player ? trail : leader.route;
+    const at = leader === player ? leaderAlong(trail, player.x, player.z) : leader.follower.s;
+    const crumb = !leader.lost && path.count > 1 ? nearestCrumb(path, friend.x, friend.z) : null;
+    if (!crumb || crumb.distance > 6) {
+      Object.assign(friend, { lost: true, lostAt: time, retry: 0 });
+      return;
+    }
+    const { route, follower } = friend;
+    poseAt(route, follower.s - 1.5, 0, pose);
+    startRoute(route, [
+      [pose.x, pose.z],
+      [friend.x, friend.z],
+    ]);
+    joinRoute(route, path, crumb.s, at);
+    addCrumb(route, leader.x, leader.z);
+    follower.s = route.s[1];
+  }
+
   /** Stops following and pulls over to one side, out of the way of anyone behind. */
   function stay(friend) {
     const i = party.indexOf(friend);
@@ -551,7 +754,6 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
 
   function invite(friend) {
     if (friend.mode === 'following') return;
-    if (party.length >= MOST) stay(party[0]);
     wake(friend);
     friend.mode = 'following';
     friend.aside = 0;
@@ -601,6 +803,8 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
   // --- Every frame -------------------------------------------------------------------------
 
   let moving = [];
+  /** The ferry's deck while it is tied up (see world/ferry.js), or null. */
+  let deck = null;
   let parked = 0;
   let parkedAtDepot = 0;
   let time = 0;
@@ -612,13 +816,33 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
   /**
    * `close` says the player is aboard a ferry, where the friends close up, and `crowded(circles)`,
    * while the player stands aboard, says a friend is partly on the ferry: one that has stopped
-   * there with no room for all of it backs off again, and is left ashore.
+   * there with no room for all of it backs off again, and is left ashore. `ferry` is the ferry's
+   * deck while it is tied up, { x, z, heading, end, at, aboard, loading }: where it is, which
+   * end is at the quay, which dock it is at, whether the player is aboard and whether the player
+   * stands there, waiting to go, which is when the friends find their places on it.
    */
-  function update(dt, { state, tail = [], driving, night, camera, dynamic = [], close = false, crowded = null }) {
+  function update(
+    dt,
+    { state, tail = [], driving, night, camera, dynamic = [], close = false, crowded = null, ferry = null },
+  ) {
     time += dt;
     moving = dynamic;
     chasing = driving;
     closeUp = close;
+    deck = ferry;
+    if (deck) {
+      // Brought across: off they go, after the player.
+      if (party.some(friend => friend.berth && friend.berth.at !== deck.at)) arrive();
+      // The player has driven off again before the ferry left: the friends aboard find their own way.
+      if (!deck.aboard) {
+        for (const friend of party) {
+          if (friend.berth && friend.berth.at === deck.at) {
+            Object.assign(friend, { berth: null, lost: true, lostAt: time, retry: 0 });
+          }
+        }
+      }
+    }
+    for (const friend of party) if (!deck?.loading) friend.ashore = false;
     for (const friend of party) {
       friend.crowded = crowded?.(friend.circles.slice(0, friend.used)) ?? false;
       if (!close) friend.backOff = false;
@@ -801,22 +1025,34 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
     outlines: margin => party.map(friend => ({ points: friend.circles.slice(0, friend.used), margin })),
     /**
      * While a ferry takes the player across, the friends on its deck go too: `move` moves a
-     * { x, z, heading } the way the ferry moved, and `onDeck(x, z)` says what is on its deck.
-     * They keep the way they follow along the deck, and the ones left ashore lose whoever they
-     * were following and catch up later, as after a jump.
+     * { x, z, heading } the way the ferry moved, `onDeck(x, z)` says what is on its deck and
+     * `from` is the dock it has left. They stay in their places until the other side, and the
+     * ones left ashore lose whoever they were following and catch up later, as after a jump.
      */
-    carry(move, onDeck) {
+    carry(move, onDeck, from) {
       for (const friend of party) {
         if (!friend.circles.slice(0, friend.used).every(c => onDeck(c.x, c.z))) {
           if (!friend.lost) Object.assign(friend, { lost: true, lostAt: time, retry: 0 });
+          Object.assign(friend, { berth: null, leaving: false });
           continue;
         }
+        // Aboard, it stays where it is until the other side, even one that was driving off when
+        // the player stayed aboard to go back again.
+        const { berth } = friend;
+        friend.berth = { at: from, across: berth?.across ?? 0, nose: berth?.nose ?? 0, parked: true };
+        Object.assign(friend, { leaving: false, speed: 0 });
+        friend.follower.speed = 0;
         move(friend);
         if (friend.copy?.trailer.ready) move(friend.copy.trailer);
         moveRoute(friend.route, onDeck, move);
       }
       moveRoute(trail, onDeck, move);
     },
+    /**
+     * Whether the friends coming along are all ready for the ferry to go: in their places on its
+     * deck, or with no room, or nowhere near (lost, to catch up later).
+     */
+    ready: () => party.every(friend => friend.lost || friend.ashore || friend.berth?.parked),
     /** The keyboard's way to ask along the nearest friend that can come. */
     inviteNearest() {
       let best = null;
@@ -897,6 +1133,10 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
         heading: friend.heading,
         speed: friend.speed,
         lost: friend.lost,
+        /** On the ferry: its place on the deck, whether it is driving off, or found no room. */
+        berth: friend.berth && { ...friend.berth },
+        leaving: friend.leaving,
+        ashore: friend.ashore,
         height: friend.size.height,
         cue: friend.cue,
       })),

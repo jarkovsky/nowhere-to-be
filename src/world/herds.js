@@ -1,5 +1,6 @@
 // Herds out in the outlands: horses, goats and pigs at the farms, sheep above the fjord, camels
-// in the desert, and moose, wild boar, red deer and mouflon out in the wild. Each animal
+// in the desert, and moose, wild boar, red deer and mouflon out in the wild; reindeer, polar bears,
+// arctic foxes and snow leopards in the snowy places. Each animal
 // wanders round its herd's patch of ground, stopping to graze, and now and then breaks into a
 // run just for the fun of it. When a car comes close, or honks, they all run off and settle again further away.
 // A herd is drawn with one instanced mesh each for bodies, heads and legs, and only when the
@@ -12,6 +13,10 @@ import { ANIMAL_BEVEL, PartsBuilder, vertexColorMaterial } from './build.js';
 
 const DARK = '#2f2b26';
 const CREAM = '#eee4c9';
+const BEAR = '#f3e8cb';
+const FOX_WHITE = '#f6f4ee';
+const LEOPARD = '#c9ccd1';
+const ROSETTE = '#50535b';
 /** Herds further than this from the player aren't drawn or moved. */
 const DRAW_DISTANCE = 260;
 
@@ -19,7 +24,8 @@ const DRAW_DISTANCE = 260;
  * What each kind looks like and how it moves. Bodies face +X; `hip` is how high the legs
  * hang from, at each of `feet`, and `neck` where the head turns, nodding down by `graze` to
  * eat. Speeds are in metres a second, `shy` how close a car may come before they run, and
- * `frisky` how often one runs for the fun of it. `call` is the sound a honk gets back.
+ * `frisky` how often one runs for the fun of it. `call` is the sound a honk gets back, and `size`
+ * (if it isn't 1) how much larger than modelled each one is drawn.
  */
 export const KINDS = {
   horse: {
@@ -220,6 +226,125 @@ export const KINDS = {
     shy: 16,
     frisky: 0.06,
   },
+  polarBear: {
+    // A polar bear: a big, warm-white body, a long head with a dark nose, and broad paws. It
+    // ambles, and lopes off a little way when the car comes close, never faster than a jog.
+    body: p =>
+      p
+        .box(2.5, 1.15, 1.1, BEAR, { y: 1.5 })
+        .box(1, 0.4, 0.95, '#f7efd9', { x: 0.5, y: 2.15 })
+        .box(0.9, 0.95, 1.04, '#ece0c0', { x: -1, y: 1.5 })
+        .box(0.28, 0.28, 0.3, '#e9dcbc', { x: -1.42, y: 1.9 }),
+    head: p =>
+      p
+        .box(0.85, 0.72, 0.72, BEAR, { x: 0.35, y: 0.05, rz: -0.12 })
+        .box(0.55, 0.36, 0.42, '#efe2c2', { x: 0.85, y: -0.12 })
+        .box(0.16, 0.14, 0.22, '#25272b', { x: 1.14, y: -0.02 })
+        .box(0.14, 0.14, 0.14, '#e9dcbc', { x: 0.1, y: 0.46, z: 0.3 })
+        .box(0.14, 0.14, 0.14, '#e9dcbc', { x: 0.1, y: 0.46, z: -0.3 })
+        .box(0.07, 0.07, 0.07, '#25272b', { x: 0.74, y: 0.13, z: 0.26 })
+        .box(0.07, 0.07, 0.07, '#25272b', { x: 0.74, y: 0.13, z: -0.26 }),
+    leg: p => p.box(0.46, 0.95, 0.46, BEAR, { y: -0.475 }).box(0.54, 0.14, 0.62, '#e3d3ae', { x: 0.04, y: -0.9 }),
+    hip: 0.95,
+    feet: [0.85, 0.36],
+    neck: [1.2, 1.55],
+    // A little larger than life, so a bear shows up from far across the snow.
+    size: 1.25,
+    graze: 0.8,
+    walk: 0.9,
+    run: 3.4,
+    shy: 12,
+    frisky: 0.04,
+  },
+  arcticFox: {
+    body: p =>
+      p.box(0.95, 0.4, 0.38, FOX_WHITE, { y: 0.58 }).box(0.6, 0.24, 0.26, FOX_WHITE, { x: -0.75, y: 0.68, rz: 0.3 }),
+    head: p =>
+      p
+        .box(0.38, 0.32, 0.34, FOX_WHITE, { x: 0.14, y: 0.08 })
+        .box(0.2, 0.14, 0.17, '#efece4', { x: 0.38, y: -0.02 })
+        .box(0.07, 0.07, 0.08, '#2a2c30', { x: 0.5 })
+        .box(0.08, 0.14, 0.08, '#e8e4da', { x: 0.08, y: 0.32, z: 0.1 })
+        .box(0.08, 0.14, 0.08, '#e8e4da', { x: 0.08, y: 0.32, z: -0.1 }),
+    leg: p => p.box(0.09, 0.44, 0.09, '#e0dcd2', { y: -0.22 }),
+    hip: 0.46,
+    feet: [0.36, 0.12],
+    neck: [0.5, 0.72],
+    graze: 0.5,
+    walk: 0.8,
+    run: 4.2,
+    shy: 11,
+    frisky: 0.2,
+  },
+  snowLeopard: {
+    // A snow leopard: a low, long, pale grey cat with a smoky belly, dark rosettes along its back and
+    // sides, and a tail nearly as long as its body, thick and ringed. It pads quietly about the rocks
+    // and slips away from a car without a sound.
+    body: p => {
+      p.box(1.55, 0.5, 0.52, LEOPARD, { y: 0.68 })
+        .box(0.95, 0.12, 0.46, '#e7e9ec', { x: 0.05, y: 0.46 })
+        .box(0.7, 0.4, 0.5, '#bfc3c9', { x: 0.55, y: 0.76 })
+        // The thick tail, trailing out behind and rising a little towards its dark tip.
+        .box(1, 0.21, 0.21, '#c2c6cc', { x: -1.3, y: 0.76, rz: 0.06 })
+        .box(1, 0.2, 0.2, LEOPARD, { x: -2.25, y: 0.84, rz: 0.1 })
+        .box(0.34, 0.22, 0.22, ROSETTE, { x: -2.88, y: 0.9, rz: 0.12 })
+        .box(0.08, 0.24, 0.24, ROSETTE, { x: -1.35, y: 0.77 })
+        .box(0.08, 0.23, 0.23, ROSETTE, { x: -1.85, y: 0.81, rz: 0.08 })
+        .box(0.08, 0.22, 0.22, ROSETTE, { x: -2.45, y: 0.87, rz: 0.1 });
+      // Rosettes: low dark patches in the coat, a few along the back and scattered down each flank.
+      for (let k = 0; k < 4; k++) {
+        const x = -0.55 + k * 0.4;
+        p.box(0.15, 0.04, 0.15, ROSETTE, { x, y: 0.93, z: (k % 2) * 0.08 - 0.04 });
+        for (const side of [-1, 1]) {
+          p.box(0.13, 0.11, 0.03, ROSETTE, { x: x + 0.05 * side, y: 0.76 + (k % 2) * 0.1, z: side * 0.26 });
+          if (k % 2 === 0) p.box(0.1, 0.09, 0.03, ROSETTE, { x: x + 0.2, y: 0.6, z: side * 0.26 });
+        }
+      }
+      return p;
+    },
+    head: p =>
+      p
+        .box(0.5, 0.4, 0.42, LEOPARD, { x: 0.2, y: 0.05 })
+        .box(0.24, 0.2, 0.3, '#e7e9ec', { x: 0.52, y: -0.04 })
+        .box(0.07, 0.07, 0.1, '#2a2c30', { x: 0.65, y: 0.02 })
+        .box(0.12, 0.14, 0.12, '#aeb2b8', { x: 0.08, y: 0.3, z: 0.16 })
+        .box(0.12, 0.14, 0.12, '#aeb2b8', { x: 0.08, y: 0.3, z: -0.16 })
+        .box(0.05, 0.05, 0.05, '#2a2c30', { x: 0.45, y: 0.12, z: 0.14 })
+        .box(0.05, 0.05, 0.05, '#2a2c30', { x: 0.45, y: 0.12, z: -0.14 }),
+    leg: p => p.box(0.2, 0.5, 0.2, '#bcc0c6', { y: -0.25 }).box(0.24, 0.1, 0.3, '#e7e9ec', { x: 0.04, y: -0.46 }),
+    hip: 0.5,
+    feet: [0.55, 0.19],
+    neck: [0.8, 0.85],
+    graze: 0.4,
+    walk: 0.9,
+    run: 5.5,
+    shy: 15,
+    frisky: 0.12,
+  },
+  reindeer: {
+    body: p => p.box(1.9, 0.8, 0.62, '#9a8b7a', { y: 1.4 }).box(0.9, 0.5, 0.64, '#e8e0d2', { x: 0.42, y: 1.3 }),
+    head: p => {
+      p.box(0.4, 0.8, 0.38, '#9a8b7a', { x: 0.12, y: 0.25, rz: -0.35 })
+        .box(0.6, 0.3, 0.3, '#a89a89', { x: 0.42, y: 0.62, rz: 0.3 })
+        .box(0.12, 0.12, 0.32, '#3a3633', { x: 0.72, y: 0.52 });
+      // Antlers: a beam up and back on each side with tines off it, paler than the coat.
+      for (const side of [-1, 1]) {
+        p.box(0.07, 0.95, 0.07, '#e2d6b8', { x: 0.2, y: 1.2, z: side * 0.2, rz: 0.3, rx: side * 0.35 });
+        p.box(0.06, 0.4, 0.06, '#e2d6b8', { x: 0.3, y: 1.05, z: side * 0.3, rz: -0.6 });
+        p.box(0.06, 0.35, 0.06, '#e2d6b8', { x: 0.12, y: 1.5, z: side * 0.36, rz: -0.4 });
+      }
+      return p;
+    },
+    leg: p => p.box(0.14, 1, 0.14, '#85776a', { y: -0.5 }),
+    hip: 1,
+    feet: [0.62, 0.2],
+    neck: [0.8, 1.55],
+    graze: 1,
+    walk: 0.9,
+    run: 4.5,
+    shy: 14,
+    frisky: 0.08,
+  },
 };
 
 /** Builds a herd's three instanced meshes from its kind's parts. */
@@ -269,7 +394,7 @@ function createHerd(scene, herd, random) {
     rest: random() * 8,
     stride: random() * 10,
     nod: kind.graze,
-    scale: i < (herd.young ?? 0) ? 0.6 : 0.9 + random() * 0.2,
+    scale: (i < (herd.young ?? 0) ? 0.6 : 0.9 + random() * 0.2) * (kind.size ?? 1),
   }));
 
   // One animal's pose is built on these, then copied into the instanced meshes.
