@@ -451,14 +451,34 @@ const FJORD_REACH = (() => {
   const [dx, dz] = [FJORD_MOUTH[0] - FJORD_BEND[0], FJORD_MOUTH[1] - FJORD_BEND[1]];
   return { dx: dx / Math.hypot(dx, dz), dz: dz / Math.hypot(dx, dz) };
 })();
-/** How far across the bay is from its middle to its shore, in metres. */
+/** How far across the bay is from its middle to its shore, in metres, give or take its coves and points. */
 const BAY_RADIUS = 150;
+/**
+ * The coves and rocky points round the bay, so its shore isn't a circle: each `by` metres
+ * further out (a cove) or in (a point) at `bearing` degrees round from the quay (positive to
+ * the left looking out over the water from it), fading out over `width` degrees either side.
+ * The shore by the quay, the cabins on stilts, the jetty and the lighthouse's road keeps to
+ * the round; the coves and points are past them, mostly across the water under the mountains.
+ */
+const BAY_SHORE = [
+  { bearing: 98, by: -26, width: 7 },
+  { bearing: 117, by: 14, width: 7 },
+  { bearing: 133, by: -9, width: 5 },
+  { bearing: 151, by: 17, width: 8 },
+  { bearing: -58, by: 11, width: 6 },
+  { bearing: -80, by: -15, width: 7 },
+  { bearing: -105, by: 25, width: 12 },
+  { bearing: -137, by: -22, width: 6 },
+  { bearing: -156, by: 9, width: 5 },
+];
+/** The most the shore reaches out past BAY_RADIUS in a cove, small bends and all. */
+const BAY_REACH = Math.max(...BAY_SHORE.map(({ by }) => by)) + 4;
 
 /**
  * A fjord in the north-west: a long arm of still, deep water between steep rock walls,
  * reaching in from beyond the fence. Its head ends in a gentler slope with a small village
  * at the water's edge, and a road comes down that slope in hairpins from the outer road. Its
- * other end opens out into a round bay on the Lofoten coast (see LOFOTEN), the path ending at
+ * other end opens out into a bay on the Lofoten coast (see LOFOTEN), the path ending at
  * the bay's middle. `level` is the height of the water; the fjord is wider towards its mouth
  * and `bayness(s)` says how far into the bay it has opened out by `s` metres along it.
  */
@@ -467,8 +487,27 @@ export const FJORD = (() => {
     x: FJORD_MOUTH[0] + FJORD_REACH.dx * 20,
     z: FJORD_MOUTH[1] + FJORD_REACH.dz * 20,
     radius: BAY_RADIUS,
+    /** The furthest its shore is from its middle, in the deepest cove. */
+    reach: BAY_RADIUS + BAY_REACH,
     // How far out from the quay its middle is, along the line the fjord runs in on.
     lz: BAY_RADIUS + 4,
+    /** How far its shore is from its middle in the direction of (x, z), coves and points and all. */
+    shore(x, z) {
+      const [dx, dz] = [x - bay.x, z - bay.z];
+      // Degrees round from the quay, as for LOFOTEN.shore.
+      const bearing =
+        (Math.atan2(-dx * FJORD_REACH.dz + dz * FJORD_REACH.dx, dx * FJORD_REACH.dx + dz * FJORD_REACH.dz) * 180) /
+        Math.PI;
+      let radius = BAY_RADIUS;
+      for (const bend of BAY_SHORE) {
+        const off = ((((bearing - bend.bearing) % 360) + 540) % 360) - 180;
+        radius += bend.by * Math.exp(-((off / bend.width) ** 2));
+      }
+      // And smaller bends all along it, away from the village.
+      const a = (bearing * Math.PI) / 180;
+      const bends = 2.2 * Math.sin(a * 11 + 0.7) + 1.6 * Math.sin(a * 19 + 2.3);
+      return radius + bends * smoothstep(Math.abs(bearing), 55, 80);
+    },
   };
   const path = createPath(
     [polar(228, 860), polar(227, 940), polar(226, 1020), FJORD_BEND, FJORD_MOUTH, [bay.x, bay.z]],
@@ -482,6 +521,15 @@ export const FJORD = (() => {
     path,
     halfWidth: s => lerp(28 + Math.min(s, 260) * 0.06, bay.radius, smoothstep(s, 280, path.length)),
     bayness: s => smoothstep(s, 300, path.length - 20),
+    /**
+     * How far the water reaches from the fjord's middle at `s` towards (x, z): `halfWidth(s)`,
+     * bent in and out round the bay's coves and points as the fjord opens into it.
+     */
+    widthAt(s, x, z) {
+      const bayness = smoothstep(s, 300, path.length - 20);
+      const width = lerp(28 + Math.min(s, 260) * 0.06, bay.radius, smoothstep(s, 280, path.length));
+      return bayness > 0 ? width * lerp(1, bay.shore(x, z) / BAY_RADIUS, bayness) : width;
+    },
   };
 })();
 
@@ -491,7 +539,7 @@ const fjordBoxes = (() => {
   const { samples } = FJORD.path;
   for (let i = 0; i < samples.length; i += 40) {
     const run = samples.slice(i, i + 41);
-    const reach = Math.max(...run.map(p => FJORD.halfWidth(p.s))) + 10;
+    const reach = Math.max(...run.map(p => FJORD.halfWidth(p.s))) + BAY_REACH + 10;
     boxes.push({
       x0: Math.min(...run.map(p => p.x)) - reach,
       x1: Math.max(...run.map(p => p.x)) + reach,
@@ -507,7 +555,7 @@ export function inFjord(x, z, margin = 0) {
   if (!fjordBoxes.some(b => x >= b.x0 - margin && x <= b.x1 + margin && z >= b.z0 - margin && z <= b.z1 + margin))
     return false;
   const { s, distance } = FJORD.path.nearest(x, z);
-  return distance < FJORD.halfWidth(s) + margin;
+  return distance < FJORD.widthAt(s, x, z) + margin;
 }
 
 /**
@@ -570,7 +618,7 @@ export const FERRY_QUAY = ferryQuay(FJORD_VILLAGE.quay.x, FJORD_VILLAGE.quay.z, 
 /**
  * A winter coast at the far end of the fjord, after the Lofoten islands in midwinter, out past
  * the fence: only the ferry goes there. The car may drive anywhere within `radius` of (x, z).
- * The fjord opens out into a round bay (`bay`) with the quay on its far shore, and the low
+ * The fjord opens out into a bay (`bay`) with the quay on its far shore, and the low
  * coastal land round it, the strandflat, is ringed by mountains. Places are given in the quay's
  * own frame (`at(lx, lz)`): +Z out over the water, back up the fjord, and +X to the left looking
  * that way; the bay's middle is 154 m out, the village stands along its shore and the land

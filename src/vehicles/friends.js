@@ -689,11 +689,16 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
     }
   }
 
-  /** Drives a friend off the ferry once whoever it follows is out of its way, and then follows on. */
+  /**
+   * Drives a friend off the ferry after whoever it follows, and then follows on: after the player
+   * once the car is off the deck, and after a friend as soon as that one is on its way, so they
+   * drive off one behind the other, each stopping short of the one ahead.
+   */
   function leave(friend, dt) {
     const leader = leaderOf(friend);
     const ahead = deck ? deckAt(deck, leader.x, leader.z).depth : -Infinity;
-    const go = deck !== null && (leader === player ? ahead < -2 : !leader.leaving || ahead < -4);
+    const underway = leader !== player && leader.leaving && leader.follower.s - leader.route.s[2] > 3;
+    const go = deck !== null && (leader === player ? ahead < -2 : !leader.leaving || underway);
     if (!deckDrive(friend, dt, go)) return;
     // Off the quay: it takes up the way its leader went from where it is.
     friend.leaving = false;

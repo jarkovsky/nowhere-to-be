@@ -275,7 +275,7 @@ function water(scene) {
     disc.position.set(centre.x, FJORD.level, centre.z);
     return disc;
   };
-  for (const mesh of [strip, round(FJORD_VILLAGE.head, FJORD.halfWidth(0)), round(FJORD.bay, FJORD.bay.radius)]) {
+  for (const mesh of [strip, round(FJORD_VILLAGE.head, FJORD.halfWidth(0)), round(FJORD.bay, FJORD.bay.reach)]) {
     mesh.receiveShadow = true;
     scene.add(mesh);
   }
