@@ -844,7 +844,7 @@ export function createGame(canvas) {
     if (driving) {
       // Puddles lie on the trail, so the tyres find them rather than the driving surface.
       const surface = surfaces.getState().surface === 'puddle' ? 'puddle' : world.surface(state.x, state.z);
-      dirt = stepDirt(dirt, { surface, speed: state.speed + mudHole.slip, rain: sky.rain }, dt);
+      dirt = stepDirt(dirt, { surface, speed: state.speed + mudHole.slip, rain: sky.rainfall }, dt);
     }
     car.setMud(dirt);
     blockers.length = 0;
@@ -872,7 +872,9 @@ export function createGame(canvas) {
       throttle: driving ? throttle : 0,
       engineOn: driving,
       active: mode !== 'title' && !document.hidden,
-      rain: sky.rain,
+      // In the snowy places it snows rather than rains, and a blizzard blows now and then.
+      rain: sky.rainfall,
+      blizzard: sky.blizzard,
     });
     // The helicopters and the plane share one engine sound: whichever is loudest.
     const rotor = [

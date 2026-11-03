@@ -856,6 +856,17 @@ export const HERDS = [
   { kind: 'polarBear', ...LOFOTEN.place(-178, 42), radius: 20, count: 1 },
   { kind: 'arcticFox', ...LOFOTEN.place(-95, -100), radius: 18, count: 2 },
   { kind: 'reindeer', ...LOFOTEN.place(70, -150), radius: 50, count: 6, young: 2 },
+  // Up in the rocky foothills either side of the loop road, where a snow leopard can be seen from it.
+  { kind: 'snowLeopard', ...LOFOTEN.place(-245, -165), radius: 14, count: 1 },
+  { kind: 'snowLeopard', ...LOFOTEN.place(240, -185), radius: 14, count: 2, young: 1 },
+  // In the winter in the north-east, out beside the outer road: a herd of reindeer on the flat, a lone
+  // polar bear, and a mother with her cub, arctic foxes, and snow leopards on the rocky rise.
+  { kind: 'reindeer', x: 695, z: -501, radius: 35, count: 6, young: 2 },
+  { kind: 'polarBear', x: 591, z: -590, radius: 18, count: 1 },
+  { kind: 'polarBear', x: 329, z: -783, radius: 18, count: 2, young: 1 },
+  { kind: 'arcticFox', x: 630, z: -543, radius: 14, count: 2 },
+  { kind: 'snowLeopard', x: 410, z: -745, radius: 18, count: 2, young: 1 },
+  { kind: 'snowLeopard', x: 718, z: -405, radius: 16, count: 1 },
 ];
 
 /** Like `polar`, as { x, z }. */
