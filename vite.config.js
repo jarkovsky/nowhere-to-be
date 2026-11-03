@@ -43,6 +43,9 @@ export default defineConfig({
   base: './',
   server: { host: true },
   preview: { host: true },
+  // The world's worker (see prebuild.js) is a module, as the height field waits to be built at the
+  // top of terrain.js, which only a module can do.
+  worker: { format: 'es' },
   build: {
     rollupOptions: {
       // The game, and the object viewer for looking at everything in it on its own.

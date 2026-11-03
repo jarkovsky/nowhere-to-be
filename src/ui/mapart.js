@@ -459,7 +459,7 @@ function mix(c, tint, t) {
 
 /**
  * The colour of the ground at a point, much as the ground itself is coloured (see groundColor
- * in scenery.js) but paler, like a map: meadows, the woods, bare rock and snow higher up.
+ * in groundcolor.js) but paler, like a map: meadows, the woods, bare rock and snow higher up.
  */
 function groundTint(x, z, h, slope, c) {
   const r = Math.hypot(x, z);

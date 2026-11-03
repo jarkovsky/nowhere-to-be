@@ -84,6 +84,7 @@ async function buildWorld() {
   scene.fog = new THREE.FogExp2('#dce5da', 0.0011);
   const own = lights(scene);
   const scenery = buildScenery(scene);
+  await scenery.ready;
   const obstacles = [...scenery.obstacles];
   const landmarks = buildLandmarks(scene, obstacles);
   const moving = new THREE.Group();
@@ -114,7 +115,7 @@ async function buildWorld() {
         train.update(running ? dt : 0.016, { player, towed: [] });
         for (const helicopter of flying) helicopter.update(running ? dt : 0.016);
       }
-      scenery.update(dt, camera.position, own.sun, target);
+      scenery.update(dt, camera, own.sun);
     },
   };
   $('loading').hidden = true;

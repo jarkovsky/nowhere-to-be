@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { createGround } from '../src/world/ground.js';
+import { gridShading } from '../src/world/groundcolor.js';
 import { AXIS } from '../src/world/terrain.js';
 
 const triangles = mesh => mesh.geometry.index.count / 3;
@@ -14,7 +15,7 @@ function cellSize(mesh) {
 }
 
 test('far from the camera, the ground is drawn with every second or fourth grid line wherever cells allow', () => {
-  const ground = createGround((x, z, height, up, out) => out.setRGB(0.4, 0.5, 0.3));
+  const ground = createGround(gridShading((x, z, height, up, out) => out.setRGB(0.4, 0.5, 0.3)));
   const tiles = ground.group.children;
   const full = tiles.map(triangles);
   ground.update({ x: 1e5, z: 1e5 });

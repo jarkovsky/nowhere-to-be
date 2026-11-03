@@ -127,7 +127,7 @@ function createLights(scene) {
   return { ambient, sun };
 }
 
-export function createGame(canvas) {
+export async function createGame(canvas) {
   const renderer = createRenderer(canvas);
   const scene = new THREE.Scene();
   // The scene itself never moves. Left to update, it would make the renderer work out again
@@ -299,7 +299,7 @@ export function createGame(canvas) {
   function handleAction(action, event) {
     if (action === 'konami') return unlockRainbow();
     if (mode === 'title') {
-      if (action === 'start') play();
+      if (action === 'start' && playable) play();
       return action === 'start';
     }
     if (mode === 'paused') {
@@ -357,6 +357,8 @@ export function createGame(canvas) {
 
   // Played on a touch screen, and whether tilt steering has been switched on for the first game yet.
   let touchScreen = false;
+  /** Whether the game can be started yet: once the world is built and its shaders compiled. */
+  let playable = false;
   let tiltOffered = false;
 
   function play() {
@@ -877,6 +879,8 @@ export function createGame(canvas) {
 
   // --- Start -------------------------------------------------------------------------------
 
+  // The ground and the grass come last, from the worker (see groundwork.js).
+  await scenery.ready;
   applyChoices();
   separateMeshKinds(scene);
   ui.setSwitch('sound', journal.get().sound);
@@ -895,6 +899,7 @@ export function createGame(canvas) {
     .catch(() => {})
     .then(() => {
       touchScreen = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+      playable = true;
       ui.ready(touchScreen);
       // And cruise control is on, so the car drives itself and the tilt steers it.
       if (touchScreen && !controls.cruise) toggleCruise();
