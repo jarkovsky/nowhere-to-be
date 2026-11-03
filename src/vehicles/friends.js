@@ -3,8 +3,8 @@
 // digger on the apron beside the building. Drive up close and an arrow bobs over each one, with a ripple
 // on the ground round it like the one round the play button. Tap one (or press F) and it
 // honks, flashes its lamps, pulls out and follows: along the way the player drove, a little
-// way behind, stopping when the player stops and honking back when the player honks. Four
-// can come along, each behind the one before.
+// way behind, stopping when the player stops and honking back when the player honks. All of
+// them can come along, each behind the one before.
 // Tapping one that follows while stopped, or parking at the depot with them, lets them
 // stay, and they go back to their bays once nobody is looking. One left far behind, or one
 // that has lost the player (after going back to the start), catches up out of sight.
@@ -68,8 +68,6 @@ const rank = ({ vehicle, color }) => LINEUP.findIndex(entry => fits(entry, vehic
 /** How close the player has to be for a friend to show it can come along, and to tap one. */
 const NEAR = 20;
 const TAP_RANGE = 24;
-/** How many can come along at once. */
-const MOST = 4;
 /** The clear gap a friend keeps behind whoever it follows, more when a lorry or a long truck is involved; and the least. */
 const GAP = 6;
 const LORRY_GAP = 8;
@@ -551,7 +549,6 @@ export function createFriends(scene, { obstacles, onHorn, vehicle: playerVehicle
 
   function invite(friend) {
     if (friend.mode === 'following') return;
-    if (party.length >= MOST) stay(party[0]);
     wake(friend);
     friend.mode = 'following';
     friend.aside = 0;
