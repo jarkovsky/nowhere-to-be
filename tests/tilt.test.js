@@ -115,38 +115,52 @@ test('insecure pages, missing sensors and failed permission fail gracefully', as
   assert.equal(silent.getState().status, 'unavailable');
 });
 
-test('calibration, smoothing, re-centring, pausing and rotation stay predictable', async () => {
+test('straight ahead is always the screen held level, however it was held when tilt started', async () => {
   const h = host(() => Promise.resolve('granted'));
   const tilt = createTiltSteering(h);
+  const settle = () => {
+    for (let i = 0; i < 40; i++) tilt.update(0.05, true);
+  };
   await tilt.enable();
-  h.reading(...sampleForRoll(8));
+  // Picked up turned a little, it steers that way rather than taking that as straight ahead.
+  h.reading(...sampleForRoll(12));
   assert.equal(tilt.getState().ready, true);
+  settle();
+  near(tilt.getState().steering, steeringFromRoll(12, 0));
+  assert.ok(tilt.getState().steering > 0.3);
+  h.reading(...sampleForRoll(0));
+  settle();
+  assert.equal(tilt.getState().steering, 0, 'held level, it goes straight');
   h.reading(...sampleForRoll(38));
   tilt.update(0.05, true);
   const steering = tilt.getState().steering;
   assert.ok(steering > 0 && steering < 1, 'eases towards the target');
   tilt.update(0.05, false);
   assert.equal(tilt.getState().steering, 0, 'no steering while paused');
-  tilt.center();
-  tilt.update(0.05, true);
-  assert.equal(tilt.getState().steering, 0, 'current grip becomes the new centre');
 
   h.screen.orientation.angle = 90;
   h.screen.orientation.dispatchEvent(new Event('change'));
-  assert.equal(tilt.getState().ready, false, 'rotation re-centres');
+  assert.equal(tilt.getState().ready, false, 'rotation waits for a fresh reading');
+  h.reading(...sampleForRoll(9, 90));
+  settle();
+  near(tilt.getState().steering, steeringFromRoll(9, 0));
   h.reading(...sampleForRoll(0, 90));
-  tilt.update(0.05, true);
-  near(tilt.getState().steering, 0);
+  settle();
+  assert.equal(tilt.getState().steering, 0, 'after turning the screen round, level is still straight');
   h.reading(...sampleForRoll(-30, 90));
   tilt.update(0.05, true);
   assert.ok(tilt.getState().steering < 0);
 
   h.reading(0, 0);
   assert.equal(tilt.getState().ready, false, 'lying flat pauses steering');
+  // Back from a hidden page held turned, it steers: the turn isn't taken as a new middle.
   tilt.suspend();
   h.reading(...sampleForRoll(-10, 90));
-  tilt.update(0.05, true);
-  near(tilt.getState().steering, 0);
+  settle();
+  near(tilt.getState().steering, steeringFromRoll(-10, 0));
+  h.reading(...sampleForRoll(0, 90));
+  settle();
+  assert.equal(tilt.getState().steering, 0);
   tilt.disable();
   h.reading(...sampleForRoll(30, 90));
   assert.equal(tilt.getState().enabled, false);
@@ -272,9 +286,9 @@ test('with leaning back switched on, leaning back reverses; lying flat still sto
   drive(0.05);
   assert.equal(tilt.getState().reversing, false);
 
-  // Re-centring while held further back moves the pose it leans back from.
+  // Coming back to the game held further back takes the pose it leans back from again.
+  tilt.suspend();
   h.reading(...sampleForPose(40));
-  tilt.center();
   h.reading(...sampleForPose(52));
   drive(1);
   assert.equal(tilt.getState().reversing, false);
