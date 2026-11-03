@@ -90,6 +90,9 @@ export function createDiagnostics({ tilt, host = window, storage = host.localSto
         note('tilt reading', {
           roll: round(state.roll),
           pitch: round(state.pitch),
+          // The way the picture is turned as tilt reads it, and as the browser says it is.
+          turn: state.turn,
+          says: host.screen?.orientation?.angle,
           tilt: round(state.steering, 2),
           car: round(steering, 2),
           held: held || undefined,
@@ -99,6 +102,7 @@ export function createDiagnostics({ tilt, host = window, storage = host.localSto
       shown = 0;
       const live = [
         `tilt ${state.status}  roll ${round(state.roll)}°  pitch ${round(state.pitch)}°  steer ${round(state.steering, 2)}`,
+        `screen turned ${state.turn ?? '?'}°  browser says ${host.screen?.orientation?.angle ?? '?'}°  ${host.innerWidth}×${host.innerHeight}`,
         `car steer ${round(steering, 2)}${held ? '  (button held)' : ''}  zoom ${round(scale(), 2)}`,
       ];
       const past = entries.map(({ t, what, ...detail }) => {
