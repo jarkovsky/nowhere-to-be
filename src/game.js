@@ -65,6 +65,7 @@ import {
 } from './world/terrain.js';
 import { createWake } from './world/wake.js';
 import { createWildlife } from './world/wildlife.js';
+import { createDiagnostics } from './ui/diagnostics.js';
 
 const MAX_PIXEL_RATIO = 1.5;
 // Development builds can measure raw rendering cost with ?uncapped (no frame cap, fixed resolution).
@@ -195,7 +196,6 @@ export function createGame(canvas) {
         if (tilt.getState().enabled || tilt.getState().pending) tilt.disable();
         else tilt.enable();
       },
-      tiltCenter: () => tilt.center(),
       tiltReverse: toggleTiltReverse,
       showroom: setShowroom,
       map: open => (open ? mapView.open() : mapView.close()),
@@ -260,6 +260,8 @@ export function createGame(canvas) {
     isDriving: () => mode === 'driving',
     onAction: handleAction,
   });
+  // A record of what tilt and the screen's zoom did, shown with #debug on the address.
+  const diagnostics = createDiagnostics({ tilt });
 
   // The camera keeps above the water as well as the ground.
   const aboveGround = (x, z) => Math.max(terrainHeight(x, z), waterLevel(x, z));
@@ -772,6 +774,7 @@ export function createGame(canvas) {
 
     if (driving) {
       const input = controls.read();
+      diagnostics.update(dt, { driving, steering: state.steering, held: input.left || input.right });
       moving.length = 0;
       moving.push(
         ...traffic.colliders,

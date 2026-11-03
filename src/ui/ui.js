@@ -29,7 +29,6 @@ const LABELS = {
     off: '',
     permission: 'Allow motion access when asked.',
     waiting: 'Hold your device like a steering wheel.',
-    centering: 'Hold steady while tilt finds its centre.',
     ready: '',
     upright: 'Lift the screen up a little to steer.',
     insecure: 'Tilt needs the game to be opened over HTTPS.',
@@ -113,7 +112,6 @@ export function createUI({ journal, pictures, on }) {
   $('cruise-speed').addEventListener('click', () => on.cruiseSpeed());
   $('minimap').addEventListener('click', () => on.minimap());
   $('tilt').addEventListener('click', () => on.tilt());
-  $('tilt-center').addEventListener('click', () => on.tiltCenter());
   $('tilt-reverse').addEventListener('click', () => on.tiltReverse());
   $('camp').addEventListener('click', () => on.camp());
   $('home').addEventListener('click', () => on.home());
@@ -263,7 +261,6 @@ export function createUI({ journal, pictures, on }) {
     },
     setTilt(state) {
       $('tilt').setAttribute('aria-checked', String(state.enabled || state.pending));
-      $('tilt-center').hidden = !state.enabled;
       $('tilt-reverse').hidden = !state.enabled;
       const message = LABELS.tilt[state.status];
       $('tilt-status').textContent = message;

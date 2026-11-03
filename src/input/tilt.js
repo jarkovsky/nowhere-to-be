@@ -16,7 +16,12 @@ export function screenRoll(beta, gamma, screenAngle = 0) {
   return Math.atan2(x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)) / radians;
 }
 
-export function steeringFromRoll(angle, center) {
+/**
+ * How far to steer for a screen turned `angle` degrees from level (see screenRoll). Straight
+ * ahead is always the screen held level, never wherever it happened to be held at some moment,
+ * so the middle can't creep: `center` is only there for the tests of the wraparound.
+ */
+export function steeringFromRoll(angle, center = 0) {
   if (![angle, center].every(Number.isFinite)) return 0;
   const delta = difference(angle, center);
   // Three degrees of quiet hands; full lock at a comfortable thirty degrees.
@@ -70,7 +75,6 @@ export function createTiltSteering(host = window, onChange = () => {}) {
     ready = false,
     status = 'off';
   let roll = null,
-    center = null,
     target = 0,
     steering = 0,
     angle = null;
@@ -85,7 +89,7 @@ export function createTiltSteering(host = window, onChange = () => {}) {
   const orientation = host.screen?.orientation;
   const screenAngle = () =>
     Number.isFinite(orientation?.angle) ? orientation.angle : Number.isFinite(host.orientation) ? host.orientation : 0;
-  const getState = () => ({ enabled, pending, ready, status, steering, reversing: lean.reversing });
+  const getState = () => ({ enabled, pending, ready, status, steering, reversing: lean.reversing, roll, pitch });
   /** A centre for leaning back is only taken from a pose well short of lying flat. */
   const uprightFrom = value => (value !== null && value < LEAN_BACK.level ? value : null);
   function report(next) {
@@ -103,7 +107,7 @@ export function createTiltSteering(host = window, onChange = () => {}) {
     const currentAngle = screenAngle();
     if (currentAngle !== angle) {
       angle = currentAngle;
-      center = upright = null;
+      upright = null;
       steering = 0;
     }
     if (![event.beta, event.gamma].every(Number.isFinite)) {
@@ -122,18 +126,17 @@ export function createTiltSteering(host = window, onChange = () => {}) {
       report('upright');
       return;
     }
-    if (center === null) center = roll;
     upright ??= uprightFrom(pitch);
     ready = true;
-    target = steeringFromRoll(roll, center);
+    target = steeringFromRoll(roll);
     report('ready');
   }
   function rotationChanged() {
     if (!enabled) return;
-    roll = center = pitch = upright = null;
+    roll = pitch = upright = null;
     target = steering = 0;
     ready = false;
-    report('centering');
+    report('waiting');
   }
   function detach() {
     clearTimeout();
@@ -147,7 +150,7 @@ export function createTiltSteering(host = window, onChange = () => {}) {
     generation++;
     detach();
     enabled = pending = ready = false;
-    roll = center = angle = pitch = upright = null;
+    roll = angle = pitch = upright = null;
     target = steering = 0;
     lean = RESTING;
     report(next);
@@ -179,7 +182,7 @@ export function createTiltSteering(host = window, onChange = () => {}) {
         pending = false;
         enabled = true;
         ready = false;
-        center = roll = pitch = upright = null;
+        roll = pitch = upright = null;
         angle = screenAngle();
         report('waiting');
         host.addEventListener('deviceorientation', received);
@@ -192,21 +195,6 @@ export function createTiltSteering(host = window, onChange = () => {}) {
       }
     },
     disable,
-    center() {
-      if (!enabled) return false;
-      target = steering = 0;
-      if (roll === null) {
-        center = upright = null;
-        ready = false;
-        report('centering');
-        return false;
-      }
-      center = roll;
-      upright = uprightFrom(pitch);
-      ready = true;
-      report('ready');
-      return true;
-    },
     // Require a fresh reading after returning from a hidden/backgrounded page.
     suspend() {
       if (enabled) rotationChanged();
