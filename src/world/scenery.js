@@ -53,6 +53,8 @@ import {
   HABITATS,
   SURFACES,
   GLADES,
+  STRANDED,
+  STRANDED_SPOTS,
   RING_ROAD,
   LINKS,
   AIRFIELD,
@@ -143,8 +145,13 @@ const GROUND = {
   gravel: new THREE.Color('#c3b9a0'),
 };
 const rockTone = new THREE.Color();
-/** Ground worn bare or covered over (see WORN_GROUND), with its colours made. */
-const WORN = WORN_GROUND.map(patch => ({ ...patch, color: new THREE.Color(patch.color) }));
+/** Ground worn bare or covered over (see WORN_GROUND), and the mud in the stranded travellers' ditches. */
+const BARE_GROUND = [
+  ...WORN_GROUND,
+  ...STRANDED_SPOTS.map(({ x, z }) => ({ x, z, r: 3, soft: 2.5, color: '#5f4a33' })),
+];
+/** The same with its colours made. */
+const WORN = BARE_GROUND.map(patch => ({ ...patch, color: new THREE.Color(patch.color) }));
 
 /**
  * Colour of the ground at a grid point, into `out`. `up` is the Y of its normal: 1 on flat
@@ -665,6 +672,7 @@ const CLEARINGS = [
   { x: VILLAGE.fireStation.x, z: VILLAGE.fireStation.z, r: 14 },
   ...PONDS.filter(pond => pond !== DESERT.oasis).map(({ x, z, radius }) => ({ x, z, r: radius + 6 })),
   ...GLADES.map(glade => ({ ...glade, r: 4 })),
+  ...STRANDED_SPOTS.map(({ x, z }) => ({ x, z, r: STRANDED.radius })),
   // The mud lies on the tracks, which are kept clear anyway.
   ...SURFACES.filter(p => p.id !== 'mud').map(p => ({ x: p.x, z: p.z, r: Math.max(p.rx, p.rz) + 4 })),
 ];
@@ -1567,7 +1575,7 @@ function grassMask() {
   where(ox - 45, ox + 45, oz - 45, oz + 45, (x, z) => inOrchard(x, z, 2), 0.6);
   // The plane's scar is bare earth, and so are the glade in the logging camp and the mine's yard.
   along(CRASH.scar, 1.2, 1);
-  for (const { x, z, r, soft } of WORN_GROUND) disc(x, z, r, soft, 1);
+  for (const { x, z, r, soft } of BARE_GROUND) disc(x, z, r, soft, 1);
   // Round the buildings and in their yards.
   const yards = [
     [SPAWN, 8],

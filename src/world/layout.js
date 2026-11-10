@@ -1863,6 +1863,35 @@ export function onRoughGround(x, z, margin = 0) {
 }
 
 /**
+ * Where a traveller can be stranded: in a shallow ditch beside a straight stretch of a side
+ * track. `aside` is how far from the middle of the track the vehicle's middle stands, `yaw` how far
+ * it is turned from lying along the track (nose away from the track, tail towards it) and
+ * `radius` the ground kept clear round it. `x`, `z` and `heading` are the vehicle's, and `s`
+ * and `side` where it is on the track (`side` 1 to the right of the way the track runs).
+ */
+export const STRANDED = { aside: 6.6, yaw: 0.35, radius: 7.5 };
+export const STRANDED_SPOTS = [
+  { track: 'winter-log', s: 203, side: 1 },
+  { track: 'fields', s: 41, side: -1 },
+  { track: 'fields', s: 272, side: -1 },
+  { track: 'farm-horses', s: 47, side: 1 },
+  { track: 'orchard', s: 26, side: -1 },
+  { track: 'spring', s: 29, side: 1 },
+  { track: 'east-ford', s: 41, side: 1 },
+  { track: 'winter-log', s: 50, side: 1 },
+  { track: 'desert', s: 23, side: -1 },
+].map(({ track, s, side }, index) => {
+  const { path } = TRACKS.find(t => t.id === track);
+  const p = path.offset(s, side * STRANDED.aside);
+  const { dx, dz } = path.at(s);
+  // Facing back down the track and out over the ditch, so it is pulled out tail first.
+  const out = { x: -dz * side, z: dx * side };
+  const fx = -dx * Math.cos(STRANDED.yaw) + out.x * Math.sin(STRANDED.yaw);
+  const fz = -dz * Math.cos(STRANDED.yaw) + out.z * Math.sin(STRANDED.yaw);
+  return { index, track, s, side, x: p.x, z: p.z, heading: headingOf(fx, fz) };
+});
+
+/**
  * A fin of rock running out from the side of the rocky hill to the arch, as if the arch were a
  * part of it, and on down the other side. Its top is a rough causeway the car can drive along,
  * from where it leaves the track up the hill, over the arch's flat top high above the road,
