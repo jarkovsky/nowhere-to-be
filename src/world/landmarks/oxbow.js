@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createRandom, lerp, smoothstep } from '../../core/math.js';
 import { OXBOW, TRACKS } from '../layout.js';
-import { OXBOW_LEVEL, terrainHeight } from '../terrain.js';
+import { OXBOW_LEVEL, placeBoulder, terrainHeight } from '../terrain.js';
 import { PartsBuilder, prism, vertexColorMaterial } from '../build.js';
 import { boulderGeometry, rockMaterial } from '../rocks.js';
 
@@ -175,6 +175,7 @@ function stones(obstacles, random) {
   const shapes = [0, 1, 2, 3].map(seed => boulderGeometry(seed + 31, { moss: 0.2 }));
   const pebbles = [0, 1, 2, 3].map(seed => boulderGeometry(seed + 31, { moss: 0.2, detail: 0 }));
   const parts = [];
+  /** Sets a stone down and returns how high its top stands. */
   const stone = (x, z, size) => {
     const matrix = new THREE.Matrix4().compose(
       new THREE.Vector3(x, terrainHeight(x, z) - size * 0.15, z),
@@ -182,7 +183,9 @@ function stones(obstacles, random) {
       new THREE.Vector3(size, size * 0.6, size),
     );
     const shape = Math.floor(random() * shapes.length);
-    parts.push((size < 0.4 ? pebbles : shapes)[shape].clone().applyMatrix4(matrix));
+    const drawn = (size < 0.4 ? pebbles : shapes)[shape];
+    parts.push(drawn.clone().applyMatrix4(matrix));
+    return placeBoulder(drawn, matrix.elements);
   };
   const { x, z, dx, dz } = OXBOW.ford;
   for (let k = 0; k < 60; k++) {
@@ -202,8 +205,8 @@ function stones(obstacles, random) {
     [47, 6.2, 0.8],
   ]) {
     const p = OXBOW.path.offset(s, side);
-    stone(p.x, p.z, size);
-    if (size >= 0.5) obstacles.push({ x: p.x, z: p.z, radius: size * 0.9 });
+    const climb = stone(p.x, p.z, size);
+    if (size >= 0.5) obstacles.push({ x: p.x, z: p.z, radius: size * 0.9, climb });
   }
   return parts;
 }
