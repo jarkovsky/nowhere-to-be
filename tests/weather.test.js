@@ -5,7 +5,7 @@ import { CAR, createCarState } from '../src/core/driving.js';
 import { handlingOf } from '../src/core/handling.js';
 import { VEHICLES } from '../src/core/journal.js';
 import { createAtmosphere } from '../src/world/atmosphere.js';
-import { TRACKS, surfaceAt, winterness } from '../src/world/layout.js';
+import { STRANDED_SPOTS, TRACKS, onRoughGround, surfaceAt, winterness } from '../src/world/layout.js';
 import { puddleSize, puddleSpots } from '../src/world/puddles.js';
 import { onDeck, waterDepth } from '../src/world/terrain.js';
 import { createCar } from '../src/vehicles/car.js';
@@ -83,6 +83,11 @@ test('the puddles are picked in fixed places on dry ground along the tracks, and
       'on a track',
     );
     assert.ok(spot.r > 0.8 && spot.r < 1.7);
+    assert.ok(!onRoughGround(spot.x, spot.z, 2), 'not on a rough stretch');
+    assert.ok(
+      STRANDED_SPOTS.every(ditch => Math.hypot(ditch.x - spot.x, ditch.z - spot.z) >= 14),
+      'not by a ditch',
+    );
   }
   for (const [i, a] of spots.entries()) {
     for (const b of spots.slice(i + 1)) assert.ok(Math.hypot(a.x - b.x, a.z - b.z) >= 24, 'spread out');

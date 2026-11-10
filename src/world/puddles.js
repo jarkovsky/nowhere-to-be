@@ -4,7 +4,7 @@
 // and go, the shallowest first. All of them are one instanced mesh.
 import * as THREE from 'three';
 import { createRandom, smoothstep } from '../core/math.js';
-import { TRACKS, surfaceAt, winterness } from './layout.js';
+import { STRANDED_SPOTS, TRACKS, onRoughGround, surfaceAt, winterness } from './layout.js';
 import { reflectSky } from './reflection.js';
 import { onDeck, snowCover, terrainHeight, waterDepth } from './terrain.js';
 
@@ -50,6 +50,8 @@ export function puddleSpots() {
       if (depth < SHALLOWEST || unevenness(x, z) > 0.22) continue;
       if (waterDepth(x, z) > 0 || onDeck(x, z) || surfaceAt(x, z) !== 'grass') continue;
       if (snowCover(x, z) > 0.1 || winterness(x, z) > 0.1) continue;
+      // Not on the rough stretches, which have their own stones and logs, nor by a stranded traveller's ditch.
+      if (onRoughGround(x, z, 3) || STRANDED_SPOTS.some(spot => Math.hypot(spot.x - x, spot.z - z) < 14)) continue;
       candidates.push({
         x,
         z,
