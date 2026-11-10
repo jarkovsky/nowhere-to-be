@@ -47,6 +47,10 @@ const SURFACE_HANDLING = {
   crop: { speed: 0.72, grip: 0.82, rolling: 0.06 },
 };
 
+/** The surfaces rain makes slippery, and the most grip it takes away (a share) when the ground is soaked. */
+const WET_SLIPPERY = { road: true, track: true };
+const WET_GRIP_LOSS = 0.1;
+
 /**
  * Water deeper than `from` metres holds the car back further: by `to` it can only crawl along
  * at `slowest` of the pace it could keep in shallow water, and it slows to that pace quickly.
@@ -282,7 +286,7 @@ function softened(stiffness, slip, most) {
  * world: { obstacles (index), dynamic (circles), surface(x, z), slope(x, z, heading), isDriveable(x, z),
  *          waterDepth(x, z) (optional), height(x, z) (optional: the surface the tyres rest on, used
  *          for the slope under the wheels in place of `slope`), boulderLift(x, z) (optional: how
- *          far boulders lift the surface there) }
+ *          far boulders lift the surface there), wetness() (optional: how wet the ground is, 0 to 1) }
  * The car drives as its `handling` says (see handling.js), the off-roader if it has none.
  */
 export function stepDriving(state, input, dt, world) {
@@ -292,7 +296,8 @@ export function stepDriving(state, input, dt, world) {
   // A state made by hand, not by createCarState, starts standing still.
   if (state.gear === undefined) Object.assign(state, still());
   const car = state.handling ?? DEFAULT_HANDLING;
-  const ground = SURFACE_HANDLING[world.surface(state.x, state.z)] ?? SURFACE_HANDLING.grass;
+  const surface = world.surface(state.x, state.z);
+  const ground = SURFACE_HANDLING[surface] ?? SURFACE_HANDLING.grass;
   const sin = Math.sin(state.heading);
   const cos = Math.cos(state.heading);
   // Forward is -Z when heading is 0; right is perpendicular to it.
@@ -310,7 +315,9 @@ export function stepDriving(state, input, dt, world) {
   const downRight = -banked / Math.hypot(1, banked);
   // How much of its weight presses the tyres into the ground.
   const pressing = 1 / (Math.hypot(1, along) * Math.hypot(1, across));
-  const grip = ground.grip * car.grip;
+  // Wet tarmac and gravel lose a little grip, at most WET_GRIP_LOSS of it.
+  const wet = surface in WET_SLIPPERY ? (world.wetness?.() ?? 0) : 0;
+  const grip = ground.grip * car.grip * (1 - WET_GRIP_LOSS * wet);
   const wading = smoothstep(world.waterDepth?.(state.x, state.z) ?? 0, WADING.from, WADING.to);
   const deep = lerp(1, WADING.slowest, wading);
   const top = car.top * ground.speed * deep;

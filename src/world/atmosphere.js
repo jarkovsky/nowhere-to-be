@@ -5,6 +5,7 @@ import { createRandom, smoothstep } from '../core/math.js';
 import { terrainHeight } from './terrain.js';
 import { lofotenness, winterness } from './layout.js';
 import { createAurora } from './aurora.js';
+import { WETNESS } from './detail.js';
 import { HAZE, createSkyDome } from './sky.js';
 
 const SKY_PRESETS = ['auto', 'sunset', 'night', 'rain', 'day', 'blizzard'];
@@ -17,6 +18,9 @@ const around = (seed, centre, size) => centre + ((((seed - centre) % size) + siz
 const RAIN_PACE = 31;
 /** Every this many rain spells, one of them is a blizzard wherever the snow lies. */
 const BLIZZARD_EVERY = 3;
+/** Seconds the rain takes to wet the ground most of the way through; and the slowest and quickest it dries (s), under cloud at night and in full sun. */
+const WETTING = 40;
+const DRYING = { slowest: 420, quickest: 130 };
 
 /**
  * How much of a blizzard there is at a moment in the automatic cycle, 0 to 1, where it is
@@ -48,7 +52,13 @@ export function skyConditions(time, preset = 'auto') {
   if (preset !== 'auto' && preset !== 'blizzard') blizzard = 0;
   const day = smoothstep(altitude, -0.18, 0.38);
   const sunset = (1 - smoothstep(Math.abs(altitude), 0.04, 0.38)) * (1 - rain);
-  return { day, sunset, rain, blizzard };
+  // A thin mist lies in the low ground as the sun comes up, and burns off as it climbs.
+  const rising = Math.cos(phase * Math.PI * 2) > 0;
+  const mist =
+    preset === 'auto' && rising
+      ? smoothstep(altitude, -0.2, 0.03) * (1 - smoothstep(altitude, 0.06, 0.4)) * (1 - rain)
+      : 0;
+  return { day, sunset, rain, blizzard, mist };
 }
 
 /**
@@ -73,20 +83,22 @@ const COLORS = Object.fromEntries(
     // The haze away from the sun, which is also the colour of the sky at the horizon.
     nightHaze: '#22385a',
     dayHaze: '#d6d9cf',
-    sunsetHaze: '#e8b4a0',
+    sunsetHaze: '#ebb59e',
+    // The haze away from the low sun, cooler than the sky round it.
+    sunsetCool: '#8c9bc8',
     rainHaze: '#aebfc0',
     // The sky overhead.
     nightZenith: '#0d1a31',
     dayZenith: '#78b2d6',
-    sunsetZenith: '#7f7fae',
+    sunsetZenith: '#6678ae',
     rainZenith: '#8c9da5',
     // The haze and the sky around the sun (or the moon, at night).
     nightGlow: '#3b5781',
     dayGlow: '#f7ead0',
-    sunsetGlow: '#ffb067',
+    sunsetGlow: '#f8b884',
     rainGlow: '#c3cdca',
     sunDay: '#ffe4be',
-    sunEvening: '#ffb47a',
+    sunEvening: '#f8c498',
     sunNight: '#9abadd',
     skyNight: '#9ebbd0',
     skyDay: '#e2e3dc',
@@ -133,6 +145,10 @@ export function createAtmosphere(scene, sun, ambient) {
   let day = 1;
   let sunset = 0;
   let rain = 0;
+  // How wet the ground is, from 0 to 1: it rises while it rains and dries slowly after.
+  let wetness = 0;
+  // The morning mist in the low ground.
+  let mist = 0;
   // How much of a blizzard there is in the sky, wherever the car is; and how much of one the car is in.
   let blizzard = 0;
   let storm = 0;
@@ -147,6 +163,7 @@ export function createAtmosphere(scene, sun, ambient) {
   scene.add(dome);
   const sky = dome.material.uniforms;
   const glow = new THREE.Color();
+  const cool = new THREE.Color();
   const glowDirection = new THREE.Vector3();
 
   const sphere = new THREE.SphereGeometry(1, 16, 12);
@@ -336,9 +353,14 @@ vec3 transformed = vec3(
     setPreset(value) {
       if (SKY_PRESETS.includes(value)) preset = value;
     },
-    getState: () => ({ preset, time, day, sunset, rain, rainfall, blizzard: storm }),
+    getState: () => ({ preset, time, day, sunset, rain, rainfall, wetness, mist, blizzard: storm }),
     setTime(seconds) {
       time = seconds;
+    },
+    /** Sets how wet the ground is, from 0 to 1 (for the development hooks). */
+    setWetness(value) {
+      wetness = Math.min(1, Math.max(0, value));
+      WETNESS.value = wetness;
     },
     /** Back to the automatic cycle, on a dry morning. */
     wakeUp() {
@@ -354,10 +376,18 @@ vec3 transformed = vec3(
       sunset += (target.sunset - sunset) * blend;
       rain += (target.rain - rain) * blend;
       blizzard += (target.blizzard - blizzard) * blend;
+      mist += (target.mist - mist) * (1 - Math.exp(-dt * 0.3));
       winter += (winterness(centre.x, centre.z) - winter) * (1 - Math.exp(-dt * 2));
       // In the snowy places the rain falls as snow, so its streaks and its sound fade out as the car goes in.
       const snowy = Math.min(1, winter * 1.4);
       rainfall = rain * (1 - snowy);
+      if (running) {
+        // Rain wets the ground, but snow does not; the sun dries it faster than the cloud and the night.
+        const dry = 1 / (DRYING.slowest + (DRYING.quickest - DRYING.slowest) * day * (1 - rain));
+        wetness += ((1 - wetness) * (rainfall / WETTING) - dry * (1 - rainfall)) * dt;
+        wetness = Math.min(1, Math.max(0, wetness));
+        WETNESS.value = wetness;
+      }
       // And a blizzard blows only there, as far in as the snow lies.
       storm = blizzard * snowy;
       // The grey of a wet sky, which a blizzard brings too, only a little paler.
@@ -377,6 +407,10 @@ vec3 transformed = vec3(
         .lerp(COLORS.coastHaze, low * 0.7 * (1 - storm * 0.6))
         .lerp(COLORS.stormHaze, storm * 0.9 * (0.3 + 0.7 * day));
       scene.background.copy(haze);
+      cool
+        .copy(haze)
+        .lerp(COLORS.sunsetCool, sunset * 0.85)
+        .toArray(HAZE.coolColor);
       // A blizzard thickens the air more than rain does, but the road stays clear some 60 m ahead. The coast's
       // low sun lights the haze round it, so there the haze is kept thin: the mountains stay dark grey in it.
       scene.fog.density = (0.0011 + winter * 0.0007 + Math.max(rain * 0.0035, storm * 0.0042)) * (1 - low * 0.3);
@@ -433,13 +467,20 @@ vec3 transformed = vec3(
         .lerp(COLORS.rainCloud, grey)
         .lerp(COLORS.winterCloud, cold * 0.6)
         .lerp(COLORS.coastCloud, low * 0.7);
+      sky.zenith.value.toArray(HAZE.zenith);
+      // The morning mist lies up to a few metres above the lake's shore, and not at all in snow.
+      HAZE.mist[0] = mist * (1 - cold * 0.5);
+      HAZE.mist[1] = 3.5;
+      // The glow round the sun grows wider and warmer as it sinks.
+      const shining = smoothstep(day, 0.08, 0.2) * (1 - smoothstep(grey, 0.3, 0.6));
+      sky.sunGlow.value.set(shining * (0.2 + sunset * 0.5), 70 - sunset * 45);
       sky.cloudCover.value = 0.3 + grey * 0.7;
       sky.time.value = time;
 
       // The light comes from the same side, a little higher, so the evening shadows are long.
       const ground = terrainHeight(centre.x, centre.z);
       const light = 0.32 + day * 0.58 * (1 - 0.5 * coast) - sunset * 0.22;
-      sun.intensity = Math.max(0.25, 0.4 + day * 2.7 + sunset * 1.1 - grey * 1.6);
+      sun.intensity = Math.max(0.25, 0.4 + day * 2.7 + sunset * 0.9 - grey * 1.6);
       sun.color
         .copy(COLORS.sunNight)
         .lerp(COLORS.sunDay, day)

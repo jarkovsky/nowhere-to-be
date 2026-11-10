@@ -243,6 +243,8 @@ export function createGame(canvas) {
   // The surface last worked out. The driving asks where the car is at the start of a frame,
   // which is just where the dirt asked at the end of the frame before.
   const lastSurface = { x: NaN, z: NaN, y: NaN, kind: 'grass' };
+  // How wet the ground is, read once a frame.
+  let wetness = 0;
   const world = {
     obstacles: createObstacleIndex(obstacles),
     dynamic: moving,
@@ -260,6 +262,8 @@ export function createGame(canvas) {
     boulderLift,
     isDriveable,
     waterDepth: wadingDepth,
+    // Wet roads and tracks give a little less grip.
+    wetness: () => wetness,
   };
   const views = createViews(LOOKOUTS);
   // The view from a lookout, worked out once a frame in the loop; null when there is none.
@@ -856,6 +860,7 @@ export function createGame(canvas) {
     } else lookoutWatch = null;
 
     const sky = atmosphere.getState();
+    wetness = sky.wetness;
     const night = 1 - sky.day;
     atmosphere.update(dt, state, mode !== 'title');
     car.setLights(night, driving && wasBraking);
@@ -883,7 +888,7 @@ export function createGame(canvas) {
     wildlife.update(dt, state, night);
     secrets.update(dt, state, night);
     // Stuck in the mud hole and pulled out of it, the car makes no sound in the mud.
-    surfaces.update(dt, state, driving, mudHole.slip, mudHole.gripping());
+    surfaces.update(dt, state, driving, mudHole.slip, mudHole.gripping(), sky.wetness);
     if (driving) wading.update(dt, state, car, car.trailer ? trailer : null);
     if (driving) {
       // Puddles lie on the trail, so the tyres find them rather than the driving surface.
@@ -1007,6 +1012,7 @@ export function createGame(canvas) {
       setSky: preset => atmosphere.setPreset(preset),
       callOut: kind => roads.some(road => road.callOut(state, kind)),
       setClock: seconds => atmosphere.setTime(seconds),
+      setWetness: value => atmosphere.setWetness(value),
       setDirt: amount => (dirt = amount),
       shot(position, target) {
         chase.setMode('shot');

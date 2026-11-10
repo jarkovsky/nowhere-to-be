@@ -112,6 +112,7 @@ import { createScatter } from './scatter.js';
 import { buildDesertScenery, desertGround, desertTakes } from './sand.js';
 import { WINTER_TINTS, coastRock, winterGround } from './snow.js';
 import { buildIce } from './ice.js';
+import { WATER_MIRROR, reflectSky } from './reflection.js';
 
 const random = createRandom(82741);
 
@@ -484,7 +485,10 @@ function buildRipples(scene) {
 }
 
 function buildWater(scene) {
-  const lakeMaterial = flatMaterial('#6fa8a6', { emissive: '#1d4c50', emissiveIntensity: 0.25 });
+  const lakeMaterial = reflectSky(
+    flatMaterial('#6fa8a6', { emissive: '#1d4c50', emissiveIntensity: 0.25 }),
+    WATER_MIRROR,
+  );
   const lakeGeometry = new THREE.CircleGeometry(1, 72);
   lakeGeometry.rotateX(-Math.PI / 2);
   const lake = new THREE.Mesh(lakeGeometry, lakeMaterial);

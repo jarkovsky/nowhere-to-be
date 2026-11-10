@@ -1,8 +1,10 @@
 // The sky and the haze. The haze is the renderer's fog, changed so its colour depends on
-// where you look: warm towards the sun and cooler away from it. It is a little thicker low
-// down, so it settles in the valley and the distant hills fade into it. The sky is a dome around
-// the camera that starts from the same colours at the horizon and darkens towards the top,
-// so the far hills meet it without a seam.
+// where you look: warm towards the sun and, at sunrise and sunset, cool away from it. It thickens
+// with distance faster than plain fog does, and is thicker low down, so it settles in the valley
+// and each ridge fades further into it than the one in front. In the early morning a thin mist
+// lies in the lowest ground (the lake basin and the oxbow), added to the same fog. The sky is a
+// dome around the camera that starts from the same colours at the horizon and darkens towards the
+// top, with a glow round the sun, so the far hills meet it without a seam.
 import * as THREE from 'three';
 
 /**
@@ -13,12 +15,20 @@ import * as THREE from 'three';
 export const HAZE = {
   sunColor: new Float32Array(3),
   sunDirection: new Float32Array([0, 1, 0]),
+  /** The haze on the side away from the sun: the plain haze colour by day and night, bluer at sunrise and sunset. */
+  coolColor: new Float32Array(3),
+  /** The sky straight up, for what the water mirrors. */
+  zenith: new Float32Array(3),
+  /** The morning mist: how much of it there is from 0 to 1, and the height it lies up to. */
+  mist: new Float32Array([0, 3, 0]),
 };
 
 const HAZE_COLOR = /* glsl */ `
   vec3 hazeColor( vec3 direction ) {
-    float sun = max( dot( direction, hazeSunDirection ), 0.0 );
-    return mix( fogColor, hazeSunColor, 0.7 * pow( sun, 7.0 ) + 0.3 * sun * sun );
+    float facing = dot( direction, hazeSunDirection );
+    float sun = max( facing, 0.0 );
+    vec3 away = mix( fogColor, hazeCoolColor, smoothstep( 0.3, - 0.8, facing ) );
+    return mix( away, hazeSunColor, 0.7 * pow( sun, 7.0 ) + 0.3 * sun * sun );
   }
 `;
 
@@ -42,6 +52,8 @@ THREE.ShaderChunk.fog_pars_fragment = /* glsl */ `
     uniform vec3 fogColor;
     uniform vec3 hazeSunColor;
     uniform vec3 hazeSunDirection;
+    uniform vec3 hazeCoolColor;
+    uniform vec3 hazeMist;
     varying float vFogDepth;
     varying vec3 vFogOffset;
     #ifdef FOG_EXP2
@@ -59,10 +71,23 @@ THREE.ShaderChunk.fog_fragment = /* glsl */ `
     #ifdef FOG_EXP2
       // The scene's density is used for haze that thickens steadily with distance rather
       // than with its square, so nearby slopes soften a little and the far hills still show.
-      // It is thicker in the valley than up on the hills, judged halfway along the line of sight.
+      // It is thicker in the valley than up on the hills, judged halfway along the line of sight,
+      // and beyond a few hundred metres it thickens faster still, so every ridge stands out
+      // against the one behind it. Rain and blizzards already fill the air, so they keep to plain haze.
       float hazeHeight = cameraPosition.y + vFogOffset.y * 0.5;
-      float hazeDensity = fogDensity * mix( 1.25, 0.7, smoothstep( 0.0, 150.0, hazeHeight ) );
-      float fogFactor = 1.0 - exp( - hazeDensity * vFogDepth );
+      float hazeDensity = fogDensity * mix( 1.6, 0.6, smoothstep( - 5.0, 130.0, hazeHeight ) );
+      float hazeReach = vFogDepth * ( 1.0 + vFogDepth * ( 1.0 - smoothstep( 0.0012, 0.0032, fogDensity ) ) / 1000.0 );
+      float fogFactor = 1.0 - exp( - hazeDensity * hazeReach );
+      // The morning mist, lying below the height in hazeMist.y and thinning out over the metres above it:
+      // how much of the way to the point is under that, judged at the camera, halfway and at the point.
+      if ( hazeMist.x > 0.001 ) {
+        float lowest = cameraPosition.y;
+        float middle = lowest + vFogOffset.y * 0.5;
+        float highest = lowest + vFogOffset.y;
+        float inside = 1.0 - ( smoothstep( hazeMist.y - 5.0, hazeMist.y, lowest ) + 2.0 * smoothstep( hazeMist.y - 5.0, hazeMist.y, middle ) + smoothstep( hazeMist.y - 5.0, hazeMist.y, highest ) ) * 0.25;
+        float mist = min( 1.0 - exp( - hazeMist.x * 0.0045 * vFogDepth * inside ), 0.8 );
+        fogFactor = 1.0 - ( 1.0 - fogFactor ) * ( 1.0 - mist );
+      }
     #else
       float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
     #endif
@@ -74,6 +99,8 @@ for (const shader of Object.values(THREE.ShaderLib)) {
   if (!shader.uniforms.fogColor) continue;
   shader.uniforms.hazeSunColor = { value: HAZE.sunColor };
   shader.uniforms.hazeSunDirection = { value: HAZE.sunDirection };
+  shader.uniforms.hazeCoolColor = { value: HAZE.coolColor };
+  shader.uniforms.hazeMist = { value: HAZE.mist };
 }
 
 /** Far enough for the most distant hills, but inside the camera's far plane. */
@@ -90,6 +117,7 @@ export function createSkyDome(fogColor) {
       fogColor: { value: fogColor },
       hazeSunColor: { value: HAZE.sunColor },
       hazeSunDirection: { value: HAZE.sunDirection },
+      hazeCoolColor: { value: HAZE.coolColor },
       zenith: { value: new THREE.Color() },
       cloudColor: { value: new THREE.Color() },
       /** How much of the sky the clouds cover, from 0 to 1. */
@@ -99,6 +127,8 @@ export function createSkyDome(fogColor) {
       sunDirection: { value: new THREE.Vector3(0, 1, 0) },
       /** Black when the sun isn't out. */
       sunColor: { value: new THREE.Color() },
+      /** The glow round the sun: how strong it is, and how tight (higher is tighter). */
+      sunGlow: { value: new THREE.Vector2() },
     },
     vertexShader: /* glsl */ `
       varying vec3 vDirection;
@@ -111,12 +141,14 @@ export function createSkyDome(fogColor) {
       uniform vec3 fogColor;
       uniform vec3 hazeSunColor;
       uniform vec3 hazeSunDirection;
+      uniform vec3 hazeCoolColor;
       uniform vec3 zenith;
       uniform vec3 cloudColor;
       uniform float cloudCover;
       uniform float time;
       uniform vec3 sunDirection;
       uniform vec3 sunColor;
+      uniform vec2 sunGlow;
       varying vec3 vDirection;
       ${HAZE_COLOR}
 
@@ -152,6 +184,9 @@ export function createSkyDome(fogColor) {
         vec3 color = mix( hazeColor( direction ), zenith, smoothstep( 0.0, 0.75, sqrt( up ) ) * 0.85 );
 
         float sun = dot( direction, sunDirection );
+        // A soft glow round the sun, wide and warm when it is low, drawn into the haze.
+        float near = max( sun, 0.0 );
+        color += hazeSunColor * sunGlow.x * ( 0.55 * pow( near, sunGlow.y ) + 0.45 * pow( near, sunGlow.y * 0.2 ) * 0.5 );
         color = mix( color, sunColor, smoothstep( 0.99982, 0.99988, sun ) );
 
         // Clouds on a flat layer overhead, so they bunch up towards the horizon, stretched
