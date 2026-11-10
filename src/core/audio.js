@@ -1,7 +1,21 @@
-// The engine, tyres, weather, horns and animal calls are synthesised with Web Audio. Only the
-// music and the nature sounds under it (nature.js) are recorded.
+// The engine, the car's own horn and the water and mud under the tyres are synthesised with Web
+// Audio. The music, the nature sounds under it (nature.js) and the animal calls, rain, rolling
+// tyres, big horns and rotors (recorded.js) are recordings; each plays its synthesised
+// stand-in until its file has loaded.
 import { createMusic } from './music.js';
-import { createNature } from './nature.js';
+import { createLibrary, createNature } from './nature.js';
+import {
+  RAIN_FILE,
+  ROTOR_FILES,
+  TYRE_FILES,
+  createRecordings,
+  rainVolume,
+  rotorGain,
+  rotorRate,
+  tyreBed,
+  tyreGain,
+  tyreRate,
+} from './recorded.js';
 
 /**
  * Engine speed for a road speed in m/s: a four-speed gearbox that shifts up
@@ -19,7 +33,8 @@ export function engineRpm(speed, throttle) {
 /**
  * The soft sound under the tyres on each surface: muffled noise, plus bubbles
  * in water and an occasional crunch on leaves. Snow only hushes: it lies over the whole of the
- * winter, and a crunch every moment there would never let up.
+ * winter, and a crunch every moment there would never let up. Only water, puddles and mud keep
+ * this for good; on the other surfaces it sounds until the recorded loop has loaded.
  */
 const SURFACE_BEDS = {
   water: { cutoff: 700, gain: 0.035, bubbles: 1 },
@@ -44,6 +59,11 @@ export function createAudio() {
   let rotor;
   let music;
   let nature;
+  let recorded;
+  let rainLoop;
+  let tyreLoops;
+  let rotorLoops;
+  let tyreName = null;
   let noise;
   let enabled = true;
   let enginePitch = 1;
@@ -190,7 +210,12 @@ export function createAudio() {
     rainGain = noiseSource('highpass', 2400, 0);
     stormGain = noiseSource('lowpass', 520, 0);
     music = createMusic(context, master);
-    nature = createNature(context, master);
+    const library = createLibrary(context);
+    nature = createNature(context, master, { library });
+    recorded = createRecordings(context, master, library);
+    rainLoop = recorded.loop(RAIN_FILE);
+    tyreLoops = Object.fromEntries(Object.entries(TYRE_FILES).map(([name, file]) => [name, recorded.loop(file)]));
+    rotorLoops = Object.fromEntries(Object.entries(ROTOR_FILES).map(([name, file]) => [name, recorded.loop(file)]));
   }
 
   async function ready() {
@@ -291,6 +316,7 @@ export function createAudio() {
       const now = context.currentTime;
       echoSend.gain.setValueAtTime(inTunnel ? 0.6 : 0, now);
       if (kind === 'air') {
+        if (recorded.horn('air', 1, echoSend)) return true;
         tone(185, now, 0.75, { type: 'sawtooth', volume: 0.05, echo: 1 });
         tone(233, now, 0.75, { type: 'sawtooth', volume: 0.05, echo: 1 });
         return true;
@@ -322,6 +348,7 @@ export function createAudio() {
     trainHorn(distance) {
       const level = Math.max(0, 1 - distance / 260);
       if (!playable() || level <= 0) return;
+      if (recorded.horn('rail', level)) return;
       const now = context.currentTime;
       for (const [start, length] of [
         [0, 0.55],
@@ -337,23 +364,39 @@ export function createAudio() {
       const level = Math.max(0, 1 - distance / 400);
       if (!playable() || level <= 0) return;
       const now = context.currentTime;
+      // The recording is one long blast; a second one follows it.
+      if (recorded.horn('ship', level, null, now)) {
+        for (let k = 1; k < blasts; k++) recorded.horn('ship', level, null, now + k * 6);
+        return;
+      }
       for (let k = 0; k < blasts; k++) {
         tone(110, now + k * 1.6, 1.2, { type: 'sawtooth', volume: 0.05 * level });
         tone(165, now + k * 1.6, 1.2, { type: 'sawtooth', volume: 0.025 * level });
       }
     },
 
-    /** The helicopter's rotor: `level` 0 to 1 for how loud, `rate` for how fast the blades beat. */
-    rotor(level, rate) {
+    /**
+     * The rotor of a helicopter, or the engine of the plane if `plane`: `level` 0 to 1 for how
+     * loud, `rate` for how fast the blades beat. The recording plays faster as the blades do.
+     */
+    rotor(level, rate, plane = false) {
       if (!context) return;
       const now = context.currentTime;
+      const kind = plane ? 'plane' : 'helicopter';
+      const loop = rotorLoops[kind];
+      const live = level > 0.01 && loop.ready();
+      for (const [name, other] of Object.entries(rotorLoops)) {
+        glide(other.gain, name === kind && live ? rotorGain(plane, level) : 0, now, 0.2);
+      }
+      if (live) glide(loop.rate, rotorRate(plane, rate), now, 0.3);
       glide(rotor.beat.frequency, rate, now, 0.3);
-      glide(rotor.gain.gain, level * 0.32, now, 0.2);
+      glide(rotor.gain.gain, live ? 0 : level * 0.32, now, 0.2);
     },
 
     animal(kind) {
       if (!playable()) return;
       const now = context.currentTime + 0.25;
+      if (recorded.animal(kind, now)) return;
       if (kind === 'quack') {
         [0, 0.24, 0.42].forEach(t => tone(480, now + t, 0.14, { type: 'sawtooth', end: 260, volume: 0.05 }));
       } else if (kind === 'baa') {
@@ -388,9 +431,10 @@ export function createAudio() {
     },
 
     /** What the tyres are on and how fast they're turning, every frame while driving. */
-    surface(kind, speed) {
+    surface(kind, speed, ground = 'grass') {
       const entering = kind !== surface;
       surface = kind;
+      tyreName = tyreBed(kind, ground);
       surfacePace = Math.min(1, speed / 8);
       if (!playable() || speed < 0.6) return;
       const now = context.currentTime;
@@ -432,12 +476,23 @@ export function createAudio() {
 
       const profile = SURFACE_BEDS[surface];
       const pace = engineOn ? surfacePace : 0;
-      glide(bed.gain.gain, profile ? profile.gain * pace : 0, now, 0.2);
+      // The recorded loop of the ground under the tyres, once it has loaded; until then the noise.
+      let rolling = false;
+      for (const [name, loop] of Object.entries(tyreLoops)) {
+        const wanted = name === tyreName && pace > 0.01;
+        const live = wanted && loop.ready();
+        if (live) rolling = true;
+        glide(loop.gain, live ? tyreGain(name, pace) : 0, now, 0.25);
+        if (live) glide(loop.rate, tyreRate(pace), now, 0.2);
+      }
+      glide(bed.gain.gain, profile && !rolling ? profile.gain * pace : 0, now, 0.2);
       if (profile) glide(bed.filter.frequency, profile.cutoff, now, 0.1);
       // A breeze that comes and goes on its own, rather than a rush that follows the speed.
       const gust = (0.5 + 0.5 * Math.sin(now * 0.11) * Math.sin(now * 0.047 + 1.3)) ** 2;
       glide(windGain.gain, 0.003 + gust * 0.007 + Math.min(8, Math.abs(speed)) * 0.0003, now, 0.8);
-      glide(rainGain.gain, rain * 0.028, now, 0.5);
+      const rainFalls = rain > 0.01 && rainLoop.ready();
+      glide(rainLoop.gain, rainFalls ? rainVolume(rain) : 0, now, 0.8);
+      glide(rainGain.gain, rainFalls ? 0 : rain * 0.028, now, 0.5);
       // The wind of a blizzard: a soft, low rush that swells and eases off, never loud.
       const squall = 0.5 + 0.5 * Math.sin(now * 0.31) * Math.sin(now * 0.13 + 0.7);
       glide(stormGain.gain, blizzard * (0.008 + squall * 0.014), now, 1.2);

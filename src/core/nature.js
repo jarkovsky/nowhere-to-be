@@ -178,7 +178,7 @@ export function loopWindow(buffer) {
   return { start: first / buffer.sampleRate, end: last / buffer.sampleRate };
 }
 
-const sample = (context, url) =>
+export const sample = (context, url) =>
   fetch(url)
     .then(response => {
       if (!response.ok) throw new Error(url);
@@ -188,17 +188,36 @@ const sample = (context, url) =>
     .then(data => new Promise((resolve, reject) => context.decodeAudioData(data, resolve, reject)));
 
 /**
+ * The recordings loaded so far, shared by everything that plays one. `want(name)` starts fetching
+ * public/sounds/<name>.mp3 if it isn't there yet, `get(name)` gives the decoded buffer once it
+ * is. One that won't load is left out.
+ */
+export function createLibrary(context) {
+  const buffers = new Map();
+  const loading = new Set();
+  return {
+    get: name => buffers.get(name),
+    want(name) {
+      if (buffers.has(name) || loading.has(name)) return;
+      loading.add(name);
+      sample(context, `sounds/${name}.mp3`)
+        .then(buffer => buffers.set(name, buffer))
+        .catch(() => {})
+        .finally(() => loading.delete(name));
+    },
+  };
+}
+
+/**
  * Plays the nature sounds into `destination`. `start()` once the game begins, then `update()` every
  * frame with where the car is. A recording is only fetched once it is wanted, and one that won't
  * load is left out.
  */
-export function createNature(context, destination, { random = Math.random } = {}) {
+export function createNature(context, destination, { random = Math.random, library = createLibrary(context) } = {}) {
   const output = context.createGain();
   output.gain.value = 1;
   output.connect(destination);
 
-  const buffers = new Map();
-  const loading = new Set();
   const beds = new Map();
   const last = {};
   let started = false;
@@ -210,18 +229,13 @@ export function createNature(context, destination, { random = Math.random } = {}
   const seconds = () => context.currentTime;
 
   function want(name) {
-    if (!started || buffers.has(name) || loading.has(name)) return;
-    loading.add(name);
-    sample(context, `sounds/${name}.mp3`)
-      .then(buffer => buffers.set(name, buffer))
-      .catch(() => {})
-      .finally(() => loading.delete(name));
+    if (started) library.want(name);
   }
 
   /** A loop begins at a random point, so it is never the same on the way back to a place. */
   function startBed(name) {
     const source = context.createBufferSource();
-    source.buffer = buffers.get(name);
+    source.buffer = library.get(name);
     source.loop = true;
     const gain = context.createGain();
     gain.gain.value = 0;
@@ -241,7 +255,7 @@ export function createNature(context, destination, { random = Math.random } = {}
   /** A call from a random side and distance: panned to its side, softer and duller the further it is. */
   function play(kind) {
     const name = pickFile(kind, last, random);
-    const buffer = buffers.get(name);
+    const buffer = library.get(name);
     if (!buffer) {
       want(name);
       return;
@@ -291,7 +305,7 @@ export function createNature(context, destination, { random = Math.random } = {}
         for (const name of BEDS) {
           const level = levels.beds[name] * (name === 'pines' ? gust : 1);
           if (level > 0.01) want(name);
-          const bed = beds.get(name) ?? (buffers.has(name) ? startBed(name) : null);
+          const bed = beds.get(name) ?? (library.get(name) ? startBed(name) : null);
           // A few seconds to fade in or out.
           bed?.gain.gain.setTargetAtTime(on ? level * BED_LEVEL[name] : 0, now, 2.2);
         }

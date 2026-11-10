@@ -119,6 +119,15 @@ function slopeAlong(height, x, z, heading) {
   return (height(x + dx, z + dz) - height(x - dx, z - dz)) / 3;
 }
 
+/** What plain ground sounds like under the tyres: paved road, gravel road or dirt track, or open grass. */
+function groundSound(x, z) {
+  if (onDeck(x, z)) return 'grass';
+  if (onPaved(x, z, ROAD_HALF_WIDTH + 0.6) || onAirfield(x, z) || onDriveway(x, z, 0.4) || onForecourt(x, z))
+    return 'tarmac';
+  const ground = surfaceUnder(x, z);
+  return ground === 'road' || ground === 'track' || ground === 'rock' ? 'gravel' : 'grass';
+}
+
 function createRenderer(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -164,7 +173,7 @@ export function createGame(canvas) {
   const obstacles = [...scenery.obstacles];
   const landmarks = buildLandmarks(scene, obstacles);
   const atmosphere = createAtmosphere(scene, sun, ambient);
-  const surfaces = createSurfaces(scene, sound, { cropAt: landmarks.cropAt });
+  const surfaces = createSurfaces(scene, sound, { cropAt: landmarks.cropAt, groundAt: groundSound });
   const wading = createWake(scene);
   obstacles.push(...surfaces.obstacles);
   const traffic = createTraffic(scene);
@@ -946,7 +955,7 @@ export function createGame(canvas) {
       ...helicopters.map(helicopter => helicopter.rotorSound(camera.position)),
       planes.engineSound(camera.position),
     ].reduce((a, b) => (b.level > a.level ? b : a));
-    sound.rotor(mode === 'title' ? 0 : rotor.level, rotor.rate);
+    sound.rotor(mode === 'title' ? 0 : rotor.level, rotor.rate, rotor.plane);
     renderer.render(scene, camera);
     if (!UNCAPPED) adaptResolution(frameMs, dt, targetFps);
   }
