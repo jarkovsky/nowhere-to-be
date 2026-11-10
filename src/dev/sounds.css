@@ -1,0 +1,64 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #283e35;
+  background: #f8f5e9;
+}
+
+body {
+  margin: 0;
+  padding: 1.5rem;
+}
+
+main {
+  max-width: 52rem;
+  margin: 0 auto;
+}
+
+h2 {
+  margin: 1.6rem 0 0.4rem;
+  font-size: 1.05rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 9rem 6rem 6rem 1fr;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(40, 62, 53, 0.14);
+}
+
+.row button {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid rgba(40, 62, 53, 0.3);
+  border-radius: 0.4rem;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.row button[aria-pressed='true'] {
+  background: #c86338;
+  color: #fff;
+}
+
+.row button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.row .slider {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.row .slider input {
+  flex: 1;
+}
+
+.volume {
+  display: block;
+  margin: 1rem 0;
+}

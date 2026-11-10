@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Nowhere to Be: sound board</title>
+  </head>
+  <body>
+    <main>
+      <h1>Sound board</h1>
+      <p>
+        Each row has the old synthesised sound and the new recording. Press a button to play it; for the loops the
+        button starts and stops it, and the slider is what the sound follows in the game. The first press starts the
+        audio.
+      </p>
+      <label class="volume">Volume <input id="volume" type="range" min="0" max="1" step="0.01" value="0.6" /></label>
+      <div id="rows"></div>
+    </main>
+    <script type="module" src="/src/dev/sounds.js"></script>
+  </body>
+</html>

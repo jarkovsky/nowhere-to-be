@@ -89,7 +89,7 @@ function mudGeometry(patch, seed) {
   return geometry;
 }
 
-export function createSurfaces(scene, sound, { cropAt = () => false } = {}) {
+export function createSurfaces(scene, sound, { cropAt = () => false, groundAt = () => 'grass' } = {}) {
   const random = createRandom(441);
   const dummy = new THREE.Object3D();
 
@@ -262,7 +262,11 @@ export function createSurfaces(scene, sound, { cropAt = () => false } = {}) {
       // A puddle the rain has left throws up water but makes no splash sound: the sound is told the tyres
       // are on the track.
       const splash = current === 'grass' && rainPuddles.at(car.x, car.z) > 0 ? 'puddle' : current;
-      sound.surface(current, quiet ? 0 : Math.abs(car.speed) + Math.abs(spin));
+      sound.surface(
+        current,
+        quiet ? 0 : Math.abs(car.speed) + Math.abs(spin),
+        current === 'grass' ? groundAt(car.x, car.z) : 'grass',
+      );
       const sin = Math.sin(car.heading);
       const cos = Math.cos(car.heading);
       const spinning = Math.abs(spin) > 1;

@@ -315,10 +315,10 @@ export function createPlanes(scene, obstacles) {
       timer = 0;
       return true;
     },
-    /** How loud the engine is from a point, 0 to 1, and how fast it beats. */
+    /** How loud the engine is from a point, 0 to 1, how fast it beats, and that it is the plane's. */
     engineSound(eye) {
       const distance = root.position.distanceTo(eye);
-      return { level: spin * Math.max(0, 1 - distance / 420), rate: 18 + spin * 26 };
+      return { level: spin * Math.max(0, 1 - distance / 420), rate: 18 + spin * 26, plane: true };
     },
     /** `laps` counts the loops flown, including any to go round again. */
     getState: () => ({ phase, x: position.x, y: position.y, z: position.z, speed, laps }),
