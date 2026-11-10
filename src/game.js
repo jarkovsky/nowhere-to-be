@@ -779,7 +779,15 @@ export function createGame(canvas) {
       }
       needsRender = false;
       // Paused, the world stands still: no rotors carrying on at their last level.
-      sound.update({ speed: 0, engineOn: false, active: !document.hidden, rain: 0 });
+      sound.update({
+        speed: 0,
+        engineOn: false,
+        active: !document.hidden,
+        rain: 0,
+        x: state.x,
+        z: state.z,
+        day: atmosphere.getState().day,
+      });
       sound.rotor(0, 0);
       return;
     }
@@ -903,6 +911,9 @@ export function createGame(canvas) {
       // In the snowy places it snows rather than rains, and a blizzard blows now and then.
       rain: sky.rainfall,
       blizzard: sky.blizzard,
+      x: state.x,
+      z: state.z,
+      day: sky.day,
     });
     // The helicopters and the plane share one engine sound: whichever is loudest.
     const rotor = [

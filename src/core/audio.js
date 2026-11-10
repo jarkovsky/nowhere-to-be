@@ -1,5 +1,7 @@
-// Everything you hear apart from the music is synthesised with Web Audio: no sound files.
+// The engine, tyres, weather, horns and animal calls are synthesised with Web Audio. Only the
+// music and the nature sounds under it (nature.js) are recorded.
 import { createMusic } from './music.js';
+import { createNature } from './nature.js';
 
 /**
  * Engine speed for a road speed in m/s: a four-speed gearbox that shifts up
@@ -41,6 +43,7 @@ export function createAudio() {
   let bed;
   let rotor;
   let music;
+  let nature;
   let noise;
   let enabled = true;
   let enginePitch = 1;
@@ -187,6 +190,7 @@ export function createAudio() {
     rainGain = noiseSource('highpass', 2400, 0);
     stormGain = noiseSource('lowpass', 520, 0);
     music = createMusic(context, master);
+    nature = createNature(context, master);
   }
 
   async function ready() {
@@ -268,6 +272,7 @@ export function createAudio() {
         // gets leave to play from a click.
         if (!context) initialise();
         music.start();
+        nature.start();
         await ready();
       } catch {
         enabled = false;
@@ -407,11 +412,12 @@ export function createAudio() {
      * them, or else they follow the speed; `engineOn` is false when the car is parked (paused, or
      * the night at camp), which lets the engine fall silent.
      */
-    update({ speed, throttle = 0, rpm: revs, engineOn = true, active, rain, blizzard = 0 }) {
+    update({ speed, throttle = 0, rpm: revs, engineOn = true, active, rain, blizzard = 0, x = 0, z = 0, day = 1 }) {
       if (!context) return;
       const now = context.currentTime;
       glide(master.gain, enabled && active ? 0.6 : 0, now, 0.15);
       music.update(enabled && active);
+      nature.update({ x, z, day, rain, on: enabled && active });
 
       const rpm = revs ?? engineRpm(speed, throttle);
       const firing = (rpm / 30) * enginePitch; // four cylinders, two firings per turn
