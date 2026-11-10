@@ -51,6 +51,19 @@ try {
   step('pauses, and resumes from the play button or a tap on the game beside the menu');
 
   await page.getByRole('button', { name: 'Pause' }).click();
+  const music = page.getByRole('switch', { name: 'Music' });
+  await music.click();
+  assert.equal(await music.getAttribute('aria-checked'), 'false');
+  assert.equal(
+    await page.getByRole('switch', { name: 'Sound' }).getAttribute('aria-checked'),
+    'true',
+    'the sound stays on',
+  );
+  assert.equal((await state(page)).journal.music, false);
+  await music.click();
+  assert.equal((await state(page)).journal.music, true);
+  step('turns the music off and on again from the menu, leaving the sound on');
+
   await page.getByRole('button', { name: 'Map', exact: true }).click();
   await page.waitForFunction(() => window.__game.getState().map.ready);
   const { map, car } = await state(page);

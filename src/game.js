@@ -166,6 +166,7 @@ export function createGame(canvas) {
   const journal = createJournal(readStorage());
   const sound = createAudio();
   sound.setEnabled(journal.get().sound);
+  sound.setMusic(journal.get().music);
 
   // --- World ------------------------------------------------------------------------
 
@@ -214,6 +215,7 @@ export function createGame(canvas) {
       camp: stayTheNight,
       home: homeFromMenu,
       sound: toggleSound,
+      music: toggleMusic,
       cruise: toggleCruise,
       cruiseSpeed: cycleCruiseSpeed,
       minimap: toggleMinimap,
@@ -362,6 +364,13 @@ export function createGame(canvas) {
     sound.setEnabled(on);
     journal.save({ sound: on });
     ui.setSwitch('sound', on);
+  }
+
+  function toggleMusic() {
+    const on = !sound.isMusicOn();
+    sound.setMusic(on);
+    journal.save({ music: on });
+    ui.setSwitch('music', on);
   }
 
   function toggleCruise() {
@@ -965,6 +974,7 @@ export function createGame(canvas) {
   applyChoices();
   separateMeshKinds(scene);
   ui.setSwitch('sound', journal.get().sound);
+  ui.setSwitch('music', journal.get().music);
   ui.setSwitch('minimap', journal.get().minimap);
   ui.setSwitch('tilt-reverse', journal.get().tiltReverse);
   tilt.setLeanBack(journal.get().tiltReverse);
