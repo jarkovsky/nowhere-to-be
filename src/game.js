@@ -589,7 +589,7 @@ export function createGame(canvas) {
       // In the mud hole the wheels can spin faster than the car goes.
       wheel.spin.rotation.x -= ((state.speed + mudHole.slip) * dt) / wheel.radius;
     }
-    settleWheels(car, surfaceHeight);
+    settleWheels(car, surfaceHeight, state.handling.travel);
     // Sunk into the mud, wheels and all.
     car.root.position.y -= mudHole.sink;
     car.root.updateMatrixWorld();

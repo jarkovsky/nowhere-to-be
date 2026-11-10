@@ -1087,9 +1087,9 @@ const VEHICLE_BUILDERS = {
     // Two more at the back, on the bumper, where they stay whatever is on the roof.
     for (const x of [-0.85, -0.4]) can(flat, x, 1.42, 3.3, '#667744');
 
-    // The rear mudguards, hung from the box, with a flap behind each wheel.
+    // The rear mudguards, hung from the box high enough for the wheels to rise into them, with a flap behind each wheel.
     for (const side of [-1, 1]) {
-      trim.box(0.7, 0.14, 1.7, DARK, { x: side * 1.03, y: 1.69, z: 1.45 });
+      trim.box(0.7, 0.14, 1.7, DARK, { x: side * 1.03, y: 1.78, z: 1.45 });
       trim.box(0.6, 0.64, 0.03, DARK, { x: side * 1.03, y: 1.3, z: 2.32 });
     }
 

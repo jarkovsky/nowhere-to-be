@@ -21,6 +21,8 @@ import {
   ORCHARD,
   CRASH,
   WORN_GROUND,
+  ROUGH_GROUND,
+  onRoughGround,
   inDiscovery,
   onForecourt,
   RAILWAY,
@@ -1463,7 +1465,7 @@ function isLongGrassGround(x, z) {
   if (onPaved(x, z, ROAD_HALF_WIDTH + 0.8) || onAirfield(x, z, 2)) return false;
   if (onGravel(x, z, GRAVEL_HALF_WIDTH + 0.8)) return false;
   if (PLACED_TRACKS.some(track => track.path.isNear(x, z, track.ruts ? 1.6 : 1.3))) return false;
-  if (onDriveway(x, z, 0.8)) return false;
+  if (onDriveway(x, z, 0.8) || onRoughGround(x, z, 0.8)) return false;
   if (CLEARINGS.some(c => (x - c.x) ** 2 + (z - c.z) ** 2 < (c.r * 0.7) ** 2) || inMud(x, z)) return false;
   if (Math.hypot(x - FIELDS.x, z - FIELDS.z) < FIELDS.radius + 4) return false;
   if (lakeDistance(x, z) < 2.4 || CREEK.isNear(x, z, 6)) return false;
@@ -1543,6 +1545,19 @@ function grassMask() {
   }
   // Where the rough trail's ruts are dug deep, the churned earth is bare.
   for (const { from, to } of ROUGH.ruts) along(ROUGH.path, 3.4, 0.7, { skip: s => s < from - 2 || s > to + 2 });
+  // And where a side track is laid with logs, slabs and stones, or dug out: as far as the bare ground goes.
+  for (const { path, half, from, to, shape } of ROUGH_GROUND) {
+    const reach = half + 1;
+    const near = path.samples.filter(p => p.s > from - 4 && p.s < to + 4);
+    const [bx0, bx1] = [Math.min(...near.map(p => p.x)) - reach, Math.max(...near.map(p => p.x)) + reach];
+    const [bz0, bz1] = [Math.min(...near.map(p => p.z)) - reach, Math.max(...near.map(p => p.z)) + reach];
+    for (let tz = Math.max(0, Math.floor(bz0 - z0)); tz <= Math.min(size - 1, Math.ceil(bz1 - z0)); tz++) {
+      for (let tx = Math.max(0, Math.floor(bx0 - x0)); tx <= Math.min(size - 1, Math.ceil(bx1 - x0)); tx++) {
+        const { s, side, distance } = path.nearest(x0 + tx + 0.5, z0 + tz + 0.5);
+        if (distance < reach && s > from - 4 && s < to + 4) mark(tz * size + tx, Math.round(255 * shape(s, side)));
+      }
+    }
+  }
   // The orchard's grass is mown short, between the trees and round them.
   const { x: ox, z: oz } = ORCHARD;
   where(ox - 45, ox + 45, oz - 45, oz + 45, (x, z) => inOrchard(x, z, 2), 0.6);

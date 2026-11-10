@@ -99,16 +99,18 @@ function settleWheel(wheel, sample) {
  * Drops each tyre onto the ground beneath it, accounting for wheel spin,
  * steering, body pitch and roll, and sharp crests. If a wheel would have to
  * rise further into its arch than the suspension allows, the whole car is
- * lifted instead; a wheel over a dip hangs at full droop.
+ * lifted instead; a wheel over a dip hangs at full droop. A vehicle with more
+ * (or less) wheel travel than the usual gives its own `travel` ({ up, down }, m).
  */
-export function settleWheels(car, sample) {
+export function settleWheels(car, sample, travel = TRAVEL) {
+  const { up: rise = TRAVEL.up, down: droop = TRAVEL.down } = travel;
   car.root.updateWorldMatrix(true, true);
   up.set(0, 1, 0).applyQuaternion(car.root.quaternion);
   for (let pass = 0; pass < 2; pass++) {
     let lift = 0;
     for (const wheel of car.wheels) {
       settleWheel(wheel, sample);
-      lift = Math.max(lift, wheel.pivot.position.y - (wheel.rest ?? TRAVEL.rest) - TRAVEL.up);
+      lift = Math.max(lift, wheel.pivot.position.y - (wheel.rest ?? TRAVEL.rest) - rise);
     }
     if (lift < 0.002) break;
     car.root.position.y += lift * up.y;
@@ -116,7 +118,7 @@ export function settleWheels(car, sample) {
   }
   for (const wheel of car.wheels) {
     const rest = wheel.rest ?? TRAVEL.rest;
-    wheel.pivot.position.y = Math.min(Math.max(wheel.pivot.position.y, rest - TRAVEL.down), rest + TRAVEL.up);
+    wheel.pivot.position.y = Math.min(Math.max(wheel.pivot.position.y, rest - droop), rest + rise);
     wheel.pivot.updateWorldMatrix(true, true);
   }
 }

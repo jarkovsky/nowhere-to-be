@@ -19,6 +19,7 @@ import {
   ROUGH,
   CRASH,
   MINE,
+  onRoughGround,
 } from '../src/world/layout.js';
 import { chassisPose } from '../src/core/suspension.js';
 import { localFrame } from '../src/world/build.js';
@@ -53,6 +54,7 @@ import { buildFishing } from '../src/world/landmarks/fishing.js';
 import { buildCrash } from '../src/world/landmarks/crash.js';
 import { buildMine } from '../src/world/landmarks/mine.js';
 import { buildLogging } from '../src/world/landmarks/logging.js';
+import { buildRoughGround } from '../src/world/landmarks/roughground.js';
 import { createSurfaces } from '../src/world/surfaces.js';
 import { LANE } from '../src/vehicles/traffic.js';
 
@@ -79,6 +81,7 @@ for (const build of [
   buildCrash,
   buildMine,
   buildLogging,
+  buildRoughGround,
 ]) {
   build(scene, obstacles);
 }
@@ -102,9 +105,14 @@ const world = {
 /**
  * Steers along a path like a careful driver and reports how far it got. A careless one aims
  * `bias` metres to the side of it, and swings that aim `zigzag` metres either way every 6 seconds.
- * `watch(car)`, if given, is called after every step, and `inWorld` is the world to drive in.
+ * `watch(car)`, if given, is called after every step, and `inWorld` is the world to drive in. The
+ * places where `slow(car)` holds are left out of how slowly it went.
  */
-function followPath(path, length, { bias = 0, zigzag = 0, watch = null, inWorld = world, speed = 0 } = {}) {
+function followPath(
+  path,
+  length,
+  { bias = 0, zigzag = 0, watch = null, inWorld = world, speed = 0, slow = null } = {},
+) {
   const start = path.at(0);
   const heading = headingOf(start.dx, start.dz);
   const car = createCarState({ x: start.x, z: start.z, heading });
@@ -133,7 +141,7 @@ function followPath(path, length, { bias = 0, zigzag = 0, watch = null, inWorld 
     stats.roll = Math.max(stats.roll, Math.abs(pose.roll));
     stats.pitch = Math.max(stats.pitch, Math.abs(pose.pitch));
     stats.off = Math.max(stats.off, near.distance);
-    if (step > 180) stats.slowest = Math.min(stats.slowest, car.speed);
+    if (step > 180 && !slow?.(car)) stats.slowest = Math.min(stats.slowest, car.speed);
     // How long the car stands still at a stretch.
     still = step > 180 && Math.abs(car.speed) < 0.3 ? still + 1 : 0;
     stats.stopped = Math.max(stats.stopped, still / 60);
@@ -340,7 +348,8 @@ test('the tracks to the plane, the mine and the logging camp can be driven there
       ['there', path],
       ['back', back],
     ]) {
-      const result = followPath(route, route.length - 4);
+      // Slower, by design, on and either side of the rough ground.
+      const result = followPath(route, route.length - 4, { slow: car => onRoughGround(car.x, car.z, 12) });
       assert.equal(result.stuck, undefined, `${id} ${way}: ${result.stuck}`);
       assert.ok(result.progress >= route.length - 4, `${id} ${way}: only reached ${result.progress.toFixed(0)} m`);
       assert.ok(result.slowest > 5.3, `${id} ${way}: slowed to ${result.slowest.toFixed(1)} m/s`);

@@ -67,6 +67,7 @@ import {
   RUGGED_HILLS,
   ROUGH,
   gullyDepth,
+  ROUGH_GROUND,
   ringRadius,
   outerRadius,
 } from './layout.js';
@@ -682,6 +683,13 @@ for (const [vertex] of nearestSamples(ROUGH.gully.path, ROUGH.gully.halfWidth)) 
   heights[vertex] -= gullyDepth(AXIS[vertex % GRID], AXIS[Math.floor(vertex / GRID)]);
 }
 TRACKS.filter(track => offGravel(track) && !track.desert).forEach(levelTrack);
+// The washed-out track and the dry stream bed are dug into the ground once their tracks are levelled.
+for (const entry of ROUGH_GROUND.filter(rough => rough.dig)) {
+  for (const [vertex] of nearestSamples(entry.path, entry.half + 3)) {
+    const { s, side } = entry.path.nearest(AXIS[vertex % GRID], AXIS[Math.floor(vertex / GRID)]);
+    heights[vertex] -= entry.dig(s, side);
+  }
+}
 tiltAcross(ROUGH.path, ROUGH.lean);
 // The summit beside the trail is levelled off for the lookout once the trail is laid, so as not to
 // pull the trail's cutting about.

@@ -1801,6 +1801,68 @@ export const TRACKS = [
 ];
 
 /**
+ * Short rough stretches on the side tracks, each laid out by the builder of its `kind` (see
+ * landmarks/roughground.js): from `from` to `to` metres along the track `track`, with `half`
+ * metres of rough ground either side of its middle (2.6 unless given). `seed` makes it its own.
+ * `shape(along, side)`, from 0 to 1, is how much of the ground is bare at a point of it, `along`
+ * the track and `side` metres to its right: its outline, which the grass keeps out of. Where
+ * `dig(along, side)` is given, that many metres are dug out of the ground there (see terrain.js).
+ */
+export const ROUGH_GROUND = (() => {
+  /** 1 between `a` and `b` along the track, easing to 0 over `ease` metres at either end. */
+  const between = (s, a, b, ease) => smoothstep(s, a, a + ease) * (1 - smoothstep(s, b - ease, b));
+  // The meadow track washed out: its edge wanders, and it is dug out to a broad hollow.
+  const washed = { from: 17, to: 45 };
+  const washout = {
+    shape: (s, side) =>
+      (1 - smoothstep(Math.abs(side) + 0.35 * Math.sin(s * 0.9 + side), 2.9, 3.6)) *
+      between(s, washed.from, washed.to, 2),
+    dig: (s, side) => 0.5 * (1 - smoothstep(Math.abs(side), 2, 5.5)) * between(s, washed.from, washed.to, 6),
+  };
+  // A dry stream bed that winds across the track at a slant, dug a little below the ground.
+  const middle = 74;
+  const line = side => middle + 0.45 * side + 1.6 * Math.sin(side * 0.6 + 0.8);
+  const bed = {
+    shape: (s, side) => {
+      const wide = 4.6 + 0.8 * Math.sin(side * 0.9 + s * 0.3);
+      return (1 - smoothstep(Math.abs(s - line(side)), wide - 1.4, wide)) * (1 - smoothstep(Math.abs(side), 3.6, 4.8));
+    },
+  };
+  bed.dig = (s, side) => 0.3 * smoothstep(bed.shape(s, side), 0.05, 0.9);
+  return [
+    // Logs laid across a wet, muddy patch, on the way in to the logging camp.
+    { id: 'corduroy', track: 'logging', kind: 'corduroy', from: 20, to: 42, half: 2.9, seed: 7101 },
+    // Low, flat slabs of rock on the long diagonal up the hillside.
+    { id: 'rock-garden', track: 'chata', kind: 'garden', from: 38, to: 58, seed: 7102 },
+    { id: 'washout', track: 'crash', kind: 'washout', from: 20, to: 42, half: 3.8, seed: 7103, ...washout },
+    // A few tilted rock slabs across the track up through the woods to the mine.
+    { id: 'rock-steps', track: 'mine', kind: 'steps', from: 14, to: 32, seed: 7104 },
+    { id: 'stream-bed', track: 'fishing', kind: 'streambed', from: 62, to: 86, half: 4.8, seed: 7105, ...bed },
+  ].map(entry => {
+    const half = entry.half ?? 2.6;
+    const { from, to } = entry;
+    return {
+      half,
+      // Unless it has an outline of its own, a stretch is bare a little way beyond the stones and logs.
+      shape: (s, side) => (1 - smoothstep(Math.abs(side), half - 0.8, half)) * between(s, from - 1.5, to + 1.5, 1.5),
+      ...entry,
+      path: TRACKS.find(track => track.id === entry.track).path,
+    };
+  });
+})();
+
+/** True within `margin` metres of the bare ground of the rough stretches on the side tracks. */
+export function onRoughGround(x, z, margin = 0) {
+  return ROUGH_GROUND.some(({ path, half, shape }) => {
+    if (!path.isNear(x, z, half + margin)) return false;
+    const { s, side, distance } = path.nearest(x, z);
+    if (distance > half + margin) return false;
+    const inner = Math.sign(side) * Math.max(0, Math.abs(side) - margin);
+    return [s - margin, s, s + margin].some(along => shape(along, inner) > 0.01);
+  });
+}
+
+/**
  * A fin of rock running out from the side of the rocky hill to the arch, as if the arch were a
  * part of it, and on down the other side. Its top is a rough causeway the car can drive along,
  * from where it leaves the track up the hill, over the arch's flat top high above the road,

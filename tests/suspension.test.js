@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { createCar } from '../src/vehicles/car.js';
 import { VEHICLES } from '../src/core/journal.js';
-import { chassisPose, settleWheels } from '../src/core/suspension.js';
+import { handlingOf } from '../src/core/handling.js';
+import { TRAVEL, chassisPose, settleWheels } from '../src/core/suspension.js';
 import { terrainHeight } from '../src/world/terrain.js';
 
 /** Lowest point of each tyre above the ground. */
@@ -82,5 +83,45 @@ test('the car stays on steep slopes instead of being thrown into the air', () =>
           assert.ok(gap > -0.03, `${vehicle}: tyre ${gap.toFixed(3)} m in the ground`);
       }
     }
+  }
+});
+
+test('the off-roader, pickup, tractor and expedition truck have more wheel travel, and every other vehicle the usual', () => {
+  for (const vehicle of VEHICLES) {
+    const { travel } = handlingOf(vehicle);
+    const long = ['offroader', 'pickup', 'tractor', 'expedition'].includes(vehicle);
+    if (long) {
+      assert.ok(
+        travel.up >= TRAVEL.up && travel.down >= TRAVEL.down && travel.up + travel.down > TRAVEL.up + TRAVEL.down,
+        `${vehicle}: ${JSON.stringify(travel)}`,
+      );
+    } else {
+      assert.deepEqual(travel, { up: TRAVEL.up, down: TRAVEL.down }, vehicle);
+    }
+  }
+});
+
+test('over a rock under one wheel, a wheel rises and drops as far as its vehicle travels and no further', () => {
+  const car = createCar();
+  for (const vehicle of VEHICLES) {
+    car.customize('orange', [], vehicle);
+    const { travel } = handlingOf(vehicle, car.spec.wheels);
+    // A tall bump under the front left wheel, and a hollow under the back right one.
+    const left = car.spec.wheels.find(wheel => wheel.x < 0 && wheel.z < 0);
+    const right = car.spec.wheels.find(wheel => wheel.x > 0 && wheel.z > 0);
+    const near = (x, z, wheel) => Math.hypot(x - wheel.x, z - wheel.z) < 0.5;
+    const sample = (x, z) => (near(x, z, left) ? 0.6 : near(x, z, right) ? -0.6 : 0);
+    place(car, 0, 0, 0, () => 0);
+    settleWheels(car, sample, travel);
+    for (const wheel of car.wheels) {
+      const moved = wheel.pivot.position.y - (wheel.rest ?? TRAVEL.rest);
+      assert.ok(moved <= travel.up + 1e-6 && moved >= -travel.down - 1e-6, `${vehicle}: a wheel moved ${moved}`);
+    }
+    // The hollow wheel hangs at full droop.
+    const hung = car.wheels.find(wheel => wheel.pivot.position.x === right.x && wheel.pivot.position.z === right.z);
+    assert.ok(
+      Math.abs(hung.pivot.position.y - (hung.rest - travel.down)) < 1e-6,
+      `${vehicle}: ${hung.pivot.position.y}`,
+    );
   }
 });
