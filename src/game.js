@@ -3,6 +3,7 @@ import { createFixedStep } from './core/clock.js';
 import { angleDelta, clamp, damp, lerp } from './core/math.js';
 import { createAudio } from './core/audio.js';
 import { createChaseCamera } from './core/camera.js';
+import { createViews } from './core/views.js';
 import { createObstacleIndex } from './core/collision.js';
 import { stepDirt } from './core/dirt.js';
 import {
@@ -53,6 +54,7 @@ import {
   onPaved,
   onDriveway,
   onForecourt,
+  LOOKOUTS,
   onGravel,
   rockiness,
   surfaceAt,
@@ -259,6 +261,9 @@ export function createGame(canvas) {
     isDriveable,
     waterDepth: wadingDepth,
   };
+  const views = createViews(LOOKOUTS);
+  // The view from a lookout, worked out once a frame in the loop; null when there is none.
+  let lookoutWatch = null;
   const mudHole = createMudHole(scene, { obstacles: world.obstacles, onToot: () => sound.otherHorn() });
   const ferry = createFerry(scene, { onHorn: (distance, blasts) => sound.shipHorn(distance, blasts) });
 
@@ -664,7 +669,7 @@ export function createGame(canvas) {
     intro: introShot,
     camp: campShot,
     shot: debugShot,
-    watch: mudHole.watch() ?? ferry.watch(state),
+    watch: mudHole.watch() ?? ferry.watch(state) ?? lookoutWatch,
   });
 
   // --- Camera framing for the title screen and the night at camp -----------------------
@@ -844,7 +849,11 @@ export function createGame(canvas) {
       wasBraking = input.brake || (input.backward && state.speed > 0.5) || (input.forward && state.speed < -0.5);
       throttle = !input.brake && !ferry.holding() && (input.forward || input.backward || input.cruise) ? 1 : 0;
       parkedFor = Math.abs(state.speed) < 0.3 && !throttle ? parkedFor + dt : 0;
-    }
+      lookoutWatch = views.watch(state, input, dt, {
+        held: mudHole.holding() || ferry.holding() || Boolean(mudHole.watch() ?? ferry.watch(state)),
+        touched: chase.isHandled(),
+      });
+    } else lookoutWatch = null;
 
     const sky = atmosphere.getState();
     const night = 1 - sky.day;

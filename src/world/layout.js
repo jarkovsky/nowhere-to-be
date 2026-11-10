@@ -2524,3 +2524,27 @@ export const YARDS = [
   { x: FARM.x, z: FARM.z, rotation: FARM.rotation, x0: -4, x1: 3, z0: -1, z1: 6, hens: 6 },
   { x: FARMSTEAD.x, z: FARMSTEAD.z, rotation: FARMSTEAD.rotation, x0: -6, x1: 4, z0: 2.5, z1: 8, hens: 4 },
 ];
+
+// --- Lookouts ------------------------------------------------------------------------------
+// Places where a car left standing for a few seconds gets the view (see core/views.js). Each is
+// a circle `radius` metres round where the car would naturally stop, and the `bearing` to look
+// along, as atan2(dx, dz) of a point out in that direction.
+
+export const LOOKOUTS = [
+  // The levelled top of the rough trail, looking out over the outlands to the village.
+  { id: 'rough', x: ROUGH.lookout.x, z: ROUGH.lookout.z, radius: 9, bearing: 0.5, zoom: 2, pitch: 0.12 },
+  // The end of the summit track beside the tower, looking out over the lake.
+  { id: 'summit', x: -300, z: -320, radius: 12, bearing: 0.9 },
+  // The end of the track below the fire tower on the southern knoll, looking south-west over the farm and the lake.
+  { id: 'tower', x: 100, z: 186, radius: 10, bearing: 3.9 },
+  // The end of the jetty, looking east along the lake to the waterfall.
+  { id: 'jetty', x: JETTY.x, z: JETTY.z - 14, radius: 7, bearing: 2.3 },
+  // The rim of the fjord where the track starts down, looking down on the village and its harbour.
+  { id: 'fjord', x: -564, z: -541, radius: 9, bearing: 3.0 },
+  // The end of the fishing track by the hut, looking up the river to the red mesas.
+  { id: 'fishing', x: -435, z: 595, radius: 9, bearing: 0.8 },
+  // The end of the road to the Lofoten lighthouse, looking back over the bay to the village.
+  { id: 'lofoten', x: -891, z: -1082, radius: 9, bearing: 5.9 },
+  // The hairpin on the track up to the hut on the summit, looking over the valley and the lake.
+  { id: 'chata', x: 187, z: -183, radius: 9, bearing: 4.9 },
+];
