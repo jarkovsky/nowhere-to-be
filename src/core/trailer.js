@@ -42,9 +42,9 @@ const SIDES = { along: [2.6, 4.25, 5.9, 7.55], radius: 1.25 };
  * Swings the trailer away from whatever its sides would go into, no further than it can swing
  * from the lorry facing `heading`. It never holds the lorry back: running into a wall end on, it
  * goes into it a little rather than stopping the lorry. `obstacles` is an obstacle index, and
- * `level` how high the lorry's wheels are.
+ * `level` how high the lorry's wheels are. Rocks no taller than `climb` it rides over.
  */
-export function swingClear(trailer, heading, obstacles, level) {
+export function swingClear(trailer, heading, obstacles, level, climb = 0) {
   for (let pass = 0; pass < 3; pass++) {
     const sin = Math.sin(trailer.heading);
     const cos = Math.cos(trailer.heading);
@@ -53,6 +53,7 @@ export function swingClear(trailer, heading, obstacles, level) {
       const x = trailer.x + sin * along;
       const z = trailer.z + cos * along;
       for (const obstacle of obstacles.near(x, z, SIDES.radius + 2, level)) {
+        if (obstacle.climb !== undefined && obstacle.climb <= climb) continue;
         const hit = penetration(x, z, SIDES.radius, obstacle);
         if (!hit) continue;
         // Turning the trailer by an angle moves this circle that far times `along`, sideways.
@@ -75,15 +76,15 @@ export const swingOf = (trailer, heading) => angleDelta(heading, trailer.heading
  * Hangs a lorry's trailer from its hitch, lets it follow on behind and rests its wheels on the
  * ground `sample` gives. `car` is the lorry's model, `trailer` where its trailer is, and `hitch`
  * and `point` vectors to work in. Given `obstacles` (an index) it swings clear of them, for the
- * lorry's wheels at `level`.
+ * lorry's wheels at `level`, all but rocks no taller than `climb`, which it rides over.
  */
-export function hangTrailer({ car, trailer, hitch, point, obstacles, level }, heading, speed, sample) {
+export function hangTrailer({ car, trailer, hitch, point, obstacles, level, climb }, heading, speed, sample) {
   const { root, axles, spec } = car.trailer;
   const { radius } = spec.wheel;
   car.root.localToWorld(hitch.set(...spec.hitch));
   const moved = Math.hypot(hitch.x - trailer.x, hitch.z - trailer.z);
   stepTrailer(trailer, hitch, heading, spec.axle);
-  if (obstacles) swingClear(trailer, heading, obstacles, level);
+  if (obstacles) swingClear(trailer, heading, obstacles, level, climb);
   const sin = Math.sin(trailer.heading);
   const cos = Math.cos(trailer.heading);
   const ground = (lx, lz) => sample(hitch.x + cos * lx + sin * lz, hitch.z - sin * lx + cos * lz);

@@ -5,12 +5,19 @@ import { drive, flatWorld } from './helpers.js';
 
 const START = { x: 0, z: 0, heading: 0 };
 
-test('accelerates towards top speed and rolls to a stop when released', () => {
-  const car = drive(createCarState(START), { forward: true }, 4);
+test('accelerates towards top speed and coasts to a stop when released, further than it takes to brake', () => {
+  const car = drive(createCarState(START), { forward: true }, 7);
   assert.ok(car.speed > CAR.topSpeed * 0.9 && car.speed <= CAR.topSpeed + 0.01, `speed ${car.speed}`);
   assert.ok(car.z < -30, 'heading 0 drives towards -Z');
-  drive(car, {}, 8);
+  const braked = drive({ ...car }, { brake: true }, 4);
+  assert.equal(braked.speed, 0);
+  const from = car.z;
+  drive(car, {}, 30);
   assert.equal(car.speed, 0);
+  assert.ok(
+    from - car.z > 3 * (from - braked.z),
+    `coasted ${(from - car.z).toFixed(0)} m, braked in ${(from - braked.z).toFixed(0)} m`,
+  );
 });
 
 test('left and right steer in opposite directions; reverse goes backwards', () => {
@@ -48,34 +55,33 @@ test('cruise control holds a steady speed and the brake overrides it', () => {
   assert.equal(car.speed, 0);
 });
 
-test('snow and leaves on the trail let the car slide but keep its speed; grass slows it', () => {
-  const road = drive(createCarState(START), { forward: true }, 5);
-  const snow = drive(createCarState(START), { forward: true }, 5, flatWorld({ surface: 'snow' }));
-  const leaves = drive(createCarState(START), { forward: true }, 5, flatWorld({ surface: 'leaves' }));
-  const grass = drive(createCarState(START), { forward: true }, 5, flatWorld({ surface: 'grass' }));
-  assert.ok(Math.abs(snow.speed - road.speed) < 0.1 && Math.abs(leaves.speed - road.speed) < 0.1);
+/** How far a car on cruise turns in a second of full left lock on `surface`, and how fast it gets up to speed there. */
+function bend(surface) {
+  const world = flatWorld({ surface });
+  const car = drive(createCarState(START), { cruise: true }, 6, world);
+  const heading = car.heading;
+  drive(car, { cruise: true, left: true }, 1, world);
+  return car.heading - heading;
+}
+
+test('snow and leaves on the trail let the car slide but keep its top speed; grass slows it', () => {
+  const road = drive(createCarState(START), { forward: true }, 12);
+  const snow = drive(createCarState(START), { forward: true }, 12, flatWorld({ surface: 'snow' }));
+  const leaves = drive(createCarState(START), { forward: true }, 12, flatWorld({ surface: 'leaves' }));
+  const grass = drive(createCarState(START), { forward: true }, 12, flatWorld({ surface: 'grass' }));
+  assert.ok(Math.abs(snow.speed - road.speed) < 0.3 && Math.abs(leaves.speed - road.speed) < 0.3);
   assert.ok(grass.speed < road.speed * 0.9);
-  const lateral = car => Math.abs(car.vx * Math.cos(car.heading) - car.vz * Math.sin(car.heading));
-  const roadTurn = drive({ ...road }, { forward: true, left: true }, 0.6);
-  const snowTurn = drive(
-    { ...snow, speed: road.speed, vx: road.vx, vz: road.vz },
-    { forward: true, left: true },
-    0.6,
-    flatWorld({ surface: 'snow' }),
-  );
-  assert.ok(lateral(snowTurn) > lateral(roadTurn), 'more sideways slip on snow');
+  // It gets going more slowly on snow, its wheels spinning, and a bend at cruise runs wide.
+  const quick = surface => drive(createCarState(START), { forward: true }, 2, flatWorld({ surface })).speed;
+  assert.ok(quick('snow') < quick('road') * 0.8, `${quick('snow').toFixed(1)} against ${quick('road').toFixed(1)} m/s`);
+  assert.ok(bend('snow') < bend('road') * 0.8, `turned ${bend('snow').toFixed(2)} against ${bend('road').toFixed(2)}`);
+  assert.ok(bend('leaves') < bend('road'));
 });
 
 test("on the winter's deep snow cruise control still holds its speed, and the car grips better than on icy snow", () => {
   const drift = drive(createCarState(START), { cruise: true }, 8, flatWorld({ surface: 'drift' }));
   assert.ok(Math.abs(drift.speed - CAR.cruiseSpeed) < 0.3, `speed ${drift.speed}`);
-  const slide = surface => {
-    const world = flatWorld({ surface });
-    const car = drive(createCarState(START), { cruise: true }, 4, world);
-    const turned = drive(car, { cruise: true, left: true }, 0.6, world);
-    return Math.abs(turned.vx * Math.cos(turned.heading) - turned.vz * Math.sin(turned.heading));
-  };
-  assert.ok(slide('drift') < slide('snow'), 'less sideways slip than on icy snow');
+  assert.ok(bend('drift') > bend('snow') * 1.3, 'it turns more sharply than on icy snow');
 });
 
 test('hills slow the car going up and a parked car stays put', () => {

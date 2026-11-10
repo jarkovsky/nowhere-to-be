@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createRandom, smoothstep, valueNoise } from '../../core/math.js';
 import { DESERT } from '../layout.js';
-import { pondLevel, terrainHeight } from '../terrain.js';
+import { placeBoulder, pondLevel, terrainHeight } from '../terrain.js';
 import { PartsBuilder, prism, tintable, vertexColorMaterial } from '../build.js';
 import { foliageMaterial } from '../detail.js';
 import { boulderGeometry } from '../rocks.js';
@@ -299,16 +299,14 @@ function buildOasis(scene, parts, obstacles) {
     const out = radius + 1.8 + random() * 1.5;
     const [sx, sz] = [x + Math.cos(angle) * out, z + Math.sin(angle) * out];
     const size = 0.45 + random() * 0.4;
-    obstacles.push({ x: sx, z: sz, radius: size * 1.1 });
-    parts.add(stone, () => SCREE.clone().multiplyScalar(0.85 + random() * 0.15), {
-      x: sx,
-      y: terrainHeight(sx, sz) - size * 0.2,
-      z: sz,
-      ry: angle,
-      sx: size * 1.2,
-      sy: size,
-      sz: size,
-    });
+    // Placed as PartsBuilder would, turned about the upright axis.
+    const matrix = new THREE.Matrix4().compose(
+      new THREE.Vector3(sx, terrainHeight(sx, sz) - size * 0.2, sz),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, angle, 0, 'YXZ')),
+      new THREE.Vector3(size * 1.2, size, size),
+    );
+    obstacles.push({ x: sx, z: sz, radius: size * 1.1, climb: placeBoulder(stone, matrix.elements) });
+    parts.add(stone, () => SCREE.clone().multiplyScalar(0.85 + random() * 0.15), matrix);
   }
   return reedMesh;
 }

@@ -93,6 +93,8 @@ import {
   snowCover,
   highSnow,
   waterLevel,
+  boulderClimb,
+  placeBoulder,
   POOL,
   FORDS,
 } from './terrain.js';
@@ -1089,7 +1091,9 @@ function buildBrookStones(scene) {
   const parts = [];
   const stone = (x, z, size) => {
     const shape = shapes[Math.floor(stoneRandom() * shapes.length)];
-    parts.push(shape.clone().applyMatrix4(stoneMatrix(x, z, size, size * 0.7, stoneRandom() * 6.3)));
+    const matrix = stoneMatrix(x, z, size, size * 0.7, stoneRandom() * 6.3);
+    placeBoulder(shape, matrix.elements);
+    parts.push(shape.clone().applyMatrix4(matrix));
   };
   for (let s = 2; s < BROOK.length - 14; s += 2.6) {
     if (Math.abs(s - FORD.brook) < 10) continue;
@@ -1130,6 +1134,7 @@ function buildTrackRocks(scatter) {
 function buildRiverStones(scatter, obstacles) {
   const stoneRandom = createRandom(7321);
   const shapes = mossyStones();
+  const capped = snowyStones();
   const items = [];
   const boulders = [];
   for (const river of RIVERS) {
@@ -1167,17 +1172,20 @@ function buildRiverStones(scatter, obstacles) {
       if (onGravel(p.x, p.z, 8) || TRACKS.some(track => track.path.isNear(p.x, p.z, 7))) continue;
       if (waterLevel(p.x, p.z) - terrainHeight(p.x, p.z) > 0.8) continue;
       if (Math.hypot(p.x - FISHING.x, p.z - FISHING.z) < 14) continue;
-      boulders.push({ matrix: stoneMatrix(p.x, p.z, size, size * 1.15, turn), shape });
-      if (Math.hypot(p.x, p.z) < VALLEY_RADIUS - 2) obstacles.push({ x: p.x, z: p.z, radius: size * 0.95 });
+      const matrix = stoneMatrix(p.x, p.z, size, size * 1.15, turn);
+      boulders.push({ matrix, shape });
+      if (Math.hypot(p.x, p.z) < VALLEY_RADIUS - 2) {
+        const drawn = winterness(p.x, p.z) > 0.5 ? capped : shapes;
+        obstacles.push({ x: p.x, z: p.z, radius: size * 0.95, climb: boulderClimb(drawn[shape], matrix.elements) });
+      }
     }
   }
   // In the winter they wear caps of snow, from shapes of their own.
-  const capped = snowyStones();
   const wintry = ({ matrix }) => winterness(matrix.elements[12], matrix.elements[14]) > 0.5;
   const bare = list => list.filter(item => !wintry(item));
   const snowy = list => list.filter(wintry).map(item => ({ ...item }));
-  scatter.add({ geometry: shapes, near: UNDERGROWTH_RANGE, material: rockMaterial, items: bare(items) });
-  scatter.add({ geometry: capped, near: UNDERGROWTH_RANGE, material: rockMaterial, items: snowy(items) });
+  scatter.add({ geometry: shapes, near: UNDERGROWTH_RANGE, material: rockMaterial, items: bare(items), stones: true });
+  scatter.add({ geometry: capped, near: UNDERGROWTH_RANGE, material: rockMaterial, items: snowy(items), stones: true });
   for (const [geometry, list] of [
     [shapes, bare(boulders)],
     [capped, snowy(boulders)],
@@ -1189,6 +1197,7 @@ function buildRiverStones(scatter, obstacles) {
       range: 600,
       material: rockMaterial,
       items: list,
+      stones: true,
     });
   }
 }
@@ -1249,8 +1258,14 @@ function buildRoughRocks(scatter, obstacles) {
         sx: 1.25,
         sy: rock.tall,
       };
-      items.push({ matrix: placed(item, 0.18), color: new THREE.Color().setScalar(0.92 + random() * 0.14), shape });
-      obstacles.push({ x: rock.x, z: rock.z, radius: rock.size * 1.05 });
+      const matrix = placed(item, 0.18);
+      items.push({ matrix, color: new THREE.Color().setScalar(0.92 + random() * 0.14), shape });
+      obstacles.push({
+        x: rock.x,
+        z: rock.z,
+        radius: rock.size * 1.05,
+        climb: boulderClimb(shapes[shape], matrix.elements),
+      });
     }
   });
   scatter.add({
@@ -1260,11 +1275,13 @@ function buildRoughRocks(scatter, obstacles) {
     cell: FAR_CELL,
     material: rockMaterial,
     items,
+    stones: true,
   });
 }
 
 function buildRocks(scatter, obstacles) {
   const shapes = [0, 1, 2, 3, 4].map(seed => boulderGeometry(seed, { detail: 2 }));
+  const snowShapes = [0, 1, 2, 3, 4].map(seed => boulderGeometry(seed, { detail: 2, snow: 1 }));
   const lists = shapes.map(() => []);
   // A rock that would stand within the rough trail's drivable width is moved back out of it, so
   // nothing solid can hold the car there. That takes no random numbers.
@@ -1338,10 +1355,13 @@ function buildRocks(scatter, obstacles) {
         sy: rock.tall ?? 1,
       };
       const color = new THREE.Color().setScalar(0.92 + random() * 0.14);
-      (winterness(rock.x, rock.z) > 0.5 ? snowItems : items).push({ matrix: placed(item, 0.18), color, shape });
+      const matrix = placed(item, 0.18);
+      const snowy = winterness(rock.x, rock.z) > 0.5;
+      (snowy ? snowItems : items).push({ matrix, color, shape });
+      rock.climb = boulderClimb((snowy ? snowShapes : shapes)[shape], matrix.elements);
     }
     for (const rock of list) {
-      if (rock.size > 0.9) obstacles.push({ x: rock.x, z: rock.z, radius: rock.size * 1.05 });
+      if (rock.size > 0.9) obstacles.push({ x: rock.x, z: rock.z, radius: rock.size * 1.05, climb: rock.climb });
     }
   });
   // Far off, one plainer shape stands in for all five.
@@ -1352,14 +1372,16 @@ function buildRocks(scatter, obstacles) {
     cell: FAR_CELL,
     material: rockMaterial,
     items,
+    stones: true,
   });
   scatter.add({
-    geometry: [0, 1, 2, 3, 4].map(seed => boulderGeometry(seed, { detail: 2, snow: 1 })),
+    geometry: snowShapes,
     far: boulderGeometry(5, { detail: 0, snow: 1 }),
     near: ROCK_DETAIL,
     cell: FAR_CELL,
     material: rockMaterial,
     items: snowItems,
+    stones: true,
   });
 }
 
@@ -1727,7 +1749,7 @@ function buildCoastScenery(scatter, obstacles) {
       shape: Math.floor(coastRandom() * capped.length),
     });
   }
-  scatter.add({ geometry: capped, near: UNDERGROWTH_RANGE, material: rockMaterial, items: stones });
+  scatter.add({ geometry: capped, near: UNDERGROWTH_RANGE, material: rockMaterial, items: stones, stones: true });
 
   // Boulders, solid, in the foothills and no nearer the roads than a long way.
   const boulders = [];
@@ -1735,15 +1757,14 @@ function buildCoastScenery(scatter, obstacles) {
     const { x, z } = spot(centre.radius - 80, centre.radius - 6);
     if (!coastIsClear(x, z, 30)) continue;
     const size = 1.2 + coastRandom() ** 2 * 2.4;
-    boulders.push({
-      matrix: placed(
-        { x, z, scale: size, rotation: coastRandom() * 6.3, tilt: (coastRandom() - 0.5) * 0.3, sx: 1.25, sy: 1.2 },
-        0.18,
-      ),
-      color: grey(),
-      shape: Math.floor(coastRandom() * capped.length),
-    });
-    obstacles.push({ x, z, radius: size * 1.05 });
+    const matrix = placed(
+      { x, z, scale: size, rotation: coastRandom() * 6.3, tilt: (coastRandom() - 0.5) * 0.3, sx: 1.25, sy: 1.2 },
+      0.18,
+    );
+    const color = grey();
+    const shape = Math.floor(coastRandom() * capped.length);
+    boulders.push({ matrix, color, shape });
+    obstacles.push({ x, z, radius: size * 1.05, climb: boulderClimb(capped[shape], matrix.elements) });
   }
   scatter.add({
     geometry: capped,
@@ -1752,6 +1773,7 @@ function buildCoastScenery(scatter, obstacles) {
     cell: FAR_CELL,
     material: rockMaterial,
     items: boulders,
+    stones: true,
   });
 
   // Scrub: birches stunted by the wind, in small groups, in the foothills and behind the village.
@@ -2080,11 +2102,12 @@ export function buildScenery(parent) {
   const grows = (x, z) => outsideCrops(x, z) && !desertTakes(x, z) && !inOrchard(x, z) && !inDiscovery(x, z);
   const scatter = {
     ...everything,
-    add: kind =>
-      everything.add({
-        ...kind,
-        items: kind.items.filter(({ matrix: m }) => grows(m.elements[12], m.elements[14])),
-      }),
+    add: kind => {
+      const items = kind.items.filter(({ matrix: m }) => grows(m.elements[12], m.elements[14]));
+      // The stones that are left are in the height field, for the tyres to ride over.
+      if (kind.stones) for (const { matrix, shape } of items) placeBoulder(kind.geometry[shape], matrix.elements);
+      everything.add({ ...kind, items });
+    },
   };
   buildTrees(scatter, obstacles);
   buildRocks(scatter, obstacles);

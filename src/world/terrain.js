@@ -2,6 +2,7 @@
 // on the ground. Heights live on a grid that is fine across the valley floor,
 // a little coarser out in the outlands and coarse under the distant mountains.
 import { clamp, fractalNoise, lerp, smoothstep, valueNoise } from '../core/math.js';
+import { BoulderField } from './boulderfield.js';
 import {
   WORLD_SIZE,
   VALLEY_RADIUS,
@@ -1174,6 +1175,34 @@ export function rockHeight(x, z) {
   return lift;
 }
 
+// --- The boulders and stones ----------------------------------------------------------
+
+/** The tallest boulder, in metres above the ground, that any vehicle could drive over. Taller ones are solid. */
+export const CLIMB_LIMIT = 1.0;
+
+/** Every boulder and stone low enough to ride over, with the shape of its top. */
+export const BOULDERS = new BoulderField((x, z) => terrainHeight(x, z), CLIMB_LIMIT, HALF);
+
+/**
+ * Sets a boulder drawn as `geometry` (see boulderGeometry) at the matrix `elements`, in the
+ * height field if it is low enough. Returns its climb: how high its top stands above the ground
+ * at its middle.
+ */
+export function placeBoulder(geometry, elements) {
+  return BOULDERS.add(geometry, elements);
+}
+
+/** The climb of a boulder drawn as `geometry` at the matrix `elements`, without setting it down. */
+export function boulderClimb(geometry, elements) {
+  return BOULDERS.climb(geometry, elements);
+}
+
+/** How far the boulders and stones raise the surface above the ground at a point: 0 off them. */
+export function boulderLift(x, z) {
+  const top = BOULDERS.topAt(x, z);
+  return top === -Infinity ? 0 : Math.max(0, top - terrainHeight(x, z));
+}
+
 // --- The deep ruts on the rough trail ---------------------------------------------------
 
 /**
@@ -1321,12 +1350,13 @@ export function finHeight(x, z) {
 const FIN_STEP = 1.5;
 
 /**
- * The surface the tyres rest on: a deck where there is one, otherwise the ground and any rocks
- * or heaps on it. The road runs under the arch, so the top of the fin and the arch only count
+ * The surface the tyres rest on: a deck where there is one, otherwise the ground and any rocks,
+ * boulders or heaps on it. The road runs under the arch, so the top of the fin and the arch only count
  * for something already up at their level (`from`, how high it was a moment ago).
  */
 export function drivingHeight(x, z, from = -Infinity) {
-  const ground = terrainHeight(x, z) + Math.max(rockHeight(x, z), heapHeight(x, z)) + rutHeight(x, z);
+  const ground =
+    terrainHeight(x, z) + Math.max(rockHeight(x, z), heapHeight(x, z), boulderLift(x, z)) + rutHeight(x, z);
   const deck = bridgeHeight(x, z) ?? jettyHeight(x, z) ?? quayHeight(x, z) ?? floatingHeight(x, z) ?? trackHeight(x, z);
   const surface = deck === null ? ground : Math.max(ground, deck);
   if (from === -Infinity) return surface;

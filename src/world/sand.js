@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { createRandom, smoothstep, valueNoise } from '../core/math.js';
 import { DESERT, TRACKS, VALLEY_RADIUS, desertness, nearRiver, onGravel } from './layout.js';
-import { terrainHeight } from './terrain.js';
+import { placeBoulder, terrainHeight } from './terrain.js';
 import { PartsBuilder, tintable } from './build.js';
 import { foliageMaterial } from './detail.js';
 import { boulderGeometry, rockMaterial } from './rocks.js';
@@ -301,12 +301,12 @@ export function buildDesertScenery(scatter) {
   const rocks = [];
   scatterOver(760, 1, (x, z) => {
     const size = 0.4 + random() ** 2 * 1.5;
-    rocks.push({
-      matrix: placed(x, z, size, 0.18, (random() - 0.5) * 0.3),
-      color: tint('rock'),
-      shape: Math.floor(random() * 4),
-    });
-    if (size > 0.9) obstacles.push({ x, z, radius: size * 1.05 });
+    const matrix = placed(x, z, size, 0.18, (random() - 0.5) * 0.3);
+    const color = tint('rock');
+    const shape = Math.floor(random() * 4);
+    rocks.push({ matrix, color, shape });
+    const climb = placeBoulder(shapes[shape], matrix.elements);
+    if (size > 0.9) obstacles.push({ x, z, radius: size * 1.05, climb });
   });
 
   const plants = foliageMaterial('trees');

@@ -403,16 +403,17 @@ export function createAudio() {
     },
 
     /**
-     * Called every frame. `throttle` is 0 to 1; `engineOn` is false when the car
-     * is parked (paused, or the night at camp), which lets the engine fall silent.
+     * Called every frame. `throttle` is 0 to 1; `rpm`, the engine's revs, if the driving knows
+     * them, or else they follow the speed; `engineOn` is false when the car is parked (paused, or
+     * the night at camp), which lets the engine fall silent.
      */
-    update({ speed, throttle = 0, engineOn = true, active, rain, blizzard = 0 }) {
+    update({ speed, throttle = 0, rpm: revs, engineOn = true, active, rain, blizzard = 0 }) {
       if (!context) return;
       const now = context.currentTime;
       glide(master.gain, enabled && active ? 0.6 : 0, now, 0.15);
       music.update(enabled && active);
 
-      const rpm = engineRpm(speed, throttle);
+      const rpm = revs ?? engineRpm(speed, throttle);
       const firing = (rpm / 30) * enginePitch; // four cylinders, two firings per turn
       glide(engine.pulses.frequency, firing, now, 0.08);
       glide(engine.body.frequency, firing, now, 0.08);
