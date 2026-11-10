@@ -109,3 +109,15 @@ test('the game keeps working when storage is unavailable', () => {
   assert.equal(journal.get().color, 'blue');
   assert.equal(createJournal(null).save({ color: 'blue' }), false);
 });
+
+test('the music has its own switch, on unless it was turned off', () => {
+  assert.equal(sanitise({}).music, true);
+  assert.equal(sanitise({ music: false, sound: true }).music, false);
+  assert.equal(sanitise({ music: 'no' }).music, true);
+  const storage = memoryStorage();
+  createJournal(storage).save({ music: false });
+  assert.deepEqual(
+    { music: createJournal(storage).get().music, sound: createJournal(storage).get().sound },
+    { music: false, sound: true },
+  );
+});

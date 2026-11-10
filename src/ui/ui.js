@@ -108,6 +108,7 @@ export function createUI({ journal, pictures, on }) {
   }
 
   $('sound').addEventListener('click', () => on.sound());
+  $('music').addEventListener('click', () => on.music());
   $('cruise').addEventListener('click', () => on.cruise());
   $('cruise-speed').addEventListener('click', () => on.cruiseSpeed());
   $('minimap').addEventListener('click', () => on.minimap());

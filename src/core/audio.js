@@ -66,6 +66,8 @@ export function createAudio() {
   let tyreName = null;
   let noise;
   let enabled = true;
+  // The music can be turned off on its own, leaving every other sound on.
+  let musicOn = true;
   let enginePitch = 1;
   let engineDiesel = 0;
   let surface = 'grass';
@@ -296,7 +298,7 @@ export function createAudio() {
         // Before waiting for anything, while the click still counts: the music element only
         // gets leave to play from a click.
         if (!context) initialise();
-        music.start();
+        if (musicOn) music.start();
         nature.start();
         await ready();
       } catch {
@@ -304,6 +306,12 @@ export function createAudio() {
       }
     },
     isEnabled: () => enabled,
+    isMusicOn: () => musicOn,
+    /** Turn the music on or off without touching the other sounds. Turned on from a click, it starts at once. */
+    setMusic(value) {
+      musicOn = value;
+      if (value && music && enabled) music.start();
+    },
     /** Mute or unmute. Audio itself only starts after start() is called from a click. */
     setEnabled(value) {
       enabled = value;
@@ -460,7 +468,7 @@ export function createAudio() {
       if (!context) return;
       const now = context.currentTime;
       glide(master.gain, enabled && active ? 0.6 : 0, now, 0.15);
-      music.update(enabled && active);
+      music.update(enabled && active && musicOn);
       nature.update({ x, z, day, rain, on: enabled && active });
 
       const rpm = revs ?? engineRpm(speed, throttle);
