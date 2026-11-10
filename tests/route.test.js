@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { angleDelta, clamp } from '../src/core/math.js';
 import { createObstacleIndex, penetration } from '../src/core/collision.js';
 import { createCarState, stepDriving } from '../src/core/driving.js';
+import { steerTowards } from './helpers.js';
 import {
   ROAD,
   CAMP_TRAIL,
@@ -24,6 +25,7 @@ import { localFrame } from '../src/world/build.js';
 import { createPath, headingOf } from '../src/world/path.js';
 import {
   FORDS,
+  boulderLift,
   drivingHeight,
   isDriveable,
   onDeck,
@@ -91,6 +93,9 @@ const world = {
     const dz = -Math.cos(heading) * 1.5;
     return (drivingHeight(x + dx, z + dz) - drivingHeight(x - dx, z - dz)) / 3;
   },
+  // As in the game: the slope under the wheels, and the boulders they ride over.
+  height: (x, z) => drivingHeight(x, z),
+  boulderLift,
   isDriveable,
 };
 
@@ -103,6 +108,7 @@ function followPath(path, length, { bias = 0, zigzag = 0, watch = null, inWorld 
   const start = path.at(0);
   const heading = headingOf(start.dx, start.dz);
   const car = createCarState({ x: start.x, z: start.z, heading });
+  const held = {};
   // Set off already moving, with `speed` metres a second, where the way up to it isn't the point.
   Object.assign(car, { speed, vx: -Math.sin(heading) * speed, vz: -Math.cos(heading) * speed });
   let progress = 0;
@@ -120,7 +126,7 @@ function followPath(path, length, { bias = 0, zigzag = 0, watch = null, inWorld 
     const aim = bias + zigzag * Math.sin((step / 60) * ((2 * Math.PI) / 6));
     const ahead = path.offset(near.s + 7, aim);
     const desired = Math.atan2(-(ahead.x - car.x), -(ahead.z - car.z));
-    stepDriving(car, { cruise: true, steer: clamp(angleDelta(car.heading, desired) * 2.5, -1, 1) }, 1 / 60, inWorld);
+    stepDriving(car, { cruise: true, steer: steerTowards(car, desired, held) }, 1 / 60, inWorld);
     watch?.(car);
     // How far it leans and tips, how far from the path it strays and how slowly it goes, once under way.
     const pose = chassisPose(car.x, car.z, car.heading, (x, z) => drivingHeight(x, z));

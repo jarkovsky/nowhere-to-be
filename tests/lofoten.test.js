@@ -6,6 +6,7 @@ import { HULL, RAMP } from '../src/core/ferry.js';
 import { angleDelta, clamp } from '../src/core/math.js';
 import { createObstacleIndex } from '../src/core/collision.js';
 import { createCarState, stepDriving } from '../src/core/driving.js';
+import { steerTowards } from './helpers.js';
 import { chassisPose } from '../src/core/suspension.js';
 import {
   FERRY_LANE,
@@ -211,6 +212,7 @@ function followPath(path, length, { bias = 0, zigzag = 0 } = {}) {
   const start = path.at(0);
   const heading = headingOf(start.dx, start.dz);
   const car = createCarState({ x: start.x, z: start.z, heading });
+  const held = {};
   let progress = 0;
   let lastS = 0;
   const stats = { roll: 0, pitch: 0, stopped: 0 };
@@ -225,7 +227,7 @@ function followPath(path, length, { bias = 0, zigzag = 0 } = {}) {
     const aim = bias + zigzag * Math.sin((step / 60) * ((2 * Math.PI) / 6));
     const ahead = path.offset(near.s + 7, aim);
     const desired = Math.atan2(-(ahead.x - car.x), -(ahead.z - car.z));
-    stepDriving(car, { cruise: true, steer: clamp(angleDelta(car.heading, desired) * 2.5, -1, 1) }, 1 / 60, world);
+    stepDriving(car, { cruise: true, steer: steerTowards(car, desired, held) }, 1 / 60, world);
     const pose = chassisPose(car.x, car.z, car.heading, (x, z) => drivingHeight(x, z));
     stats.roll = Math.max(stats.roll, Math.abs(pose.roll));
     stats.pitch = Math.max(stats.pitch, Math.abs(pose.pitch));

@@ -165,7 +165,8 @@ try {
   assert.ok(swing < -0.05 && swing > -1.06, `the trailer swings out on the bend (${swing.toFixed(2)})`);
   step('the lorry pulls its trailer round a bend');
 
-  // Into the oxbow at the ford and out the other side, with the throttle held all the way.
+  // Into the oxbow at the ford and out the other side, with the throttle held all the way: the
+  // lorry, heavy, takes a while to get going.
   await page.evaluate(async () => {
     const { OXBOW, TRACKS } = await import('/src/world/layout.js');
     const track = TRACKS.find(t => t.id === 'oxbow').path;
@@ -174,7 +175,7 @@ try {
   });
   const wading = [];
   await page.keyboard.down('ArrowUp');
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; i < 26; i++) {
     await page.waitForTimeout(350);
     wading.push(
       await page.evaluate(async () => {
@@ -247,8 +248,9 @@ try {
   await page.waitForTimeout(300);
   const asked = (await state(page)).friends.filter(friend => friend.mode === 'following');
   assert.equal(asked.length, 1);
+  // The lorry backs away slowly, its trailer first.
   await page.keyboard.down('ArrowDown');
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(3500);
   await page.keyboard.up('ArrowDown');
   const along = (await state(page)).friends.find(friend => friend.bay === asked[0].bay);
   assert.ok(Math.hypot(along.x - asked[0].x, along.z - asked[0].z) > 1, 'it pulls out after the car');
