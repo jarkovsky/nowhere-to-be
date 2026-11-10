@@ -4,7 +4,7 @@
 // it as the place to go to, which the minimap then points the way to; tapping it again lets go.
 import { clamp } from '../core/math.js';
 import { FERRY_LANE, LOFOTEN, VALLEY_RADIUS } from '../world/layout.js';
-import { MAP_EXTENT, MAP_PLACES, PAPER, arrowMarkup, badgeMarkup, drawMapLines } from './mapart.js';
+import { MAP_EXTENT, MAP_PLACES, PAPER, STRANDED_MARK, arrowMarkup, badgeMarkup, drawMapLines } from './mapart.js';
 
 /** How many metres fit across the shorter side of the screen when the map opens. */
 const OPENING_SPAN = 600;
@@ -35,6 +35,8 @@ export function createMapView(page, picture, car, target = { place: null }, onPi
   const camera = { x: 0, z: 0, scale: 1 };
   const player = { x: 0, z: 0, heading: 0 };
   let markers = null;
+  /** The stranded traveller's picture, shown while it waits. It can't be picked. */
+  let stranded = null;
   let open = false;
   let box = { left: 0, top: 0, width: 1, height: 1 };
   let ratio = 1;
@@ -58,6 +60,14 @@ export function createMapView(page, picture, car, target = { place: null }, onPi
       layer.append(marker);
       return { place, marker };
     });
+    stranded = document.createElement('span');
+    stranded.className = 'map-place';
+    stranded.setAttribute('role', 'img');
+    stranded.setAttribute('aria-label', STRANDED_MARK.name);
+    stranded.title = STRANDED_MARK.name;
+    stranded.style.setProperty('--badge', STRANDED_MARK.color);
+    stranded.innerHTML = badgeMarkup(STRANDED_MARK);
+    layer.append(stranded);
     you.innerHTML = arrowMarkup();
   }
 
@@ -181,6 +191,8 @@ export function createMapView(page, picture, car, target = { place: null }, onPi
     for (const { place, marker } of markers) {
       marker.style.transform = `translate(${ox + place.x * s}px, ${oy + place.z * s}px) translate(-50%, -50%)`;
     }
+    stranded.classList.toggle('tucked', !STRANDED_MARK.shown);
+    stranded.style.transform = `translate(${ox + STRANDED_MARK.x * s}px, ${oy + STRANDED_MARK.z * s}px) translate(-50%, -50%)`;
     // Forward is -Z at heading 0 and turns anticlockwise as the heading grows; the arrow points up.
     you.style.transform = `translate(${ox + player.x * s}px, ${oy + player.z * s}px) translate(-50%, -50%) rotate(${-player.heading}rad)`;
   }

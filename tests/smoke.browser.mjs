@@ -212,6 +212,36 @@ try {
   assert.ok(Math.hypot(home.car.x - camp.x, home.car.z - camp.z) < 1, 'back at the start');
   step('the home button in the menu takes the car back to the start');
 
+  // A traveller stranded in a ditch beside a side track: on cruise the rope hooks on as the car passes,
+  // the car pulls it out at a crawl, and it drives off.
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: 'Car' }).click();
+  await page.getByRole('button', { name: 'Off-roader' }).click();
+  await page.getByRole('button', { name: 'Resume' }).click();
+  await page.evaluate(async () => {
+    const { STRANDED_SPOTS, TRACKS } = await import('/src/world/layout.js');
+    const spot = STRANDED_SPOTS[0];
+    const { path } = TRACKS.find(track => track.id === spot.track);
+    window.__game.strand(0);
+    // On the traveller's side of the track, driving along it with nobody steering, so that it comes close enough.
+    const a = path.offset(spot.s - 15, spot.side * 3);
+    window.__game.teleport(a.x, a.z, Math.atan2(-a.dx, -a.dz));
+  });
+  assert.equal((await state(page)).stranded.phase, 'stuck');
+  if (!(await state(page)).input.cruise) await page.keyboard.press('KeyE');
+  await page.waitForFunction(() => window.__game.getState().stranded.phase === 'hooked', null, { timeout: 30000 });
+  await page.waitForFunction(() => window.__game.getState().stranded.depth < 0.8, null, { timeout: 20000 });
+  assert.ok((await state(page)).car.speed < 3, 'the car slows to pull it');
+  await page.waitForFunction(() => window.__game.getState().stranded.phase === 'leaving', null, { timeout: 30000 });
+  const freed = await state(page);
+  assert.equal(freed.stranded.rope, false, 'the rope is off');
+  if ((await state(page)).input.cruise) await page.keyboard.press('KeyE');
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: 'Car' }).click();
+  await page.getByRole('button', { name: 'Lorry' }).click();
+  await page.getByRole('button', { name: 'Resume' }).click();
+  step('a stranded traveller hooks on as the car passes, is pulled out of the ditch and drives off');
+
   // Down the quay onto the ferry on cruise, lorry, trailer and all: it takes them out with it.
   await page.evaluate(async () => {
     const { FERRY_QUAY: quay } = await import('/src/world/layout.js');

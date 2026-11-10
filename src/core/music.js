@@ -5,8 +5,8 @@
 
 export const TRACKS = ['autumn', 'letting-go-of-the-past', 'clouds', 'dream-pop', 'old-age', 'poor-but-happy'];
 
-/** Seconds of quiet between one track and the next. */
-const GAP = [10, 25];
+/** Seconds of quiet between one track and the next, long enough to hear the nature sounds under it. */
+const GAP = [15, 38];
 /** How loud the music is, before the master volume. */
 const LEVEL = 0.3;
 

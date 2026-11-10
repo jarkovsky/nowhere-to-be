@@ -250,6 +250,20 @@ export const MAP_PLACES = Object.keys(PLACE_ICONS).flatMap(id =>
   PLACES.filter(place => place.id === id).map(place => ({ ...place, ...PLACE_ICONS[id] })),
 );
 
+/**
+ * The stranded traveller, while it waits in its ditch: a picture like the places', and where it
+ * is, which the game keeps up to date. It isn't one of the places, so it can't be picked.
+ */
+export const STRANDED_MARK = {
+  id: 'stranded',
+  name: 'Stranded traveller',
+  color: '#d9822b',
+  d: 'M3 15v-3.5l2.2-3h6.6l2.8 3H20V15ZM7 15a2 2 0 0 0 4 0M13.5 15a2 2 0 0 0 4 0M2.5 20q2.4-1.8 4.8 0t4.9 0 4.8 0 4.5 0',
+  shown: false,
+  x: 0,
+  z: 0,
+};
+
 /** A place's badge as markup: the coloured circle comes from CSS (`--badge`). */
 export function badgeMarkup({ d, solid }) {
   return `<svg viewBox="0 0 24 24" aria-hidden="true">${d ? `<path d="${d}"/>` : ''}${solid ? `<path class="solid" d="${solid}"/>` : ''}</svg>`;

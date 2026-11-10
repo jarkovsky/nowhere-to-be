@@ -3,6 +3,7 @@ import { createFixedStep } from './core/clock.js';
 import { angleDelta, clamp, damp, lerp } from './core/math.js';
 import { createAudio } from './core/audio.js';
 import { createChaseCamera } from './core/camera.js';
+import { createViews } from './core/views.js';
 import { createObstacleIndex } from './core/collision.js';
 import { stepDirt } from './core/dirt.js';
 import {
@@ -24,7 +25,7 @@ import { createLook } from './input/look.js';
 import { createTap } from './input/tap.js';
 import { createTiltSteering } from './input/tilt.js';
 import { createMapView } from './ui/map.js';
-import { createMapPicture } from './ui/mapart.js';
+import { STRANDED_MARK, createMapPicture } from './ui/mapart.js';
 import { createMinimap } from './ui/minimap.js';
 import { createVehiclePictures } from './ui/pictures.js';
 import { createUI } from './ui/ui.js';
@@ -40,6 +41,7 @@ import { separateMeshKinds } from './world/build.js';
 import { buildLandmarks, insideTunnel } from './world/landmarks/index.js';
 import { OUTLINE, createFerry } from './world/ferry.js';
 import { createMudHole } from './world/mudhole.js';
+import { createStranded } from './world/stranded.js';
 import {
   CAMP,
   CAMP_TRAIL,
@@ -53,6 +55,7 @@ import {
   onPaved,
   onDriveway,
   onForecourt,
+  LOOKOUTS,
   onGravel,
   rockiness,
   surfaceAt,
@@ -241,6 +244,8 @@ export function createGame(canvas) {
   // The surface last worked out. The driving asks where the car is at the start of a frame,
   // which is just where the dirt asked at the end of the frame before.
   const lastSurface = { x: NaN, z: NaN, y: NaN, kind: 'grass' };
+  // How wet the ground is, read once a frame.
+  let wetness = 0;
   const world = {
     obstacles: createObstacleIndex(obstacles),
     dynamic: moving,
@@ -258,8 +263,14 @@ export function createGame(canvas) {
     boulderLift,
     isDriveable,
     waterDepth: wadingDepth,
+    // Wet roads and tracks give a little less grip.
+    wetness: () => wetness,
   };
+  const views = createViews(LOOKOUTS);
+  // The view from a lookout, worked out once a frame in the loop; null when there is none.
+  let lookoutWatch = null;
   const mudHole = createMudHole(scene, { obstacles: world.obstacles, onToot: () => sound.otherHorn() });
+  const stranded = createStranded(scene, { onToot: () => sound.otherHorn() });
   const ferry = createFerry(scene, { onHorn: (distance, blasts) => sound.shipHorn(distance, blasts) });
 
   // Friends wait at the depot to come along for the ride.
@@ -589,7 +600,7 @@ export function createGame(canvas) {
       // In the mud hole the wheels can spin faster than the car goes.
       wheel.spin.rotation.x -= ((state.speed + mudHole.slip) * dt) / wheel.radius;
     }
-    settleWheels(car, surfaceHeight);
+    settleWheels(car, surfaceHeight, state.handling.travel);
     // Sunk into the mud, wheels and all.
     car.root.position.y -= mudHole.sink;
     car.root.updateMatrixWorld();
@@ -664,7 +675,7 @@ export function createGame(canvas) {
     intro: introShot,
     camp: campShot,
     shot: debugShot,
-    watch: mudHole.watch() ?? ferry.watch(state),
+    watch: mudHole.watch() ?? ferry.watch(state) ?? lookoutWatch,
   });
 
   // --- Camera framing for the title screen and the night at camp -----------------------
@@ -779,7 +790,15 @@ export function createGame(canvas) {
       }
       needsRender = false;
       // Paused, the world stands still: no rotors carrying on at their last level.
-      sound.update({ speed: 0, engineOn: false, active: !document.hidden, rain: 0 });
+      sound.update({
+        speed: 0,
+        engineOn: false,
+        active: !document.hidden,
+        rain: 0,
+        x: state.x,
+        z: state.z,
+        day: atmosphere.getState().day,
+      });
       sound.rotor(0, 0);
       return;
     }
@@ -813,6 +832,7 @@ export function createGame(canvas) {
         ...landmarks.crossing.colliders(),
         ...landmarks.machines,
         ...mudHole.colliders,
+        ...stranded.colliders,
         ...ferry.colliders,
         ...friends.colliders,
       );
@@ -831,14 +851,22 @@ export function createGame(canvas) {
       });
       state.impact = impact;
       mudHole.update(dt, state, input, car, trailer);
+      // A stranded traveller hooks onto the car as it passes, and the car pulls it out of the ditch.
+      stranded.update(dt, state, car, trailer, { others: friends.points, busy: mudHole.holding() || ferry.holding() });
+      Object.assign(STRANDED_MARK, stranded.mark);
       if (state.impact > 2.5) sound.bump(state.impact);
       updateCarModel(dt);
       wasBraking = input.brake || (input.backward && state.speed > 0.5) || (input.forward && state.speed < -0.5);
       throttle = !input.brake && !ferry.holding() && (input.forward || input.backward || input.cruise) ? 1 : 0;
       parkedFor = Math.abs(state.speed) < 0.3 && !throttle ? parkedFor + dt : 0;
-    }
+      lookoutWatch = views.watch(state, input, dt, {
+        held: mudHole.holding() || ferry.holding() || Boolean(mudHole.watch() ?? ferry.watch(state)),
+        touched: chase.isHandled(),
+      });
+    } else lookoutWatch = null;
 
     const sky = atmosphere.getState();
+    wetness = sky.wetness;
     const night = 1 - sky.day;
     atmosphere.update(dt, state, mode !== 'title');
     car.setLights(night, driving && wasBraking);
@@ -866,7 +894,7 @@ export function createGame(canvas) {
     wildlife.update(dt, state, night);
     secrets.update(dt, state, night);
     // Stuck in the mud hole and pulled out of it, the car makes no sound in the mud.
-    surfaces.update(dt, state, driving, mudHole.slip, mudHole.gripping());
+    surfaces.update(dt, state, driving, mudHole.slip, mudHole.gripping(), sky.wetness);
     if (driving) wading.update(dt, state, car, car.trailer ? trailer : null);
     if (driving) {
       // Puddles lie on the trail, so the tyres find them rather than the driving surface.
@@ -876,7 +904,13 @@ export function createGame(canvas) {
     car.setMud(dirt);
     blockers.length = 0;
     // The tractor from the mud hole comes out along the trail to tow, so the traffic waits for it too.
-    blockers.push(...wildlife.crossingDucks(), ...landmarks.crossing.blockers(), ...towed, ...mudHole.colliders);
+    blockers.push(
+      ...wildlife.crossingDucks(),
+      ...landmarks.crossing.blockers(),
+      ...towed,
+      ...mudHole.colliders,
+      ...stranded.colliders,
+    );
     traffic.update(dt, { player: state, blockers, night });
     for (const road of openRoads) road.update(dt, { player: state, blockers: towed, night });
     // The car and the friends following it lay the long grass and the crops over where they drive through.
@@ -903,6 +937,9 @@ export function createGame(canvas) {
       // In the snowy places it snows rather than rains, and a blizzard blows now and then.
       rain: sky.rainfall,
       blizzard: sky.blizzard,
+      x: state.x,
+      z: state.z,
+      day: sky.day,
     });
     // The helicopters and the plane share one engine sound: whichever is loudest.
     const rotor = [
@@ -962,6 +999,7 @@ export function createGame(canvas) {
         friends: friends.getState(),
         fields: landmarks.fields.getState(),
         mudHole: mudHole.getState(),
+        stranded: stranded.getState(),
         ferry: ferry.getState(),
         map: mapView.getState(),
         minimap: minimap.getState(),
@@ -985,8 +1023,11 @@ export function createGame(canvas) {
         chase.snap(carView(), cameraOptions());
       },
       setSky: preset => atmosphere.setPreset(preset),
+      /** Strands a traveller at spot `index` of STRANDED_SPOTS now. */
+      strand: index => stranded.force(index),
       callOut: kind => roads.some(road => road.callOut(state, kind)),
       setClock: seconds => atmosphere.setTime(seconds),
+      setWetness: value => atmosphere.setWetness(value),
       setDirt: amount => (dirt = amount),
       shot(position, target) {
         chase.setMode('shot');

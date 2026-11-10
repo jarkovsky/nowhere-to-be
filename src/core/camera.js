@@ -266,6 +266,8 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
       }
       camera.lookAt(lookAt);
     },
+    /** True while the player is dragging or zooming the camera, or just has been. */
+    isHandled: () => orbit.dragging || orbit.idle < 0.4,
     /** True when the camera is currently pulled in by an obstacle. */
     isBlocked: () => arm < 0.98,
     getMode: () => mode,

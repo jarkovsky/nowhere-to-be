@@ -21,6 +21,8 @@ import {
   ORCHARD,
   CRASH,
   WORN_GROUND,
+  ROUGH_GROUND,
+  onRoughGround,
   inDiscovery,
   onForecourt,
   RAILWAY,
@@ -51,6 +53,8 @@ import {
   HABITATS,
   SURFACES,
   GLADES,
+  STRANDED,
+  STRANDED_SPOTS,
   RING_ROAD,
   LINKS,
   AIRFIELD,
@@ -110,6 +114,7 @@ import { createScatter } from './scatter.js';
 import { buildDesertScenery, desertGround, desertTakes } from './sand.js';
 import { WINTER_TINTS, coastRock, winterGround } from './snow.js';
 import { buildIce } from './ice.js';
+import { WATER_MIRROR, reflectSky } from './reflection.js';
 
 const random = createRandom(82741);
 
@@ -140,8 +145,13 @@ const GROUND = {
   gravel: new THREE.Color('#c3b9a0'),
 };
 const rockTone = new THREE.Color();
-/** Ground worn bare or covered over (see WORN_GROUND), with its colours made. */
-const WORN = WORN_GROUND.map(patch => ({ ...patch, color: new THREE.Color(patch.color) }));
+/** Ground worn bare or covered over (see WORN_GROUND), and the mud in the stranded travellers' ditches. */
+const BARE_GROUND = [
+  ...WORN_GROUND,
+  ...STRANDED_SPOTS.map(({ x, z }) => ({ x, z, r: 3, soft: 2.5, color: '#5f4a33' })),
+];
+/** The same with its colours made. */
+const WORN = BARE_GROUND.map(patch => ({ ...patch, color: new THREE.Color(patch.color) }));
 
 /**
  * Colour of the ground at a grid point, into `out`. `up` is the Y of its normal: 1 on flat
@@ -482,7 +492,10 @@ function buildRipples(scene) {
 }
 
 function buildWater(scene) {
-  const lakeMaterial = flatMaterial('#6fa8a6', { emissive: '#1d4c50', emissiveIntensity: 0.25 });
+  const lakeMaterial = reflectSky(
+    flatMaterial('#6fa8a6', { emissive: '#1d4c50', emissiveIntensity: 0.25 }),
+    WATER_MIRROR,
+  );
   const lakeGeometry = new THREE.CircleGeometry(1, 72);
   lakeGeometry.rotateX(-Math.PI / 2);
   const lake = new THREE.Mesh(lakeGeometry, lakeMaterial);
@@ -659,6 +672,7 @@ const CLEARINGS = [
   { x: VILLAGE.fireStation.x, z: VILLAGE.fireStation.z, r: 14 },
   ...PONDS.filter(pond => pond !== DESERT.oasis).map(({ x, z, radius }) => ({ x, z, r: radius + 6 })),
   ...GLADES.map(glade => ({ ...glade, r: 4 })),
+  ...STRANDED_SPOTS.map(({ x, z }) => ({ x, z, r: STRANDED.radius })),
   // The mud lies on the tracks, which are kept clear anyway.
   ...SURFACES.filter(p => p.id !== 'mud').map(p => ({ x: p.x, z: p.z, r: Math.max(p.rx, p.rz) + 4 })),
 ];
@@ -1463,7 +1477,7 @@ function isLongGrassGround(x, z) {
   if (onPaved(x, z, ROAD_HALF_WIDTH + 0.8) || onAirfield(x, z, 2)) return false;
   if (onGravel(x, z, GRAVEL_HALF_WIDTH + 0.8)) return false;
   if (PLACED_TRACKS.some(track => track.path.isNear(x, z, track.ruts ? 1.6 : 1.3))) return false;
-  if (onDriveway(x, z, 0.8)) return false;
+  if (onDriveway(x, z, 0.8) || onRoughGround(x, z, 0.8)) return false;
   if (CLEARINGS.some(c => (x - c.x) ** 2 + (z - c.z) ** 2 < (c.r * 0.7) ** 2) || inMud(x, z)) return false;
   if (Math.hypot(x - FIELDS.x, z - FIELDS.z) < FIELDS.radius + 4) return false;
   if (lakeDistance(x, z) < 2.4 || CREEK.isNear(x, z, 6)) return false;
@@ -1543,12 +1557,25 @@ function grassMask() {
   }
   // Where the rough trail's ruts are dug deep, the churned earth is bare.
   for (const { from, to } of ROUGH.ruts) along(ROUGH.path, 3.4, 0.7, { skip: s => s < from - 2 || s > to + 2 });
+  // And where a side track is laid with logs, slabs and stones, or dug out: as far as the bare ground goes.
+  for (const { path, half, from, to, shape } of ROUGH_GROUND) {
+    const reach = half + 1;
+    const near = path.samples.filter(p => p.s > from - 4 && p.s < to + 4);
+    const [bx0, bx1] = [Math.min(...near.map(p => p.x)) - reach, Math.max(...near.map(p => p.x)) + reach];
+    const [bz0, bz1] = [Math.min(...near.map(p => p.z)) - reach, Math.max(...near.map(p => p.z)) + reach];
+    for (let tz = Math.max(0, Math.floor(bz0 - z0)); tz <= Math.min(size - 1, Math.ceil(bz1 - z0)); tz++) {
+      for (let tx = Math.max(0, Math.floor(bx0 - x0)); tx <= Math.min(size - 1, Math.ceil(bx1 - x0)); tx++) {
+        const { s, side, distance } = path.nearest(x0 + tx + 0.5, z0 + tz + 0.5);
+        if (distance < reach && s > from - 4 && s < to + 4) mark(tz * size + tx, Math.round(255 * shape(s, side)));
+      }
+    }
+  }
   // The orchard's grass is mown short, between the trees and round them.
   const { x: ox, z: oz } = ORCHARD;
   where(ox - 45, ox + 45, oz - 45, oz + 45, (x, z) => inOrchard(x, z, 2), 0.6);
   // The plane's scar is bare earth, and so are the glade in the logging camp and the mine's yard.
   along(CRASH.scar, 1.2, 1);
-  for (const { x, z, r, soft } of WORN_GROUND) disc(x, z, r, soft, 1);
+  for (const { x, z, r, soft } of BARE_GROUND) disc(x, z, r, soft, 1);
   // Round the buildings and in their yards.
   const yards = [
     [SPAWN, 8],

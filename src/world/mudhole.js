@@ -41,14 +41,23 @@ function inFarm(x, z) {
  * shines softly, with lumps on it that catch the light and water lying in the hollows.
  * `seed` picks the pattern, `lift` how far it lies above the ground.
  */
-export function mudGeometry({ x: cx, z: cz, radius, seed = 43, lift = 0.08, colors: palette = {} }) {
+export function mudGeometry({
+  x: cx,
+  z: cz,
+  radius,
+  seed = 43,
+  lift = 0.08,
+  colors: palette = {},
+  sides = 30,
+  rough = 0.3,
+}) {
   const RINGS = 7;
-  const SIDES = 30;
+  const SIDES = sides;
   const positions = [cx, terrainHeight(cx, cz) + lift, cz];
   const colors = [];
   const color = new THREE.Color();
-  const { mud = '#3f2f22', dark: deep = '#2a2019', churned: trodden = '#5a4431' } = palette;
-  const water = new THREE.Color('#6d7773');
+  const { mud = '#3f2f22', dark: deep = '#2a2019', churned: trodden = '#5a4431', water: sheen = '#6d7773' } = palette;
+  const water = new THREE.Color(sheen);
   const dark = new THREE.Color(deep);
   const churned = new THREE.Color(trodden);
   const tint = (x, z, out) => {
@@ -61,7 +70,7 @@ export function mudGeometry({ x: cx, z: cz, radius, seed = 43, lift = 0.08, colo
   for (let ring = 1; ring <= RINGS; ring++) {
     for (let side = 0; side < SIDES; side++) {
       const a = (side / SIDES) * Math.PI * 2;
-      const edge = 0.82 + valueNoise(Math.cos(a) * 1.7 + 3, Math.sin(a) * 1.7, seed - 2) * 0.3;
+      const edge = 0.97 - rough / 2 + valueNoise(Math.cos(a) * 1.7 + 3, Math.sin(a) * 1.7, seed - 2) * rough;
       const out = ring / RINGS;
       const x = cx + Math.cos(a) * radius * out * edge;
       const z = cz + Math.sin(a) * radius * out * edge;
@@ -203,6 +212,46 @@ export function buildTractor() {
 }
 
 /**
+ * A rope drawn in pieces of a box each, for the tractor's and the stranded traveller's tow
+ * ropes. `lay` puts it from one end to the other with a sag that takes up the slack in `length`.
+ */
+export function createRope(scene) {
+  const mesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(0.13, 0.13, 1),
+    new THREE.MeshLambertMaterial({ color: '#f2b233' }),
+    ROPE_PIECES,
+  );
+  mesh.castShadow = true;
+  mesh.frustumCulled = false;
+  mesh.visible = false;
+  scene.add(mesh);
+  const dummy = new THREE.Object3D();
+  const knot = new THREE.Vector3();
+  const previous = new THREE.Vector3();
+  return {
+    mesh,
+    lay(from, to, length) {
+      const span = from.distanceTo(to);
+      const sag = span < length ? Math.sqrt((3 * span * (length - span)) / 8) : 0.03;
+      for (let i = 0; i <= ROPE_PIECES; i++) {
+        const t = i / ROPE_PIECES;
+        knot.lerpVectors(from, to, t);
+        knot.y = Math.max(knot.y - sag * 4 * t * (1 - t), terrainHeight(knot.x, knot.z) + 0.04);
+        if (i > 0) {
+          dummy.position.lerpVectors(previous, knot, 0.5);
+          dummy.scale.set(1, 1, previous.distanceTo(knot) + 0.02);
+          dummy.lookAt(knot);
+          dummy.updateMatrix();
+          mesh.setMatrixAt(i - 1, dummy.matrix);
+        }
+        previous.copy(knot);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    },
+  };
+}
+
+/**
  * `obstacles` is the index of things the car bumps into, which the tractor drives round too.
  * `onToot` plays the tractor's horn.
  */
@@ -244,15 +293,7 @@ export function createMudHole(scene, { obstacles, onToot }) {
   const tractor = buildTractor();
   scene.add(tractor.root);
 
-  const rope = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(0.13, 0.13, 1),
-    new THREE.MeshLambertMaterial({ color: '#f2b233' }),
-    ROPE_PIECES,
-  );
-  rope.castShadow = true;
-  rope.frustumCulled = false;
-  rope.visible = false;
-  scene.add(rope);
+  const rope = createRope(scene);
 
   const puffs = new THREE.InstancedMesh(
     new THREE.IcosahedronGeometry(0.22, 0),
@@ -267,8 +308,6 @@ export function createMudHole(scene, { obstacles, onToot }) {
   const point = new THREE.Vector3();
   const from = new THREE.Vector3();
   const to = new THREE.Vector3();
-  const knot = new THREE.Vector3();
-  const previous = new THREE.Vector3();
   const colliders = [];
   let time = 0;
   let nextPuff = 0;
@@ -337,29 +376,14 @@ export function createMudHole(scene, { obstacles, onToot }) {
   /** The rope from the hitch to the car, sagging between them, or lying on the ground behind the tractor once it is off. */
   function updateRope() {
     const { shown, attached, thrown, end } = tow.rope;
-    rope.visible = shown;
+    rope.mesh.visible = shown;
     if (!shown) return;
     tractor.root.localToWorld(from.set(0, HITCH_HEIGHT, HITCH));
     const ground = terrainHeight(end.x, end.z) + 0.04;
     to.set(end.x, attached ? drivingHeight(end.x, end.z) - tow.sink + TOW_HEIGHT : ground, end.z);
     // While it is being thrown, the end flies out from the hitch to the car.
     if (attached && thrown < 1) to.lerpVectors(from, to, thrown).setY(to.y + Math.sin(thrown * Math.PI) * 1.2);
-    const span = from.distanceTo(to);
-    const sag = span < ROPE ? Math.sqrt((3 * span * (ROPE - span)) / 8) : 0.03;
-    for (let i = 0; i <= ROPE_PIECES; i++) {
-      const t = i / ROPE_PIECES;
-      knot.lerpVectors(from, to, t);
-      knot.y = Math.max(knot.y - sag * 4 * t * (1 - t), terrainHeight(knot.x, knot.z) + 0.04);
-      if (i > 0) {
-        dummy.position.lerpVectors(previous, knot, 0.5);
-        dummy.scale.set(1, 1, previous.distanceTo(knot) + 0.02);
-        dummy.lookAt(knot);
-        dummy.updateMatrix();
-        rope.setMatrixAt(i - 1, dummy.matrix);
-      }
-      previous.copy(knot);
-    }
-    rope.instanceMatrix.needsUpdate = true;
+    rope.lay(from, to, ROPE);
   }
 
   placeTractor(0);
@@ -428,7 +452,7 @@ export function createMudHole(scene, { obstacles, onToot }) {
 }
 
 /** The car's size for the tow: how far its front and back are from its middle, and its trailer. */
-function bodyOf(car, trailer) {
+export function bodyOf(car, trailer) {
   const { spec } = car;
   const front = -(spec.headlamps?.z ?? -2.1) + 0.05;
   const rear = (spec.brakeLights?.z ?? 2) + 0.05;

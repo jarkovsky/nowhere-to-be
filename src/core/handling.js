@@ -24,6 +24,8 @@
  *   the other way when slow, as a share of that.
  * - `climb`: the tallest rock it can drive over, m, and `crawl` how fast it creeps over one, m/s.
  * - `clearance`: how high its underside is above the ground, m.
+ * - `travel`: how far each wheel can rise into its arch and drop below its rest height, m (`up`
+ *   and `down`), so how far its axles flex over rocks. The body's limits grow with it.
  * - `springs`: the body's bounce, in times a second, and `damping`, from 0 to 1.
  * - `squat` and `lean`: how far the body pitches and rolls for each m/s² it speeds up, slows
  *   or is thrown sideways, radians.
@@ -51,6 +53,7 @@ const BASE = {
   climb: 0.3,
   crawl: 1.4,
   clearance: 0.25,
+  travel: { up: 0.13, down: 0.24 },
   springs: 1.4,
   damping: 0.3,
   squat: 0.0055,
@@ -62,9 +65,25 @@ const BASE = {
 /** Each vehicle in the garage, as it differs from the base. */
 export const HANDLING = {
   // An off-road estate on big tyres, four-wheel drive, soft and tall.
-  offroader: { climb: 0.75, crawl: 1.8, clearance: 0.36, springs: 1.25, damping: 0.28, lean: 0.0085 },
+  offroader: {
+    climb: 0.75,
+    crawl: 1.8,
+    clearance: 0.36,
+    travel: { up: 0.17, down: 0.36 },
+    springs: 1.25,
+    damping: 0.28,
+    lean: 0.0085,
+  },
   // A pickup, a little heavier and stiffer at the back.
-  pickup: { power: 27, climb: 0.65, crawl: 1.6, clearance: 0.34, springs: 1.35, height: 0.8 },
+  pickup: {
+    power: 27,
+    climb: 0.65,
+    crawl: 1.6,
+    clearance: 0.34,
+    travel: { up: 0.17, down: 0.34 },
+    springs: 1.35,
+    height: 0.8,
+  },
   // A tall front-wheel-drive van, slow to pick up speed and leaning in the bends.
   van: {
     power: 20,
@@ -106,6 +125,7 @@ export const HANDLING = {
     climb: 0.85,
     crawl: 1.8,
     clearance: 0.45,
+    travel: { up: 0.13, down: 0.34 },
     springs: 1.6,
     damping: 0.35,
     engineBrake: 1.6,
@@ -182,6 +202,7 @@ export const HANDLING = {
     climb: 0.95,
     crawl: 2.2,
     clearance: 0.5,
+    travel: { up: 0.17, down: 0.38 },
     springs: 1.15,
     damping: 0.3,
     lean: 0.008,

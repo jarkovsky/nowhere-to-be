@@ -31,6 +31,7 @@ import { buildFishing } from '../world/landmarks/fishing.js';
 import { buildCrash } from '../world/landmarks/crash.js';
 import { buildMine } from '../world/landmarks/mine.js';
 import { buildLogging } from '../world/landmarks/logging.js';
+import { buildRoughGround } from '../world/landmarks/roughground.js';
 import { buildHeaps } from '../world/heaps.js';
 import { HELIPAD, KRYSTOF } from '../world/layout.js';
 import { drivingHeight, waterLevel } from '../world/terrain.js';
@@ -82,5 +83,6 @@ export const LANDMARKS = {
   crash: buildCrash,
   mine: buildMine,
   logging: buildLogging,
+  roughground: buildRoughGround,
   heaps: scene => buildHeaps(scene),
 };

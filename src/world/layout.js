@@ -1801,6 +1801,97 @@ export const TRACKS = [
 ];
 
 /**
+ * Short rough stretches on the side tracks, each laid out by the builder of its `kind` (see
+ * landmarks/roughground.js): from `from` to `to` metres along the track `track`, with `half`
+ * metres of rough ground either side of its middle (2.6 unless given). `seed` makes it its own.
+ * `shape(along, side)`, from 0 to 1, is how much of the ground is bare at a point of it, `along`
+ * the track and `side` metres to its right: its outline, which the grass keeps out of. Where
+ * `dig(along, side)` is given, that many metres are dug out of the ground there (see terrain.js).
+ */
+export const ROUGH_GROUND = (() => {
+  /** 1 between `a` and `b` along the track, easing to 0 over `ease` metres at either end. */
+  const between = (s, a, b, ease) => smoothstep(s, a, a + ease) * (1 - smoothstep(s, b - ease, b));
+  // The meadow track washed out: its edge wanders, and it is dug out to a broad hollow.
+  const washed = { from: 17, to: 45 };
+  const washout = {
+    shape: (s, side) =>
+      (1 - smoothstep(Math.abs(side) + 0.35 * Math.sin(s * 0.9 + side), 2.9, 3.6)) *
+      between(s, washed.from, washed.to, 2),
+    dig: (s, side) => 0.5 * (1 - smoothstep(Math.abs(side), 2, 5.5)) * between(s, washed.from, washed.to, 6),
+  };
+  // A dry stream bed that winds across the track at a slant, dug a little below the ground.
+  const middle = 74;
+  const line = side => middle + 0.45 * side + 1.6 * Math.sin(side * 0.6 + 0.8);
+  const bed = {
+    shape: (s, side) => {
+      const wide = 4.6 + 0.8 * Math.sin(side * 0.9 + s * 0.3);
+      return (1 - smoothstep(Math.abs(s - line(side)), wide - 1.4, wide)) * (1 - smoothstep(Math.abs(side), 3.6, 4.8));
+    },
+  };
+  bed.dig = (s, side) => 0.3 * smoothstep(bed.shape(s, side), 0.05, 0.9);
+  return [
+    // Logs laid across a wet, muddy patch, on the way in to the logging camp.
+    { id: 'corduroy', track: 'logging', kind: 'corduroy', from: 20, to: 42, half: 2.9, seed: 7101 },
+    // Low, flat slabs of rock on the long diagonal up the hillside.
+    { id: 'rock-garden', track: 'chata', kind: 'garden', from: 38, to: 58, seed: 7102 },
+    { id: 'washout', track: 'crash', kind: 'washout', from: 20, to: 42, half: 3.8, seed: 7103, ...washout },
+    // A few tilted rock slabs across the track up through the woods to the mine.
+    { id: 'rock-steps', track: 'mine', kind: 'steps', from: 14, to: 32, seed: 7104 },
+    { id: 'stream-bed', track: 'fishing', kind: 'streambed', from: 62, to: 86, half: 4.8, seed: 7105, ...bed },
+  ].map(entry => {
+    const half = entry.half ?? 2.6;
+    const { from, to } = entry;
+    return {
+      half,
+      // Unless it has an outline of its own, a stretch is bare a little way beyond the stones and logs.
+      shape: (s, side) => (1 - smoothstep(Math.abs(side), half - 0.8, half)) * between(s, from - 1.5, to + 1.5, 1.5),
+      ...entry,
+      path: TRACKS.find(track => track.id === entry.track).path,
+    };
+  });
+})();
+
+/** True within `margin` metres of the bare ground of the rough stretches on the side tracks. */
+export function onRoughGround(x, z, margin = 0) {
+  return ROUGH_GROUND.some(({ path, half, shape }) => {
+    if (!path.isNear(x, z, half + margin)) return false;
+    const { s, side, distance } = path.nearest(x, z);
+    if (distance > half + margin) return false;
+    const inner = Math.sign(side) * Math.max(0, Math.abs(side) - margin);
+    return [s - margin, s, s + margin].some(along => shape(along, inner) > 0.01);
+  });
+}
+
+/**
+ * Where a traveller can be stranded: in a shallow ditch beside a straight stretch of a side
+ * track. `aside` is how far from the middle of the track the vehicle's middle stands, `yaw` how far
+ * it is turned from lying along the track (nose away from the track, tail towards it) and
+ * `radius` the ground kept clear round it. `x`, `z` and `heading` are the vehicle's, and `s`
+ * and `side` where it is on the track (`side` 1 to the right of the way the track runs).
+ */
+export const STRANDED = { aside: 6.6, yaw: 0.35, radius: 7.5 };
+export const STRANDED_SPOTS = [
+  { track: 'winter-log', s: 203, side: 1 },
+  { track: 'fields', s: 41, side: -1 },
+  { track: 'fields', s: 272, side: -1 },
+  { track: 'farm-horses', s: 47, side: 1 },
+  { track: 'orchard', s: 26, side: -1 },
+  { track: 'spring', s: 29, side: 1 },
+  { track: 'east-ford', s: 41, side: 1 },
+  { track: 'winter-log', s: 50, side: 1 },
+  { track: 'desert', s: 23, side: -1 },
+].map(({ track, s, side }, index) => {
+  const { path } = TRACKS.find(t => t.id === track);
+  const p = path.offset(s, side * STRANDED.aside);
+  const { dx, dz } = path.at(s);
+  // Facing back down the track and out over the ditch, so it is pulled out tail first.
+  const out = { x: -dz * side, z: dx * side };
+  const fx = -dx * Math.cos(STRANDED.yaw) + out.x * Math.sin(STRANDED.yaw);
+  const fz = -dz * Math.cos(STRANDED.yaw) + out.z * Math.sin(STRANDED.yaw);
+  return { index, track, s, side, x: p.x, z: p.z, heading: headingOf(fx, fz) };
+});
+
+/**
  * A fin of rock running out from the side of the rocky hill to the arch, as if the arch were a
  * part of it, and on down the other side. Its top is a rough causeway the car can drive along,
  * from where it leaves the track up the hill, over the arch's flat top high above the road,
@@ -2461,4 +2552,28 @@ export const WOLF_ROUTE = createPath(
 export const YARDS = [
   { x: FARM.x, z: FARM.z, rotation: FARM.rotation, x0: -4, x1: 3, z0: -1, z1: 6, hens: 6 },
   { x: FARMSTEAD.x, z: FARMSTEAD.z, rotation: FARMSTEAD.rotation, x0: -6, x1: 4, z0: 2.5, z1: 8, hens: 4 },
+];
+
+// --- Lookouts ------------------------------------------------------------------------------
+// Places where a car left standing for a few seconds gets the view (see core/views.js). Each is
+// a circle `radius` metres round where the car would naturally stop, and the `bearing` to look
+// along, as atan2(dx, dz) of a point out in that direction.
+
+export const LOOKOUTS = [
+  // The levelled top of the rough trail, looking out over the outlands to the village.
+  { id: 'rough', x: ROUGH.lookout.x, z: ROUGH.lookout.z, radius: 9, bearing: 0.5, zoom: 2, pitch: 0.12 },
+  // The end of the summit track beside the tower, looking out over the lake.
+  { id: 'summit', x: -300, z: -320, radius: 12, bearing: 0.9 },
+  // The end of the track below the fire tower on the southern knoll, looking south-west over the farm and the lake.
+  { id: 'tower', x: 100, z: 186, radius: 10, bearing: 3.9 },
+  // The end of the jetty, looking east along the lake to the waterfall.
+  { id: 'jetty', x: JETTY.x, z: JETTY.z - 14, radius: 7, bearing: 2.3 },
+  // The rim of the fjord where the track starts down, looking down on the village and its harbour.
+  { id: 'fjord', x: -564, z: -541, radius: 9, bearing: 3.0 },
+  // The end of the fishing track by the hut, looking up the river to the red mesas.
+  { id: 'fishing', x: -435, z: 595, radius: 9, bearing: 0.8 },
+  // The end of the road to the Lofoten lighthouse, looking back over the bay to the village.
+  { id: 'lofoten', x: -891, z: -1082, radius: 9, bearing: 5.9 },
+  // The hairpin on the track up to the hut on the summit, looking over the valley and the lake.
+  { id: 'chata', x: 187, z: -183, radius: 9, bearing: 4.9 },
 ];

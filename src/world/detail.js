@@ -68,6 +68,12 @@ export function detailMap() {
   return detail;
 }
 
+/**
+ * How wet the ground is, from 0 to 1, shared by every material drawn on it: the ground, the roads
+ * and tracks laid over it, and the grass. The atmosphere sets it as rain falls and dries.
+ */
+export const WETNESS = { value: 0 };
+
 /** Shared by everything that sways in the wind: the time. */
 export const SWAY = { time: { value: 0 } };
 
@@ -84,18 +90,37 @@ export function groundMaterial(options = {}) {
   materials.set(key, material);
   material.onBeforeCompile = shader => {
     shader.uniforms.groundDetail = groundDetail;
+    shader.uniforms.wetness = WETNESS;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vGround;\nvarying vec3 vGroundNormal;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGround = position;\nvGroundNormal = normal;');
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nuniform sampler2D groundDetail;\nvarying vec3 vGround;\nvarying vec3 vGroundNormal;',
+        '#include <common>\nuniform sampler2D groundDetail;\nuniform float wetness;\nvarying vec3 vGround;\nvarying vec3 vGroundNormal;',
       )
-      .replace('#include <color_fragment>', `#include <color_fragment>\n${GROUND_DETAIL}`);
+      .replace('#include <color_fragment>', `#include <color_fragment>\nfloat wetGloss = 0.0;\n${GROUND_DETAIL}`)
+      .replace('#include <opaque_fragment>', `${WET_SHEEN}\n#include <opaque_fragment>`);
   };
   return material;
 }
+
+/**
+ * The sheen of wet ground: the sky mirrored in it, strongest where the view is low and the sun
+ * glows. It is added to the light, so the ground under it keeps its grain.
+ */
+const WET_SHEEN = /* glsl */ `
+  #ifdef USE_FOG
+    if ( wetGloss > 0.002 ) {
+      vec3 toEye = normalize( cameraPosition - vGround );
+      vec3 up = normalize( vGroundNormal );
+      vec3 mirrored = reflect( - toEye, up );
+      mirrored.y = abs( mirrored.y );
+      float fresnel = 0.04 + 0.96 * pow( 1.0 - max( dot( up, toEye ), 0.0 ), 5.0 );
+      outgoingLight += hazeColor( normalize( mirrored ) ) * wetGloss * ( 0.05 + 0.95 * fresnel );
+    }
+  #endif
+`;
 
 const GROUND_DETAIL = /* glsl */ `
   {
@@ -127,6 +152,14 @@ const GROUND_DETAIL = /* glsl */ `
     // Snow keeps most of its brightness.
     float snowy = smoothstep( 0.45, 0.75, min( diffuseColor.r, diffuseColor.b ) );
     diffuseColor.rgb *= 1.0 + shade * ( 1.0 - 0.7 * snowy );
+    // Wet: grass darkens a little, and bare earth, gravel and tarmac (the roads, which have no
+    // grassiness of their own, count as bare) a good deal more, with a sheen. Snow stays white.
+    float hard = 1.0;
+    #ifdef USE_COLOR_ALPHA
+      hard = 1.0 - vColor.a;
+    #endif
+    diffuseColor.rgb *= 1.0 - wetness * ( 0.03 + 0.66 * hard ) * ( 1.0 - snowy );
+    wetGloss = wetness * hard * ( 1.0 - snowy ) * 0.4;
     #ifdef USE_COLOR_ALPHA
       // Under the grass (how grassy it is comes in the alpha) the ground is a little darker, as
       // the roots are, and so is the grass seen from further off than it is drawn.
@@ -161,7 +194,7 @@ export function foliageMaterial(kind, range = 0, crop = null) {
   if (crop) material.defines.CROP_SPAN = '';
   else materials.set(key, material);
   material.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, crop, trampleUniforms(), { groundDetail, swayTime: SWAY.time });
+    Object.assign(shader.uniforms, crop, trampleUniforms(), { groundDetail, swayTime: SWAY.time, wetness: WETNESS });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\n${SWAY_PARS}\n${TRAMPLE_PARS}`)
       // The colour chunk is spelt out here, as the line to change is inside its include.
@@ -170,7 +203,7 @@ export function foliageMaterial(kind, range = 0, crop = null) {
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nuniform sampler2D groundDetail;\nvarying vec3 vFoliage;\nvarying float vFoliageHeight;',
+        '#include <common>\nuniform sampler2D groundDetail;\nuniform float wetness;\nvarying vec3 vFoliage;\nvarying float vFoliageHeight;',
       )
       .replace('#include <color_fragment>', `#include <color_fragment>\n${FOLIAGE_DETAIL}`);
   };
@@ -244,5 +277,7 @@ const FOLIAGE_DETAIL = /* glsl */ `
   #else
     // Darker at the roots than at the tips.
     diffuseColor.rgb *= 0.62 + 0.45 * smoothstep( 0.0, 1.0, vFoliageHeight );
+    // And a little darker when wet.
+    diffuseColor.rgb *= 1.0 - 0.04 * wetness;
   #endif
 `;

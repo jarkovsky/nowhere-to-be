@@ -32,6 +32,7 @@ import { buildFishing } from './fishing.js';
 import { buildCrash } from './crash.js';
 import { buildMine } from './mine.js';
 import { buildLogging } from './logging.js';
+import { buildRoughGround } from './roughground.js';
 import { buildHeaps } from '../heaps.js';
 import { HELIPAD, KRYSTOF } from '../layout.js';
 
@@ -87,6 +88,7 @@ export function buildLandmarks(scene, obstacles) {
   own('crash', buildCrash);
   own('mine', buildMine);
   own('logging', buildLogging);
+  own('roughground', buildRoughGround);
   own('heaps', group => buildHeaps(group));
   const signs = own('signs', group => buildSigns(group, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard }));
 

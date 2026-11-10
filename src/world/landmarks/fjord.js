@@ -12,6 +12,7 @@ import { PartsBuilder, hipRoof, createSmoke, flatMaterial, prism } from '../buil
 import { gabledHouse } from './house.js';
 import { canvasTexture } from './signs.js';
 import { framer } from './frame.js';
+import { WATER_MIRROR, reflectSky } from '../reflection.js';
 
 const WHITE = '#f1ede2';
 const TURF = '#6f8a46';
@@ -262,15 +263,21 @@ function water(scene) {
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geometry.computeVertexNormals();
-  const material = flatMaterial('#ffffff', { emissive: '#163f45', emissiveIntensity: 0.3, vertexColors: true });
+  const material = reflectSky(
+    flatMaterial('#ffffff', { emissive: '#163f45', emissiveIntensity: 0.3, vertexColors: true }),
+    WATER_MIRROR,
+  );
   const strip = new THREE.Mesh(geometry, material);
   const round = (centre, radius) => {
     const disc = new THREE.Mesh(
       new THREE.CircleGeometry(radius + 8, 40).rotateX(-Math.PI / 2),
-      flatMaterial(`#${warm.clone().lerp(cold, winterness(centre.x, centre.z)).getHexString()}`, {
-        emissive: '#163f45',
-        emissiveIntensity: 0.3,
-      }),
+      reflectSky(
+        flatMaterial(`#${warm.clone().lerp(cold, winterness(centre.x, centre.z)).getHexString()}`, {
+          emissive: '#163f45',
+          emissiveIntensity: 0.3,
+        }),
+        WATER_MIRROR,
+      ),
     );
     disc.position.set(centre.x, FJORD.level, centre.z);
     return disc;

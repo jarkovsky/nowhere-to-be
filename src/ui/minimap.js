@@ -3,7 +3,7 @@
 // picked on the big map always is, so it shows which way to drive. Each draw is one turned copy
 // of a piece of the map's picture and a few stamped badges, about thirty times a second and
 // only when the car has moved.
-import { ARROW, MAP_EXTENT, MAP_PLACES, PAPER, badgeImage } from './mapart.js';
+import { ARROW, MAP_EXTENT, MAP_PLACES, PAPER, STRANDED_MARK, badgeImage } from './mapart.js';
 
 /** How far the map reaches from the car to the minimap's edge, in metres. */
 const REACH = 320;
@@ -39,7 +39,7 @@ export function createMinimap(button, picture, car, target = { place: null }) {
     size = button.clientWidth;
     ratio = Math.min(devicePixelRatio || 1, 2);
     canvas.width = canvas.height = Math.round(size * ratio);
-    badges = new Map(MAP_PLACES.map(place => [place.id, badgeImage(place, PICKED * ratio)]));
+    badges = new Map([...MAP_PLACES, STRANDED_MARK].map(place => [place.id, badgeImage(place, PICKED * ratio)]));
     last = null;
   }
 
@@ -70,7 +70,9 @@ export function createMinimap(button, picture, car, target = { place: null }) {
       // other, the more important ones show (the picked place first), and it goes on top.
       const picked = target.place?.id;
       const shown = [];
-      for (const place of [...MAP_PLACES.filter(p => p.id === picked), ...MAP_PLACES.filter(p => p.id !== picked)]) {
+      // The stranded traveller, while it waits, goes with the places.
+      const places = STRANDED_MARK.shown ? [...MAP_PLACES, STRANDED_MARK] : MAP_PLACES;
+      for (const place of [...places.filter(p => p.id === picked), ...places.filter(p => p.id !== picked)]) {
         const dx = place.x - x;
         const dz = place.z - z;
         let px = cx + (dx * cos - dz * sin) * s;

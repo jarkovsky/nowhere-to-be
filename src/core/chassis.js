@@ -7,6 +7,8 @@ import { clamp } from './math.js';
 
 /** How far the body can move from where the ground holds it before it is stopped: down, up, and turned. */
 const TRAVEL = { down: 0.12, up: 0.18, pitch: 0.09, roll: 0.1 };
+/** The wheel travel (see handling.js) that the limits above are for; a vehicle with more or less has them in proportion. */
+const USUAL_TRAVEL = 0.13 + 0.24;
 /** The fastest the ground can push the body along, in metres or radians a second, so that a sharp edge jolts rather than flings it. */
 const JOLT = { rise: 2.5, turn: 1.5 };
 /** Further than this in one step is a car put somewhere else, not one driving. */
@@ -143,26 +145,35 @@ export function stepChassis(chassis, state, handling, layout, dt, sample) {
   [chassis.roll, chassis.rolling] = spring(chassis.roll, chassis.rolling, ground.roll + lean, rollTurn);
 
   // Pressed as far as the springs go, the body is stopped there and goes on with the ground.
+  // Wheels that travel further let it move further.
+  const reach = handling.travel ? (handling.travel.up + handling.travel.down) / USUAL_TRAVEL : 1;
   const stop = (value, rate, rest, down, up, groundRate) => {
     if (value < rest - down) return [rest - down, Math.max(rate, groundRate)];
     if (value > rest + up) return [rest + up, Math.min(rate, groundRate)];
     return [value, rate];
   };
-  [chassis.height, chassis.rising] = stop(chassis.height, chassis.rising, ground.height, TRAVEL.down, TRAVEL.up, rise);
+  [chassis.height, chassis.rising] = stop(
+    chassis.height,
+    chassis.rising,
+    ground.height,
+    TRAVEL.down * reach,
+    TRAVEL.up * reach,
+    rise,
+  );
   [chassis.pitch, chassis.pitching] = stop(
     chassis.pitch,
     chassis.pitching,
     ground.pitch,
-    TRAVEL.pitch,
-    TRAVEL.pitch,
+    TRAVEL.pitch * reach,
+    TRAVEL.pitch * reach,
     pitchTurn,
   );
   [chassis.roll, chassis.rolling] = stop(
     chassis.roll,
     chassis.rolling,
     ground.roll,
-    TRAVEL.roll,
-    TRAVEL.roll,
+    TRAVEL.roll * reach,
+    TRAVEL.roll * reach,
     rollTurn,
   );
   return chassis;

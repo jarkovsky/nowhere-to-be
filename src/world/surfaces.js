@@ -4,6 +4,7 @@ import { createRandom, valueNoise } from '../core/math.js';
 import { ROAD, ROAD_HALF_WIDTH, SURFACES, TRACKS, surfaceAt } from './layout.js';
 import { PartsBuilder } from './build.js';
 import { groundMaterial } from './detail.js';
+import { createPuddles } from './puddles.js';
 import { onDeck, snowCover, terrainHeight, waterDepth } from './terrain.js';
 
 const TRACK_CAPACITY = 6000;
@@ -163,13 +164,18 @@ export function createSurfaces(scene, sound, { cropAt = () => false } = {}) {
   }
   scene.add(trees.mesh({ receiveShadow: false }));
 
-  // Mud across the side tracks, with the same grain as the ground around it.
+  // Mud across the side tracks, with the same grain as the ground around it. When the ground is wet it spreads.
   const mudMaterial = groundMaterial({ polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
-  SURFACES.filter(p => p.id === 'mud').forEach((patch, i) => {
+  const muds = SURFACES.filter(p => p.id === 'mud').map((patch, i) => {
     const mud = new THREE.Mesh(mudGeometry(patch, i * 5), mudMaterial);
     mud.receiveShadow = true;
     scene.add(mud);
+    return { mud, patch };
   });
+  /** Mud spreads by up to this much of its width when the ground is soaked. */
+  const MUD_SPREAD = 0.2;
+  // The puddles the rain leaves along the tracks.
+  const rainPuddles = createPuddles(scene);
 
   /** Tyre tracks pressed into the snow, and into the desert's sand, `capacity` of each at most. */
   const trackMesh = (color, capacity) => {
@@ -234,51 +240,61 @@ export function createSurfaces(scene, sound, { cropAt = () => false } = {}) {
     obstacles,
     getState: () => ({
       surface: current,
+      rainPuddles: rainPuddles.getState(),
       tracks: trails.snow.mesh.count,
       sandTracks: trails.sand.mesh.count,
       particles: particles.filter(p => p.life > 0).length,
     }),
     /**
      * `spin` is how much faster than the car its wheels are turning, when they spin in the mud.
-     * `quiet` keeps the tyres silent.
+     * `quiet` keeps the tyres silent. `wetness` is how wet the ground is, from 0 to 1.
      */
-    update(dt, car, running, spin = 0, quiet = false) {
+    update(dt, car, running, spin = 0, quiet = false, wetness = 0) {
+      rainPuddles.update(wetness);
+      for (const { mud, patch } of muds) {
+        const spread = 1 + MUD_SPREAD * wetness;
+        mud.scale.set(spread, 1, spread);
+        mud.position.set(patch.x * (1 - spread), 0, patch.z * (1 - spread));
+      }
       if (!running) return;
       time += dt;
       current = effectAt(car.x, car.z, puddles, cropAt);
+      // A puddle the rain has left throws up water but makes no splash sound: the sound is told the tyres
+      // are on the track.
+      const splash = current === 'grass' && rainPuddles.at(car.x, car.z) > 0 ? 'puddle' : current;
       sound.surface(current, quiet ? 0 : Math.abs(car.speed) + Math.abs(spin));
       const sin = Math.sin(car.heading);
       const cos = Math.cos(car.heading);
       const spinning = Math.abs(spin) > 1;
       const moving = Math.abs(car.speed) > 0.6 || spinning;
 
-      if (moving && current !== 'grass') {
-        const rate = spinning ? 0.03 : (PARTICLE_RATE[current] ?? 0.045);
+      if (moving && splash !== 'grass') {
+        const rate = spinning ? 0.03 : (PARTICLE_RATE[splash] ?? 0.045);
         if (time - lastParticle > rate) {
           lastParticle = time;
           for (const side of [-1, 1]) {
             const p = particles[cursor++ % particles.length];
             const x = car.x + cos * side * 1.15 + sin * 1.2;
             const z = car.z - sin * side * 1.15 + cos * 1.2;
-            p.kind = current;
+            p.kind = splash;
             p.x = x;
-            p.y = terrainHeight(x, z) + (current === 'water' || current === 'crop' ? 0.6 : 0.4);
+            p.y = terrainHeight(x, z) + (splash === 'water' || splash === 'crop' ? 0.6 : 0.4);
             p.z = z;
             p.life = 0.65;
-            const spread = current === 'water' ? 3 : 2;
+            const spread = splash === 'water' ? 3 : 2;
             // Spinning wheels fling it out behind them, high up.
             const fling = spin * (0.5 + random() * 0.4);
             p.vx = cos * side * spread + sin * fling + (random() - 0.5);
             p.vz = -sin * side * spread + cos * fling + (random() - 0.5);
-            p.vy = 2 + random() * (current === 'water' ? 3 : 2) + (spinning ? 1.5 : 0);
+            p.vy = 2 + random() * (splash === 'water' ? 3 : 2) + (spinning ? 1.5 : 0);
           }
         }
-        const trail = trails[current];
+        const trail = trails[splash];
         if (trail && (!lastTrack || Math.hypot(car.x - lastTrack.x, car.z - lastTrack.z) > 0.48)) {
           for (const side of [-1, 1]) {
             const x = car.x + cos * side * 1.08;
             const z = car.z - sin * side * 1.08;
-            if (effectAt(x, z, puddles, cropAt) !== current) continue;
+            if (effectAt(x, z, puddles, cropAt) !== splash) continue;
             layOnGround(dummy, x, z, car.heading);
             dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
