@@ -1,20 +1,26 @@
-// The engine, the car's own horn and the water and mud under the tyres are synthesised with Web
-// Audio. The music, the nature sounds under it (nature.js) and the animal calls, rain, rolling
-// tyres, big horns and rotors (recorded.js) are recordings; each plays its synthesised
-// stand-in until its file has loaded.
+// Every sound is a recording: the music, the nature sounds under it (nature.js), and the engine,
+// horns, animal calls, rain, tyres, splashes, bumps, rotors and wind (recorded.js). Each of the
+// last plays a synthesised stand-in, made here with Web Audio, until its file has loaded.
 import { createMusic } from './music.js';
 import { createLibrary, createNature } from './nature.js';
 import {
+  PROMPT_FILES,
   RAIN_FILE,
   ROTOR_FILES,
   TYRE_FILES,
+  WIND_FILES,
   createRecordings,
+  engineCutoff,
+  engineLoudness,
+  engineMix,
+  engineVolume,
   rainVolume,
   rotorGain,
   rotorRate,
   tyreBed,
   tyreGain,
   tyreRate,
+  windVolume,
 } from './recorded.js';
 
 /**
@@ -31,10 +37,9 @@ export function engineRpm(speed, throttle) {
 }
 
 /**
- * The soft sound under the tyres on each surface: muffled noise, plus bubbles
- * in water and an occasional crunch on leaves. Snow only hushes: it lies over the whole of the
- * winter, and a crunch every moment there would never let up. Only water, puddles and mud keep
- * this for good; on the other surfaces it sounds until the recorded loop has loaded.
+ * The soft sound under the tyres on each surface until its recorded loop has loaded: muffled noise,
+ * plus bubbles in water and an occasional crunch on leaves. Snow only hushes: it lies over the whole
+ * of the winter, and a crunch every moment there would never let up.
  */
 const SURFACE_BEDS = {
   water: { cutoff: 700, gain: 0.035, bubbles: 1 },
@@ -60,10 +65,15 @@ export function createAudio() {
   let music;
   let nature;
   let recorded;
+  let recordedEngine;
   let rainLoop;
   let tyreLoops;
   let rotorLoops;
+  let breezeLoop;
+  let blizzardLoop;
   let tyreName = null;
+  // Whether the recorded loop under the tyres was playing last frame, which silences the bubbles and crackles.
+  let rolling = false;
   let noise;
   let enabled = true;
   // The music can be turned off on its own, leaving every other sound on.
@@ -215,6 +225,10 @@ export function createAudio() {
     const library = createLibrary(context);
     nature = createNature(context, master, { library });
     recorded = createRecordings(context, master, library);
+    for (const name of PROMPT_FILES) library.want(name);
+    recordedEngine = recorded.engine();
+    breezeLoop = recorded.loop(WIND_FILES.breeze);
+    blizzardLoop = recorded.loop(WIND_FILES.blizzard);
     rainLoop = recorded.loop(RAIN_FILE);
     tyreLoops = Object.fromEntries(Object.entries(TYRE_FILES).map(([name, file]) => [name, recorded.loop(file)]));
     rotorLoops = Object.fromEntries(Object.entries(ROTOR_FILES).map(([name, file]) => [name, recorded.loop(file)]));
@@ -323,8 +337,8 @@ export function createAudio() {
       if (!playable()) return false;
       const now = context.currentTime;
       echoSend.gain.setValueAtTime(inTunnel ? 0.6 : 0, now);
+      if (recorded.horn(kind === 'air' ? 'air' : 'beep', 1, echoSend)) return true;
       if (kind === 'air') {
-        if (recorded.horn('air', 1, echoSend)) return true;
         tone(185, now, 0.75, { type: 'sawtooth', volume: 0.05, echo: 1 });
         tone(233, now, 0.75, { type: 'sawtooth', volume: 0.05, echo: 1 });
         return true;
@@ -344,9 +358,9 @@ export function createAudio() {
       engineDiesel = diesel;
     },
 
-    /** The other travellers' reply: a lower, two-note toot. */
+    /** The other travellers' reply: another car's horn, a little way off. */
     otherHorn() {
-      if (!playable()) return;
+      if (!playable() || recorded.toot()) return;
       const now = context.currentTime;
       tone(330, now, 0.18, { type: 'square', volume: 0.04 });
       tone(294, now + 0.22, 0.26, { type: 'square', volume: 0.04 });
@@ -435,7 +449,9 @@ export function createAudio() {
 
     bump(strength) {
       if (!playable()) return;
-      tone(90, context.currentTime, 0.18, { end: 45, volume: Math.min(0.14, strength * 0.025) });
+      const level = Math.min(1, strength / 5.6);
+      if (recorded.bump(level)) return;
+      tone(90, context.currentTime, 0.18, { end: 45, volume: 0.14 * level });
     },
 
     /** What the tyres are on and how fast they're turning, every frame while driving. */
@@ -447,8 +463,11 @@ export function createAudio() {
       if (!playable() || speed < 0.6) return;
       const now = context.currentTime;
       const profile = SURFACE_BEDS[kind];
-      if (entering && (kind === 'water' || kind === 'puddle' || kind === 'mud') && speed > 2.5)
-        burst('lowpass', 500, 0.5, 0.05 * surfacePace);
+      if (entering && (kind === 'water' || kind === 'puddle' || kind === 'mud') && speed > 2.5) {
+        if (!recorded.splash(surfacePace, kind === 'mud')) burst('lowpass', 500, 0.5, 0.05 * surfacePace);
+      }
+      // The recorded loops have their own splashes and crackles.
+      if (rolling) return;
       if (profile?.bubbles && now > nextBubble) {
         bubble(0.012 + 0.012 * surfacePace);
         nextBubble = now + (0.05 + Math.random() * 0.2) / (profile.bubbles * (0.4 + surfacePace));
@@ -472,20 +491,31 @@ export function createAudio() {
       nature.update({ x, z, day, rain, on: enabled && active });
 
       const rpm = revs ?? engineRpm(speed, throttle);
+      const loudness = engineLoudness(rpm, throttle, engineDiesel);
+      const fade = engineOn ? 0.15 : 0.4;
+      // The recorded engine once its files have loaded, and the synthesised one until then.
+      const recordedOn = recordedEngine.ready();
+      if (recordedOn) {
+        engineMix(rpm, enginePitch).forEach(({ gain, rate }, i) => {
+          const layer = recordedEngine.layers[i];
+          glide(layer.gain, gain, now, 0.08);
+          glide(layer.rate, rate, now, 0.08);
+        });
+        glide(recordedEngine.tone, engineCutoff(rpm, throttle, engineDiesel), now, 0.1);
+      }
+      glide(recordedEngine.volume, engineOn && recordedOn ? engineVolume(loudness) : 0, now, fade);
       const firing = (rpm / 30) * enginePitch; // four cylinders, two firings per turn
       glide(engine.pulses.frequency, firing, now, 0.08);
       glide(engine.body.frequency, firing, now, 0.08);
       glide(engine.exhaust.frequency, (220 + rpm * 0.09 + throttle * 200) * enginePitch, now, 0.1);
       glide(engine.muffler.frequency, 1000 - engineDiesel * 380, now, 0.3);
       glide(engine.pulseDepth.gain, 0.16 + engineDiesel * 0.1, now, 0.3);
-      // A little under the music.
-      const loudness = (0.045 + throttle * 0.032 + (rpm / 4000) * 0.027) * (1 - engineDiesel * 0.22);
-      glide(engine.volume.gain, engineOn ? loudness : 0, now, engineOn ? 0.15 : 0.4);
+      glide(engine.volume.gain, engineOn && !recordedOn ? loudness : 0, now, fade);
 
       const profile = SURFACE_BEDS[surface];
       const pace = engineOn ? surfacePace : 0;
       // The recorded loop of the ground under the tyres, once it has loaded; until then the noise.
-      let rolling = false;
+      rolling = false;
       for (const [name, loop] of Object.entries(tyreLoops)) {
         const wanted = name === tyreName && pace > 0.01;
         const live = wanted && loop.ready();
@@ -497,13 +527,19 @@ export function createAudio() {
       if (profile) glide(bed.filter.frequency, profile.cutoff, now, 0.1);
       // A breeze that comes and goes on its own, rather than a rush that follows the speed.
       const gust = (0.5 + 0.5 * Math.sin(now * 0.11) * Math.sin(now * 0.047 + 1.3)) ** 2;
-      glide(windGain.gain, 0.003 + gust * 0.007 + Math.min(8, Math.abs(speed)) * 0.0003, now, 0.8);
+      const breeze = 0.003 + gust * 0.007 + Math.min(8, Math.abs(speed)) * 0.0003;
+      const breezeOn = breezeLoop.ready();
+      glide(breezeLoop.gain, breezeOn ? windVolume('breeze', breeze) : 0, now, 0.8);
+      glide(windGain.gain, breezeOn ? 0 : breeze, now, 0.8);
       const rainFalls = rain > 0.01 && rainLoop.ready();
       glide(rainLoop.gain, rainFalls ? rainVolume(rain) : 0, now, 0.8);
       glide(rainGain.gain, rainFalls ? 0 : rain * 0.028, now, 0.5);
       // The wind of a blizzard: a soft, low rush that swells and eases off, never loud.
       const squall = 0.5 + 0.5 * Math.sin(now * 0.31) * Math.sin(now * 0.13 + 0.7);
-      glide(stormGain.gain, blizzard * (0.008 + squall * 0.014), now, 1.2);
+      const storm = blizzard * (0.008 + squall * 0.014);
+      const stormOn = blizzard > 0.01 && blizzardLoop.ready();
+      glide(blizzardLoop.gain, stormOn ? windVolume('blizzard', storm) : 0, now, 1.2);
+      glide(stormGain.gain, stormOn ? 0 : storm, now, 1.2);
     },
   };
 }

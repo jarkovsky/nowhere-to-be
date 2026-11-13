@@ -123,6 +123,42 @@ export const OLD_HORNS = {
     k.tone(185, now, 0.75, { type: 'sawtooth', volume: 0.05 * level, echo });
     k.tone(233, now, 0.75, { type: 'sawtooth', volume: 0.05 * level, echo });
   },
+  beep: (k, now, level, echo) => {
+    k.tone(523, now, 0.24, { type: 'triangle', volume: 0.11 * level, echo });
+    k.tone(659, now, 0.24, { type: 'triangle', volume: 0.11 * level, echo });
+  },
+  toot: (k, now, level) => {
+    k.tone(330, now, 0.18, { type: 'square', volume: 0.04 * level });
+    k.tone(294, now + 0.22, 0.26, { type: 'square', volume: 0.04 * level });
+  },
+};
+
+/** A burst of filtered noise that dies away, as the splash was. */
+function burst(k, start, filterType, frequency, duration, volume) {
+  const source = k.context.createBufferSource();
+  const filter = k.context.createBiquadFilter();
+  const gain = k.context.createGain();
+  source.buffer = k.noise;
+  filter.type = filterType;
+  filter.frequency.value = frequency;
+  gain.gain.setValueAtTime(volume, start);
+  gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+  source.connect(filter).connect(gain).connect(k.destination);
+  source.start(start, Math.random());
+  source.stop(start + duration + 0.02);
+}
+
+/** The knock and the splash, at `level` 0 to 1: `(kit, now, level)`. */
+export const OLD_SHOTS = {
+  bump: (k, now, level) => k.tone(90, now, 0.18, { end: 45, volume: 0.14 * level }),
+  splash: (k, now, level) => burst(k, now, 'lowpass', 500, 0.5, 0.05 * level),
+};
+
+/** The wet surfaces, before the recordings: the noise's cutoff and gain at full pace, and how often it bubbled. */
+export const OLD_WET = {
+  water: { cutoff: 700, gain: 0.035, bubbles: 1 },
+  puddle: { cutoff: 900, gain: 0.02, bubbles: 0.5 },
+  mud: { cutoff: 420, gain: 0.03, bubbles: 0.8 },
 };
 
 /** What the tyres were on in the filtered noise, before the recordings: cutoff and gain at full pace. */
@@ -149,6 +185,55 @@ export const OLD_LOOPS = {
     const { source, gain } = k.filtered(k.rumble, 'lowpass', profile.cutoff, 0, [trim]);
     return { set: v => (gain.value = profile.gain * v), stop: () => source.stop() };
   },
+  /**
+   * `set(pace)`: 0 to 1. The bubbles are laid out ahead for a minute at the pace it starts at, so
+   * that a recording made offline has them too.
+   */
+  wet: (k, context, kind, startPace = 0.75) => {
+    const profile = OLD_WET[kind];
+    const trim = context.createBiquadFilter();
+    trim.type = 'highpass';
+    trim.frequency.value = 120;
+    const { source, gain } = k.filtered(k.rumble, 'lowpass', profile.cutoff, 0, [trim]);
+    const bubbles = context.createGain();
+    bubbles.connect(k.destination);
+    for (let t = context.currentTime + 0.1; t < context.currentTime + 60; ) {
+      const from = 260 + Math.random() * 420;
+      const volume = 0.012 + 0.012 * startPace;
+      // A tone into the bubbles' gain, so that stopping silences them.
+      const oscillator = context.createOscillator();
+      const g = context.createGain();
+      const length = 0.05 + Math.random() * 0.06;
+      oscillator.frequency.setValueAtTime(from, t);
+      oscillator.frequency.exponentialRampToValueAtTime(from * (1.8 + Math.random()), t + length);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(volume, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, t + length);
+      oscillator.connect(g).connect(bubbles);
+      oscillator.start(t);
+      oscillator.stop(t + length + 0.05);
+      t += (0.05 + Math.random() * 0.2) / (profile.bubbles * (0.4 + startPace));
+    }
+    return {
+      set: v => (gain.value = profile.gain * v),
+      stop: () => {
+        source.stop();
+        bubbles.disconnect();
+      },
+    };
+  },
+  /** `set(gust)`: 0 to 1, how strong the breeze is gusting, at cruise. */
+  breeze: k => {
+    const { source, gain } = k.filtered(k.noise, 'lowpass', 260, 0);
+    return { set: v => (gain.value = oldBreeze(v)), stop: () => source.stop() };
+  },
+  /** `set(squall)`: 0 to 1, in a full blizzard. */
+  blizzard: k => {
+    const { source, gain } = k.filtered(k.noise, 'lowpass', 520, 0);
+    return { set: v => (gain.value = oldStorm(v)), stop: () => source.stop() };
+  },
+  /** `set(rpm)`: the engine at half throttle. */
+  engine: (k, context) => oldEngine(k, context),
   /** `set(rate)`: the blade rate, 4 to 18. Plays at the loudness of a helicopter close by. */
   rotor: (k, context) => {
     const thump = Float32Array.from([0, 1, 0.8, 0.55, 0.35, 0.2, 0.1]);
@@ -184,7 +269,11 @@ export const OLD_LOOPS = {
   },
 };
 
-/** The engine as it sounds at cruise (6 m/s, half throttle), only to measure the others against. */
+/** The noise's gain for the breeze at a `gust` of 0 to 1, at cruise; and for a full blizzard's wind at a `squall` of 0 to 1. */
+export const oldBreeze = gust => 0.003 + gust * 0.007 + 6 * 0.0003;
+export const oldStorm = squall => 0.008 + squall * 0.014;
+
+/** The engine at half throttle, its revs set by `set(rpm)`. */
 export function oldEngine(k, context, rpm = 3150, throttle = 0.5) {
   const enginePitch = 1;
   const firing = (rpm / 30) * enginePitch;
@@ -219,13 +308,17 @@ export function oldEngine(k, context, rpm = 3150, throttle = 0.5) {
   bodyGain.gain.value = 0.22;
   body.connect(bodyGain).connect(muffler);
   const volume = context.createGain();
-  // The loudness audio.js gives the engine.
-  volume.gain.value = 0.045 + throttle * 0.032 + (rpm / 4000) * 0.027;
   trim.connect(volume).connect(k.destination);
   pulses.start();
   body.start();
   source.start();
   return {
+    set(revs) {
+      pulses.frequency.value = body.frequency.value = revs / 30;
+      exhaust.frequency.value = 220 + revs * 0.09 + throttle * 200;
+      // The loudness audio.js gives the engine.
+      volume.gain.value = 0.045 + throttle * 0.032 + (revs / 4000) * 0.027;
+    },
     stop: () => {
       pulses.stop();
       body.stop();
