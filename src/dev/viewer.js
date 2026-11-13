@@ -114,7 +114,7 @@ async function buildWorld() {
         train.update(running ? dt : 0.016, { player, towed: [] });
         for (const helicopter of flying) helicopter.update(running ? dt : 0.016);
       }
-      scenery.update(dt, camera.position, own.sun, target);
+      scenery.update(dt, camera, own.sun);
     },
   };
   $('loading').hidden = true;

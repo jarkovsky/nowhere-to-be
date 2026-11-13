@@ -3,11 +3,14 @@
 // slowed down four times. It starts its own dev server. Frames aren't capped at 60 here,
 // so the frame rate shows how much room there is; "script" is the time spent each frame
 // in the game and in preparing the drawing, and "calls" and "triangles" are for the view
-// (not the shadows).
+// (not the shadows). With `-- --far` it then stands three more copies of every landmark far
+// out of sight, as a world four times the size would have, and measures a few places before
+// and after: a frame should cost the same, since what is out of sight is left out of it.
 import { chromium } from '@playwright/test';
 import { startServer } from './server.mjs';
 
 const phone = process.argv.includes('--phone');
+const far = process.argv.includes('--far');
 const PLACES = [
   ['start', ''],
   ['lake', 'g.teleport(60, 30, 0.6)'],
@@ -94,41 +97,71 @@ try {
   await page.getByRole('button', { name: 'Play' }).click();
   // Cruise control keeps the car moving, so the scenery around it changes as it would.
   await page.keyboard.press('KeyE');
-  console.log('place          fps   script ms   calls   triangles');
-  for (const [name, move] of PLACES) {
-    await page.evaluate(`(async () => {
-      const L = await import('/src/world/layout.js');
-      const g = window.__game;
-      ${move}
-    })()`);
-    await page.waitForTimeout(1000);
-    const result = await page.evaluate(
-      () =>
-        new Promise(resolve => {
-          window.__frames.length = 0;
-          const start = performance.now();
-          setTimeout(() => {
-            const frames = [...window.__frames];
-            const seconds = (performance.now() - start) / 1000;
-            const { calls, triangles } = window.__game.getState();
-            resolve({
-              fps: frames.length / seconds,
-              script: frames.reduce((a, b) => a + b, 0) / frames.length,
-              calls,
-              triangles,
-            });
-          }, 3000);
-        }),
-    );
-    console.log(
-      [
-        name.padEnd(12),
-        result.fps.toFixed(0).padStart(5),
-        result.script.toFixed(2).padStart(11),
-        String(result.calls).padStart(7),
-        `${Math.round(result.triangles / 1000)}k`.padStart(11),
-      ].join(' '),
-    );
+  /** Goes to each of `places` in turn and prints what a frame costs there. */
+  const measure = async places => {
+    console.log('place          fps   script ms   calls   triangles');
+    for (const [name, move] of places) {
+      await page.evaluate(`(async () => {
+        const L = await import('/src/world/layout.js');
+        const g = window.__game;
+        ${move}
+      })()`);
+      await page.waitForTimeout(1000);
+      const result = await page.evaluate(
+        () =>
+          new Promise(resolve => {
+            window.__frames.length = 0;
+            const start = performance.now();
+            setTimeout(() => {
+              const frames = [...window.__frames];
+              const seconds = (performance.now() - start) / 1000;
+              const { calls, triangles } = window.__game.getState();
+              resolve({
+                fps: frames.length / seconds,
+                script: frames.reduce((a, b) => a + b, 0) / frames.length,
+                calls,
+                triangles,
+              });
+            }, 3000);
+          }),
+      );
+      console.log(
+        [
+          name.padEnd(12),
+          result.fps.toFixed(0).padStart(5),
+          result.script.toFixed(2).padStart(11),
+          String(result.calls).padStart(7),
+          `${Math.round(result.triangles / 1000)}k`.padStart(11),
+        ].join(' '),
+      );
+    }
+  };
+  await measure(PLACES);
+  if (far) {
+    // A few places again, so the two sets of numbers are taken one straight after the other.
+    const again = PLACES.slice(1, 5);
+    console.log('\nFour places again, as the world is\n');
+    await measure(again);
+    // Each copy stands 9 km further off, and is added the way the game adds its own landmarks.
+    const added = await page.evaluate(() => {
+      const { scene, landmarks } = window.__game.debug;
+      const own = Object.entries(landmarks.places);
+      let objects = 0;
+      for (const n of [1, 2, 3]) {
+        for (const [name, place] of own) {
+          const group = place.group.clone(true);
+          group.position.x += n * 9000;
+          scene.add(group);
+          group.traverse(() => objects++);
+          const sphere = place.sphere.clone();
+          sphere.center.x += n * 9000;
+          landmarks.places[`${name}, copy ${n}`] = { group, sphere, near: true, shown: true };
+        }
+      }
+      return objects;
+    });
+    console.log(`\nWith three more copies of every landmark far out of sight (${added} more objects)\n`);
+    await measure(again);
   }
 } finally {
   await browser.close();

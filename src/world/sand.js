@@ -20,7 +20,7 @@ const tone = new THREE.Color();
 
 /**
  * Colours the ground at a point by how far the desert has taken over (see groundColor in
- * scenery.js): the grass dries out towards the sand, which is paler in some patches and warmer in
+ * groundcolor.js): the grass dries out towards the sand, which is paler in some patches and warmer in
  * others, red sandstone where it is steep, and green again round the oasis. `up` is 1 on level ground.
  */
 export function desertGround(x, z, up, out) {

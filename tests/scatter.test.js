@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { SHADOW_LAYER, createScatter } from '../src/world/scatter.js';
+import { SIGHT } from '../src/world/sight.js';
 
 /** Items every 10 m across a square 1 km wide. */
 function grid() {
@@ -36,7 +37,7 @@ test('every item is drawn once, in full near the camera and as its far shape bey
     { x: 5, z: 3 },
     { x: 60, z: -20 },
     { x: 400, z: 380 },
-    { x: -2000, z: 0 },
+    { x: -1500, z: 0 },
   ]) {
     scatter.update(eye, null);
     const spots = drawn(group);
@@ -49,6 +50,20 @@ test('every item is drawn once, in full near the camera and as its far shape bey
       else assert.ok(distance > 110, `drawn plain ${distance.toFixed(0)} m away`);
     }
   }
+});
+
+test('nothing is in the picture from further off than can be seen', () => {
+  const group = new THREE.Group();
+  const scatter = createScatter(group);
+  scatter.add({ geometry: new THREE.BoxGeometry(), far: new THREE.SphereGeometry(), near: 120, items: grid() });
+  scatter.update({ x: 0, z: 0 }, null);
+  assert.equal(drawn(group).length, grid().length);
+  scatter.update({ x: SIGHT + 800, z: 0 }, null);
+  assert.equal(drawn(group).length, 0);
+  // Part of it comes back into sight with the camera.
+  scatter.update({ x: SIGHT, z: 0 }, null);
+  const back = drawn(group).length;
+  assert.ok(back > 0 && back < grid().length, `${back} drawn`);
 });
 
 test('small things are only drawn near the camera', () => {
@@ -89,4 +104,52 @@ test('everything standing in the sun’s shadow box casts a shadow', () => {
     // And not much else.
     assert.ok(casting.size < inBox.length * 1.6, `${casting.size} cast shadows for ${inBox.length} in the box`);
   }
+});
+
+test('a kind that comes in patches is only worked out near the camera, and let go of behind it', () => {
+  const group = new THREE.Group();
+  const scatter = createScatter(group);
+  // Patches every 40 m across a square 800 m wide, each of nine items 5 m apart.
+  const middles = [];
+  for (let x = -400; x <= 400; x += 40) for (let z = -400; z <= 400; z += 40) middles.push({ x, z });
+  const itemsOf = ({ x, z }) => [-5, 0, 5].flatMap(dx => [-5, 0, 5].map(dz => ({ x: x + dx, z: z + dz })));
+  const grown = [];
+  scatter.addPatches({
+    geometry: new THREE.BoxGeometry(),
+    near: 100,
+    count: middles.length,
+    most: 3000,
+    scale: 1,
+    where: index => ({ ...middles[index], radius: 7.1 }),
+    grow(index) {
+      grown.push(index);
+      const items = itemsOf(middles[index]);
+      return {
+        matrices: Float32Array.from(items.flatMap(({ x, z }) => new THREE.Matrix4().makeTranslation(x, 0, z).elements)),
+        colors: new Float32Array(items.length * 3).fill(1),
+      };
+    },
+  });
+  const all = middles.flatMap(itemsOf);
+  for (const eye of [
+    { x: 0, z: 0 },
+    { x: 130, z: -70 },
+    { x: 390, z: 395 },
+  ]) {
+    scatter.update(eye, null);
+    const spots = drawn(group);
+    const within = all.filter(({ x, z }) => Math.hypot(x - eye.x, z - eye.z) <= 100);
+    assert.equal(spots.length, within.length, `at ${eye.x}, ${eye.z}`);
+    assert.equal(new Set(spots.map(p => `${p.x},${p.z}`)).size, within.length);
+    for (const spot of spots) assert.ok(Math.hypot(spot.x - eye.x, spot.z - eye.z) <= 100);
+  }
+  // Only the patches that came within reach were ever worked out: far fewer than there are.
+  assert.ok(new Set(grown).size < middles.length / 2, `${new Set(grown).size} of ${middles.length} patches worked out`);
+  // Staying put works nothing out again; coming back to a place left behind does.
+  const before = grown.length;
+  scatter.update({ x: 392, z: 395 }, null);
+  scatter.update({ x: 399, z: 399 }, null);
+  assert.equal(grown.length, before);
+  scatter.update({ x: 0, z: 0 }, null);
+  assert.ok(grown.length > before);
 });
