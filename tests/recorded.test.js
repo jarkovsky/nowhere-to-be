@@ -7,6 +7,8 @@ import {
   SURFACE_TYRES,
   TYRE_FILES,
   pickVariant,
+  ENGINE_FILES,
+  engineMix,
   rotorRate,
   tyreBed,
 } from '../src/core/recorded.js';
@@ -63,7 +65,7 @@ test('each animal has at least two variants and its calls never repeat', () => {
   }
 });
 
-test('every kind of ground the tyres can be on maps to a loop, or deliberately to none', () => {
+test('every kind of ground the tyres can be on maps to a loop', () => {
   // The kinds `effectAt` in src/world/surfaces.js can return.
   const source = readFileSync(new URL('../src/world/surfaces.js', import.meta.url), 'utf8');
   const body = source.slice(source.indexOf('function effectAt'), source.indexOf('const UP'));
@@ -71,8 +73,7 @@ test('every kind of ground the tyres can be on maps to a loop, or deliberately t
   // The patches from the layout (`id: 'mud'`, 'leaves', 'puddle') and the sand come back through `surfaceAt`.
   for (const kind of ['mud', 'leaves', 'puddle', 'sand', 'grass']) kinds.add(kind);
   for (const kind of kinds) assert.ok(kind in SURFACE_TYRES, `${kind} has no entry`);
-  for (const kind of ['water', 'puddle', 'mud']) assert.equal(tyreBed(kind), null, `${kind} keeps its own sound`);
-  for (const kind of ['snow', 'leaves', 'sand', 'crop']) assert.equal(tyreBed(kind), kind);
+  for (const kind of ['water', 'puddle', 'mud', 'snow', 'leaves', 'sand', 'crop']) assert.equal(tyreBed(kind), kind);
   assert.equal(tyreBed('grass', 'tarmac'), 'tarmac');
   assert.equal(tyreBed('grass', 'gravel'), 'gravel');
   assert.equal(tyreBed('grass', 'grass'), 'grass');
@@ -80,8 +81,7 @@ test('every kind of ground the tyres can be on maps to a loop, or deliberately t
   // Every loop it can pick has a file.
   for (const kind of kinds) {
     for (const ground of ['grass', 'gravel', 'tarmac']) {
-      const bed = tyreBed(kind, ground);
-      if (bed) assert.ok(TYRE_FILES[bed], `${kind} on ${ground}`);
+      assert.ok(TYRE_FILES[tyreBed(kind, ground)], `${kind} on ${ground}`);
     }
   }
 });
@@ -92,4 +92,34 @@ test('the rotor recordings play faster as the blades beat faster, within bounds'
     assert.ok(rotorRate(plane, high) > rotorRate(plane, low));
     assert.ok(rotorRate(plane, low) >= 0.5 && rotorRate(plane, high) <= 1.3);
   }
+});
+
+test('the engine recordings share the sound by the revs, keeping its loudness steady', () => {
+  const rpms = ENGINE_FILES.map(layer => layer.rpm);
+  assert.deepEqual(
+    rpms,
+    [...rpms].sort((a, b) => a - b),
+    'recorded from the slowest up',
+  );
+  let previousHigh = 0;
+  for (let rpm = 600; rpm <= 4300; rpm += 10) {
+    const mix = engineMix(rpm);
+    const power = mix.reduce((sum, layer) => sum + layer.share ** 2, 0);
+    assert.ok(Math.abs(power - 1) < 1e-9, `loudness at ${rpm}`);
+    assert.ok(mix.filter(layer => layer.share > 0).length <= 2, `more than two at ${rpm}`);
+    mix.forEach((layer, i) => assert.equal(layer.gain, layer.share * ENGINE_FILES[i].level));
+    for (const layer of mix) assert.ok(layer.rate >= 0.5 && layer.rate <= 2, `rate at ${rpm}`);
+    // The faster recordings take over as the revs rise.
+    const high = mix.at(-1).share;
+    assert.ok(high >= previousHigh - 1e-9, `the fastest drops back at ${rpm}`);
+    previousHigh = high;
+  }
+  for (const layer of ENGINE_FILES) {
+    const mix = engineMix(layer.rpm);
+    const i = ENGINE_FILES.indexOf(layer);
+    assert.equal(mix[i].share, 1, `${layer.file} alone at its own revs`);
+    assert.equal(mix[i].rate, 1, `${layer.file} at its own speed`);
+  }
+  // A lower engine plays the same recordings slower.
+  assert.ok(engineMix(890, 0.7)[0].rate < 1);
 });

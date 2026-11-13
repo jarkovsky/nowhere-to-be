@@ -5,19 +5,34 @@ import './sounds.css';
 import { createLibrary } from '../core/nature.js';
 import {
   ANIMAL_FILES,
-  HORN_FILES,
   RAIN_FILE,
   RECORDED_FILES,
   ROTOR_FILES,
   TYRE_FILES,
+  WIND_FILES,
   createRecordings,
+  engineCutoff,
+  engineLoudness,
+  engineMix,
+  engineVolume,
   rainVolume,
   rotorGain,
   rotorRate,
   tyreGain,
   tyreRate,
+  windVolume,
 } from '../core/recorded.js';
-import { OLD_ANIMALS, OLD_HORNS, OLD_LOOPS, OLD_TYRES, kit, oldEngine } from './oldsounds.js';
+import {
+  OLD_ANIMALS,
+  OLD_HORNS,
+  OLD_LOOPS,
+  OLD_SHOTS,
+  OLD_TYRES,
+  OLD_WET,
+  kit,
+  oldBreeze,
+  oldStorm,
+} from './oldsounds.js';
 
 /** A looping recording whose gain and speed follow `value` through the game's own formulas. */
 function recordedLoop(rec, file, follow) {
@@ -40,6 +55,29 @@ function recordedLoop(rec, file, follow) {
  */
 export function rows() {
   const list = [];
+  list.push({
+    group: 'Engine',
+    id: 'engine',
+    label: 'engine at half throttle',
+    type: 'loop',
+    slider: { label: 'revs (idle 850; cruise about 2400)', min: 850, max: 4000, value: 2400, measure: 2400 },
+    old: (k, context) => OLD_LOOPS.engine(k, context),
+    new: rec => {
+      const engine = rec.engine();
+      return {
+        set(rpm) {
+          if (!engine.ready()) return;
+          engineMix(rpm).forEach(({ gain, rate }, i) => {
+            engine.layers[i].gain.value = gain;
+            engine.layers[i].rate.value = rate;
+          });
+          engine.tone.value = engineCutoff(rpm, 0.5);
+          engine.volume.value = engineVolume(engineLoudness(rpm, 0.5));
+        },
+        stop: () => (engine.volume.value = 0),
+      };
+    },
+  });
   for (const kind of Object.keys(ANIMAL_FILES)) {
     list.push({
       group: 'Animal calls',
@@ -66,7 +104,11 @@ export function rows() {
       label: kind,
       type: 'loop',
       slider: { label: 'pace (8 m/s is 1; cruise is 0.75)', min: 0, max: 1, value: 0.75, measure: 0.75 },
-      old: OLD_TYRES[kind] ? (k, context) => OLD_LOOPS.tyres(k, context, kind) : null,
+      old: OLD_TYRES[kind]
+        ? (k, context) => OLD_LOOPS.tyres(k, context, kind)
+        : OLD_WET[kind]
+          ? (k, context) => OLD_LOOPS.wet(k, context, kind)
+          : null,
       new: rec => recordedLoop(rec, TYRE_FILES[kind], v => ({ gain: tyreGain(kind, v), rate: tyreRate(v) })),
     });
   }
@@ -74,6 +116,7 @@ export function rows() {
     ['rail', 'railbus horn'],
     ['ship', 'ferry horn'],
     ['air', "lorry's air horn"],
+    ['beep', "the car's beep"],
   ]) {
     list.push({
       group: 'Horns',
@@ -82,6 +125,52 @@ export function rows() {
       type: 'shot',
       old: (k, now) => OLD_HORNS[kind](k, now, 1),
       new: (rec, now) => rec.horn(kind, 1, null, now),
+    });
+  }
+  list.push({
+    group: 'Horns',
+    id: 'toot',
+    label: "the other travellers' toot",
+    type: 'shot',
+    old: (k, now) => OLD_HORNS.toot(k, now, 1),
+    new: (rec, now) => rec.toot(now),
+  });
+  list.push({
+    group: 'Knocks and splashes',
+    id: 'bump',
+    label: 'a hard knock',
+    type: 'shot',
+    old: (k, now) => OLD_SHOTS.bump(k, now, 1),
+    new: (rec, now) => rec.bump(1, now),
+  });
+  list.push({
+    group: 'Knocks and splashes',
+    id: 'splash',
+    label: 'into water at cruise',
+    type: 'shot',
+    old: (k, now) => OLD_SHOTS.splash(k, now, 0.75),
+    new: (rec, now) => rec.splash(0.75, false, now),
+  });
+  list.push({
+    group: 'Knocks and splashes',
+    id: 'splash-mud',
+    label: 'into mud at cruise',
+    type: 'shot',
+    old: (k, now) => OLD_SHOTS.splash(k, now, 0.75),
+    new: (rec, now) => rec.splash(0.75, true, now),
+  });
+  for (const [name, label, old, slider] of [
+    ['breeze', 'the breeze, at cruise', oldBreeze, 'gust'],
+    ['blizzard', "a full blizzard's wind", oldStorm, 'squall'],
+  ]) {
+    list.push({
+      group: 'Wind',
+      id: name,
+      label,
+      type: 'loop',
+      slider: { label: slider, min: 0, max: 1, value: 0.5, measure: 0.5 },
+      old: k => OLD_LOOPS[name](k),
+      new: rec => recordedLoop(rec, WIND_FILES[name], v => ({ gain: windVolume(name, old(v)) })),
     });
   }
   for (const plane of [false, true]) {
@@ -101,18 +190,6 @@ export function rows() {
         })),
     });
   }
-  list.push({
-    group: 'For comparison',
-    id: 'engine',
-    label: 'engine at cruise',
-    type: 'loop',
-    slider: null,
-    old: (k, context) => {
-      const engine = oldEngine(k, context);
-      return { set() {}, stop: engine.stop };
-    },
-    new: null,
-  });
   return list;
 }
 
