@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { penetration } from '../src/core/collision.js';
-import { CAR, createCarState, stepDriving } from '../src/core/driving.js';
+import { CAR, bodyOf, createCarState, stepDriving } from '../src/core/driving.js';
 import { createFixedStep } from '../src/core/clock.js';
 import { createRandom } from '../src/core/math.js';
 import { flatWorld } from './helpers.js';
@@ -70,12 +70,13 @@ function scatter(random, apart, count = 60) {
 
 /** How far the car's body is into the deepest of `obstacles`. */
 function overlap(car, obstacles) {
+  const offsets = car.body?.offsets ?? [CAR.bodyOffset, -CAR.bodyOffset];
+  const radius = car.body?.radius ?? CAR.bodyRadius;
   let deepest = 0;
-  for (const end of [-1, 1]) {
-    const x = car.x - Math.sin(car.heading) * CAR.bodyOffset * end;
-    const z = car.z - Math.cos(car.heading) * CAR.bodyOffset * end;
-    for (const obstacle of obstacles)
-      deepest = Math.max(deepest, penetration(x, z, CAR.bodyRadius, obstacle)?.depth ?? 0);
+  for (const along of offsets) {
+    const x = car.x - Math.sin(car.heading) * along;
+    const z = car.z - Math.cos(car.heading) * along;
+    for (const obstacle of obstacles) deepest = Math.max(deepest, penetration(x, z, radius, obstacle)?.depth ?? 0);
   }
   return deepest;
 }
@@ -139,7 +140,70 @@ test('caught in a gap narrower than it is, the car is held there without going w
       assert.ok(Number.isFinite(car.x) && Number.isFinite(car.z));
     }
     assert.ok(car.z > -6, `${fps} a second: through, at z ${car.z.toFixed(2)}`);
-    assert.ok(deepest < 0.3, `${fps} a second: ${deepest.toFixed(2)} m into a post`);
+    assert.ok(deepest < 0.03, `${fps} a second: ${deepest.toFixed(2)} m into a post`);
+  }
+});
+
+test('a long lorry driven at a slant between posts too close for it is never left inside one, and backs out again', () => {
+  // A row of posts 3.5 m apart, as under a viaduct: room for a lorry 2.3 m wide straight on, not at a slant.
+  const obstacles = [0, 1, 2, 3, 4].map(i => ({
+    x: -6 + i * 1.8,
+    z: -12 - i * 3,
+    halfX: 0.4,
+    halfZ: 0.35,
+    rotation: -2.1,
+    radius: 0,
+  }));
+  const world = flatWorld({ obstacles });
+  let caught = 0;
+  for (const heading of [0.3, 0.5, 0.7, 0.9]) {
+    for (const steer of [-0.2, 0, 0.2]) {
+      const car = createCarState({ x: 6, z: -8, heading });
+      car.body = bodyOf({ front: 4.2, back: 5.9, half: 1.15 });
+      let deepest = 0;
+      for (let i = 0; i < 600; i++) {
+        stepDriving(car, { forward: true, steer }, 1 / 60, world);
+        deepest = Math.max(deepest, overlap(car, obstacles));
+      }
+      if (Math.abs(car.speed) < 0.5) caught++;
+      for (let i = 0; i < 300; i++) {
+        stepDriving(car, { backward: true }, 1 / 60, world);
+        deepest = Math.max(deepest, overlap(car, obstacles));
+      }
+      assert.ok(deepest < 0.03, `heading ${heading}, steer ${steer}: ${deepest.toFixed(2)} m into a post`);
+      assert.ok(car.speed < -1, `heading ${heading}, steer ${steer}: it backs away, at ${car.speed.toFixed(1)} m/s`);
+    }
+  }
+  assert.ok(caught >= 4, `the posts held it ${caught} times`);
+});
+
+test('something put down on top of the car is pushed out of step by step, not held in', () => {
+  const post = { x: 0.4, z: -1, radius: 1 };
+  const world = flatWorld({ obstacles: [post] });
+  const car = createCarState({ x: 0, z: 0, heading: 0 });
+  assert.ok(overlap(car, [post]) > 0.5);
+  for (let i = 0; i < 30; i++) stepDriving(car, {}, 1 / 60, world);
+  assert.ok(overlap(car, [post]) < 0.01, `still ${overlap(car, [post]).toFixed(2)} m in`);
+});
+
+test('deep water and the fence stop the car sliding into them sideways as they stop it driving in', () => {
+  // Driveable up to x = 5: beyond is the lake.
+  const world = flatWorld({ isDriveable: x => x < 5 });
+  for (const heading of [0, Math.PI, 0.3, -2.8]) {
+    for (const input of [{}, { backward: true }, { forward: true }]) {
+      const car = createCarState({ x: 0, z: 0, heading });
+      // Thrown sideways towards the water, and whatever else it is doing.
+      Object.assign(car, { vx: 6, vz: 0 });
+      let furthest = -Infinity;
+      for (let i = 0; i < 300; i++) {
+        stepDriving(car, input, 1 / 60, world);
+        furthest = Math.max(furthest, car.x);
+      }
+      assert.ok(
+        furthest < 5,
+        `heading ${heading}, ${JSON.stringify(input)}: its middle got to x ${furthest.toFixed(2)}`,
+      );
+    }
   }
 });
 

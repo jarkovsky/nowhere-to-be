@@ -6,18 +6,10 @@ import { createChaseCamera } from './core/camera.js';
 import { createViews } from './core/views.js';
 import { createObstacleIndex } from './core/collision.js';
 import { stepDirt } from './core/dirt.js';
-import {
-  CRUISE_SPEEDS,
-  bodyOf,
-  createCarState,
-  placeCar,
-  rearSteerAngle,
-  steerAngle,
-  stepDriving,
-} from './core/driving.js';
+import { CRUISE_SPEEDS, rearSteerAngle, steerAngle } from './core/driving.js';
 import { createJournal } from './core/journal.js';
-import { createChassis, springLayout, stepChassis, unsettle } from './core/chassis.js';
-import { handlingOf } from './core/handling.js';
+import { carriedHeight, unsettle } from './core/chassis.js';
+import { createRide, fitRide, placeRide, stepRide } from './core/ride.js';
 import { settleWheels } from './core/suspension.js';
 import { createTrailerState, hangTrailer, swingOf } from './core/trailer.js';
 import { createControls } from './input/controls.js';
@@ -38,46 +30,28 @@ import { AIR_AMBULANCE, VALLEY_RESCUE, createHelicopter } from './vehicles/helic
 import { createPlanes } from './vehicles/plane.js';
 import { createAtmosphere } from './world/atmosphere.js';
 import { separateMeshKinds } from './world/build.js';
+import { createDrivingWorld, surfaceUnder } from './world/drivable.js';
 import { buildLandmarks, insideTunnel } from './world/landmarks/index.js';
 import { OUTLINE, createFerry } from './world/ferry.js';
 import { createMudHole } from './world/mudhole.js';
 import { createStranded } from './world/stranded.js';
 import {
   CAMP,
-  CAMP_TRAIL,
   DEPOT,
-  ROAD,
   ROAD_HALF_WIDTH,
   SPAWN,
-  TRACKS,
-  GRAVEL_HALF_WIDTH,
   onAirfield,
   onPaved,
   onDriveway,
   onForecourt,
   LOOKOUTS,
-  onGravel,
-  rockiness,
-  surfaceAt,
 } from './world/layout.js';
 import { SHADOW_LAYER } from './world/scatter.js';
 import { buildScenery } from './world/scenery.js';
 import { createSecrets } from './world/secrets.js';
 import { createSurfaces } from './world/surfaces.js';
 import { updateTrample } from './world/trample.js';
-import {
-  boulderLift,
-  drivingHeight,
-  isDriveable,
-  onDeck,
-  onFin,
-  snowCover,
-  highSnow,
-  terrainHeight,
-  wadingDepth,
-  waterDepth,
-  waterLevel,
-} from './world/terrain.js';
+import { drivingHeight, onDeck, terrainHeight, waterLevel } from './world/terrain.js';
 import { createWake } from './world/wake.js';
 import { createWildlife } from './world/wildlife.js';
 import { createDiagnostics } from './ui/diagnostics.js';
@@ -94,29 +68,6 @@ function readStorage() {
   } catch {
     return null; // Private browsing: progress lasts for the visit.
   }
-}
-
-/** What the tyres are on, for grip and top speed. */
-function surfaceUnder(x, z) {
-  if (onDeck(x, z)) return 'road';
-  if (waterDepth(x, z) > 0.15) return 'water';
-  const patch = surfaceAt(x, z);
-  if (patch === 'leaves' || patch === 'mud') return patch;
-  if (snowCover(x, z) > 0.5) return highSnow(x, z) > 0.5 ? 'snow' : 'drift';
-  if (ROAD.isNear(x, z, ROAD_HALF_WIDTH + 0.6) || CAMP_TRAIL.isNear(x, z, 2.6)) return 'road';
-  if (onPaved(x, z, ROAD_HALF_WIDTH + 0.6) || onAirfield(x, z)) return 'road';
-  if (onDriveway(x, z, 0.4) || onForecourt(x, z)) return 'road';
-  if (onGravel(x, z, GRAVEL_HALF_WIDTH + 0.4)) return 'track';
-  if (rockiness(x, z) > 0.5) return 'rock';
-  if (TRACKS.some(track => track.path.isNear(x, z, 2))) return 'track';
-  return patch === 'sand' ? 'sand' : 'grass';
-}
-
-/** Rise over run along `heading` on the surface `height(x, z)`; positive means uphill. */
-function slopeAlong(height, x, z, heading) {
-  const dx = -Math.sin(heading) * 1.5;
-  const dz = -Math.cos(heading) * 1.5;
-  return (height(x + dx, z + dz) - height(x - dx, z - dz)) / 3;
 }
 
 /** What plain ground sounds like under the tyres: paved road, gravel road or dirt track, or open grass. */
@@ -187,8 +138,9 @@ export function createGame(canvas) {
   const car = createCar();
   scene.add(car.root, car.towed);
 
-  const state = createCarState(SPAWN);
-  if (journal.get().camp) placeCar(state, CAMP);
+  // The car as it drives: where it is and how it is going, and its body on its springs.
+  const ride = createRide(journal.get().camp ? CAMP : SPAWN);
+  const { state, chassis } = ride;
 
   let mode = 'title'; // 'title' | 'driving' | 'paused' | 'camping'
   let pausedFrom = 'driving';
@@ -250,33 +202,17 @@ export function createGame(canvas) {
   const blockers = [];
   // The car as the long grass and the crops see it: where it is, how it is going and its wheels.
   const trampler = { x: 0, z: 0, y: 0, heading: 0, speed: 0, wheels: [] };
-  // The surface under the car: up on the top of the rock fin and the arch once it has driven onto it.
-  const surfaceHeight = (x, z) => drivingHeight(x, z, state.y);
-  // The surface last worked out. The driving asks where the car is at the start of a frame,
-  // which is just where the dirt asked at the end of the frame before.
-  const lastSurface = { x: NaN, z: NaN, y: NaN, kind: 'grass' };
   // How wet the ground is, read once a frame.
   let wetness = 0;
-  const world = {
+  const world = createDrivingWorld(state, {
     obstacles: createObstacleIndex(obstacles),
     dynamic: moving,
-    surface(x, z) {
-      if (x !== lastSurface.x || z !== lastSurface.z || state.y !== lastSurface.y) {
-        lastSurface.kind = onFin(x, z, state.y) ? 'track' : landmarks.cropAt(x, z) ? 'crop' : surfaceUnder(x, z);
-        lastSurface.x = x;
-        lastSurface.z = z;
-        lastSurface.y = state.y;
-      }
-      return lastSurface.kind;
-    },
-    slope: (x, z, heading) => slopeAlong(surfaceHeight, x, z, heading),
-    height: surfaceHeight,
-    boulderLift,
-    isDriveable,
-    waterDepth: wadingDepth,
+    cropAt: landmarks.cropAt,
     // Wet roads and tracks give a little less grip.
     wetness: () => wetness,
-  };
+  });
+  // The surface under the car: up on the top of the rock fin and the arch once it has driven onto it.
+  const surfaceHeight = world.height;
   const views = createViews(LOOKOUTS);
   // The view from a lookout, worked out once a frame in the loop; null when there is none.
   let lookoutWatch = null;
@@ -441,7 +377,7 @@ export function createGame(canvas) {
   }
 
   function goHome() {
-    placeCar(state, journal.get().camp ? CAMP : SPAWN);
+    placeRide(ride, journal.get().camp ? CAMP : SPAWN);
     controls.clear();
     updateCarModel(0);
     chase.snap(carView(), cameraOptions());
@@ -458,7 +394,7 @@ export function createGame(canvas) {
 
   function stayTheNight() {
     if (Math.hypot(state.x - CAMP.x, state.z - CAMP.z) > 20) return;
-    placeCar(state, CAMP);
+    placeRide(ride, CAMP);
     updateCarModel(0);
     journal.save({ camp: true });
     atmosphere.setPreset('night');
@@ -508,10 +444,7 @@ export function createGame(canvas) {
   function applyChoices() {
     const { color, decorations, vehicle } = journal.get();
     car.customize(color, decorations, vehicle);
-    state.body = bodyOf(car.size);
-    state.handling = handlingOf(vehicle, car.spec.wheels);
-    springs = springLayout(car.spec.wheels);
-    unsettle(chassis);
+    fitRide(ride, vehicle, car.spec.wheels, car.size);
     hasTent = decorations.includes('tent');
     sound.setEngine(car.spec.voice?.engine, car.spec.voice?.diesel);
     friends.choose(vehicle, color);
@@ -557,10 +490,6 @@ export function createGame(canvas) {
 
   // --- Car model -------------------------------------------------------------------------
 
-  /** The body on its springs, and where the current vehicle's wheels are for them. */
-  const chassis = createChassis();
-  let springs;
-
   // The driving is worked out in steps of a fixed length (see core/clock.js). The car is drawn,
   // and the camera follows it, between where it was before the last step and where it is now,
   // as far on as the time left over: smooth whether or not the frames line up with the steps.
@@ -568,14 +497,13 @@ export function createGame(canvas) {
   const before = { x: state.x, z: state.z, heading: state.heading, speed: 0, ...chassisPose() };
   const after = { ...before };
   const drawn = { x: 0, z: 0, heading: 0, speed: 0, height: 0, pitch: 0, roll: 0, ground: 0 };
-  /** Where the body is on its springs, and where the ground under it holds it. */
+  /**
+   * Where the body is on its springs, and how high the camera takes the car to be: the ground
+   * under it, or the car itself while it is in the air.
+   */
   function chassisPose() {
-    const { height, pitch, roll, ground } = chassis;
-    return { height, pitch, roll, ground: ground.height };
-  }
-  /** Moves the body on its springs on by a step. */
-  function stepSprings(step) {
-    stepChassis(chassis, state, state.handling, springs, step, surfaceHeight);
+    const { height, pitch, roll } = chassis;
+    return { height, pitch, roll, ground: carriedHeight(chassis, state.handling) };
   }
   /**
    * Where the car is drawn. Moved since the last step (a jump home, to camp or to the depot, or
@@ -594,10 +522,12 @@ export function createGame(canvas) {
 
   /** Draws the car where it is. With no time gone by (`dt` 0), as after a jump, its body starts at rest. */
   function updateCarModel(dt) {
-    state.y = drivingHeight(state.x, state.z, state.y);
     if (!dt) {
+      // Put somewhere new, it stands on the ground there, its body at rest. Driving, the springs
+      // say how high it is.
+      state.y = drivingHeight(state.x, state.z, state.y);
       unsettle(chassis);
-      stepSprings(STEP);
+      stepRide(ride, {}, STEP, world, { held: true });
       Object.assign(before, chassisPose());
       Object.assign(after, chassisPose());
     }
@@ -860,9 +790,7 @@ export function createGame(canvas) {
         Object.assign(before, { x: state.x, z: state.z, heading: state.heading, speed: state.speed });
         Object.assign(before, chassisPose());
         // On the tractor's rope, the car goes where it is pulled, and on the ferry where it is taken.
-        if (!mudHole.holding() && !ferry.holding()) stepDriving(state, input, step, world);
-        else Object.assign(state, { yawRate: 0, throttle: 0, ahead: 0, aside: 0 });
-        stepSprings(step);
+        stepRide(ride, input, step, world, { held: mudHole.holding() || ferry.holding() });
         Object.assign(after, { x: state.x, z: state.z, heading: state.heading, speed: state.speed });
         Object.assign(after, chassisPose());
         impact = Math.max(impact, state.impact);
@@ -1037,7 +965,7 @@ export function createGame(canvas) {
         triangles: renderer.info.render.triangles,
       }),
       teleport(x, z, heading = state.heading) {
-        placeCar(state, { x, z, heading });
+        placeRide(ride, { x, z, heading });
         updateCarModel(0);
         chase.snap(carView(), cameraOptions());
       },

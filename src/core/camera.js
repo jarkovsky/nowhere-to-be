@@ -1,7 +1,9 @@
 // Third-person chase camera on a "spring arm": it trails directly behind the
 // car, and pulls in whenever rock (the tunnel, the cliffs) would come between
-// the camera and the car, so it never ends up inside a mountain. Dragging
-// swings it around the car; it drifts back behind once you let go.
+// the camera and the car, so it never ends up inside a mountain. Where the
+// ground itself would hide the car, as when it has gone down over an edge, the
+// camera rises until it sees over it. Dragging swings it around the car; it
+// drifts back behind once you let go.
 import * as THREE from 'three';
 import { angleDelta, clamp, damp } from './math.js';
 
@@ -15,6 +17,13 @@ const hits = [];
 
 /** How far across the pieces are that the occluders are cut into for the camera's rays, in metres. */
 const PIECE = 10;
+
+/**
+ * Seeing over the ground: the line from the car to the camera is tried at `points` places along
+ * it and has to clear the ground by `near` metres beside the car and `far` at the camera. Where it
+ * doesn't, the camera is raised round the car by the least of `rises` (radians) that does.
+ */
+const OVER = { points: 8, near: 0.3, far: 1.2, rises: [0.12, 0.25, 0.4, 0.55, 0.7, 0.9, 1.1] };
 
 /**
  * An occluder's triangles in the world, cut into pieces about PIECE metres across, each with
@@ -74,6 +83,8 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
   const framing = { yaw: 0, pitch: 0, zoom: 1, toward: 0 };
   // How steeply the ground climbs (or falls) ahead of the car, smoothed.
   let grade = 0;
+  // How much higher round the car the camera is held to see it over the ground, in radians.
+  let rise = 0;
   // The occluders, each with its bounds in the world and, once a ray first comes near it, its pieces.
   const solids = occluders.map(mesh => ({ mesh, sphere: null, pieces: null }));
 
@@ -98,6 +109,18 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
     }
     const hit = hits[0];
     return hit ? clamp((hit.distance - 0.8) / length, 0.18, 1) : 1;
+  }
+
+  /** True if the ground comes between the car, at `from`, and the camera at `to`. */
+  function groundHides(from, to) {
+    for (let i = 1; i <= OVER.points; i++) {
+      const t = i / OVER.points;
+      const x = from.x + (to.x - from.x) * t;
+      const z = from.z + (to.z - from.z) * t;
+      const clear = OVER.near + (OVER.far - OVER.near) * t;
+      if (groundHeight(x, z) + clear > from.y + (to.y - from.y) * t) return true;
+    }
+    return false;
   }
 
   /** Sets `desired` to a point `boom` metres from the car at a yaw and elevation. */
@@ -148,14 +171,14 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
    * it looks up the slope rather than into it, and higher going downhill, so it stays clear of
    * the ground behind and looks down the way ahead.
    */
-  function chaseGoal(car, compact) {
+  function chaseGoal(car, compact, raised = rise) {
     const speedFactor = clamp(Math.abs(car.speed) / 14, 0, 1);
     const scale = car.scale ?? 1;
     const distance = ((compact ? 17 : 14) + speedFactor * 2.5) * scale;
     const height = ((compact ? 7.5 : 6) + speedFactor * 0.8) * scale ** 1.8;
     // Directly behind the car along its (smoothed) heading, unless the player has swung it round.
     const tipped = Math.atan2(height, distance) - Math.atan(grade) * 0.45;
-    const elevation = clamp(tipped + orbit.pitch + framing.pitch, 0.06, 1.25);
+    const elevation = clamp(tipped + orbit.pitch + framing.pitch + raised, 0.06, 1.25);
     const boom = Math.hypot(distance, height) * orbit.zoom * framing.zoom;
     aroundCar(car, heading + orbit.yaw + framing.yaw, elevation, boom, 0);
     // Look at the ground a little ahead of the car normally; at the car itself while looking around.
@@ -230,6 +253,14 @@ export function createChaseCamera(camera, { occluders, groundHeight }) {
           orbit.zoom = damp(orbit.zoom, 1, settle * 0.5, dt);
         }
         frame(car, watch, dt);
+        // Raised until it sees the car over the ground: quickly, and let down again slowly.
+        let needed = 0;
+        chaseGoal(car, compact, 0);
+        for (let i = 0; i < OVER.rises.length && groundHides(origin, desired); i++) {
+          needed = OVER.rises[i];
+          chaseGoal(car, compact, needed);
+        }
+        rise = snap ? needed : damp(rise, needed, needed > rise ? 6 : 1, dt);
         chaseGoal(car, compact);
       } else if (mode === 'showroom') {
         showroomGoal(car, dt, compact);

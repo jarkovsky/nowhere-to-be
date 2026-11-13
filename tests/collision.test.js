@@ -13,6 +13,30 @@ test('the obstacle index only returns nearby obstacles', () => {
   assert.ok([...index.near(40, 9, 2)].includes(wall), 'long capsules are indexed along their length');
 });
 
+test('the obstacle index gives nothing from far away, wherever in a big world it is asked', () => {
+  // Things 40 m apart all over 6 km by 6 km, a far bigger world than the valley.
+  const obstacles = [];
+  for (let x = -3000; x <= 3000; x += 40) for (let z = -3000; z <= 3000; z += 40) obstacles.push({ x, z, radius: 1 });
+  const index = createObstacleIndex(obstacles);
+  let most = 0;
+  for (let i = 0; i < 400; i++) {
+    const x = Math.sin(i * 12.9898) * 2900;
+    const z = Math.cos(i * 78.233) * 2900;
+    const found = [...index.near(x, z, 3)];
+    most = Math.max(most, found.length);
+    for (const obstacle of found) {
+      // A cell is 16 m across, so nothing found is further off than a cell and a bit.
+      assert.ok(
+        Math.abs(obstacle.x - x) < 40 && Math.abs(obstacle.z - z) < 40,
+        `(${obstacle.x}, ${obstacle.z}) for (${x}, ${z})`,
+      );
+    }
+    const nearest = obstacles.find(o => Math.hypot(o.x - x, o.z - z) < 3);
+    if (nearest) assert.ok(found.includes(nearest));
+  }
+  assert.ok(most <= 4, `as many as ${most} at once`);
+});
+
 test('penetration pushes a circle out of circles and capsules', () => {
   const hit = penetration(1, 0, 1, { x: 0, z: 0, radius: 0.5 });
   assert.deepEqual([hit.nx, hit.nz], [1, 0]);

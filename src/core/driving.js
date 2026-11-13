@@ -4,6 +4,12 @@
 // speeds up and slows down; and its tyres grip sideways only as hard as the ground lets them,
 // so it slides on loose ground, runs wide in a bend taken too fast, can swing its tail out, and
 // goes on turning for a moment after the wheels straighten.
+//
+// Its speed is along the ground it is on: up or down a hill it covers less ground than it
+// travels, and climbs or drops the rest. All of this is what its tyres do, so it only happens
+// as far as they are on the ground (the body on its springs says how firmly, see chassis.js).
+// In the air nothing drives, brakes or steers it, and it goes on as it was going until it lands;
+// what it lands on, or runs into, takes away the speed it had into it and leaves the rest.
 import { angleDelta, clamp, damp, lerp, smoothstep } from './math.js';
 import { mayTouch, penetration } from './collision.js';
 import { DEFAULT_HANDLING } from './handling.js';
@@ -66,6 +72,12 @@ export const WADING = { from: 0.25, to: 0.55, slowest: 0.4 };
 export const ROCKS = { from: 0.08, to: 0.25, clear: 0.8 };
 
 const GRAVITY = 9.81;
+/** In the air the car goes on turning as it was, less and less: this much less each second, as a share. */
+const SPIN_FADE = 1;
+/** Meeting the ground at more than this, in m/s, is a bump to be heard, as running into something is. */
+const THUD = 1.5;
+/** After its first wheels touch down, how long the rest take to follow, in seconds. */
+const ALIGHT = 0.25;
 /** The steepest a slope across the car pulls it sideways, rise over run. */
 const SIDEHILL = 0.45;
 /** How quickly the driver closes on the speed they want, each second, as a share of the difference. */
@@ -79,6 +91,8 @@ const GENTLE = 3;
  * on to hold it, in m/s.
  */
 const RUN_ON = 1.5;
+/** How quickly the brakes bring a car rolling away downhill, pedals up, back to that speed, each second, as a share of what it is over by. */
+const HOLD_BACK = 2;
 /** Added to the speed when working out how far the tyres slide sideways, so that standing still isn't dividing by nothing. */
 const CREEP = 0.3;
 /** The engine's revs: ticking over, and the most it runs at. */
@@ -130,6 +144,8 @@ export function bodyOf({ front, back, half }) {
 
 /** How many times at most the car is pushed out of what it touches in a step. */
 const PASSES = 4;
+/** Left further than this into something once the pushes are done, in metres, the car is wedged. */
+const WEDGED = 0.02;
 
 /** How far a push can move the car in one step before every moving collider is tried, in metres. */
 const SHOVE = 2;
@@ -161,15 +177,42 @@ export function createCarState(spawn) {
     steering: 0,
     distance: 0,
     impact: 0,
-    // How high the ground under it is, where that matters (on and under the rock arch).
+    // How high the ground under it is, where that matters (on and under the rock arch), or the car
+    // itself when it is in the air over it.
     y: -Infinity,
     ...still(),
   };
 }
 
-/** A car standing still: not turning, in first gear, the engine ticking over. */
+/**
+ * A car standing still on the ground: not turning, in first gear, the engine ticking over; not
+ * rising or falling (`vy`, m/s), all of its speed over the ground rather than up or down a hill
+ * (`overAhead` and `overAside`, the share of its speed along itself and across that is), its
+ * wheels firmly down (`frontContact` and `backContact`, from 0 in the air to 1), its underside
+ * resting on nothing (`beached`), and no time in the air (`air`, seconds, and `flying`).
+ */
 function still() {
-  return { yawRate: 0, ahead: 0, aside: 0, gear: 0, rpm: IDLE, throttle: 0, changing: 0, held: 0, rocky: 0 };
+  return {
+    yawRate: 0,
+    ahead: 0,
+    aside: 0,
+    gear: 0,
+    rpm: IDLE,
+    throttle: 0,
+    changing: 0,
+    held: 0,
+    rocky: 0,
+    vy: 0,
+    overAhead: 1,
+    overAside: 1,
+    frontContact: 1,
+    backContact: 1,
+    beached: false,
+    air: 0,
+    flying: false,
+    landing: 0,
+    alighting: 0,
+  };
 }
 
 export function placeCar(state, place) {
@@ -293,28 +336,66 @@ export function stepDriving(state, input, dt, world) {
   // No time, no movement: and it would divide by zero below.
   if (!(dt > 0)) return state;
   dt = Math.min(dt, 0.05);
-  // A state made by hand, not by createCarState, starts standing still.
-  if (state.gear === undefined) Object.assign(state, still());
+  // A state made by hand, not by createCarState, starts standing still, on the ground.
+  if (state.gear === undefined || state.flying === undefined) {
+    for (const [key, value] of Object.entries(still())) state[key] ??= value;
+  }
   const car = state.handling ?? DEFAULT_HANDLING;
   const surface = world.surface(state.x, state.z);
   const ground = SURFACE_HANDLING[surface] ?? SURFACE_HANDLING.grass;
   const sin = Math.sin(state.heading);
   const cos = Math.cos(state.heading);
-  // Forward is -Z when heading is 0; right is perpendicular to it.
-  let forward = -state.vx * sin - state.vz * cos;
-  let lateral = state.vx * cos - state.vz * sin;
-  const startedAt = forward;
+  const oldHeading = state.heading;
 
   // --- The ground under it ----------------------------------------------------------
-  const { along, across, lift } = groundUnder(state, car, world);
+  // How firmly its wheels are on it: either pair, and both. With its underside resting on
+  // something, it can still drag itself along.
+  const frontDown = state.frontContact;
+  const backDown = state.backContact;
+  const down = Math.max(frontDown, backDown, state.beached ? 1 : 0);
+  const flying = down === 0;
+  // The ground only slopes for a car with both ends on it: one with its front wheels out over
+  // an edge is still standing on what its back ones are on. Coming down out of the air it meets
+  // the ground as it slopes, whichever wheels touch first, and the rest follow in a moment.
+  if (flying) state.alighting = 0;
+  else if (state.flying) state.alighting = ALIGHT;
+  else state.alighting = Math.max(0, state.alighting - dt);
+  const footing = Math.max(Math.min(frontDown, backDown), state.alighting / ALIGHT);
+  const sloping = groundUnder(state, car, world);
+  const along = sloping.along * footing;
+  const across = sloping.across * footing;
+  const { lift } = sloping;
   const uphill = along / Math.hypot(1, along);
+  // How much of its speed along itself and across is over the ground, the rest being up or down.
+  const overAhead = 1 / Math.hypot(1, along);
+  const overAside = 1 / Math.hypot(1, across);
+
+  // --- How fast it is going -----------------------------------------------------------
+  // Forward is -Z when heading is 0; right is perpendicular to it. Over the ground first:
+  const flatAhead = -state.vx * sin - state.vz * cos;
+  const flatAside = state.vx * cos - state.vz * sin;
+  let forward = flatAhead;
+  let lateral = flatAside;
+  if (!flying && state.flying) {
+    // Landing, it loses the speed it had into the ground and keeps the rest, along it.
+    const steep = Math.hypot(1, along, across);
+    const into = -(state.vy - along * flatAhead - across * flatAside) / steep;
+    forward = (flatAhead - (into * along) / steep) / overAhead;
+    lateral = (flatAside - (into * across) / steep) / overAside;
+    state.landing = Math.max(0, into);
+  } else if (!flying) {
+    // On the ground its speed is along the ground, and it follows the ground at the speed it had.
+    forward = flatAhead / state.overAhead;
+    lateral = flatAside / state.overAside;
+  }
+  const startedAt = forward;
   // Positive where the ground falls away to the right, so the car's weight pulls it that way: on
   // a bank no steeper than SIDEHILL, it drifts down it and has to be steered back up, but it never
   // slides off the edge of a track cut into a hillside.
   const banked = clamp(across, -SIDEHILL, SIDEHILL);
   const downRight = -banked / Math.hypot(1, banked);
   // How much of its weight presses the tyres into the ground.
-  const pressing = 1 / (Math.hypot(1, along) * Math.hypot(1, across));
+  const pressing = overAhead * overAside;
   // Wet tarmac and gravel lose a little grip, at most WET_GRIP_LOSS of it.
   const wet = surface in WET_SLIPPERY ? (world.wetness?.() ?? 0) : 0;
   const grip = ground.grip * car.grip * (1 - WET_GRIP_LOSS * wet);
@@ -351,9 +432,9 @@ export function stepDriving(state, input, dt, world) {
   // Along the car: the hill and, below, the engine, which holds it back with the throttle shut;
   // and against its motion, the ground, the air, deep water and rocks, and the brakes.
   const hill = -GRAVITY * uphill;
-  const rolling = GRAVITY * pressing * ground.rolling;
+  const rolling = GRAVITY * pressing * ground.rolling * down;
   const air = car.drag * forward * forward;
-  const holdBack = (limit, rate) => rate * Math.max(0, Math.abs(forward) - limit);
+  const holdBack = (limit, rate) => rate * Math.max(0, Math.abs(forward) - limit) * down;
   const water = holdBack(forward >= 0 ? top : reverse, 6 * wading);
   const rocks = holdBack(crawl, 3 * crawling);
   const resisting = rolling * clamp(Math.abs(forward) / 0.5, 0, 1) + air + water + rocks;
@@ -361,8 +442,8 @@ export function stepDriving(state, input, dt, world) {
   // and forward as it slows or goes downhill.
   const shifted = ((state.ahead + GRAVITY * uphill) * car.height) / car.wheelbase;
   const balance = car.balance ?? car.rear / car.wheelbase;
-  const onFront = Math.max(0.15 * GRAVITY, GRAVITY * pressing * balance - shifted);
-  const onBack = Math.max(0.15 * GRAVITY, GRAVITY * pressing * (1 - balance) + shifted);
+  const onFront = Math.max(0.15 * GRAVITY, GRAVITY * pressing * balance - shifted) * frontDown;
+  const onBack = Math.max(0.15 * GRAVITY, GRAVITY * pressing * (1 - balance) + shifted) * backDown;
   // As hard as the engine can drive it: in a low gear by its pull, faster by its power, and no
   // harder than the driven wheels grip. Driving all four, it can use the grip of all four.
   const driven = car.drive >= 1 ? onFront : car.drive <= 0 ? onBack : onFront + onBack;
@@ -370,13 +451,13 @@ export function stepDriving(state, input, dt, world) {
   // At a crawl, though, every vehicle can creep up any hill in the valley, however heavy or
   // low-slung it is: a small child must never be left stuck at the foot of one.
   const creep = Math.min(CRAWLER.most, Math.max(0, rolling - hill * Math.sign(target ?? 1)) + CRAWLER.spare);
-  const crawler = creep * (1 - smoothstep(Math.abs(forward), CRAWLER.speed, CRAWLER.speed + 1));
+  const crawler = creep * (1 - smoothstep(Math.abs(forward), CRAWLER.speed, CRAWLER.speed + 1)) * down;
   const pull =
     Math.max(Math.min(car.pull, car.power / Math.max(Math.abs(forward), 0.5), traction), crawler) *
     (state.changing > 0 ? CHANGING : 1);
-  const brakes = Math.min(car.brakes, grip * GRAVITY * pressing);
+  const brakes = Math.min(car.brakes, grip * GRAVITY * pressing) * down;
   const engineBrake =
-    car.engineBrake * (state.rpm / REDLINE) * smoothstep(Math.abs(forward), 0.3, 2) * (forward < 0 ? 0.5 : 1);
+    car.engineBrake * (state.rpm / REDLINE) * smoothstep(Math.abs(forward), 0.3, 2) * (forward < 0 ? 0.5 : 1) * down;
 
   // The engine pushes the way it is driven, from holding the car back with the throttle shut to
   // its full pull with it open.
@@ -390,13 +471,22 @@ export function stepDriving(state, input, dt, world) {
     const need = want - hill + moving * resisting;
     const way = Math.sign(target) || 1;
     const shut = moving === way ? engineBrake : 0;
-    throttle = clamp((need * way + shut) / (pull + shut), 0, 1);
-    engine = way * (throttle * (pull + shut) - shut);
+    // With its wheels in the air there is nothing to push with: the engine only revs.
+    const most = pull + shut;
+    throttle = most > 0 ? clamp((need * way + shut) / most, 0, 1) : need * way > 0 ? 1 : 0;
+    engine = way * (throttle * most - shut);
     // With the throttle shut, on the brakes too if the engine alone doesn't hold it back enough:
     // always on cruise, and with the pedal held only once well over its top speed.
     const short = -(need * way + shut);
     const over = Math.abs(forward) > Math.abs(target) + RUN_ON;
-    if (throttle === 0 && short > 0 && moving === way && (cruising || over)) brake = Math.min(1, short / brakes);
+    if (throttle === 0 && short > 0 && moving === way && (cruising || over) && brakes > 0)
+      brake = Math.min(1, short / brakes);
+  } else if (!braking && brakes > 0) {
+    // Pedals up and rolling away down a hill, the brakes hold it to the fastest it is driven, as
+    // they do with a pedal held: it never runs away faster than it could be driven there.
+    const limit = (forward >= 0 ? top : reverse) + RUN_ON;
+    const gaining = moving * hill - resisting - engineBrake + HOLD_BACK * (Math.abs(forward) - limit);
+    if (Math.abs(forward) > limit && gaining > 0) brake = Math.min(1, gaining / brakes);
   }
   const driving = Math.max(0, engine * (Math.sign(target ?? 0) || 1));
   const stopping = resisting + brake * brakes;
@@ -413,9 +503,11 @@ export function stepDriving(state, input, dt, world) {
   const turning = a * b * car.gyration;
   // Each axle's tyres grip sideways with what is left once driving and braking have used their
   // share. The brakes are shared between the axles as the weight is, so neither locks first.
-  const braked = (brake * brakes) / (onFront + onBack);
+  const braked = flying ? 0 : (brake * brakes) / Math.max(onFront + onBack, 1e-6);
   // Driving takes no more than most of it: crawling up a steep hill, they still hold the car up a bank.
-  const sideways = (load, used) => grip * load * Math.sqrt(1 - Math.min(used / (grip * load), 0.75) ** 2);
+  // Tyres off the ground grip nothing.
+  const sideways = (load, used) =>
+    load > 0 ? grip * load * Math.sqrt(1 - Math.min(used / (grip * load), 0.75) ** 2) : 0;
   // The front tyres give out a little before the back ones, so pushed too hard the car runs wide.
   const frontGrip = car.understeer * sideways(onFront, Math.abs(driving) * car.drive + braked * onFront);
   const backGrip = sideways(onBack, Math.abs(driving) * (1 - car.drive) + braked * onBack);
@@ -449,7 +541,7 @@ export function stepDriving(state, input, dt, world) {
   // Stability control: the car is turned no faster or slower than the wheels ask for, as far as
   // its grip lets it, give or take a little, and kept from sliding sideways more than a little,
   // so it can swing its tail out but never spins.
-  const settle = 1 - Math.exp(-20 * car.stability * dt);
+  const settle = (1 - Math.exp(-20 * car.stability * dt)) * down;
   const fastest = (grip * GRAVITY * pressing) / Math.max(Math.abs(forward), 2);
   const asked = clamp((forward * (Math.tan(wheels) - Math.tan(rearWheels))) / car.wheelbase, -fastest, fastest);
   const astray = Math.abs(yaw - asked) - (0.05 + car.slide * 0.4 + 0.1 * Math.abs(asked));
@@ -457,7 +549,8 @@ export function stepDriving(state, input, dt, world) {
   const sliding = Math.abs(side) - (car.slide * Math.abs(forward) + 0.5);
   if (sliding > 0) side -= Math.sign(side) * sliding * settle;
   lateral = side;
-  state.yawRate = yaw;
+  // In the air it goes on turning as it was, less and less.
+  state.yawRate = flying ? yaw * Math.exp(-SPIN_FADE * dt) : yaw;
 
   // --- Speeding up and slowing down ---------------------------------------------------
   let next = forward + (engine + hill + frontPush * Math.sin(wheels) - lateral * yaw) * dt;
@@ -467,7 +560,7 @@ export function stepDriving(state, input, dt, world) {
   const pulling = Math.sign(target ?? 0);
   if (pulling && throttle > 0 && Math.sign(next) === -pulling && Math.abs(forward) < 0.3) next = 0;
   // Parked, with the pedals up, it stays where it is, on a hill too.
-  if ((!pedals || braking) && Math.abs(next) < 0.15 && Math.abs(forward) < 0.3) {
+  if (!flying && (!pedals || braking) && Math.abs(next) < 0.15 && Math.abs(forward) < 0.3) {
     next = 0;
     if (!pedals || Math.abs(lateral) < 0.3) {
       lateral = 0;
@@ -483,15 +576,23 @@ export function stepDriving(state, input, dt, world) {
   state.aside = damp(state.aside, forward * state.yawRate, 20, dt);
   const nsin = Math.sin(state.heading);
   const ncos = Math.cos(state.heading);
-  state.vx = -nsin * forward + ncos * lateral;
-  state.vz = -ncos * forward - nsin * lateral;
+  // Over the ground it covers less than it travels, the rest being up or down the slope. In the
+  // air, how fast it rises and falls is the body's business (see chassis.js).
+  state.vx = -nsin * forward * overAhead + ncos * lateral * overAside;
+  state.vz = -ncos * forward * overAhead - nsin * lateral * overAside;
+  if (!flying) state.vy = forward * uphill + (lateral * across) / Math.hypot(1, across);
+  state.overAhead = overAhead;
+  state.overAside = overAside;
+  state.flying = flying;
 
   // --- Movement and collisions -----------------------------------------------------
   const oldX = state.x;
   const oldZ = state.z;
   let x = state.x + state.vx * dt;
   let z = state.z + state.vz * dt;
-  state.impact = 0;
+  // Coming down hard is felt as running into something is.
+  state.impact = state.landing > THUD ? state.landing : 0;
+  state.landing = 0;
 
   // Of the moving colliders, only those within reach of the car's circles can be bumped into,
   // unless pushes move the car further than SHOVE, when they are all tried.
@@ -561,12 +662,44 @@ export function stepDriving(state, input, dt, world) {
       for (const obstacle of moving) resolve(obstacle);
     }
   }
+  // Still being pushed after the last pass, it may be caught where no push gets it clear: between
+  // two things too close together for it, say. Then it goes back to where it stood a step ago,
+  // which was clear, and stops there: it can't be driven into them. Where it stood was no better,
+  // as when something has been put down on top of it, it keeps what the pushes gained.
+  if (pushed) {
+    /** How far into anything solid that stands still the car is, standing at (px, pz) facing `heading`. */
+    const sunk = (px, pz, heading) => {
+      let deepest = 0;
+      for (const along of offsets) {
+        const ox = px - Math.sin(heading) * along;
+        const oz = pz - Math.cos(heading) * along;
+        for (const obstacle of world.obstacles.near(ox, oz, radius + 2, state.y)) {
+          if (obstacle.climb !== undefined && obstacle.climb <= car.climb) continue;
+          deepest = Math.max(deepest, penetration(ox, oz, radius, obstacle)?.depth ?? 0);
+        }
+      }
+      return deepest;
+    };
+    const now = sunk(x, z, state.heading);
+    if (now > WEDGED && sunk(oldX, oldZ, oldHeading) < now) {
+      x = oldX;
+      z = oldZ;
+      state.heading = oldHeading;
+      state.vx = 0;
+      state.vz = 0;
+      state.yawRate = 0;
+    }
+  }
+  // Which way it faces now, bumped or not.
+  const fsin = Math.sin(state.heading);
+  const fcos = Math.cos(state.heading);
 
-  // Deep water and the valley fence stop the car's leading end; it slides
-  // along them instead of sticking.
+  // Deep water and the valley fence stop the car's leading end, and its middle too, however it
+  // comes at them: sliding sideways down a bank as much as driving straight in. It slides along
+  // them instead of sticking.
   const lead = (forward >= 0 ? offsets[0] : -offsets[offsets.length - 1]) + radius - 0.4;
   const reach = Math.sign(forward || 1) * lead;
-  const clear = (px, pz) => world.isDriveable(px - nsin * reach, pz - ncos * reach);
+  const clear = (px, pz) => world.isDriveable(px, pz) && world.isDriveable(px - fsin * reach, pz - fcos * reach);
   if (!clear(x, z)) {
     if (clear(x, oldZ)) {
       z = oldZ;
@@ -585,8 +718,9 @@ export function stepDriving(state, input, dt, world) {
 
   state.x = x;
   state.z = z;
-  // Plus nothing, so a car at a standstill has a speed of 0, not -0.
-  state.speed = -state.vx * nsin - state.vz * ncos + 0;
+  // Its speed along the ground, as its wheels turn. Plus nothing, so a car at a standstill has a
+  // speed of 0, not -0.
+  state.speed = (-state.vx * fsin - state.vz * fcos) / overAhead + 0;
   state.distance += Math.hypot(x - oldX, z - oldZ);
   return state;
 }

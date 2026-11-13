@@ -73,7 +73,8 @@ export function atLevel(obstacle, y) {
 
 export function createObstacleIndex(obstacles) {
   const cells = new Map();
-  const key = (cx, cz) => (cx * 73856093) ^ (cz * 19349663);
+  // One number for each cell, no two cells sharing one, out to half a million metres either way.
+  const key = (cx, cz) => (cx + 32768) * 65536 + (cz + 32768);
   for (const obstacle of obstacles) {
     const box = bounds(obstacle);
     for (let cx = Math.floor(box.minX / CELL); cx <= Math.floor(box.maxX / CELL); cx++) {
