@@ -49,6 +49,7 @@ import {
 import { SHADOW_LAYER } from './world/scatter.js';
 import { buildScenery } from './world/scenery.js';
 import { createSecrets } from './world/secrets.js';
+import { FAR } from './world/sight.js';
 import { createSurfaces } from './world/surfaces.js';
 import { updateTrample } from './world/trample.js';
 import { drivingHeight, onDeck, terrainHeight, waterLevel } from './world/terrain.js';
@@ -111,7 +112,7 @@ export function createGame(canvas) {
   scene.matrixAutoUpdate = false;
   scene.background = new THREE.Color('#dce5da');
   scene.fog = new THREE.FogExp2('#dce5da', 0.0016);
-  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.5, 1900);
+  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.5, FAR);
   const { ambient, sun } = createLights(scene);
 
   const journal = createJournal(readStorage());
@@ -732,6 +733,7 @@ export function createGame(canvas) {
         car.animate(now / 1000);
         updateTent(dt, 1 - atmosphere.getState().day);
         chase.update(dt, carView(), cameraOptions());
+        landmarks.show(camera);
         renderer.render(scene, camera);
       } else if (needsRender) {
         renderer.render(scene, camera);
@@ -871,8 +873,10 @@ export function createGame(canvas) {
     if (mode === 'title') updateIntroShot(clock);
     chase.update(dt, carView(), cameraOptions());
     minimap.update(now);
-    // After the camera has moved, so the scenery around it is filled in for where it is now.
+    // After the camera has moved, so the scenery around it is filled in for where it is now, and
+    // the landmarks out of its view are left out of the frame.
     scenery.update(dt, camera, sun);
+    landmarks.show(camera);
 
     sound.update({
       speed: driving ? state.speed : 0,
@@ -993,7 +997,7 @@ export function createGame(canvas) {
         this.teleport(DEPOT.x + lx * cos + lz * sin, DEPOT.z - lx * sin + lz * cos, DEPOT.rotation);
       },
       /** For measuring what is drawn. */
-      debug: { scene, camera, renderer, sun },
+      debug: { scene, camera, renderer, sun, landmarks },
     };
   }
 }

@@ -4,11 +4,16 @@
 // - Within `near` metres of the camera each kind is drawn in full, from one mesh per
 //   shape that is refilled whenever the camera has moved a few metres.
 // - Beyond that, a `far` shape is drawn instead (or nothing, for small things), from
-//   square cells, so cells out of view are skipped and cells past `range` are hidden.
+//   square cells, so cells out of view are skipped and cells past `range`, or too far off
+//   to be seen at all, are hidden.
 // - Shadows come from separate meshes holding only what stands in the sun's shadow
 //   box, and the meshes that are seen cast none.
+// - A kind there is a great deal of, and which is only drawn near the camera, can be added
+//   as patches instead: the items of each are only worked out when the camera comes near it
+//   and are let go of when it has gone, so it costs nothing to have more of them far away.
 import * as THREE from 'three';
 import { vertexColorMaterial } from './build.js';
+import { SIGHT } from './sight.js';
 
 /** The shadow-only meshes are on their own layer, which the sun's shadow camera sees and the main camera doesn't. */
 export const SHADOW_LAYER = 1;
@@ -19,6 +24,8 @@ const STEP = 8;
 const JUMP = 4 * STEP;
 /** Side of the cells used to find items near a point. */
 const LOOKUP = 32;
+/** A patch is kept this far past where it is drawn, so one at the edge isn't worked out over and over. */
+const KEEP = 4 * STEP;
 
 /** An instanced mesh with room for `capacity` instances, starting empty. */
 function emptyMesh(geometry, material, capacity, colors) {
@@ -31,6 +38,7 @@ function emptyMesh(geometry, material, capacity, colors) {
 
 const box = new THREE.Box3();
 const corner = new THREE.Vector3();
+const unpacked = new THREE.Matrix4();
 
 /** Copies the listed items into `mesh`, uploads just that part of its buffers and fits its bounds to them. */
 function fill(mesh, kind, indices, count) {
@@ -43,6 +51,14 @@ function fill(mesh, kind, indices, count) {
     if (colors) for (let k = 0; k < 3; k++) colors[n * 3 + k] = kind.colors[i * 3 + k];
     box.expandByPoint(corner.fromArray(kind.matrices, i * 16 + 12));
   }
+  show(mesh, count, kind.reach);
+}
+
+/**
+ * Shows the first `count` items in `mesh`'s buffers: uploads just that part of them and fits its
+ * bounds to `box`, which holds where they stand. Every item lies within `reach` of where it stands.
+ */
+function show(mesh, count, reach) {
   mesh.count = count;
   mesh.visible = count > 0;
   for (const attribute of [mesh.instanceMatrix, mesh.instanceColor]) {
@@ -51,9 +67,43 @@ function fill(mesh, kind, indices, count) {
     attribute.addUpdateRange(0, count * attribute.itemSize);
     attribute.needsUpdate = true;
   }
-  // Every item lies within `reach` of where it stands.
   mesh.boundingSphere ??= new THREE.Sphere();
-  if (count > 0) box.getBoundingSphere(mesh.boundingSphere).radius += kind.reach;
+  if (count > 0) box.getBoundingSphere(mesh.boundingSphere).radius += reach;
+}
+
+/**
+ * Patches by where they are, for finding those near a point: `where(index)` gives the middle
+ * and radius of each of `count` patches.
+ */
+function patchLookup(count, where) {
+  const spots = Array.from({ length: count }, (_, index) => where(index));
+  const widest = spots.reduce((most, spot) => Math.max(most, spot.radius), 0);
+  const cells = new Map();
+  const key = (cx, cz) => cx * 65536 + cz;
+  spots.forEach(({ x, z }, index) => {
+    const k = key(Math.floor(x / LOOKUP), Math.floor(z / LOOKUP));
+    if (!cells.has(k)) cells.set(k, []);
+    cells.get(k).push(index);
+  });
+  /** True if any of patch `index` lies within `radius` of (x, z). */
+  const within = (index, x, z, radius) => {
+    const spot = spots[index];
+    return (spot.x - x) ** 2 + (spot.z - z) ** 2 < (radius + spot.radius) ** 2;
+  };
+  return {
+    within,
+    /** The patches any of which lies within `radius` of (x, z). */
+    near(x, z, radius) {
+      const found = [];
+      const reach = radius + widest;
+      for (let cz = Math.floor((z - reach) / LOOKUP); cz <= Math.floor((z + reach) / LOOKUP); cz++) {
+        for (let cx = Math.floor((x - reach) / LOOKUP); cx <= Math.floor((x + reach) / LOOKUP); cx++) {
+          for (const index of cells.get(key(cx, cz)) ?? []) if (within(index, x, z, radius)) found.push(index);
+        }
+      }
+      return found;
+    },
+  };
 }
 
 /**
@@ -74,6 +124,44 @@ function nearCapacity(kind, shape) {
     }
   }
   const reach = Math.ceil(kind.near / LOOKUP) + 1;
+  let most = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < columns; c++) {
+      const [c0, c1] = [Math.max(0, c - reach), Math.min(columns, c + reach + 1)];
+      const [r0, r1] = [Math.max(0, r - reach), Math.min(rows, r + reach + 1)];
+      most = Math.max(most, total[at(c1, r1)] - total[at(c0, r1)] - total[at(c1, r0)] + total[at(c0, r0)]);
+    }
+  }
+  return most;
+}
+
+/**
+ * No more than this many of the spots `xz` (pairs of x and z) lie within `radius` of any one
+ * point: the most in any block of lookup cells as wide as the circle, plus a cell on each side.
+ */
+export function mostWithin(xz, radius) {
+  const count = xz.length / 2;
+  if (!count) return 0;
+  let [minX, minZ, maxX, maxZ] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < count; i++) {
+    minX = Math.min(minX, xz[i * 2]);
+    maxX = Math.max(maxX, xz[i * 2]);
+    minZ = Math.min(minZ, xz[i * 2 + 1]);
+    maxZ = Math.max(maxZ, xz[i * 2 + 1]);
+  }
+  const columns = Math.floor((maxX - minX) / LOOKUP) + 1;
+  const rows = Math.floor((maxZ - minZ) / LOOKUP) + 1;
+  const here = new Int32Array(columns * rows);
+  for (let i = 0; i < count; i++)
+    here[Math.floor((xz[i * 2 + 1] - minZ) / LOOKUP) * columns + Math.floor((xz[i * 2] - minX) / LOOKUP)]++;
+  // Running totals over the grid, so any block of cells can be summed at once.
+  const total = new Int32Array((columns + 1) * (rows + 1));
+  const at = (c, r) => r * (columns + 1) + c;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < columns; c++)
+      total[at(c + 1, r + 1)] = here[r * columns + c] + total[at(c, r + 1)] + total[at(c + 1, r)] - total[at(c, r)];
+  }
+  const reach = Math.ceil(radius / LOOKUP) + 1;
   let most = 0;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < columns; c++) {
@@ -147,11 +235,41 @@ export function createScatter(parent) {
       cell.filled = true;
     }
     for (const cell of kind.cells)
-      cell.mesh.visible = cell.mesh.count > 0 && cellDistance(cell, eye.x, eye.z) < kind.range;
+      cell.mesh.visible = cell.mesh.count > 0 && cellDistance(cell, eye.x, eye.z) < Math.min(kind.range, SIGHT);
+  }
+
+  /**
+   * Refills a kind that comes in patches with the items within `near` of the camera, working out
+   * the patches that have come into reach and letting go of those left well behind.
+   */
+  function refillPatches(kind) {
+    const { mesh, near, patches, grown } = kind;
+    const near2 = near * near;
+    const matrices = mesh.instanceMatrix.array;
+    const colors = mesh.instanceColor.array;
+    const room = mesh.instanceMatrix.count;
+    let count = 0;
+    box.makeEmpty();
+    for (const patch of patches.near(eye.x, eye.z, near)) {
+      if (!grown.has(patch)) grown.set(patch, kind.grow(patch));
+      const items = grown.get(patch);
+      for (let i = 0; i < items.matrices.length / 16 && count < room; i++) {
+        const dx = items.matrices[i * 16 + 12] - eye.x;
+        const dz = items.matrices[i * 16 + 14] - eye.z;
+        if (dx * dx + dz * dz > near2) continue;
+        for (let k = 0; k < 16; k++) matrices[count * 16 + k] = items.matrices[i * 16 + k];
+        for (let k = 0; k < 3; k++) colors[count * 3 + k] = items.colors[i * 3 + k];
+        box.expandByPoint(corner.fromArray(items.matrices, i * 16 + 12));
+        count++;
+      }
+    }
+    for (const patch of grown.keys()) if (!patches.within(patch, eye.x, eye.z, near + KEEP)) grown.delete(patch);
+    show(mesh, count, kind.reach);
   }
 
   /** Refills a kind around the camera. Its near and far meshes are always filled for the same spot, so they never overlap. */
   function refillAround(kind) {
+    if (kind.patches) refillPatches(kind);
     if (kind.nearMeshes.length) refillNear(kind);
     if (kind.cells.length) refillFar(kind, kind.filledAt);
     kind.filledAt = { ...eye };
@@ -188,22 +306,36 @@ export function createScatter(parent) {
   return {
     /**
      * Adds a kind of scenery. `items` are { matrix, color?, shape? }; `geometry` is one
-     * shape, or a list of them that `shape` picks from. `far` is the shape drawn beyond
-     * `near` metres from the camera (none: nothing is), and nothing is drawn beyond `range`.
-     * `material` is for the near and far meshes.
+     * shape, or a list of them that `shape` picks from. Items of one shape can come packed
+     * instead, as `matrices`, 16 numbers to an item, and `colors`, 3 to an item (if any).
+     * `far` is the shape drawn beyond `near` metres from the camera (none: nothing is), and
+     * nothing is drawn beyond `range`. `material` is for the near and far meshes.
      */
-    add({ geometry, items, near = 0, far = null, range = Infinity, cell = 175, shadows = true, material }) {
+    add({
+      geometry,
+      items,
+      matrices = null,
+      colors: packedColors = null,
+      near = 0,
+      far = null,
+      range = SIGHT,
+      cell = 175,
+      shadows = true,
+      material,
+    }) {
       material ??= vertexColorMaterial;
-      if (!items.length) return;
+      const count = items ? items.length : matrices.length / 16;
+      if (!count) return;
       const shapes = [geometry].flat();
-      const count = items.length;
-      const perShape = shapes.map((_, shape) => items.filter(item => (item.shape ?? 0) === shape).length);
+      const perShape = items
+        ? shapes.map((_, shape) => items.filter(item => (item.shape ?? 0) === shape).length)
+        : [count];
       const kind = {
         near,
         range,
-        matrices: new Float32Array(count * 16),
-        colors: items[0].color ? new Float32Array(count * 3) : null,
-        shapes: shapes.length > 1 ? Uint8Array.from(items, item => item.shape) : null,
+        matrices: matrices ?? new Float32Array(count * 16),
+        colors: items ? (items[0].color ? new Float32Array(count * 3) : null) : packedColors,
+        shapes: items && shapes.length > 1 ? Uint8Array.from(items, item => item.shape) : null,
         xz: new Float32Array(count * 2),
         // Room to list the items of each shape, and of all shapes together, while refilling.
         scratch: perShape.map(n => new Int32Array(n)),
@@ -215,13 +347,19 @@ export function createScatter(parent) {
         filledAt: { x: Infinity, z: Infinity },
       };
       let maxScale = 0;
-      items.forEach((item, i) => {
+      items?.forEach((item, i) => {
         item.matrix.toArray(kind.matrices, i * 16);
         item.color?.toArray(kind.colors, i * 3);
         kind.xz[i * 2] = item.matrix.elements[12];
         kind.xz[i * 2 + 1] = item.matrix.elements[14];
         maxScale = Math.max(maxScale, item.matrix.getMaxScaleOnAxis());
       });
+      for (let i = 0; !items && i < count; i++) {
+        unpacked.fromArray(matrices, i * 16);
+        kind.xz[i * 2] = matrices[i * 16 + 12];
+        kind.xz[i * 2 + 1] = matrices[i * 16 + 14];
+        maxScale = Math.max(maxScale, unpacked.getMaxScaleOnAxis());
+      }
       for (const shape of shapes) {
         if (!shape.boundingSphere) shape.computeBoundingSphere();
         const { center, radius } = shape.boundingSphere;
@@ -284,6 +422,35 @@ export function createScatter(parent) {
         });
       }
       kinds.push(kind);
+    },
+
+    /**
+     * Adds a kind that comes in patches, drawn within `near` of the camera and casting no shadows.
+     * There are `count` patches; `where(index)` gives the middle and radius of one, and `grow(index)`
+     * its items, packed as `matrices` and `colors`, which is only called when the camera comes near
+     * it. No more than `most` items lie within `near` of any one point, and none is scaled up by
+     * more than `scale`.
+     */
+    addPatches({ geometry, material, near, count, most, scale, where, grow }) {
+      if (!count) return;
+      if (!geometry.boundingSphere) geometry.computeBoundingSphere();
+      const { center, radius } = geometry.boundingSphere;
+      const mesh = emptyMesh(geometry, material, most, true);
+      mesh.receiveShadow = true;
+      parent.add(mesh);
+      kinds.push({
+        near,
+        range: Infinity,
+        patches: patchLookup(count, where),
+        grow,
+        grown: new Map(),
+        mesh,
+        reach: (center.length() + radius) * scale,
+        nearMeshes: [],
+        cells: [],
+        shadowMeshes: [],
+        filledAt: { x: Infinity, z: Infinity },
+      });
     },
 
     /** `camera` is where the view is from; `sun` is the light whose shadow box is filled. */

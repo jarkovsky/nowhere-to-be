@@ -1,5 +1,6 @@
 import { appendFile, mkdir } from 'node:fs/promises';
 import { defineConfig } from 'vite';
+import { compiledWorld } from './scripts/world.mjs';
 
 /**
  * While developing, notes written in the object viewer are added to artifacts/viewer-notes.md,
@@ -38,7 +39,7 @@ function viewerNotes() {
 }
 
 export default defineConfig({
-  plugins: [viewerNotes()],
+  plugins: [viewerNotes(), compiledWorld()],
   // Relative asset paths, so the build works from any folder (e.g. GitHub Pages).
   base: './',
   server: { host: true },

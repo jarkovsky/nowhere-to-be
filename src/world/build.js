@@ -57,10 +57,6 @@ export function separateMeshKinds(root) {
 }
 
 /**
- * Marks everything under `root` as fixed in place, so the renderer doesn't work out again
- * where it is every frame. Only for things that never move: moving one afterwards has no effect.
- */
-/**
  * Merges the meshes among `group`'s children that are drawn with `material` into one mesh for
  * each square `size` metres across, each triangle going to the square its middle lies in. A view
  * over much of the world then draws a few meshes rather than every one, and squares out of view
@@ -127,11 +123,20 @@ export function mergeByArea(group, material, size) {
 
 const IDENTITY = new THREE.Matrix4();
 
+/**
+ * Marks everything under `root` as fixed in place, so the renderer doesn't work out again
+ * where it is every frame. Only for things that never move: moving one afterwards has no effect,
+ * and nor has adding anything to `root` that isn't where it was built.
+ */
 export function freeze(root) {
   root.traverse(object => {
     object.updateMatrix();
     object.matrixAutoUpdate = false;
   });
+  // The renderer would still walk through all of it every frame to see whether anything had
+  // moved. Each part is told where it is once, here, and after that the walk stops at `root`.
+  root.updateMatrixWorld(true);
+  root.updateMatrixWorld = () => {};
 }
 
 const matrix = new THREE.Matrix4();

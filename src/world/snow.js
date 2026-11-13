@@ -14,7 +14,7 @@ const tone = new THREE.Color();
 
 /**
  * Colours the ground at a point by how wintry it is, `winter` from 0 to 1 (see groundColor in
- * scenery.js). `up` is 1 on level ground. Returns what is left of `grass`, which only grows in
+ * groundcolor.js). `up` is 1 on level ground. Returns what is left of `grass`, which only grows in
  * tufts out of the snow, in patches a few metres across.
  */
 export function winterGround(x, z, up, winter, out, grass) {
