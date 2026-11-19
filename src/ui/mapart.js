@@ -34,6 +34,7 @@ const {
   ROAD,
   SPRING,
   TRACKS,
+  VALLAVIK,
   VALLEY_RADIUS,
   WATERFALL,
   desertness,
@@ -104,6 +105,11 @@ export const PLACE_ICONS = {
     name: 'Echo Mountain',
     color: SLATE,
     d: 'M2 20h20M3 20 9.5 7.5l3 4.5 2-2.8L21 20M8.5 20v-2.5a3.5 3.5 0 0 1 7 0V20',
+  },
+  vallavik: {
+    name: 'Vallavik Tunnel',
+    color: BLUE,
+    d: 'M2 20.5h20M4 20.5V12a8 8 0 0 1 16 0v8.5M12 11.5a3 3 0 1 0 0 6 3 3 0 1 0 0-6',
   },
   bridge: {
     name: 'Bridge',
@@ -377,6 +383,32 @@ function buttes() {
   return shape;
 }
 
+/** The foot of the mountain the tunnel runs through, as a Path2D in world metres. */
+function tunnelMountain() {
+  const shape = new Path2D();
+  for (let i = 0; i < 96; i++) {
+    const angle = (i / 96) * Math.PI * 2;
+    const r = VALLAVIK.edge(angle);
+    shape[i ? 'lineTo' : 'moveTo'](VALLAVIK.x + Math.cos(angle) * r, VALLAVIK.z + Math.sin(angle) * r);
+  }
+  shape.closePath();
+  return shape;
+}
+
+/** The roundabout in the middle of it, and the last of each road in to it, drawn with the paved roads. */
+function tunnelRoundabout() {
+  const { x, z, hall, arms } = VALLAVIK;
+  const lane = (hall.island + hall.radius) / 2;
+  const shape = new Path2D();
+  shape.moveTo(x + lane, z);
+  shape.arc(x, z, lane, 0, Math.PI * 2);
+  for (const { dx, dz } of arms) {
+    shape.moveTo(x + dx * hall.radius, z + dz * hall.radius);
+    shape.lineTo(x + dx * lane, z + dz * lane);
+  }
+  return shape;
+}
+
 function segment(x0, z0, x1, z1) {
   const shape = new Path2D();
   shape.moveTo(x0, z0);
@@ -402,6 +434,9 @@ function mapLines() {
     z1: AIRFIELD.z1,
   };
   const taxiway = { x0: apron.x1 - 1, x1: AIRFIELD.x, z0: AIRFIELD.taxiZ - 5, z1: AIRFIELD.taxiZ + 5 };
+  // The paved roads, the roundabout in the mountain tunnel among them.
+  const paved = shapeOf(PAVED);
+  paved.addPath(tunnelRoundabout());
   // The fjord's water as a polygon (so it shows between the valley and the coast, where there is
   // no picture), and the ferry's route down it, both drawn without the fence's clip.
   const fjord = new Path2D();
@@ -435,7 +470,8 @@ function mapLines() {
       min: 1,
       dash: [6, 6],
     },
-    { shape: shapeOf(PAVED), color: '#fdfcf6', width: 8.8, min: 4, casing: 1.6, edge: '#8f918a' },
+    { shape: tunnelMountain(), fill: '#c9c4b6', edge: '#8d877a' },
+    { shape: paved, color: '#fdfcf6', width: 8.8, min: 4, casing: 1.6, edge: '#8f918a' },
     { shape: shapeOf([CAMP_TRAIL]), color: '#f6e7bd', width: 5.2, min: 3, casing: 1.5, edge: '#b0915c' },
     { shape: shapeOf([ROAD]), color: '#f6e7bd', width: 8.8, min: 4.5, casing: 1.6, edge: '#b0915c' },
     { shape: shapeOf(roads), color: '#fdfcf6', width: 6, min: 3.5, casing: 1.4, edge: '#8f9aa8' },

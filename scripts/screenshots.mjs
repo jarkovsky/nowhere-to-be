@@ -416,6 +416,26 @@ try {
   await page.keyboard.up('ArrowUp');
   await capture(page, 'tunnel', 3500);
 
+  // The mountain tunnel: its portal above the fjord in the evening, and the roundabout in its hall.
+  await inGame(
+    page,
+    `
+    g.setSky('sunset');
+    const arm = L.VALLAVIK.arms[0];
+    const p = arm.path.at(10);
+    g.teleport(p.x, p.z, Math.atan2(arm.dx, arm.dz));
+  `,
+  );
+  await capture(page, 'portal', 4500);
+  await inGame(
+    page,
+    `
+    g.setSky('day');
+    g.teleport(L.VALLAVIK.x + 16, L.VALLAVIK.z + 2, 0);
+  `,
+  );
+  await capture(page, 'roundabout', 3000);
+
   // Up the farm track towards the barn.
   await inGame(
     page,

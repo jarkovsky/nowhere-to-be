@@ -31,7 +31,7 @@ import { createPlanes } from './vehicles/plane.js';
 import { createAtmosphere } from './world/atmosphere.js';
 import { separateMeshKinds } from './world/build.js';
 import { createDrivingWorld, surfaceUnder } from './world/drivable.js';
-import { buildLandmarks, insideTunnel } from './world/landmarks/index.js';
+import { buildLandmarks, insideTunnel, tunnelLight } from './world/landmarks/index.js';
 import { OUTLINE, createFerry } from './world/ferry.js';
 import { createMudHole } from './world/mudhole.js';
 import { createStranded } from './world/stranded.js';
@@ -41,6 +41,7 @@ import {
   ROAD_HALF_WIDTH,
   SPAWN,
   onAirfield,
+  inVallavikTunnel,
   onPaved,
   onDriveway,
   onForecourt,
@@ -76,6 +77,7 @@ function groundSound(x, z) {
   if (onDeck(x, z)) return 'grass';
   if (onPaved(x, z, ROAD_HALF_WIDTH + 0.6) || onAirfield(x, z) || onDriveway(x, z, 0.4) || onForecourt(x, z))
     return 'tarmac';
+  if (inVallavikTunnel(x, z)) return 'tarmac';
   const ground = surfaceUnder(x, z);
   return ground === 'road' || ground === 'track' || ground === 'rock' ? 'gravel' : 'grass';
 }
@@ -210,7 +212,8 @@ export function createGame(canvas) {
     dynamic: moving,
     cropAt: landmarks.cropAt,
     // Wet roads and tracks give a little less grip.
-    wetness: () => wetness,
+    // It doesn't rain under the mountain: the road in there is always dry.
+    wetness: () => (inVallavikTunnel(state.x, state.z) ? 0 : wetness),
   });
   // The surface under the car: up on the top of the rock fin and the arch once it has driven onto it.
   const surfaceHeight = world.height;
@@ -816,7 +819,7 @@ export function createGame(canvas) {
     const sky = atmosphere.getState();
     wetness = sky.wetness;
     const night = 1 - sky.day;
-    atmosphere.update(dt, state, mode !== 'title');
+    atmosphere.update(dt, state, mode !== 'title', tunnelLight(state.x, state.z));
     car.setLights(night, driving && wasBraking);
     car.animate(clock);
     updateTent(dt, night);

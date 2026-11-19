@@ -64,6 +64,7 @@ const {
   heights,
   desert: desertBox,
   lakeland: lakelandBox,
+  tunnel: tunnelBox,
   pondLevels,
   riverWater,
   creekBed,
@@ -111,8 +112,8 @@ function heightBeforeLakeland(x, z) {
 }
 
 /**
- * The height of the land at a point as it was before the desert and the lakeland were laid over
- * it. The trees, rocks and grass are tried at spot after spot from one run of random numbers, and
+ * The height of the land at a point as it was before the desert, the lakeland and the floor of the
+ * mountain tunnel were laid over it. The trees, rocks and grass are tried at spot after spot from one run of random numbers, and
  * which of them are kept goes by how high and steep the land is, so they are placed by this: that
  * way neither moves any of them outside it, and inside it, it clears them away (see desertTakes
  * and lakelandTakes). Elsewhere it is the ground's height.
@@ -120,17 +121,19 @@ function heightBeforeLakeland(x, z) {
 export function placementHeight(x, z) {
   if (x > LAKELAND_FROM.x && z > LAKELAND_FROM.z) return heightBeforeLakeland(x, z);
   if (x > LEGACY_FROM || z > LEGACY_FROM) return heightBeforeLakeland(x, z);
-  const { ix0, ix1, iz0, iz1, columns, before } = desertBox;
   const gx = gridCoordinate(x);
   const gz = gridCoordinate(z);
   const ix = Math.floor(gx);
   const iz = Math.floor(gz);
-  if (ix < ix0 || ix >= ix1 || iz < iz0 || iz >= iz1) return sampleGrid(x, z);
-  const u = gx - ix;
-  const v = gz - iz;
-  const i = (iz - iz0) * columns + ix - ix0;
-  const [a, b, c, d] = [before[i], before[i + 1], before[i + columns], before[i + columns + 1]];
-  return u + v <= 1 ? a + (b - a) * u + (c - a) * v : d + (c - d) * (1 - u) + (b - d) * (1 - v);
+  for (const { ix0, ix1, iz0, iz1, columns, before } of [desertBox, tunnelBox]) {
+    if (ix < ix0 || ix >= ix1 || iz < iz0 || iz >= iz1) continue;
+    const u = gx - ix;
+    const v = gz - iz;
+    const i = (iz - iz0) * columns + ix - ix0;
+    const [a, b, c, d] = [before[i], before[i + 1], before[i + columns], before[i + columns + 1]];
+    return u + v <= 1 ? a + (b - a) * u + (c - a) * v : d + (c - d) * (1 - u) + (b - d) * (1 - v);
+  }
+  return sampleGrid(x, z);
 }
 
 /** Water surface height of the creek at a distance along it. */

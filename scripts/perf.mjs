@@ -41,6 +41,11 @@ const PLACES = [
   ],
   ['upland road', 'const p = L.RING_ROAD.at(1200); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))'],
   ['tunnel', 'const p = L.ROAD.at(L.TUNNEL.s - 40); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))'],
+  ['mountain tunnel', 'const V = L.VALLAVIK; g.teleport(V.x + 16, V.z + 2, 0)'],
+  [
+    'mountain tunnel portal',
+    'const a = L.VALLAVIK.arms[0]; const p = a.path.at(8); g.teleport(p.x, p.z, Math.atan2(a.dx, a.dz))',
+  ],
   ['rough trail', 'const p = L.ROUGH.path.at(60); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))'],
   [
     'lookout',

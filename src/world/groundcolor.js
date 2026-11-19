@@ -17,6 +17,7 @@ import {
   WORN_GROUND,
   STRANDED_SPOTS,
   inFjord,
+  insideVallavik,
   nearRiver,
   rockiness,
   ruggedness,
@@ -63,9 +64,11 @@ const WORN = BARE_GROUND.map(patch => ({ ...patch, color: new THREE.Color(patch.
  * ground. Returns how grassy it is there, from 0 to 1, for the grass (see grass.js). Draws its
  * random numbers from `random`.
  */
-function groundColor(x, z, h, up, out, random) {
+function groundColor(x, z, h, up, out, random, standing = false) {
   const lakeland = inLakeland(x, z, 3);
   let grass = lakeland || Math.hypot(x, z) < VALLEY_RADIUS - 3 ? 1 : 0;
+  // Nothing grows on the floor of the mountain tunnel (`standing` is for the mountain over it).
+  if (!standing && insideVallavik(x, z) > 0) grass = 0;
   out
     .copy(GROUND.meadow)
     .lerp(GROUND.dry, Math.min(1, 0.3 + 0.25 * Math.sin(x * 0.009 + z * 0.017) + Math.max(0, h - 15) * 0.006));
@@ -161,6 +164,16 @@ function groundColor(x, z, h, up, out, random) {
   }
   out.multiplyScalar(0.96 + random() * 0.08);
   return grass;
+}
+
+/**
+ * The colour the ground would have at (x, z) if it stood `h` high there and faced `up` (1 is
+ * level), into `out`: for rock that stands on the ground and should look like part of it, such
+ * as the mountain the tunnel runs through. Draws its random numbers from `random`.
+ */
+export function colorAsGround(x, z, h, up, out, random) {
+  groundColor(x, z, h, up, out, random, true);
+  return out;
 }
 
 const CELLS = GRID - 1;

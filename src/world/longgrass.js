@@ -22,6 +22,7 @@ import {
   inFjord,
   onAirfield,
   onPaved,
+  VALLEY_PAVED,
   lakeDistance,
   winterness,
 } from './layout.js';
@@ -43,7 +44,7 @@ export function isLongGrassGround(x, z) {
   if (Math.hypot(x, z) > VALLEY_RADIUS - 3) return false;
   if (ROAD.isNear(x, z, ROAD_HALF_WIDTH + 0.8) || CAMP_TRAIL.isNear(x, z, 2.8) || RAILWAY.isNear(x, z, 4.5))
     return false;
-  if (onPaved(x, z, ROAD_HALF_WIDTH + 0.8) || onAirfield(x, z, 2)) return false;
+  if (onPaved(x, z, ROAD_HALF_WIDTH + 0.8, VALLEY_PAVED) || onAirfield(x, z, 2)) return false;
   if (onPlacedGravel(x, z, GRAVEL_HALF_WIDTH + 0.8)) return false;
   if (PLACED_TRACKS.some(track => track.path.isNear(x, z, track.ruts ? 1.6 : 1.3))) return false;
   if (onDriveway(x, z, 0.8) || onRoughGround(x, z, 0.8)) return false;
@@ -137,7 +138,7 @@ export function findLongGrass() {
     const seen =
       ROAD.isNear(cx, cz, 60) ||
       CAMP_TRAIL.isNear(cx, cz, 40) ||
-      onPaved(cx, cz, 50) ||
+      onPaved(cx, cz, 50, VALLEY_PAVED) ||
       onPlacedGravel(cx, cz, 50) ||
       PLACED_TRACKS.some(track => track.path.isNear(cx, cz, 40));
     const chance = Math.max(meadow, edge * 0.8) * (seen ? 1 : 0.2);
