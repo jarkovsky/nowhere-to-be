@@ -49,6 +49,7 @@ import {
   VALLEY_TRACKS,
   LAKELAND,
   SPANS,
+  VALLAVIK,
   FORD_DEPTH,
   ROCK_HILL,
   MINE,
@@ -1226,6 +1227,45 @@ export function buildHeightField() {
   digChannel(beck);
   for (const { stretch, width, levels } of beckCrossings) levelAlong(stretch, () => width, 3, { levels });
 
+  // --- The mountain tunnel ---------------------------------------------------------------------
+
+  // The tunnel's mountain stands on the ground (see landmarks/vallavik.js), so its floor is laid
+  // here: the hall level, and each arm's road an even slope from the road it leaves to the hall,
+  // in a cutting or on a bank outside and levelled wider than the bore inside, so no ground pokes
+  // in. The land as it was is kept for placing the valley's scenery by (see placementHeight).
+  const tunnelBox = (() => {
+    const reach = VALLAVIK.reach + 60;
+    const [ix0, ix1] = [VALLAVIK.x - reach, VALLAVIK.x + reach].map(v => Math.round(gridCoordinate(v)));
+    const [iz0, iz1] = [VALLAVIK.z - reach, VALLAVIK.z + reach].map(v => Math.round(gridCoordinate(v)));
+    const columns = ix1 - ix0 + 1;
+    const before = new Float32Array(columns * (iz1 - iz0 + 1));
+    for (let iz = iz0; iz <= iz1; iz++) {
+      for (let ix = ix0; ix <= ix1; ix++) before[(iz - iz0) * columns + ix - ix0] = heights[iz * GRID + ix];
+    }
+    return { ix0, ix1, iz0, iz1, columns, before };
+  })();
+  {
+    const { hall, arms, level } = VALLAVIK;
+    // The roads the arms leave, as they are, to put back once the arms are laid.
+    const joins = arms.map(({ road, join }) =>
+      roadStretch(road, road === RING_ROAD ? PAVED_WIDTH() : GRAVEL_WIDTH(), join.s - 50, join.s + 50),
+    );
+    flattenPads([{ x: VALLAVIK.x, z: VALLAVIK.z, radius: hall.radius + 3, falloff: 10, level }]);
+    for (const { path, portalS, hallS } of arms) {
+      const start = sampleGrid(path.samples[0].x, path.samples[0].z);
+      // Level across the road it leaves, an even slope from there to the hall's wall, and level inside.
+      const levels = smoothProfile(
+        path.samples.map(({ s }) => lerp(start, level, clamp((s - 8) / (hallS - 12), 0, 1))),
+        Math.round(6 / path.spacing),
+        false,
+      );
+      const width = s =>
+        lerp(ROAD_HALF_WIDTH + 1.4, VALLAVIK.bore.radius + 2.6, smoothstep(s, portalS - 14, portalS - 4));
+      levelAlong(path, width, 10, { banks: 1.5, levels });
+    }
+    for (const { stretch, width, levels } of joins) levelAlong(stretch, () => width, 0.5, { levels });
+  }
+
   // The rail bed's height along the line. Where the trail was levelled across it
   // at the crossing, it eases onto the finished ground instead.
   const railBed = smoothProfile(
@@ -1248,6 +1288,7 @@ export function buildHeightField() {
     railBed,
     desert: desertBox,
     lakeland: lakelandBox,
+    tunnel: tunnelBox,
   };
 }
 

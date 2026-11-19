@@ -134,6 +134,8 @@ const COLORS = Object.fromEntries(
 );
 
 /** The sun rises and sets in the same quarter of the sky, behind the valley as seen from the start. */
+/** How bright the light is under cover, where lamps light the car rather than the sky. */
+const INDOORS = 1.9;
 const SUN_BEARING = new THREE.Vector2(-490, -760).normalize();
 const MOON_DIRECTION = new THREE.Vector3(340, 420, -820).normalize();
 
@@ -154,6 +156,8 @@ export function createAtmosphere(scene, sun, ambient) {
   let storm = 0;
   // The rain that is falling as rain, which is none in the snowy places.
   let rainfall = 0;
+  /** How far under cover the car is, from 0 in the open to 1. */
+  let shelter = 0;
   // How far into the winter the car is, a little behind where it is, so a jump takes a moment.
   let winter = 0;
   // And how far into the Lofoten coast, the same way.
@@ -353,7 +357,18 @@ vec3 transformed = vec3(
     setPreset(value) {
       if (SKY_PRESETS.includes(value)) preset = value;
     },
-    getState: () => ({ preset, time, day, sunset, rain, rainfall, wetness, mist, blizzard: storm }),
+    // The rain as it falls on the car: none of it under cover.
+    getState: () => ({
+      preset,
+      time,
+      day,
+      sunset,
+      rain,
+      rainfall: rainfall * (1 - shelter),
+      wetness,
+      mist,
+      blizzard: storm,
+    }),
     setTime(seconds) {
       time = seconds;
     },
@@ -367,8 +382,13 @@ vec3 transformed = vec3(
       preset = 'auto';
       time = dryMorning(1, 0.83);
     },
-    /** `centre` is where the car is: the sun, rain and fireflies are centred on it. */
-    update(dt, centre, running) {
+    /**
+     * `centre` is where the car is: the sun, rain and fireflies are centred on it. `indoors` is the
+     * light where it is under cover (see tunnelLight in landmarks/vallavik.js): there the lamps
+     * light it, whatever the sky is doing, and nothing falls on it.
+     */
+    update(dt, centre, running, indoors = null) {
+      shelter = indoors?.cover ?? 0;
       if (running) time += dt;
       const target = skyConditions(time, preset);
       const blend = 1 - Math.exp(-dt * 0.8);
@@ -443,6 +463,11 @@ vec3 transformed = vec3(
         .lerp(COLORS.groundDay, day)
         .lerp(COLORS.winterGround, winter * 0.8 * day)
         .lerp(COLORS.coastGround, low * 0.6);
+      if (shelter > 0) {
+        ambient.intensity += (INDOORS - ambient.intensity) * shelter;
+        ambient.color.lerp(indoors.color, shelter);
+        ambient.groundColor.lerp(indoors.color, shelter * 0.85);
+      }
 
       // The sun is never high, and low on the horizon in the evening, where the haze glows round it.
       const elevation = 0.03 + day * 0.42 * (1 - 0.65 * coast) - sunset * 0.06;
@@ -504,8 +529,9 @@ vec3 transformed = vec3(
       // The northern lights, on clear nights on the coast.
       aurora.update(time, centre, coast * smoothstep(1 - day, 0.45, 0.8) * (1 - grey));
 
-      rainLines.visible = rainfall > 0.02;
-      rainLines.material.opacity = rainfall * 0.55;
+      const open = 1 - shelter;
+      rainLines.visible = rainfall * open > 0.02;
+      rainLines.material.opacity = rainfall * open * 0.55;
       if (rainLines.visible) {
         for (let i = 0, k = 0; i < RAIN_COUNT; i++, k += 6) {
           const seed = rainSeeds[i];
@@ -522,8 +548,8 @@ vec3 transformed = vec3(
         rainGeometry.attributes.position.needsUpdate = true;
       }
 
-      snowfall.visible = winter > 0.02;
-      snowfall.material.opacity = Math.min(1, winter * 1.4) * 0.8;
+      snowfall.visible = winter * open > 0.02;
+      snowfall.material.opacity = Math.min(1, winter * 1.4) * 0.8 * open;
       if (snowfall.visible) {
         snowSeeds.forEach((flake, i) => {
           const x = around(flake.x, centre.x, 70) + Math.sin(time * 0.5 + flake.phase) * 1.2;
@@ -544,8 +570,8 @@ vec3 transformed = vec3(
         storming.middle.value.set(centre.x, ground, centre.z);
       }
 
-      flies.visible = day < 0.5;
-      flies.material.opacity = (1 - day) * (1 - grey) * 0.85;
+      flies.visible = day < 0.5 && open > 0.02;
+      flies.material.opacity = (1 - day) * (1 - grey) * 0.85 * open;
       if (flies.visible) {
         flySeeds.forEach((fly, i) => {
           const x = around(fly.x, centre.x, 100) + Math.sin(time * 0.3 + fly.phase) * 1.4;

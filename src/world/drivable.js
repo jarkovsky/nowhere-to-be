@@ -11,6 +11,7 @@ import {
   onDriveway,
   onForecourt,
   onGravel,
+  inVallavikTunnel,
   onPaved,
   rockiness,
   surfaceAt,
@@ -30,6 +31,8 @@ import {
 /** What the tyres are on, for grip and top speed. */
 export function surfaceUnder(x, z, from = Infinity) {
   if (onDeck(x, z, from)) return 'road';
+  // The mountain tunnel is asphalt from wall to wall, and all across the hall.
+  if (inVallavikTunnel(x, z)) return 'road';
   if (waterDepth(x, z) > 0.15) return 'water';
   const patch = surfaceAt(x, z);
   if (patch === 'leaves' || patch === 'mud') return patch;

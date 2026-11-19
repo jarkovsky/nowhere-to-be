@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { buildBridge } from './bridge.js';
 import { buildShallows, buildSpan } from './spans.js';
-import { buildTunnel } from './tunnel.js';
+import { buildTunnel, insideTunnel as insideEchoTunnel } from './tunnel.js';
 import { buildWaterfall } from './waterfall.js';
 import { buildBeckFalls } from './beckfalls.js';
 import { buildCastle } from './castle.js';
@@ -37,11 +37,15 @@ import { buildCrash } from './crash.js';
 import { buildMine } from './mine.js';
 import { buildLogging } from './logging.js';
 import { buildRoughGround } from './roughground.js';
+import { buildVallavik } from './vallavik.js';
 import { buildHeaps } from '../heaps.js';
-import { HELIPAD, KRYSTOF, SPANS } from '../layout.js';
+import { HELIPAD, KRYSTOF, SPANS, inVallavikTunnel } from '../layout.js';
 import { SIGHT } from '../sight.js';
 
-export { insideTunnel } from './tunnel.js';
+export { tunnelLight } from './vallavik.js';
+
+/** True inside either tunnel: the one under Echo Mountain or the one through the mountain by the fjord. */
+export const insideTunnel = (x, z) => insideEchoTunnel(x, z) || inVallavikTunnel(x, z) !== null;
 
 /** Closer than this a landmark stays in the picture even out of view: its shadow may fall into view. */
 const CLOSE = 300;
@@ -133,6 +137,7 @@ export function buildLandmarks(scene, obstacles) {
   own('mine', buildMine);
   own('logging', buildLogging);
   own('roughground', buildRoughGround);
+  const vallavik = own('vallavik', buildVallavik);
   // Each of the lakeland's long bridges on its own, as they stand far apart.
   for (const span of SPANS) own(`span-${span.id}`, (group, list) => buildSpan(span, group, list));
   own('shallows', buildShallows);
@@ -174,6 +179,7 @@ export function buildLandmarks(scene, obstacles) {
       ...gate.occluders,
       ...depot.occluders,
       ...desert.occluders,
+      ...vallavik.occluders,
       // The camera keeps out of the castle's tower; its low walls it simply rides over.
       ...castle.occluders,
     ],

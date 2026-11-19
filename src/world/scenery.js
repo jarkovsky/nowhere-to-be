@@ -27,6 +27,7 @@ import {
   onBridgeDeck,
   FISHING,
   TUNNEL,
+  VALLAVIK,
   WATERFALL,
   CABIN,
   FARM,
@@ -95,7 +96,7 @@ import { createGround } from './ground.js';
 import { createGrass } from './grass.js';
 import { BARE_GROUND, groundColors } from './groundcolor.js';
 import { LONG_GRASS_RANGE, addLongGrass, grassClumpGeometry } from './longgrass.js';
-import { grows, growsAnywhere, inMud, isClearGround, onPlacedGravel, steepness } from './placing.js';
+import { grows, growsAnywhere, inMud, isClearGround, onPlacedGravel, steepness, tunnelTakes } from './placing.js';
 import { lakelandTakes } from './lakeland.js';
 import { PAD_RADIUS } from './landmarks/helipad.js';
 import { boulderGeometry, rockMaterial } from './rocks.js';
@@ -1310,6 +1311,9 @@ function grassMask(area) {
   along(ROAD, ROAD_HALF_WIDTH - 0.2, 1.1);
   along(CAMP_TRAIL, 2, 0.9);
   for (const path of PAVED) along(path, ROAD_HALF_WIDTH - 0.1, 1.2);
+  // The asphalt widens to the mountain tunnel's bores over the last few metres to each portal.
+  for (const { path, portalS } of VALLAVIK.arms)
+    along(path, VALLAVIK.bore.radius + 0.6, 1.2, { skip: s => s < portalS - 7 || s > portalS + 2 });
   along(ROADWORKS.path, ROAD_HALF_WIDTH, 1.5);
   for (const path of GRAVEL) along(path, GRAVEL_HALF_WIDTH - 0.1, 1.1);
   for (const { path, halfWidth } of DRIVEWAYS) along(path, halfWidth, 0.8);
@@ -1837,8 +1841,12 @@ function buildFences(scene, scatter) {
   scene.add(markers.mesh());
 }
 
-/** Where the link roads and the new road meet the ring. */
-const PAVED_JOINS = [...LINKS.map(link => link.path.at(link.path.length)), ROADWORKS.path.at(0)];
+/** Where the link roads, the new road and the road into the mountain tunnel meet the ring. */
+const PAVED_JOINS = [
+  ...LINKS.map(link => link.path.at(link.path.length)),
+  ROADWORKS.path.at(0),
+  ...VALLAVIK.arms.map(arm => arm.join),
+];
 
 export const ASPHALT = '#7d7f79';
 
@@ -1879,6 +1887,27 @@ function buildPavedRoads(scene) {
         skip: s => between(s) || s > path.length - 6 || dashes(s),
       }),
     );
+  }
+  // The roads into the mountain tunnel leave from under the roads they join, and stop just inside
+  // its portals: the floor in there is the tunnel's own (see landmarks/vallavik.js).
+  for (const { path, portalS, road } of VALLAVIK.arms) {
+    const inside = s => s > portalS + 1.5;
+    // Off a gravel road, the asphalt starts at that road's edge and leaves its gravel whole.
+    const from = road === RING_ROAD ? 0 : GRAVEL_HALF_WIDTH - 0.6;
+    const parts = [
+      ribbonGeometry(path, ROAD_HALF_WIDTH, ASPHALT, { lift: 0.05, skip: s => s < from || s > portalS - 4 }),
+      // The asphalt widens to the width of the bore over the last few metres to the portal.
+      ribbonGeometry(path, VALLAVIK.bore.radius - 0.05, ASPHALT, {
+        lift: 0.045,
+        skip: s => s < portalS - 6 || inside(s),
+      }),
+      ribbonGeometry(path, 0.1, '#eeece2', {
+        lift: 0.09,
+        across: 1,
+        skip: s => s < ROAD_HALF_WIDTH + 4 || s > portalS - 1 || dashes(s),
+      }),
+    ];
+    scene.add(ribbonMesh(mergeGeometries(parts)));
   }
 }
 
@@ -1982,7 +2011,7 @@ export function buildScenery(parent) {
   const kept = obstacles.filter(o => {
     if (o.x !== undefined) return grows(o.x, o.z);
     const [x, z] = [(o.ax + o.bx) / 2, (o.az + o.bz) / 2];
-    return !desertTakes(x, z) && !lakelandTakes(x, z) && !inOrchard(x, z) && !inDiscovery(x, z);
+    return !desertTakes(x, z) && !lakelandTakes(x, z) && !tunnelTakes(x, z) && !inOrchard(x, z) && !inDiscovery(x, z);
   });
   kept.push(...ownObstacles.filter(o => growsAnywhere(o.x, o.z)));
   kept.push(...buildDesertScenery(everything));

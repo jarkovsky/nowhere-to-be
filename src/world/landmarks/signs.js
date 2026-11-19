@@ -37,6 +37,7 @@ import {
   CRASH,
   MINE,
   LOGGING,
+  VALLAVIK,
 } from '../layout.js';
 import { terrainHeight } from '../terrain.js';
 import { PartsBuilder } from '../build.js';
@@ -173,6 +174,96 @@ function paintAirfieldSign(arrow) {
     ctx.fill();
     ctx.restore();
     if (arrow) drawArrow(ctx, w / 2, h * 0.79, w * 0.42, arrow);
+  };
+}
+
+/** The blue ground of a road sign, on a pale plate. */
+function blueSign(ctx, w, h) {
+  ctx.fillStyle = '#f4f2ea';
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#2d5fa8';
+  ctx.beginPath();
+  ctx.roundRect(14, 14, w - 28, h - 28, 26);
+  ctx.fill();
+}
+
+/**
+ * A blue road sign with a white mountain on it and the dark mouth of a tunnel in its foot, the
+ * lit road running in, for the way to the mountain tunnel. No words needed.
+ */
+function paintTunnelSign(arrow) {
+  return (ctx, w, h) => {
+    blueSign(ctx, w, h);
+    ctx.save();
+    const u = w / 300;
+    ctx.scale(u, u);
+    ctx.fillStyle = '#f4f2ea';
+    ctx.beginPath();
+    ctx.moveTo(34, 186);
+    ctx.lineTo(112, 58);
+    ctx.lineTo(150, 100);
+    ctx.lineTo(184, 44);
+    ctx.lineTo(266, 186);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#1c2f52';
+    ctx.beginPath();
+    ctx.moveTo(110, 186);
+    ctx.lineTo(110, 152);
+    ctx.arc(150, 152, 40, Math.PI, 0);
+    ctx.lineTo(190, 186);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#8fd0ff';
+    ctx.beginPath();
+    ctx.moveTo(134, 186);
+    ctx.lineTo(145, 146);
+    ctx.lineTo(155, 146);
+    ctx.lineTo(166, 186);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#f4f2ea';
+    if (arrow) drawArrow(ctx, w / 2, h * 0.84, w * 0.34, arrow);
+  };
+}
+
+/** A blue road sign with a white ferry on the waves, for the way to the fjord and its ferry. No words needed. */
+function paintFerrySign(arrow) {
+  return (ctx, w, h) => {
+    blueSign(ctx, w, h);
+    ctx.save();
+    const u = w / 300;
+    ctx.scale(u, u);
+    ctx.fillStyle = '#f4f2ea';
+    // The hull, the cabin on it and the funnel.
+    ctx.beginPath();
+    ctx.moveTo(46, 116);
+    ctx.lineTo(254, 116);
+    ctx.lineTo(226, 158);
+    ctx.lineTo(76, 158);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(88, 80, 116, 40, 7);
+    ctx.fill();
+    ctx.fillRect(150, 46, 30, 38);
+    ctx.fillStyle = '#2d5fa8';
+    for (const x of [102, 132, 162]) ctx.fillRect(x, 92, 18, 14);
+    // The waves under it.
+    ctx.strokeStyle = '#f4f2ea';
+    ctx.lineWidth = 9;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let x = 52; x < 250; x += 48) {
+      ctx.moveTo(x, 180);
+      ctx.quadraticCurveTo(x + 12, 168, x + 24, 180);
+      ctx.quadraticCurveTo(x + 36, 192, x + 48, 180);
+    }
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#f4f2ea';
+    if (arrow) drawArrow(ctx, w / 2, h * 0.84, w * 0.34, arrow);
   };
 }
 
@@ -888,6 +979,39 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
     yaw: toTrack,
     text: 'VELKÁ DEŠTNÁ 1115 m',
   });
+
+  // The mountain tunnel: a tunnel sign on the road either side of where each of its roads leaves
+  // it, and in the hall, either side of each way out, a lit picture of where that one leads: the
+  // ferry, the rough trail up to the lookout, the airfield.
+  const hallCentre = { x: VALLAVIK.x, z: VALLAVIK.z };
+  const leadsTo = { fjord: paintFerrySign, west: paintRoughSign, ring: paintAirfieldSign };
+  for (const arm of VALLAVIK.arms) {
+    const inward = arm.path.at(14);
+    const armSide = Math.sign(arm.road.nearest(inward.x, inward.z).side) || 1;
+    const half = arm.road === RING_ROAD ? ROAD_HALF_WIDTH : GRAVEL_HALF_WIDTH;
+    for (const along of [-18, 18]) {
+      const p = arm.road.offset(arm.join.s + along, armSide * (half + 2.4));
+      pictureSign(scene, parts, { ...p, yaw: Math.atan2(-p.dx, -p.dz) }, paintTunnelSign, hallCentre);
+    }
+    const { hall, bore, level } = VALLAVIK;
+    const PLATE = 2.4;
+    for (const beside of [-1, 1]) {
+      const angle = arm.angle + beside * (Math.asin(bore.radius / hall.radius) + 0.11);
+      const r = hall.radius - 1;
+      const [x, y, z] = [VALLAVIK.x + Math.cos(angle) * r, level + 5.4, VALLAVIK.z + Math.sin(angle) * r];
+      // Facing the middle of the hall, with the arrow pointing at the way out beside it.
+      const yaw = Math.atan2(-Math.cos(angle), -Math.sin(angle));
+      parts.box(PLATE + 0.24, PLATE + 0.24, 0.1, '#2b2f36', { x, y, z, ry: yaw });
+      const plate = new THREE.Mesh(
+        new THREE.PlaneGeometry(PLATE, PLATE),
+        // Lit from inside, as the lamps in there are: it shows the same by day and by night.
+        new THREE.MeshBasicMaterial({ map: canvasTexture(256, 256, leadsTo[arm.id](beside > 0 ? 'left' : 'right')) }),
+      );
+      plate.position.set(x + Math.sin(yaw) * 0.07, y, z + Math.cos(yaw) * 0.07);
+      plate.rotation.y = yaw;
+      scene.add(plate);
+    }
+  }
 
   // A name board over the tunnel entrance.
   const { x, y, z, yaw } = tunnelPortal;

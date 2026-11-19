@@ -14,6 +14,9 @@ import {
   CAMP_TRAIL,
   VALLEY_TRACKS,
   VALLEY_GRAVEL,
+  VALLEY_PAVED,
+  VALLAVIK,
+  insideVallavik,
   VALLEY_RIVERS,
   onDriveway,
   RAILWAY,
@@ -141,7 +144,7 @@ export function isClearGround(x, z, { road = 9 } = {}) {
   if (nearWalkway(HABITATS.deer, x, z, 5) || nearWalkway(HABITATS.ducks, x, z, 5)) return false;
   if (ROAD.isNear(x, z, road) || CAMP_TRAIL.isNear(x, z, 6) || RAILWAY.isNear(x, z, 9)) return false;
   if (PLACED_TRACKS.some(track => track.path.isNear(x, z, 5))) return false;
-  if (onPaved(x, z, road) || onPlacedGravel(x, z, road - 1) || onDriveway(x, z, 4)) return false;
+  if (onPaved(x, z, road, VALLEY_PAVED) || onPlacedGravel(x, z, road - 1) || onDriveway(x, z, 4)) return false;
   // The airfield's levelled ground is kept as open, mown grass.
   const { ground } = AIRFIELD;
   if (x > ground.x0 - 6 && x < ground.x1 + 6 && z > ground.z0 - 6 && z < ground.z1 + 6) return false;
@@ -165,7 +168,19 @@ export function growsAnywhere(x, z) {
   return !inCrop(x, z, 2) && !desertTakes(x, z) && !inOrchard(x, z) && !inDiscovery(x, z);
 }
 
-/** The same for what the valley places: it doesn't grow in the lakeland either, which has its own (see lakelandTakes). */
+/**
+ * True where the mountain tunnel takes the place of whatever the valley's scenery would put there:
+ * under the mountain and a little way out from its foot, and along the roads into it. As in the
+ * desert and the lakeland, what would stand there is still tried, from the same run of random
+ * numbers as ever, and then left out.
+ */
+export function tunnelTakes(x, z) {
+  if (Math.abs(x - VALLAVIK.x) > VALLAVIK.reach + 60 || Math.abs(z - VALLAVIK.z) > VALLAVIK.reach + 60) return false;
+  // Wide enough round the foot that a tree fallen towards the mountain doesn't reach it.
+  return insideVallavik(x, z) > -9 || VALLAVIK.roads.some(road => road.isNear(x, z, 10));
+}
+
+/** The same for what the valley places: it doesn't grow in the lakeland either, which has its own (see lakelandTakes), or under the tunnel's mountain. */
 export function grows(x, z) {
-  return growsAnywhere(x, z) && !lakelandTakes(x, z);
+  return growsAnywhere(x, z) && !lakelandTakes(x, z) && !tunnelTakes(x, z);
 }

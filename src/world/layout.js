@@ -2432,12 +2432,146 @@ export const ROADWORKS = (() => {
  */
 export const HEAPS = [...ROADWORKS.heaps];
 
-/** Every paved road outside the valley: the upland ring, the links to it and the new road's finished stretch. */
-export const PAVED = [RING_ROAD, ...LINKS.map(link => link.path), ROADWORKS.finished];
+/**
+ * The valley's own paved roads: the upland ring, the links to it and the new road's finished
+ * stretch. The valley's trees, rocks and grass are kept off these and no others (see placing.js),
+ * so a road laid since moves none of them.
+ */
+export const VALLEY_PAVED = [RING_ROAD, ...LINKS.map(link => link.path), ROADWORKS.finished];
 
-/** True near the middle of any paved road. */
-export function onPaved(x, z, distance = ROAD_HALF_WIDTH) {
-  return PAVED.some(path => path.isNear(x, z, distance));
+// --- The mountain tunnel -------------------------------------------------------------------
+
+/**
+ * A mountain of bare rock between the upland road and the outer road, above the head of the
+ * fjord, with a road tunnel through it: three bores, one from the outer road by the top of the
+ * road down to the ferry, one from the outer road further south and one from the upland road,
+ * that meet at a roundabout in a hall hollowed out of the middle of the mountain and lit blue.
+ * (After the Vallavik tunnel under the mountains of Hardanger, whose roundabout is lit the same.)
+ *
+ * The mountain stands on the ground rather than being part of it (see landmarks/vallavik.js), so
+ * the ground under it is the tunnel's floor. Its foot is `edge(angle)` metres from its middle, in
+ * the direction `angle` (radians, as from Math.atan2(z, x)); where a bore comes out, the foot is
+ * cut straight across, `portal` metres from the middle and `face` metres either side of the road.
+ * `level` is the height of the hall's floor. Each arm's road runs from where it joins a road
+ * (`s` 0) in to the hall, straight in line with the middle of the hall from before its portal.
+ */
+export const VALLAVIK = (() => {
+  const [x, z] = [-612, -352];
+  /** The hall: its floor is `radius` across to the wall, which stands `wall` high under a dome `height` high, round an island. */
+  const hall = { radius: 27, island: 7.5, wall: 8.2, height: 15.5 };
+  /** The bores: an arch `radius` across at the floor, on walls `spring` high. */
+  const bore = { radius: 6.4, spring: 0.9 };
+  /** How far either side of the road the rock is cut straight across at a portal. */
+  const face = 17;
+  // How far out the foot of the mountain is, every 15 degrees from due east: as far as leaves the
+  // roads either side of it room, and further where there is none to keep clear of.
+  const foot = radiusAround([
+    98, 95, 94, 99, 108, 114, 116, 114, 110, 106, 104, 102, 97, 87, 80, 78, 80, 85, 93, 104, 112, 114, 112, 106,
+  ]);
+  const arm = (id, road, s, portal) => {
+    const join = road.at(s);
+    const length = Math.hypot(join.x - x, join.z - z);
+    const [dx, dz] = [(join.x - x) / length, (join.z - z) / length];
+    // Straight in from the join to a little inside the hall's wall, where the hall's own floor takes over.
+    const reach = length - hall.radius + 2;
+    const steps = Math.ceil(reach / 12);
+    const path = createPath(
+      Array.from({ length: steps + 1 }, (_, i) => {
+        const d = length - (reach * i) / steps;
+        return [x + dx * d, z + dz * d];
+      }),
+    );
+    return {
+      id,
+      road,
+      join: { x: join.x, z: join.z, s },
+      /** Which way it lies from the middle of the hall, as a unit vector and an angle. */
+      dx,
+      dz,
+      angle: Math.atan2(dz, dx),
+      /** How far the portal is from the middle of the hall, and how far along the arm's road. */
+      portal,
+      portalS: length - portal,
+      /** How far along the arm's road the hall's wall is. */
+      hallS: length - hall.radius,
+      path,
+    };
+  };
+  const arms = [
+    arm('fjord', OUTER_ROAD, 3215, 96),
+    arm('west', OUTER_ROAD, 3015, 93),
+    arm('ring', RING_ROAD, 2172, 92),
+  ];
+  /** How far round from an arm an angle is, in radians either way. */
+  const off = (angle, a) => Math.atan2(Math.sin(angle - a.angle), Math.cos(angle - a.angle));
+  /** Past the end of a portal's straight cut, the foot eases back out to the round over this angle. */
+  const EASE = 0.16;
+  return {
+    x,
+    z,
+    level: 62,
+    /** About how high the mountain's ridge stands above the hall's floor. */
+    height: 88,
+    hall,
+    bore,
+    face,
+    arms,
+    /** The roads of the three arms. */
+    roads: arms.map(a => a.path),
+    /** The furthest the foot is from the middle. */
+    reach: 118,
+    edge(angle) {
+      const round = foot(angle);
+      for (const a of arms) {
+        const delta = Math.abs(off(angle, a));
+        const window = Math.atan(face / a.portal);
+        if (delta <= window) return a.portal / Math.cos(delta);
+        if (delta < window + EASE)
+          return lerp(Math.hypot(a.portal, face), round, smoothstep(delta, window, window + EASE));
+      }
+      return round;
+    },
+  };
+})();
+
+/**
+ * How far inside the foot of the tunnel's mountain a point is, in metres: negative outside it.
+ * Measured along the line out from the middle of the mountain.
+ */
+export function insideVallavik(x, z) {
+  const [dx, dz] = [x - VALLAVIK.x, z - VALLAVIK.z];
+  const d2 = dx * dx + dz * dz;
+  if (d2 > (VALLAVIK.reach + 12) ** 2) return -Infinity;
+  return VALLAVIK.edge(Math.atan2(dz, dx)) - Math.sqrt(d2);
+}
+
+/**
+ * Where in the tunnel a point is, or null outside it: `depth` is how many metres in from the
+ * nearest way out it is, along the road, and `hall` how far into the hall it is, from 0 in the
+ * bores to 1 well inside the hall.
+ */
+export function inVallavikTunnel(x, z) {
+  const [dx, dz] = [x - VALLAVIK.x, z - VALLAVIK.z];
+  const d = Math.hypot(dx, dz);
+  if (d > VALLAVIK.reach) return null;
+  const { hall, bore, arms } = VALLAVIK;
+  const nearest = Math.min(...arms.map(a => a.portal));
+  if (d < hall.radius) return { depth: nearest - d, hall: smoothstep(hall.radius - d, 0, 8) };
+  for (const a of arms) {
+    const along = dx * a.dx + dz * a.dz;
+    const side = -dx * a.dz + dz * a.dx;
+    if (along > 0 && along < a.portal && Math.abs(side) < bore.radius)
+      return { depth: Math.min(a.portal - along, nearest), hall: 0 };
+  }
+  return null;
+}
+
+/** Every paved road outside the valley: the valley's own and the roads into the mountain tunnel. */
+export const PAVED = [...VALLEY_PAVED, ...VALLAVIK.roads];
+
+/** True near the middle of any paved road, or of any of `roads`. */
+export function onPaved(x, z, distance = ROAD_HALF_WIDTH, roads = PAVED) {
+  return roads.some(path => path.isNear(x, z, distance));
 }
 
 /**
@@ -2784,6 +2918,7 @@ export const PLACES = [
   { id: 'waterfall', x: WATERFALL.x - 14, z: WATERFALL.z },
   { id: 'bridge', x: BRIDGE.x, z: BRIDGE.z },
   { id: 'tunnel', x: TUNNEL.x, z: TUNNEL.z },
+  { id: 'vallavik', x: VALLAVIK.x, z: VALLAVIK.z },
   { id: 'campsite', x: CAMP.x, z: CAMP.z },
   { id: 'farm', x: FARM.x, z: FARM.z },
   { id: 'tower', x: TOWER.x, z: TOWER.z },

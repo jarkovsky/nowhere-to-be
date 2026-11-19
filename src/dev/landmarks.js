@@ -1,6 +1,7 @@
 // Every landmark's builder by name, for the object viewer and the geometry checks.
 import { buildBridge } from '../world/landmarks/bridge.js';
 import { buildTunnel } from '../world/landmarks/tunnel.js';
+import { buildVallavik } from '../world/landmarks/vallavik.js';
 import { buildWaterfall } from '../world/landmarks/waterfall.js';
 import { buildCampsites } from '../world/landmarks/camp.js';
 import { buildFarm } from '../world/landmarks/farm.js';
@@ -46,6 +47,7 @@ export const standing = (x, z) => Math.max(drivingHeight(x, z), waterLevel(x, z)
 export const LANDMARKS = {
   bridge: buildBridge,
   tunnel: buildTunnel,
+  vallavik: buildVallavik,
   waterfall: buildWaterfall,
   camp: buildCampsites,
   farm: buildFarm,
