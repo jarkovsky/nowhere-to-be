@@ -22,13 +22,11 @@ import {
   inFjord,
   onAirfield,
   onPaved,
-  onGravel,
-  nearRiver,
   lakeDistance,
   winterness,
 } from './layout.js';
 import { terrainHeight, placementHeight, highSnow } from './terrain.js';
-import { CLEARINGS, PLACED_TRACKS, grows, inMud, steepness } from './placing.js';
+import { CLEARINGS, PLACED_TRACKS, grows, inMud, nearPlacedRiver, onPlacedGravel, steepness } from './placing.js';
 import { desertTakes } from './sand.js';
 import { WINTER_TINTS } from './snow.js';
 import { PartsBuilder, tintable } from './build.js';
@@ -46,13 +44,14 @@ export function isLongGrassGround(x, z) {
   if (ROAD.isNear(x, z, ROAD_HALF_WIDTH + 0.8) || CAMP_TRAIL.isNear(x, z, 2.8) || RAILWAY.isNear(x, z, 4.5))
     return false;
   if (onPaved(x, z, ROAD_HALF_WIDTH + 0.8) || onAirfield(x, z, 2)) return false;
-  if (onGravel(x, z, GRAVEL_HALF_WIDTH + 0.8)) return false;
+  if (onPlacedGravel(x, z, GRAVEL_HALF_WIDTH + 0.8)) return false;
   if (PLACED_TRACKS.some(track => track.path.isNear(x, z, track.ruts ? 1.6 : 1.3))) return false;
   if (onDriveway(x, z, 0.8) || onRoughGround(x, z, 0.8)) return false;
   if (CLEARINGS.some(c => (x - c.x) ** 2 + (z - c.z) ** 2 < (c.r * 0.7) ** 2) || inMud(x, z)) return false;
   if (Math.hypot(x - FIELDS.x, z - FIELDS.z) < FIELDS.radius + 4) return false;
   if (lakeDistance(x, z) < 2.4 || CREEK.isNear(x, z, 6)) return false;
-  if (BROOK.isNear(x, z, 3.2) || nearRiver(x, z, 7) || inFjord(x, z, 3) || OXBOW.path.isNear(x, z, 11)) return false;
+  if (BROOK.isNear(x, z, 3.2) || nearPlacedRiver(x, z, 7) || inFjord(x, z, 3) || OXBOW.path.isNear(x, z, 11))
+    return false;
   const h = placementHeight(x, z);
   return h < 92 && highSnow(x, z, h) < 0.2 && steepness(x, z) < 0.5;
 }
@@ -139,7 +138,7 @@ export function findLongGrass() {
       ROAD.isNear(cx, cz, 60) ||
       CAMP_TRAIL.isNear(cx, cz, 40) ||
       onPaved(cx, cz, 50) ||
-      onGravel(cx, cz, 50) ||
+      onPlacedGravel(cx, cz, 50) ||
       PLACED_TRACKS.some(track => track.path.isNear(cx, cz, 40));
     const chance = Math.max(meadow, edge * 0.8) * (seen ? 1 : 0.2);
     if (grassRandom() > chance || !isLongGrassGround(cx, cz)) continue;

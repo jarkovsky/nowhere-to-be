@@ -8,9 +8,11 @@ import {
   CREEK,
   FJORD,
   LAKE,
+  LAKELAND,
   WATERFALL,
   desertness,
   inFjord,
+  inLakeland,
   lakeDistance,
   lofotenness,
   nearRiver,
@@ -73,11 +75,20 @@ export function samplePlace(x, z) {
   ]) {
     if (path.isNear(x, z, 60)) river = Math.max(river, size * near(path.nearest(x, z).distance, 5, 60));
   }
-  const falls = near(Math.hypot(x - WATERFALL.x, z - WATERFALL.z), 12, 110);
+  // The waterfall, and the smaller one at the head of the lakeland's gorge, heard from less far off.
+  const falls = Math.max(
+    near(Math.hypot(x - WATERFALL.x, z - WATERFALL.z), 12, 110),
+    0.8 * near(Math.hypot(x - LAKELAND.falls.x, z - LAKELAND.falls.z), 10, 80),
+  );
   river = Math.max(river, falls * 0.8);
 
-  // The lake's shore is a soft lapping; the fjord's and the Lofoten bay's, a heavier far-off swell.
-  const lake = 0.5 * near(lakeDistance(x, z), 1.05, 1.9);
+  // The lake's shore is a soft lapping, as is the lakeland's lake from its shore and out on its
+  // bridges; the fjord's and the Lofoten bay's, a heavier far-off swell.
+  const inland = inLakeland(x, z, -60);
+  const lake = Math.max(
+    0.5 * near(lakeDistance(x, z), 1.05, 1.9),
+    inland ? 0.5 * near(LAKELAND.ashore(x, z), 4, 40) : 0,
+  );
   let coast = 0;
   if (inFjord(x, z, 200)) {
     const { s, distance } = FJORD.path.nearest(x, z);
@@ -88,7 +99,10 @@ export function samplePlace(x, z) {
   // The same patchy noise that grows the woods, so the wind comes where the trees are.
   const winter = winterness(x, z);
   const desert = desertness(x, z);
-  const woods = smoothstep(fractalNoise(x / 150 + 3.3, z / 150 + 8.1, 2, 5), 0.42, 0.64);
+  // In the lakeland the woods are its own, and thinner (buildLakelandScenery in scenery.js).
+  const woods = inland
+    ? 0.7 * smoothstep(fractalNoise(x / 140 + 7.7, z / 140 + 2.2, 2, 463), 0.42, 0.64)
+    : smoothstep(fractalNoise(x / 150 + 3.3, z / 150 + 8.1, 2, 5), 0.42, 0.64);
   const high = Math.max(smoothstep(terrainHeight(x, z), 85, 120), rockiness(x, z) * 0.9);
 
   return { woods, river, falls, sea: Math.max(lake, coast), coast, high, winter, desert };

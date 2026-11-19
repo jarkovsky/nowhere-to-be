@@ -12,7 +12,7 @@ import {
   samplePlace,
 } from '../src/core/nature.js';
 import { createRandom } from '../src/core/math.js';
-import { DESERT, LAKE, LOFOTEN, SUMMIT, WATERFALL, WINTER } from '../src/world/layout.js';
+import { DESERT, LAKE, LAKELAND, LOFOTEN, SPANS, SUMMIT, WATERFALL, WINTER } from '../src/world/layout.js';
 
 const none = { woods: 0, river: 0, falls: 0, sea: 0, coast: 0, high: 0, winter: 0, desert: 0 };
 const at = (place, weather) => natureLevels({ ...none, ...place }, weather);
@@ -88,6 +88,13 @@ test('the places on the map sound as they should', () => {
   assert.ok(samplePlace(SUMMIT.x, SUMMIT.z).high > 0.9);
   const coast = samplePlace(LOFOTEN.x, LOFOTEN.z);
   assert.ok(coast.winter > 0.9 && coast.sea > 0.3, 'the Lofoten coast is snowy and by the sea');
+  // The lakeland: lapping water out on the causeway and at the hamlet's shore, the beck's fall at
+  // the head of the gorge, and no sea up on the pass.
+  const causeway = samplePlace(SPANS[1].x, SPANS[1].z);
+  assert.ok(causeway.sea > 0.45 && causeway.coast === 0, 'out on the causeway');
+  assert.ok(samplePlace(LAKELAND.hamlet.boathouse.x, LAKELAND.hamlet.boathouse.z).sea > 0.3, 'the lakeland shore');
+  assert.ok(samplePlace(LAKELAND.falls.x, LAKELAND.falls.z).falls > 0.7, 'the fall at the head of the gorge');
+  assert.equal(samplePlace(LAKELAND.pass.x, LAKELAND.pass.z).sea, 0);
 });
 
 test('calls are rare, spaced out and never the same file twice running', () => {

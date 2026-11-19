@@ -108,6 +108,12 @@ const CHANGING = 0.5;
  * hill and the ground hold it back and `spare` m/s² more, up to `most`, steeper than any track.
  */
 const CRAWLER = { speed: 1.2, spare: 0.5, most: 0.8 * GRAVITY };
+/**
+ * Ground that rises ahead of the car this steeply (rise over run, from and to) counts as the
+ * slope it is on with either end on it, where gentler ground takes both: steeper than any track,
+ * so the tracks and the crests on them are driven as they were.
+ */
+const BANK = [0.5, 0.9];
 /** Once it has changed up, it holds the gear this long, in seconds, so it doesn't change up and down by turns on a hill. */
 const HOLD = 1.5;
 
@@ -356,12 +362,19 @@ export function stepDriving(state, input, dt, world) {
   const flying = down === 0;
   // The ground only slopes for a car with both ends on it: one with its front wheels out over
   // an edge is still standing on what its back ones are on. Coming down out of the air it meets
-  // the ground as it slopes, whichever wheels touch first, and the rest follow in a moment.
+  // the ground as it slopes, whichever wheels touch first, and the rest follow in a moment. Run
+  // at a bank steep enough to take the weight off its other end, it is on that bank with the end
+  // that has met it: it is slowed as the bank is steep, and is not carried up it at the speed it
+  // had on the flat and thrown off the top.
   if (flying) state.alighting = 0;
   else if (state.flying) state.alighting = ALIGHT;
   else state.alighting = Math.max(0, state.alighting - dt);
-  const footing = Math.max(Math.min(frontDown, backDown), state.alighting / ALIGHT);
   const sloping = groundUnder(state, car, world);
+  const rise = sloping.along * Math.sign(-state.vx * sin - state.vz * cos);
+  const footing = Math.max(
+    lerp(Math.min(frontDown, backDown), Math.max(frontDown, backDown), smoothstep(rise, BANK[0], BANK[1])),
+    state.alighting / ALIGHT,
+  );
   const along = sloping.along * footing;
   const across = sloping.across * footing;
   const { lift } = sloping;

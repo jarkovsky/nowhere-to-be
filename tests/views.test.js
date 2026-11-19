@@ -14,7 +14,7 @@ const roads = [
 ];
 
 test('every lookout is on dry ground, on or right beside a road or track', () => {
-  assert.ok(LOOKOUTS.length >= 6 && LOOKOUTS.length <= 8);
+  assert.ok(LOOKOUTS.length >= 6 && LOOKOUTS.length <= 9);
   for (const spot of LOOKOUTS) {
     // The jetty is driven out along from its root on the shore, so that is where the road is measured to.
     const [x, z] = spot.id === 'jetty' ? [JETTY.x, JETTY.z + 2] : [spot.x, spot.z];

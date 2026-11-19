@@ -21,7 +21,9 @@ const {
   FJORD,
   GRAVEL,
   inFjord,
+  inLakeland,
   LAKE,
+  LAKELAND,
   LOFOTEN,
   OXBOW,
   PAVED,
@@ -49,10 +51,20 @@ export const MAP_SCALE = SIZE / (2 * MAP_EXTENT);
 
 /**
  * Smaller pictures of places out past the fence, drawn at their real positions: the Lofoten
- * coast, `half` metres each way from its middle and `px` pixels square, so it is a little
- * sharper than the valley. The valley's picture stays as it is.
+ * coast and the lakeland, each `half` metres each way from its middle and `px` pixels square, so
+ * it is a little sharper than the valley. The valley's picture stays as it is.
  */
-export const MAP_INSETS = [{ id: 'lofoten', x: LOFOTEN.x, z: LOFOTEN.z, half: 380, px: 1024 }];
+export const MAP_INSETS = [
+  { id: 'lofoten', x: LOFOTEN.x, z: LOFOTEN.z, half: 380, px: 1024 },
+  { id: 'lakeland', x: LAKELAND.x, z: LAKELAND.z, half: LAKELAND.radius + 44, px: 1024 },
+];
+
+/** The fences on the map, as circles: the valley's, round the Lofoten coast and round the lakeland. */
+const FENCES = [
+  { x: 0, z: 0, radius: VALLEY_RADIUS },
+  { x: LOFOTEN.x, z: LOFOTEN.z, radius: LOFOTEN.radius },
+  { x: LAKELAND.x, z: LAKELAND.z, radius: LAKELAND.radius },
+];
 
 export const PAPER = '#efe9d6';
 const WATER = '#8cc3d3';
@@ -243,6 +255,28 @@ export const PLACE_ICONS = {
     color: GREEN,
     d: 'M2.5 19.5h19M3 15h8M3 15a2 2 0 0 0 0 4M11 15a2 2 0 0 1 0 4M3 19h8M13 11h8M13 11a2 2 0 0 0 0 4M21 11a2 2 0 0 1 0 4M13 15h8M8 7h8M8 7a2 2 0 0 0 0 4M16 7a2 2 0 0 1 0 4',
   },
+  // The lakeland: its hamlet by the lake, the castle on the island, the stone bridge over the gorge
+  // and the falls at the gorge's head.
+  lakes: {
+    name: 'Pastviny',
+    color: BLUE,
+    d: 'M4.5 14.5V9L9.5 5.5l5 3.5v5.5ZM2.5 14.5h14M8 14.5v-3h3v3M17 9.5l4 5M2.5 19.5q2.1-1.8 4.2 0t4.3 0 4.3 0 4.2 0',
+  },
+  castle: {
+    name: 'Litice',
+    color: BROWN,
+    d: 'M5 20.5V9.5h3V6.5h2.5v3h3v-3H16v3h3v11ZM10 20.5V17a2 2 0 0 1 4 0v3.5M2.5 20.5h19',
+  },
+  stonebridge: {
+    name: 'Zemská brána',
+    color: SLATE,
+    d: 'M2 7.5h20M2 11h20M4.5 11v9.5M19.5 11v9.5M7.5 20.5V17a4.5 4.5 0 0 1 9 0v3.5',
+  },
+  beckfalls: {
+    name: 'Gorge falls',
+    color: BLUE,
+    d: 'M5 4.5h14M8.5 4.5V13M12 4.5V15M15.5 4.5V13M3.5 19.5q2.1-1.8 4.2 0t4.3 0 4.3 0 4.2 0',
+  },
 };
 
 /** The places to mark on the map, most important first, with their pictures. */
@@ -413,9 +447,10 @@ function mapLines() {
 
 /**
  * Draws the lines on a canvas whose transform maps world metres to its pixels, `scale` pixels
- * to a metre. They are clipped to the fence, which is drawn as a dashed line.
+ * to a metre. They are clipped to the fences, which are drawn as dashed lines: all of them, or
+ * the ones given.
  */
-export function drawMapLines(ctx, scale) {
+export function drawMapLines(ctx, scale, fences = FENCES) {
   const px = value => value / scale;
   ctx.save();
   ctx.lineCap = ctx.lineJoin = 'round';
@@ -425,21 +460,31 @@ export function drawMapLines(ctx, scale) {
     px,
     mapLines().filter(line => line.open),
   );
-  // Everything else stops at the fence: the valley's, and round the Lofoten coast, which is
-  // drawn dashed.
-  const fences = [
-    [0, 0, VALLEY_RADIUS],
-    [LOFOTEN.x, LOFOTEN.z, LOFOTEN.radius],
-  ];
+  // Everything else stops at the fences, which are drawn dashed. Where two of the places they
+  // go round run into each other, as the lakeland and the valley do at the pass, there is no fence.
   ctx.beginPath();
-  for (const [x, z, radius] of fences) {
-    ctx.moveTo(x + radius, z);
-    ctx.arc(x, z, radius, 0, Math.PI * 2);
+  for (const fence of fences) {
+    const open = angle => {
+      const [x, z] = [fence.x + fence.radius * Math.cos(angle), fence.z + fence.radius * Math.sin(angle)];
+      return FENCES.some(other => other !== fence && Math.hypot(x - other.x, z - other.z) < other.radius);
+    };
+    const steps = 720;
+    for (let k = 0; k < steps; k++) {
+      const [from, to] = [(k / steps) * Math.PI * 2, ((k + 1) / steps) * Math.PI * 2];
+      if (open(from) || open(to)) continue;
+      ctx.moveTo(fence.x + fence.radius * Math.cos(from), fence.z + fence.radius * Math.sin(from));
+      ctx.arc(fence.x, fence.z, fence.radius, from, to);
+    }
   }
   ctx.setLineDash([Math.max(7, px(7)), Math.max(6, px(6))]);
   ctx.lineWidth = Math.max(1.2, px(1.5));
   ctx.strokeStyle = '#a58b62';
   ctx.stroke();
+  ctx.beginPath();
+  for (const { x, z, radius } of fences) {
+    ctx.moveTo(x + radius, z);
+    ctx.arc(x, z, radius, 0, Math.PI * 2);
+  }
   ctx.clip();
   drawLines(
     ctx,
@@ -537,7 +582,10 @@ function groundTint(x, z, h, slope, c) {
   if (h > 45) mix(c, TINT.high, Math.min(1, (h - 45) / 80));
   // The woods, with a clean edge where the trees grow thick: the same noise that decides where
   // they grow (buildTrees in scenery.js).
-  const woods = smoothstep(fractalNoise(x / 150 + 3.3, z / 150 + 8.1, 2, 5), 0.465, 0.49);
+  // The lakeland's woods are its own (buildLakelandScenery in scenery.js), and thinner.
+  const woods = inLakeland(x, z, -60)
+    ? smoothstep(fractalNoise(x / 140 + 7.7, z / 140 + 2.2, 2, 463), 0.5, 0.56) * 0.7
+    : smoothstep(fractalNoise(x / 150 + 3.3, z / 150 + 8.1, 2, 5), 0.465, 0.49);
   const rocky = rockiness(x, z);
   // The desert, where the woods give way to sand.
   const sand = desertness(x, z);
@@ -552,6 +600,7 @@ function groundTint(x, z, h, slope, c) {
   // The mountains round the Lofoten coast show as dark grey rock, streaked with snow.
   if (winter > 0) mix(c, TINT.coastRock, smoothstep(slope, 0.55, 1.1) * winter * 0.8);
   if (lakeDistance(x, z) < 2.2) mix(c, TINT.sand, 1 - smoothstep(h, LAKE.level + 0.35, LAKE.level + 1.2));
+  if (inLakeland(x, z)) mix(c, TINT.sand, 1 - smoothstep(h, LAKELAND.level + 0.3, LAKELAND.level + 1));
   const crop = r < 400 ? cropAt(x, z) : null;
   if (crop) mix(c, crop, 0.9);
 }
@@ -564,13 +613,33 @@ const fadeBeyondCoast = (x, z) =>
   smoothstep(Math.hypot(x - LOFOTEN.x, z - LOFOTEN.z), LOFOTEN.radius + 2, LOFOTEN.radius + 40);
 
 /**
+ * The lakeland's picture lies over the valley's, so rather than fade into the paper it is clear
+ * wherever the valley's picture has the ground: inside the valley's fence, and out past its own.
+ */
+const lakelandShows = (x, z) =>
+  smoothstep(Math.hypot(x, z), VALLEY_RADIUS - 8, VALLEY_RADIUS + 2) *
+  (1 - smoothstep(Math.hypot(x - LAKELAND.x, z - LAKELAND.z), LAKELAND.radius + 2, LAKELAND.radius + 40));
+
+/**
  * A picture's place in the world and how it is painted: its square's corner (x0, z0), `size`
  * metres across and `px` pixels, `fade(x, z)` how far the ground has faded into the paper,
- * and the boxes round its still water.
+ * and the boxes round its still water. With `shows(x, z)` it is clear where that is 0, and its
+ * lines are clipped to the `fences` given.
  */
 function regions() {
-  const inset = MAP_INSETS[0];
+  const [inset, land] = MAP_INSETS;
+  const square = { x0: land.x - land.half, x1: land.x + land.half, z0: land.z - land.half, z1: land.z + land.half };
   return {
+    lakeland: {
+      x0: square.x0,
+      z0: square.z0,
+      size: 2 * land.half,
+      px: land.px,
+      fade: () => 0,
+      shows: lakelandShows,
+      fences: [FENCES[2]],
+      boxes: [{ ...square, only: (x, z) => inLakeland(x, z, 2) }],
+    },
     valley: { x0: -MAP_EXTENT, z0: -MAP_EXTENT, size: 2 * MAP_EXTENT, px: SIZE, fade: fadeBeyond, boxes: waterBoxes() },
     // The whole inset's square is asked about its water, but only where it is the bay's or the fjord's.
     lofoten: {
@@ -657,7 +726,7 @@ function* paintWater(ctx, region, box) {
       image.data[k] = c[0];
       image.data[k + 1] = c[1];
       image.data[k + 2] = c[2];
-      image.data[k + 3] = 255 * smoothstep(depth, 0, 0.3);
+      image.data[k + 3] = 255 * smoothstep(depth, 0, 0.3) * (region.shows?.(x, z) ?? 1);
     }
   }
   const tile = makeCanvas(i1 - i0, j1 - j0);
@@ -709,7 +778,7 @@ function* paintRegion(region) {
       const shade = clamp(1 + (light - 1) * 0.5, 0.7, 1.12);
       const o = k * 4;
       for (let n = 0; n < 3; n++) ground.data[o + n] = lerp(c[n] * shade, TINT.paper[n], fade);
-      ground.data[o + 3] = 255;
+      ground.data[o + 3] = 255 * (region.shows?.(x, z) ?? 1);
     }
     if (j % 8 === 7) yield;
   }
@@ -728,17 +797,21 @@ function* paintRegion(region) {
   }
   const scale = region.px / region.size;
   ctx.setTransform(scale, 0, 0, scale, -region.x0 * scale, -region.z0 * scale);
-  drawMapLines(ctx, scale);
+  drawMapLines(ctx, scale, region.fences);
   return picture;
 }
 
 /** Paints the valley's picture and then the insets', one after the other. */
 function* paintPicture() {
-  const { valley, lofoten } = regions();
+  const { valley, lofoten, lakeland } = regions();
   const canvas = yield* paintRegion(valley);
-  const insets = [
-    { ...MAP_INSETS[0], x0: lofoten.x0, z0: lofoten.z0, size: lofoten.size, canvas: yield* paintRegion(lofoten) },
-  ];
+  const insets = [];
+  for (const [inset, region] of [
+    [MAP_INSETS[0], lofoten],
+    [MAP_INSETS[1], lakeland],
+  ]) {
+    insets.push({ ...inset, x0: region.x0, z0: region.z0, size: region.size, canvas: yield* paintRegion(region) });
+  }
   return { canvas, insets };
 }
 

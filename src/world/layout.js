@@ -176,12 +176,328 @@ export const CONNECTORS = [
   { id: 'north', path: createPath([ringPoint(338), polar(336, 610), polar(330, 690), outerPoint(324)]) },
 ];
 
-/** Every gravel road: the outer road and the roads out to it. */
-export const GRAVEL = [OUTER_ROAD, ...CONNECTORS.map(connector => connector.path)];
+/**
+ * The valley's own gravel roads: the outer road and the roads out to it. The valley's trees,
+ * rocks and grass are kept off these and no others (see placing.js), so a road laid since
+ * moves none of them.
+ */
+export const VALLEY_GRAVEL = [OUTER_ROAD, ...CONNECTORS.map(connector => connector.path)];
 
-/** True near the middle of any gravel road. */
-export function onGravel(x, z, distance = GRAVEL_HALF_WIDTH) {
-  return Math.hypot(x, z) > OUTLANDS_RADIUS - 140 && GRAVEL.some(path => path.isNear(x, z, distance));
+// --- The lakeland ----------------------------------------------------------------------
+// A land of its own beyond the fence in the south-east, through a gap in the mountains: a lake in
+// a bowl, with a bench of higher ground round it and mountains all about. A gravel road leaves
+// the outer road, goes over the pass and across a gorge on a stone bridge, and comes down to the
+// shore. From there a track runs out over the water on a long plank causeway to an island with a
+// ruined castle on it, on over a timber bridge to a headland on the far shore, round by the far
+// shore, through the shallows of the narrows where a small tarn joins the lake, and back along
+// the near shore. A rough track goes down into the gorge and along its stream, under the bridge,
+// and another climbs a crag above the lake. (After the valley of the Divoká Orlice below the
+// Orlické hory: the gorge and its stone bridge at Zemská brána, the lake at Pastviny and the
+// castle at Litice.)
+//
+// Places in it are given as [a, c]: `a` metres on from its middle, straight away from the valley,
+// and `c` metres to the right of that.
+
+export const LAKELAND = (() => {
+  const bearing = (55 * Math.PI) / 180;
+  const [x, z] = polar(55, 1390);
+  const [ux, uz] = [Math.cos(bearing), Math.sin(bearing)];
+  const at = (a, c) => [x + a * ux - c * uz, z + a * uz + c * ux];
+  const spot = (a, c) => ({ x: at(a, c)[0], z: at(a, c)[1] });
+  const local = (px, pz) => ({ a: (px - x) * ux + (pz - z) * uz, c: -(px - x) * uz + (pz - z) * ux });
+  const here = ({ x: px, z: pz }) => Object.values(local(px, pz));
+
+  /** The lake: a broad oval, and a small round tarn off its right-hand end, joined by the narrows. */
+  const lake = { a: 60, c: -20, along: 170, across: 150 };
+  const tarn = { a: 45, c: 200, radius: 72 };
+  /** The narrows between them: a strait this far across, from the one water to the other. */
+  const narrows = { a: 50, from: 95, to: 150, half: 27 };
+  /** The headland that reaches out from the far shore towards the island, and the island. */
+  const headland = { from: [246, -30], to: [142, -26], root: 30, tip: 11 };
+  const island = { a: 30, c: -42, radius: 46 };
+
+  /**
+   * About how far outside an oval a point is, in metres: negative inside it. The oval bulges
+   * into a few bays and draws in to points between them.
+   */
+  const oval = (a, c, { a: a0, c: c0, along, across }) => {
+    const [da, dc] = [a - a0, c - c0];
+    const turn = Math.atan2(dc / across, da / along);
+    const bays =
+      1 + 0.09 * Math.sin(3 * turn + 0.4) + 0.06 * Math.sin(5 * turn + 2.3) + 0.03 * Math.sin(8 * turn + 4.1);
+    const k = Math.hypot(da / along, dc / across) / bays;
+    return k < 1e-6 ? -Math.min(along, across) : ((k - 1) * k * bays) / Math.hypot(da / along ** 2, dc / across ** 2);
+  };
+  /** The lesser of two distances, rounded off where they meet over `k` metres. */
+  const rounded = (p, q, k) => {
+    const h = Math.max(0, Math.min(1, 0.5 + (0.5 * (q - p)) / k));
+    return q + (p - q) * h - k * h * (1 - h);
+  };
+  /** How far inside the headland a point is: it is broad where it leaves the shore and narrows to its tip. */
+  const onHeadland = (a, c) => {
+    const [[a0, c0], [a1, c1]] = [headland.from, headland.to];
+    const [da, dc] = [a1 - a0, c1 - c0];
+    const t = Math.max(0, Math.min(1, ((a - a0) * da + (c - c0) * dc) / (da * da + dc * dc)));
+    const wide = headland.root + (headland.tip - headland.root) * t + 3 * Math.sin(t * 9 + (c > c0 ? 1 : 4));
+    return wide - Math.hypot(a - a0 - da * t, c - c0 - dc * t);
+  };
+  /** How far inside the island's shore a point is: more than nothing on the island. Its shore goes in and out by where it faces. */
+  const onIsland = (a, c) => {
+    const turn = Math.atan2(c - island.c, a - island.a);
+    const reach = island.radius * (1 + 0.1 * Math.sin(3 * turn + 1) + 0.06 * Math.sin(5 * turn));
+    return reach - Math.hypot(a - island.a, c - island.c);
+  };
+  /**
+   * How far a point is from the water's edge, in metres: more than nothing on dry land, less in
+   * the water. The shore wanders in and out a little all the way round.
+   */
+  const ashoreAt = (a, c) => {
+    const wander = 4.5 * Math.sin(a / 23 + 1.3) * Math.sin(c / 29 + 2.1) + 2.5 * Math.sin((a + c) / 13 + 0.4);
+    const strait = Math.hypot(a - narrows.a, c - Math.max(narrows.from, Math.min(narrows.to, c))) - narrows.half;
+    const open = rounded(oval(a, c, lake), Math.hypot(a - tarn.a, c - tarn.c) - tarn.radius, 14);
+    const water = rounded(open, strait, 10) + wander;
+    return Math.max(water, onHeadland(a, c), onIsland(a, c));
+  };
+  const ashore = (px, pz) => {
+    const { a, c } = local(px, pz);
+    return ashoreAt(a, c);
+  };
+
+  /** The gravel road: off the outer road, over the pass and the gorge, and down to the square by the shore. */
+  const join = OUTER_ROAD.nearest(...polar(56.5, 850)).sample;
+  const square = [-88, -112];
+  const road = createPath([
+    [join.x, join.z],
+    polar(56.5, 905),
+    polar(56.5, 955),
+    at(-390, 26),
+    at(-335, 18),
+    at(-290, 6),
+    at(-252, -8),
+    at(-214, -25),
+    at(-180, -42),
+    at(-152, -64),
+    at(-124, -86),
+    at(-100, -104),
+    at(...square),
+  ]);
+
+  /**
+   * The stream that feeds the lake: from the foot of a waterfall under the mountain wall, down
+   * its winding gorge and under the road, to a few metres out from the shore.
+   */
+  const beck = (() => {
+    const line = createPath(
+      [
+        [-256, -288],
+        [-250, -262],
+        [-268, -215],
+        [-246, -160],
+        [-250, -105],
+        [-226, -62],
+        [-214, -25],
+        [-198, 10],
+        [-160, 34],
+        [-124, 66],
+        [-86, 64],
+        [-52, 60],
+      ].map(([a, c]) => at(a, c)),
+    );
+    const mouth = line.samples.find(p => ashore(p.x, p.z) < 0).s;
+    const points = [];
+    for (let s = 0; s < mouth + 8; s += 12) points.push([line.at(s).x, line.at(s).z]);
+    return [...points, [line.at(mouth + 8).x, line.at(mouth + 8).z]];
+  })();
+  // The stream's own path, as the river made from these points has it (see RIVERS).
+  const stream = createPath(beck, { spacing: 1.5 });
+  /** How far down the stream the lake's edge is, and the bridge that carries the road over it. */
+  const mouth = stream.length - 8;
+  const under = closestApproach(road, stream).along;
+  /** A point `s` metres down the stream and `side` metres to the right of it, as [a, c]. */
+  const beside = (s, side) => here(stream.offset(s, side));
+
+  /**
+   * The track up the gorge, from the shore track where that fords the beck: up the floor of the
+   * gorge beside the stream, through it and under the road's bridge, through it again, and on to
+   * the pool under the waterfall. `confluence` is how far down the stream the side ravine comes in.
+   */
+  const confluence = under - 92;
+  const fords = [under + 36, 112];
+  const gorge = [
+    beside(mouth - 17, -13),
+    beside(mouth - 36, -7),
+    ...[mouth - 58, mouth - 84, fords[0] + 9].map(s => beside(s, -6)),
+    ...[fords[0] - 9, under + 12, under - 4, under - 22, under - 42, under - 66, confluence].map(s => beside(s, 6)),
+    ...[confluence - 24, confluence - 44, fords[1] + 9].map(s => beside(s, 6)),
+    ...[fords[1] - 9, 82, 61, 40].map(s => beside(s, -6)),
+    beside(20, -3),
+  ];
+  /** The track down the side ravine: off the road before the bridge, round and down to the floor of the gorge. */
+  const leave = here(road.nearest(...at(-305, 10)).sample);
+  const meet = beside(confluence, 6);
+  const ravine = [leave, [-332, -22], [-350, -62], [-340, -100], [-312, -112], [-284, -110], meet];
+
+  /**
+   * The track round the lake, from the square: out over the water to the island and round the
+   * castle's knoll, over the bridge to the headland, along the far shore, through the shallows
+   * of the narrows, back by the near shore and through the beck near its mouth, to the road
+   * just short of the square.
+   */
+  const landing = Math.atan2(square[1] - island.c, square[0] - island.a);
+  const leaving = Math.atan2(headland.to[1] - island.c, headland.to[0] - island.a);
+  /** A point on the island `reach` metres from its middle, `turn` round from straight on. */
+  const round = (turn, reach = island.radius - 12) => [
+    island.a + reach * Math.cos(turn),
+    island.c + reach * Math.sin(turn),
+  ];
+  const shore = [
+    square,
+    [-70, -102],
+    round(landing, island.radius + 30),
+    round(landing, island.radius),
+    round(landing + 0.12, island.radius - 8),
+    ...[0.22, 0.42, 0.62, 0.8].map(t => round(landing + (leaving - landing) * t)),
+    round(leaving - 0.12, island.radius - 8),
+    round(leaving, island.radius),
+    round(leaving, island.radius + 30),
+    [headland.to[0] + 4, headland.to[1]],
+    [185, -28],
+    [215, -26],
+    [238, -8],
+    [240, 12],
+    [228, 48],
+    [204, 84],
+    [170, 112],
+    [132, 128],
+    [100, 132],
+    [20, 132],
+    [-2, 134],
+    [-44, 113],
+    [-90, 112],
+    [-120, 100],
+    beside(mouth - 17, 13),
+    beside(mouth - 17, -13),
+    [-116, 20],
+    [-119, -35],
+    [-112, -76],
+    here(road.at(road.length - 18)),
+  ];
+  /**
+   * The track up to the castle: on round the island where the shore track turns off it for the
+   * bridge, climbing round the back of the knoll in a spiral to the yard on its top.
+   */
+  const way = Math.sign(leaving - landing);
+  const mount = [
+    round(landing + (leaving - landing) * 0.8),
+    ...[
+      [0.3, 34],
+      [0.8, 33],
+      [1.2, 30],
+      [1.7, 26],
+      [2.2, 22],
+      [2.7, 18],
+      [3.2, 14],
+      [3.7, 9],
+      [4.1, 4],
+      [4.3, 0],
+    ].map(([turn, reach]) => round(leaving + way * turn, reach)),
+  ];
+  /** The crag: a rounded hill above the left-hand shore, and the track from the square round the back of it to its top. */
+  const crag = { a: 100, c: -250, radius: 55, height: 16 };
+  const climb = [
+    square,
+    [-60, -148],
+    [-12, -182],
+    [36, -204],
+    [58, -238],
+    [70, -276],
+    [104, -290],
+    [132, -270],
+    [128, -240],
+    [crag.a + 4, crag.c + 4],
+  ];
+  const world = points => points.map(([a, c]) => at(a, c));
+
+  return {
+    x,
+    z,
+    /** The fence round it runs this far from its middle. */
+    radius: 430,
+    /** The height of the lake's water. */
+    level: 20,
+    at,
+    spot,
+    local,
+    ashore,
+    lake,
+    tarn,
+    /** How far inside the island's shore a point is: more than nothing on the island. */
+    onIsland: (px, pz) => onIsland(...here({ x: px, z: pz })),
+    /** The island, and the castle on the knoll in the middle of it. */
+    island: { ...spot(island.a, island.c), radius: island.radius },
+    castle: { ...spot(island.a, island.c), rotation: bearing },
+    /** The crag: a rounded hill, `height` over the ground it stands on. */
+    crag: { ...spot(crag.a, crag.c), radius: crag.radius, height: crag.height },
+    /** The bar under the water of the narrows, which the shore track wades along: from one point to the other. */
+    shallows: { from: spot(narrows.a + 40, 132), to: spot(narrows.a - 40, 132), depth: 0.25, half: 6 },
+    beck,
+    /** How far down the beck the lake's edge is, the road's bridge, and where the side ravine comes in. */
+    mouth,
+    under,
+    confluence,
+    /** The pool under the waterfall, where the gorge begins. */
+    falls: { ...stream.at(4), heading: Math.atan2(-stream.at(4).dx, -stream.at(4).dz) },
+    road,
+    tracks: {
+      shore: world(shore),
+      gorge: world(gorge),
+      ravine: world(ravine),
+      climb: world(climb),
+      mount: world(mount),
+    },
+    square: spot(...square),
+    /**
+     * The hamlet round the square, at the end of the road: cottages on the level ground back from
+     * the water, each facing the square, and a boathouse on the shore beside the causeway.
+     */
+    hamlet: {
+      houses: [
+        [-111, -126],
+        [-88, -145],
+        [-136, -105],
+        [-70, -168],
+      ].map(([a, c]) => {
+        const p = spot(a, c);
+        const [sx, sz] = at(...square);
+        return { ...p, rotation: Math.atan2(sx - p.x, sz - p.z) };
+      }),
+      // Its doors open on to the water, straight out from the shore.
+      boathouse: { ...spot(-55, -125), rotation: bearing },
+    },
+    /** Where the road goes over the pass, on the line of the valley's fence. */
+    pass: spot(-390, 26),
+    /** Circles its own trees and rocks are kept out of: round the square, the castle, the top of the crag and the waterfall's pool. */
+    clearings: [
+      { ...spot(...square), r: 34 },
+      { ...spot(-100, -140), r: 48 },
+      { ...spot(island.a, island.c), r: 40 },
+      { ...spot(crag.a, crag.c), r: 12 },
+      { ...stream.at(4), r: 26 },
+    ],
+  };
+})();
+
+/** True inside the lakeland's own fence, `margin` in from it. */
+export function inLakeland(x, z, margin = 0) {
+  return (x - LAKELAND.x) ** 2 + (z - LAKELAND.z) ** 2 < (LAKELAND.radius - margin) ** 2;
+}
+
+/** Every gravel road: the outer road, the roads out to it and the road into the lakeland. */
+export const GRAVEL = [...VALLEY_GRAVEL, LAKELAND.road];
+
+/** True near the middle of any gravel road, or of any of `roads`. */
+export function onGravel(x, z, distance = GRAVEL_HALF_WIDTH, roads = GRAVEL) {
+  return Math.hypot(x, z) > OUTLANDS_RADIUS - 140 && roads.some(path => path.isNear(x, z, distance));
 }
 
 /**
@@ -196,7 +512,7 @@ export function onGravel(x, z, distance = GRAVEL_HALF_WIDTH) {
  * either side. Its `sites` are the places that shape it for a road: a ford is wide and
  * shallow, a bridge narrows it and deepens it under the deck, a pool is a broad quiet reach.
  */
-function makeRiver(id, points, { seed, narrow, wide, run, pool }) {
+function makeRiver(id, points, { seed, narrow, wide, run, pool, bank = 14, spread = 70 }) {
   const path = createPath(points, { spacing: 1.5 });
   const sites = [];
   /** How much a site shapes the river at `s`: 1 within its reach and fading to 0 beyond. */
@@ -212,7 +528,13 @@ function makeRiver(id, points, { seed, narrow, wide, run, pool }) {
     id,
     path,
     sites,
-    widest: wide * 1.3 + 0.5,
+    /** How far the level floor of its valley reaches either side of the water, and how far the land takes to ease down to it. */
+    bank,
+    spread,
+    /** The widest it gets, from its middle: at its broadest reach, or at a ford that is broader still. */
+    get widest() {
+      return Math.max(wide * 1.3 + 0.5, ...sites.map(site => site.halfWidth));
+    },
     /** A width to draw on the map. */
     typical: (narrow + wide) / 2,
     halfWidth: s => blend(s, lerp(narrow, wide, pooled(s)) * (1 + 0.3 * riffled(s)), 'halfWidth'),
@@ -285,7 +607,13 @@ export const RIVERS = [
     ],
     { seed: 37, narrow: 3, wide: 5.6, run: 0.7, pool: 1.1 },
   ),
+  // The lakeland's beck: a narrow stream down its gorge into the lake. Its valley is the floor
+  // of the gorge and no wider.
+  makeRiver('beck', LAKELAND.beck, { seed: 53, narrow: 1.4, wide: 2.4, run: 0.4, pool: 0.7, bank: 5, spread: 3 }),
 ];
+
+/** The valley's own rivers: the ones its trees, rocks and grass are kept off (see placing.js). */
+export const VALLEY_RIVERS = RIVERS.slice(0, 3);
 
 /** How deep the water is where a road fords a river. */
 export const FORD_DEPTH = 0.3;
@@ -293,11 +621,11 @@ export const FORD_DEPTH = 0.3;
 /** No river comes nearer the centre than this, less the furthest anything asks about. */
 const RIVERS_FROM = Math.min(...RIVERS.flatMap(river => river.path.samples.map(p => Math.hypot(p.x, p.z)))) - 30;
 
-/** The river at a point, if it is within `distance` of one: { river, s, distance }, or null. */
-export function nearRiver(x, z, distance) {
+/** The river at a point, if it is within `distance` of one (of `rivers`): { river, s, distance }, or null. */
+export function nearRiver(x, z, distance, rivers = RIVERS) {
   // They all run out in the outlands, so most of the valley is quickly ruled out.
   if (x * x + z * z < RIVERS_FROM * RIVERS_FROM) return null;
-  for (const river of RIVERS) {
+  for (const river of rivers) {
     if (!river.path.isNear(x, z, distance)) continue;
     const { s, distance: d } = river.path.nearest(x, z);
     if (d < distance) return { river, s, distance: d };
@@ -785,9 +1113,9 @@ export const FERRY_LANE = (() => {
   ]);
 })();
 
-/** True inside the fence, `margin` in from it: in the valley, or on the Lofoten coast. */
+/** True inside the fence, `margin` in from it: in the valley, in the lakeland, or on the Lofoten coast. */
 export function insideFence(x, z, margin = 0) {
-  if (x * x + z * z < (VALLEY_RADIUS - margin) ** 2) return true;
+  if (x * x + z * z < (VALLEY_RADIUS - margin) ** 2 || inLakeland(x, z, margin)) return true;
   return Math.hypot(x - LOFOTEN.x, z - LOFOTEN.z) < LOFOTEN.radius - margin;
 }
 
@@ -915,6 +1243,11 @@ export const HERDS = [
   { kind: 'arcticFox', x: 630, z: -543, radius: 14, count: 2 },
   { kind: 'snowLeopard', x: 410, z: -745, radius: 18, count: 2, young: 1 },
   { kind: 'snowLeopard', x: 718, z: -405, radius: 16, count: 1 },
+  // In the lakeland: red deer on the meadow of the far shore, seen across the water from the island
+  // and the crag, a moose with her calf by the tarn, and wild boar beside the track along the south shore.
+  { kind: 'deer', ...LAKELAND.spot(164, -188), radius: 34, count: 5, young: 2 },
+  { kind: 'moose', ...LAKELAND.spot(-19, 282), radius: 26, count: 2, young: 1 },
+  { kind: 'boar', ...LAKELAND.spot(198, 147), radius: 26, count: 4, young: 2 },
 ];
 
 /** Like `polar`, as { x, z }. */
@@ -1798,7 +2131,16 @@ export const TRACKS = [
       ),
     ),
   },
+  // The lakeland's tracks (see LAKELAND). `land` marks them as laid with it, after the valley.
+  { id: 'lakeshore', ruts: true, land: true, grade: 0.12, path: createPath(LAKELAND.tracks.shore) },
+  { id: 'gorge', ruts: true, land: true, grade: 0.16, window: 8, path: createPath(LAKELAND.tracks.gorge) },
+  { id: 'ravine', ruts: true, land: true, grade: 0.12, width: 2.6, path: createPath(LAKELAND.tracks.ravine) },
+  { id: 'crag', ruts: true, land: true, grade: 0.14, path: createPath(LAKELAND.tracks.climb) },
+  { id: 'castle', ruts: true, land: true, grade: 0.13, width: 2.6, path: createPath(LAKELAND.tracks.mount) },
 ];
+
+/** The tracks the valley's trees, rocks and grass are kept off: its own, and none laid since (see placing.js). */
+export const VALLEY_TRACKS = TRACKS.filter(track => !track.land);
 
 /**
  * Short rough stretches on the side tracks, each laid out by the builder of its `kind` (see
@@ -2273,14 +2615,74 @@ export const BRIDGES = [
 /** The bridge over the creek, on the trail. */
 export const BRIDGE = BRIDGES[0];
 
+// --- The long bridges ----------------------------------------------------------------------
+
+/**
+ * Bridges that follow the road or track they carry, bends and all, from `from` to `to` metres
+ * along its `path`, the deck `width` across and rising `arch` over its ends in the middle. The
+ * ground under one is left as it lies. Things can pass `under` the ones that say so, so their
+ * decks count only for what is already up at their height (see drivingHeight in terrain.js).
+ * `deck` is the stretch of the path the deck lies along, as a path of its own.
+ */
+function spanAlong(id, style, path, from, to, more) {
+  const points = [];
+  for (let s = from; s < to; s += 1) points.push([path.at(s).x, path.at(s).z]);
+  points.push([path.at(to).x, path.at(to).z]);
+  const middle = path.at((from + to) / 2);
+  return {
+    id,
+    style,
+    path,
+    from,
+    to,
+    s: (from + to) / 2,
+    length: to - from,
+    x: middle.x,
+    z: middle.z,
+    arch: 0,
+    ...more,
+    deck: createPath(points),
+  };
+}
+
+/** The stretch of `path` either side of the point `over` that is over water, or within `margin` metres of its edge. */
+function overWater(path, over, margin = 5) {
+  const wet = s => LAKELAND.ashore(path.at(s).x, path.at(s).z) < margin;
+  const middle = path.nearest(over.x, over.z).s;
+  let [from, to] = [middle, middle];
+  while (from > 0 && wet(from - 1)) from -= 1;
+  while (to < path.length && wet(to + 1)) to += 1;
+  return [from, to];
+}
+
+export const SPANS = (() => {
+  const beck = RIVERS.find(river => river.id === 'beck');
+  const shore = TRACKS.find(track => track.id === 'lakeshore').path;
+  // The stone bridge carries the road straight over the gorge, high above the beck. The gorge
+  // crosses under it at a slant, so its deck runs on a few metres past the rim at each end, to
+  // where the ground is the road's right across.
+  const gate = closestApproach(LAKELAND.road, beck.path).sample.s;
+  return [
+    spanAlong('gate', 'arch', LAKELAND.road, gate - 25, gate + 25, { width: 7.8, under: true }),
+    spanAlong('causeway', 'pier', shore, ...overWater(shore, LAKELAND.spot(-45, -86)), { width: 5.2 }),
+    spanAlong('trestle', 'trestle', shore, ...overWater(shore, LAKELAND.spot(110, -30)), { width: 5, arch: 2.2 }),
+  ];
+})();
+
 /** True on a bridge's deck at distance `s` along `path`, less `margin` at each end. */
 export function onBridgeDeck(path, s, margin = 0.6) {
-  return BRIDGES.some(b => b.path === path && path.apart(s, b.s) < b.length / 2 - margin);
+  return (
+    BRIDGES.some(b => b.path === path && path.apart(s, b.s) < b.length / 2 - margin) ||
+    SPANS.some(span => span.path === path && s > span.from + margin && s < span.to - margin)
+  );
 }
 
 /** True where a road or track crosses a river by a bridge rather than a ford, `s` along `path`. */
 export function isBridged(path, s) {
-  return BRIDGES.some(b => b.path === path && path.apart(s, b.s) < b.length / 2 + 4);
+  return (
+    BRIDGES.some(b => b.path === path && path.apart(s, b.s) < b.length / 2 + 4) ||
+    SPANS.some(span => span.path === path && s > span.from - 4 && s < span.to + 4)
+  );
 }
 
 /** Where the railway crosses the trail: `s` along the railway, `roadS` along the trail. */
@@ -2410,6 +2812,10 @@ export const PLACES = [
   { id: 'crash', x: CRASH.x, z: CRASH.z },
   { id: 'mine', x: MINE.x, z: MINE.z },
   { id: 'logging', x: LOGGING.x, z: LOGGING.z },
+  { id: 'stonebridge', x: SPANS[0].x, z: SPANS[0].z },
+  { id: 'lakes', x: LAKELAND.square.x, z: LAKELAND.square.z },
+  { id: 'castle', x: LAKELAND.castle.x, z: LAKELAND.castle.z },
+  { id: 'beckfalls', x: LAKELAND.falls.x, z: LAKELAND.falls.z },
 ];
 
 /**
@@ -2466,6 +2872,19 @@ export const PADS = [
   ...LOFOTEN.houses.map(({ x, z }) => ({ x, z, radius: 6, falloff: 5, level: 'ground' })),
   { x: LOFOTEN.church.x, z: LOFOTEN.church.z, radius: 9, falloff: 6, level: 'ground' },
   { x: LOFOTEN.lighthouse.x, z: LOFOTEN.lighthouse.z, radius: 5, falloff: 6, level: 'ground' },
+  // The lakeland's, laid with it (`land`): the square at the end of its road, the hamlet's
+  // buildings and the top of the crag. The castle's yard is the level top of the island's knoll.
+  { x: LAKELAND.square.x, z: LAKELAND.square.z, radius: 12, falloff: 10, level: 'ground', land: true },
+  ...LAKELAND.hamlet.houses.map(({ x, z }) => ({ x, z, radius: 6, falloff: 5, level: 'ground', land: true })),
+  {
+    x: LAKELAND.hamlet.boathouse.x,
+    z: LAKELAND.hamlet.boathouse.z,
+    radius: 4.5,
+    falloff: 4,
+    level: 'ground',
+    land: true,
+  },
+  { x: LAKELAND.crag.x, z: LAKELAND.crag.z, radius: 8, falloff: 8, level: 'ground', land: true },
 ];
 
 function patchOnRoad(x, z) {
@@ -2576,4 +2995,12 @@ export const LOOKOUTS = [
   { id: 'lofoten', x: -891, z: -1082, radius: 9, bearing: 5.9 },
   // The hairpin on the track up to the hut on the summit, looking over the valley and the lake.
   { id: 'chata', x: 187, z: -183, radius: 9, bearing: 4.9 },
+  // The top of the crag in the lakeland, looking down on the island, its castle and the two bridges.
+  {
+    id: 'crag',
+    x: LAKELAND.crag.x,
+    z: LAKELAND.crag.z,
+    radius: 9,
+    bearing: Math.atan2(LAKELAND.castle.x - LAKELAND.crag.x, LAKELAND.castle.z - LAKELAND.crag.z),
+  },
 ];

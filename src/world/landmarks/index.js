@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 import { buildBridge } from './bridge.js';
+import { buildShallows, buildSpan } from './spans.js';
 import { buildTunnel } from './tunnel.js';
 import { buildWaterfall } from './waterfall.js';
+import { buildBeckFalls } from './beckfalls.js';
+import { buildCastle } from './castle.js';
+import { buildHamlet } from './hamlet.js';
 import { buildCampsites } from './camp.js';
 import { buildFarm } from './farm.js';
 import { buildTower } from './tower.js';
@@ -34,7 +38,7 @@ import { buildMine } from './mine.js';
 import { buildLogging } from './logging.js';
 import { buildRoughGround } from './roughground.js';
 import { buildHeaps } from '../heaps.js';
-import { HELIPAD, KRYSTOF } from '../layout.js';
+import { HELIPAD, KRYSTOF, SPANS } from '../layout.js';
 import { SIGHT } from '../sight.js';
 
 export { insideTunnel } from './tunnel.js';
@@ -94,6 +98,7 @@ export function buildLandmarks(scene, obstacles) {
   own('bridge', buildBridge);
   const tunnel = own('tunnel', buildTunnel);
   const waterfall = own('waterfall', buildWaterfall);
+  const beckFalls = own('beckfalls', buildBeckFalls);
   const camps = own('camp', buildCampsites);
   const farm = own('farm', buildFarm);
   const tower = own('tower', buildTower);
@@ -128,6 +133,11 @@ export function buildLandmarks(scene, obstacles) {
   own('mine', buildMine);
   own('logging', buildLogging);
   own('roughground', buildRoughGround);
+  // Each of the lakeland's long bridges on its own, as they stand far apart.
+  for (const span of SPANS) own(`span-${span.id}`, (group, list) => buildSpan(span, group, list));
+  own('shallows', buildShallows);
+  const castle = own('castle', buildCastle);
+  const hamlet = own('hamlet', buildHamlet);
   own('heaps', group => buildHeaps(group));
   const signs = own('signs', group => buildSigns(group, { tunnelPortal: tunnel.portal, hutBoard: hut.nameBoard }));
 
@@ -164,6 +174,8 @@ export function buildLandmarks(scene, obstacles) {
       ...gate.occluders,
       ...depot.occluders,
       ...desert.occluders,
+      // The camera keeps out of the castle's tower; its low walls it simply rides over.
+      ...castle.occluders,
     ],
     /** The level crossing: where traffic waits, and the barriers while they are down. */
     crossing,
@@ -179,6 +191,8 @@ export function buildLandmarks(scene, obstacles) {
       // Only those near enough to be made out are kept moving (see show).
       const near = places;
       if (near.waterfall.near) waterfall.update(time);
+      if (near.beckfalls.near) beckFalls.update(time);
+      if (near.hamlet.near) hamlet.update(time);
       if (near.camp.near) camps.update(time, night);
       if (near.farm.near) farm.update(time);
       if (near.tower.near) tower.update(time);

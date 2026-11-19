@@ -191,6 +191,28 @@ test('over a crest at cruising speed the wheels stay on the ground, and taken fl
   assert.ok(fast.z < -130, 'and drives on');
 });
 
+test('run at a bank too steep to climb, the car is slowed by it and stopped, not carried up it and thrown off the top', () => {
+  // Level ground, then a bank that rises 12 m in 4, with level ground again above it.
+  const bank = (x, z) => Math.min(12, Math.max(0, (-20 - z) * 3));
+  for (const input of [{ cruise: true, cruiseSpeed: 6 }, { forward: true }]) {
+    const { ride, world } = startOn(bank);
+    let air = 0;
+    let off = 0;
+    let highest = 0;
+    run(ride, input, 12, world, ({ chassis, state }) => {
+      air = Math.max(air, chassis.air);
+      off = Math.max(off, state.y - bank(state.x, state.z));
+      highest = Math.max(highest, state.y);
+    });
+    const how = input.cruise ? 'at cruising speed' : 'flat out';
+    assert.ok(air < 0.3, `${how} it leaves the ground for ${air.toFixed(2)} s`);
+    assert.ok(off < 1, `${how} it is ${off.toFixed(1)} m off the ground`);
+    // What speed it had takes it some way up, and no further: it never gets to the top.
+    assert.ok(highest < (input.cruise ? 5 : 11), `${how} it gets ${highest.toFixed(1)} m up the bank`);
+    assert.ok(Math.abs(ride.state.speed) < 0.5, `${how} it ends up going ${ride.state.speed.toFixed(1)} m/s`);
+  }
+});
+
 test('with a wheel hanging over a hollow the car drives on, held by the other wheel of the pair', () => {
   // A trench a metre deep under the left wheels' way, 3 m long.
   const trench = (x, z) => (x < -0.6 && x > -1.6 && z < -8 && z > -11 ? -1 : 0);

@@ -28,8 +28,8 @@ import {
 } from './terrain.js';
 
 /** What the tyres are on, for grip and top speed. */
-export function surfaceUnder(x, z) {
-  if (onDeck(x, z)) return 'road';
+export function surfaceUnder(x, z, from = Infinity) {
+  if (onDeck(x, z, from)) return 'road';
   if (waterDepth(x, z) > 0.15) return 'water';
   const patch = surfaceAt(x, z);
   if (patch === 'leaves' || patch === 'mud') return patch;
@@ -69,7 +69,7 @@ export function createDrivingWorld(
     dynamic,
     surface(x, z) {
       if (x !== last.x || z !== last.z || state.y !== last.y) {
-        last.kind = onFin(x, z, state.y) ? 'track' : cropAt(x, z) ? 'crop' : surfaceUnder(x, z);
+        last.kind = onFin(x, z, state.y) ? 'track' : cropAt(x, z) ? 'crop' : surfaceUnder(x, z, state.y);
         last.x = x;
         last.z = z;
         last.y = state.y;
@@ -80,7 +80,7 @@ export function createDrivingWorld(
     height,
     boulderLift,
     isDriveable,
-    waterDepth: wadingDepth,
+    waterDepth: (x, z) => wadingDepth(x, z, state.y),
     wetness,
   };
 }

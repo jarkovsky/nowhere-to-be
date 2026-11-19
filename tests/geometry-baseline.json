@@ -50,6 +50,19 @@
   "landmark.depot": {
     "one-sided at 26.0, 7.8, 84.2": "The painted face of the board over the doors, laid just in front of the board itself: from behind, the board shows."
   },
+  "landmark.span-gate": {
+    "drive-in at 694.9, 31.3, 948.8": "The stonework's foot is taken as one outline right across the gorge, and the middle of it is the open arch that the beck and the track run through. Either side of the opening, where the bank comes up to the stone, the bridge is solid from the ground to just under the road (see walls in spans.js)."
+  },
+  "landmark.span-causeway": {
+    "gap-under at 840.0, 21.4, 1016.0": "A deck plank at the end of the bridge, where the bank falls away to the lake: its ends reach out past the beams it lies on, over the slope, as on a real bridge.",
+    "gap-under at 847.7, 21.0, 1098.1": "A deck plank at the end of the bridge, where the bank falls away to the lake: its ends reach out past the beams it lies on, over the slope, as on a real bridge.",
+    "gap-under at 848.0, 21.0, 1098.5": "A deck plank at the end of the bridge, where the bank falls away to the lake: its ends reach out past the beams it lies on, over the slope, as on a real bridge."
+  },
+  "landmark.span-trestle": {
+    "gap-under at 870.5, 21.0, 1182.9": "A deck plank at the end of the bridge, where the bank falls away to the lake: its ends reach out past the beams it lies on, over the slope, as on a real bridge.",
+    "gap-under at 894.6, 20.6, 1228.6": "A deck plank at the end of the bridge, where the bank falls away to the lake: its ends reach out past the beams it lies on, over the slope, as on a real bridge.",
+    "gap-under at 893.6, 20.6, 1229.1": "A deck plank at the end of the bridge, where the bank falls away to the lake: its ends reach out past the beams it lies on, over the slope, as on a real bridge."
+  },
   "model.nature.pine.far": {
     "floating at 0.0, 4.0, 0.0": "The spruce as it is drawn far off: three cones and no trunk, never seen up close.",
     "floating at 0.0, 5.8, 0.0": "The spruce as it is drawn far off: three cones and no trunk, never seen up close.",

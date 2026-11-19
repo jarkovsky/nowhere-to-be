@@ -18,6 +18,7 @@ import {
   TOWER,
   WINDMILL,
   JETTY,
+  LAKELAND,
   CHATA,
   TUNNEL,
   SPAWN,
@@ -452,6 +453,31 @@ const paintLoggingSign = paintVisit(ctx => {
   }
 });
 
+/** A castle's tower and a length of its wall on an island, over the waves of a lake, for the lakeland. */
+const paintLakesSign = paintVisit(ctx => {
+  ctx.translate(150, 104);
+  // The island.
+  ctx.beginPath();
+  ctx.ellipse(0, 44, 92, 30, 0, Math.PI, 0);
+  ctx.fill();
+  // The tower with its battlements, and the wall beside it.
+  ctx.fillRect(-14, -62, 44, 80);
+  for (const x of [-14, 2, 18]) ctx.fillRect(x, -76, 12, 16);
+  ctx.fillRect(-64, -14, 52, 32);
+  for (const x of [-64, -44]) ctx.fillRect(x, -26, 12, 14);
+  ctx.fillStyle = '#7a4d2e';
+  ctx.fillRect(4, -40, 9, 20);
+  ctx.fillStyle = '#f4ecd6';
+  // The water.
+  ctx.lineWidth = 8;
+  for (const y of [58, 78]) {
+    ctx.beginPath();
+    ctx.moveTo(-104, y);
+    for (let x = -104; x < 104; x += 52) ctx.bezierCurveTo(x + 13, y - 12, x + 39, y + 12, x + 52, y);
+    ctx.stroke();
+  }
+});
+
 /** Which way an arrow should point for someone reading the sign from the front or back. */
 function arrowFor(from, yaw, to, back) {
   const vx = to.x - from.x;
@@ -631,6 +657,7 @@ function paintMap(ctx, w, h) {
     crash: 'Plane wreck',
     mine: 'Old mine',
     logging: 'Logging camp',
+    lakes: 'Pastviny',
   };
   /** Draws text in the current font and alignment, and returns the box it fills. */
   const write = (text, x, y, size) => {
@@ -659,7 +686,8 @@ function paintMap(ctx, w, h) {
   const clampX = x => Math.min(w - margin, Math.max(margin, x));
   const clampY = y => Math.min(h - margin, Math.max(34, y));
   const beyond = [];
-  for (const place of PLACES) {
+  // The lakeland is one name on the board, at its hamlet: its bridge and its castle are not written.
+  for (const place of PLACES.filter(({ id }) => labels[id])) {
     const [x, y] = [px(place.x), pz(place.z)];
     if (clampX(x) !== x || clampY(y) !== y) beyond.push(place);
     else if (beside.includes(place.id)) {
@@ -832,9 +860,16 @@ export function buildSigns(scene, { tunnelPortal, hutBoard }) {
     { id: 'crash', road: RING_ROAD, half: ROAD_HALF_WIDTH + 2.4, picture: paintCrashSign, place: CRASH },
     { id: 'mine', road: RING_ROAD, half: ROAD_HALF_WIDTH + 2.4, picture: paintMineSign, place: MINE },
     { id: 'logging', road: OUTER_ROAD, half: GRAVEL_HALF_WIDTH + 2.4, picture: paintLoggingSign, place: LOGGING },
+    // The road into the lakeland is signed the same way, to the hamlet at its end.
+    {
+      path: LAKELAND.road,
+      road: OUTER_ROAD,
+      half: GRAVEL_HALF_WIDTH + 2.4,
+      picture: paintLakesSign,
+      place: LAKELAND.square,
+    },
   ];
-  for (const { id, road, half, picture, place } of visits) {
-    const { path } = TRACKS.find(track => track.id === id);
+  for (const { id, road, half, picture, place, path = TRACKS.find(track => track.id === id).path } of visits) {
     const near = road.nearest(path.at(14).x, path.at(14).z);
     const side = Math.sign(near.side) || 1;
     for (const along of [-16, 16]) {
