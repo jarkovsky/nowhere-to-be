@@ -39,7 +39,7 @@ const SEND = 1 / 20;
 const RISE_SEND = 0.5;
 /** Side of the cells of the grid that says where anything grows tall enough to be laid over. */
 const CELL = 8;
-const CELLS = 256;
+const CELLS = 512;
 const EMPTY = [0, 128, 128, 255];
 
 const data = new Uint8Array(SIZE * SIZE * 4);

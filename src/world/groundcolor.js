@@ -11,6 +11,8 @@ import {
   OXBOW,
   FJORD,
   VALLEY_RADIUS,
+  LAKELAND,
+  inLakeland,
   SURFACES,
   WORN_GROUND,
   STRANDED_SPOTS,
@@ -62,7 +64,8 @@ const WORN = BARE_GROUND.map(patch => ({ ...patch, color: new THREE.Color(patch.
  * random numbers from `random`.
  */
 function groundColor(x, z, h, up, out, random) {
-  let grass = Math.hypot(x, z) < VALLEY_RADIUS - 3 ? 1 : 0;
+  const lakeland = inLakeland(x, z, 3);
+  let grass = lakeland || Math.hypot(x, z) < VALLEY_RADIUS - 3 ? 1 : 0;
   out
     .copy(GROUND.meadow)
     .lerp(GROUND.dry, Math.min(1, 0.3 + 0.25 * Math.sin(x * 0.009 + z * 0.017) + Math.max(0, h - 15) * 0.006));
@@ -87,6 +90,12 @@ function groundColor(x, z, h, up, out, random) {
     const sand = 1 - smoothstep(h, LAKE.level + 0.35, LAKE.level + 0.9);
     out.lerp(GROUND.shore, sand);
     grass *= 1 - sand;
+  }
+  if (lakeland && h < LAKELAND.level + 1) {
+    // Pale shingle round the lakeland's lake and tarn, and under their water.
+    const shingle = 1 - smoothstep(h, LAKELAND.level + 0.3, LAKELAND.level + 1);
+    out.lerp(GROUND.shore, shingle * 0.6).lerp(GROUND.gravel, shingle * 0.5 * valueNoise(x / 2.3, z / 2.3, 87));
+    grass *= 1 - shingle;
   }
   if (h < FJORD.level + 1.5 && inFjord(x, z, 6)) shore(1 - smoothstep(h, FJORD.level + 0.4, FJORD.level + 1.5));
   if (CREEK.isNear(x, z, 9)) shore(1 - smoothstep(CREEK.nearest(x, z).distance, 5, 9));

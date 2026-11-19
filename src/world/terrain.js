@@ -24,6 +24,9 @@ import {
   JETTY,
   HEAPS,
   RIVERS,
+  LAKELAND,
+  SPANS,
+  inLakeland,
   ROCK_GATE,
   ROCK_FIN,
   FJORD,
@@ -42,12 +45,14 @@ import {
   WATER_DEPTH,
   buildHeightField,
   gridCoordinate,
+  legacyLines,
   heightSampler,
   smoothProfile,
   unpackField,
 } from './heightfield.js';
 import { compiled } from './compiled.js';
 
+import { AXIS, GRID } from './heightfield.js';
 export { AXIS, GRID, GRID_BANDS, naturalHeight } from './heightfield.js';
 
 /**
@@ -55,7 +60,16 @@ export { AXIS, GRID, GRID_BANDS, naturalHeight } from './heightfield.js';
  * compiled.js); anywhere else it is built here.
  */
 export const heightField = compiled ? unpackField(compiled.heights) : buildHeightField();
-const { heights, desert: desertBox, pondLevels, riverWater, creekBed, brookBed, railBed } = heightField;
+const {
+  heights,
+  desert: desertBox,
+  lakeland: lakelandBox,
+  pondLevels,
+  riverWater,
+  creekBed,
+  brookBed,
+  railBed,
+} = heightField;
 export { heights };
 
 /**
@@ -75,14 +89,37 @@ const sampleGrid = heightSampler(heights);
 /** Ground height at any point, matching the rendered ground exactly. */
 export const terrainHeight = sampleGrid;
 
+/** The grid was coarse before the lakeland beyond this on the positive side of either axis. */
+const LEGACY_FROM = 1060;
+/** The corner of the square the lakeland changed the land in that is nearest the middle of the valley. */
+const LAKELAND_FROM = { x: AXIS[lakelandBox.ix0], z: AXIS[lakelandBox.iz0] };
+
 /**
- * The height of the land at a point as it was before the desert was laid over it. The trees, rocks
- * and grass are tried at spot after spot from one run of random numbers, and which of them are kept
- * goes by how high and steep the land is, so they are placed by this: that way the desert moves none
- * of them outside it, and inside it, it clears them away (see desertTakes). Elsewhere it is the
- * ground's height.
+ * The height of the land at a point as it was before the lakeland was laid, between the grid
+ * points there were then (see legacyLines).
+ */
+function heightBeforeLakeland(x, z) {
+  const { ix0, ix1, iz0, iz1, columns, before } = lakelandBox;
+  const [x0, x1, u] = legacyLines(x);
+  const [z0, z1, v] = legacyLines(z);
+  const at = (ix, iz) =>
+    ix >= ix0 && ix <= ix1 && iz >= iz0 && iz <= iz1
+      ? before[(iz - iz0) * columns + ix - ix0]
+      : heights[iz * GRID + ix];
+  const [a, b, c, d] = [at(x0, z0), at(x1, z0), at(x0, z1), at(x1, z1)];
+  return u + v <= 1 ? a + (b - a) * u + (c - a) * v : d + (c - d) * (1 - u) + (b - d) * (1 - v);
+}
+
+/**
+ * The height of the land at a point as it was before the desert and the lakeland were laid over
+ * it. The trees, rocks and grass are tried at spot after spot from one run of random numbers, and
+ * which of them are kept goes by how high and steep the land is, so they are placed by this: that
+ * way neither moves any of them outside it, and inside it, it clears them away (see desertTakes
+ * and lakelandTakes). Elsewhere it is the ground's height.
  */
 export function placementHeight(x, z) {
+  if (x > LAKELAND_FROM.x && z > LAKELAND_FROM.z) return heightBeforeLakeland(x, z);
+  if (x > LEGACY_FROM || z > LEGACY_FROM) return heightBeforeLakeland(x, z);
   const { ix0, ix1, iz0, iz1, columns, before } = desertBox;
   const gx = gridCoordinate(x);
   const gz = gridCoordinate(z);
@@ -132,6 +169,8 @@ export function waterLevel(x, z) {
   const river = nearRiver(x, z, 12);
   if (river) level = Math.max(level, riverLevel(river.river, river.s));
   if (inFjord(x, z, 6)) level = Math.max(level, FJORD.level);
+  // The lakeland's lake and tarn lie wherever its ground is below their level.
+  if (inLakeland(x, z) && sampleGrid(x, z) < LAKELAND.level + 0.3) level = Math.max(level, LAKELAND.level);
   PONDS.forEach((pond, i) => {
     if (Math.hypot(x - pond.x, z - pond.z) < pond.radius + 2) level = Math.max(level, pondLevels[i]);
   });
@@ -206,6 +245,63 @@ export function bridgeHeight(x, z) {
   return bridge ? deckHeight(bridgeLocal(bridge, x, z).along, bridge) : null;
 }
 
+// --- The long bridges ----------------------------------------------------------------------
+
+/** For each long bridge: the ground at either end of its deck, and the square it lies in. */
+const spanData = SPANS.map(({ deck, width }) => {
+  const [first, last] = [deck.samples[0], deck.samples.at(-1)];
+  const xs = deck.samples.map(p => p.x);
+  const zs = deck.samples.map(p => p.z);
+  return {
+    ends: [terrainHeight(first.x, first.z), terrainHeight(last.x, last.z)],
+    x0: Math.min(...xs) - width,
+    x1: Math.max(...xs) + width,
+    z0: Math.min(...zs) - width,
+    z1: Math.max(...zs) + width,
+  };
+});
+
+/**
+ * Top of a long bridge's deck `s` metres along it from its near end: straight from the ground at
+ * one end to the ground at the other, and rising in a gentle arch between where it has one.
+ */
+export function spanLevel(span, s) {
+  const t = clamp(s / span.deck.length, 0, 1);
+  const [near, far] = spanData[SPANS.indexOf(span)].ends;
+  return lerp(near, far, t) + Math.sin(t * Math.PI) * span.arch;
+}
+
+/** The long bridge whose deck is at a point, and how far along it: { span, s }, or null. */
+export function spanAt(x, z) {
+  for (let i = 0; i < SPANS.length; i++) {
+    const box = spanData[i];
+    if (x < box.x0 || x > box.x1 || z < box.z0 || z > box.z1) continue;
+    const span = SPANS[i];
+    const { sample, side } = span.deck.nearest(x, z);
+    if (Math.abs(side) > span.width / 2) continue;
+    // Past either end the nearest sample is the end one; only points alongside it count.
+    const along = (x - sample.x) * sample.dx + (z - sample.z) * sample.dz;
+    if ((sample.s === 0 && along < 0) || (sample.s >= span.deck.length - 0.01 && along > 0)) continue;
+    return { span, s: sample.s + along };
+  }
+  return null;
+}
+
+/** How far below a deck that things pass under a car can be and still be driving on it rather than under it. */
+const DECK_STEP = 1.5;
+
+/**
+ * Top of the long bridge's deck at a point, or null off them all. Things can pass under some of
+ * them, and the deck of one of those is only there for something already up at its level
+ * (`from`, how high it was a moment ago, less a step).
+ */
+export function spanHeight(x, z, from = Infinity) {
+  const on = spanAt(x, z);
+  if (!on) return null;
+  const level = spanLevel(on.span, on.s);
+  return on.span.under && from <= level - DECK_STEP ? null : level;
+}
+
 // --- The jetty -------------------------------------------------------------------
 
 /** The jetty's planks sit at one height, a little above the lake. */
@@ -261,8 +357,9 @@ function floatingHeight(x, z) {
  * True where the tyres are on planks or steel rather than ground: the bridge, the part of the
  * jetty above the beach, the quay's ramp and the ferry.
  */
-export function onDeck(x, z) {
+export function onDeck(x, z, from = Infinity) {
   if (bridgeHeight(x, z) !== null || quayHeight(x, z) !== null || floatingHeight(x, z) !== null) return true;
+  if (spanHeight(x, z, from) !== null) return true;
   return jettyHeight(x, z) !== null && JETTY_DECK > terrainHeight(x, z);
 }
 
@@ -502,13 +599,20 @@ const FIN_STEP = 1.5;
 
 /**
  * The surface the tyres rest on: a deck where there is one, otherwise the ground and any rocks,
- * boulders or heaps on it. The road runs under the arch, so the top of the fin and the arch only count
- * for something already up at their level (`from`, how high it was a moment ago).
+ * boulders or heaps on it. The road runs under the arch, and a track under the bridge over the
+ * gorge, so the top of the fin and the arch and the deck of that bridge only count for something
+ * already up at their level (`from`, how high it was a moment ago).
  */
 export function drivingHeight(x, z, from = -Infinity) {
   const ground =
     terrainHeight(x, z) + Math.max(rockHeight(x, z), heapHeight(x, z), boulderLift(x, z)) + rutHeight(x, z);
-  const deck = bridgeHeight(x, z) ?? jettyHeight(x, z) ?? quayHeight(x, z) ?? floatingHeight(x, z) ?? trackHeight(x, z);
+  const deck =
+    bridgeHeight(x, z) ??
+    spanHeight(x, z, from) ??
+    jettyHeight(x, z) ??
+    quayHeight(x, z) ??
+    floatingHeight(x, z) ??
+    trackHeight(x, z);
   const surface = deck === null ? ground : Math.max(ground, deck);
   if (from === -Infinity) return surface;
   const fin = finHeight(x, z);
@@ -521,15 +625,18 @@ export function onFin(x, z, from) {
   return fin !== null && from > fin - FIN_STEP;
 }
 
-/** How deep the water is that the tyres are in: none on the planks of the bridge or the jetty. */
-export function wadingDepth(x, z) {
-  return onDeck(x, z) ? 0 : waterDepth(x, z);
+/**
+ * How deep the water is that the tyres are in: none on the planks of the bridge or the jetty.
+ * `from` is how high they are, where one thing runs over another.
+ */
+export function wadingDepth(x, z, from = Infinity) {
+  return onDeck(x, z, from) ? 0 : waterDepth(x, z);
 }
 
 /** True where the car is allowed to be: inside the fence and out of deep water. */
 export function isDriveable(x, z) {
   if (!insideFence(x, z)) return false;
-  if (bridgeHeight(x, z) !== null || jettyHeight(x, z) !== null) return true;
+  if (bridgeHeight(x, z) !== null || jettyHeight(x, z) !== null || spanAt(x, z)) return true;
   if (quayHeight(x, z) !== null || floatingHeight(x, z) !== null) return true;
   return waterDepth(x, z) < 0.95;
 }

@@ -12,7 +12,9 @@ import {
   SPRING,
   OXBOW,
   CAMP_TRAIL,
-  TRACKS,
+  VALLEY_TRACKS,
+  VALLEY_GRAVEL,
+  VALLEY_RIVERS,
   onDriveway,
   RAILWAY,
   HALT,
@@ -56,6 +58,7 @@ import {
 } from './layout.js';
 import { terrainHeight, placementHeight } from './terrain.js';
 import { desertTakes } from './sand.js';
+import { lakelandTakes } from './lakeland.js';
 
 /** Circles kept clear of trees and rocks. */
 export const CLEARINGS = [
@@ -108,9 +111,16 @@ export const CLEARINGS = [
  * The tracks that the trees, rocks and grass are kept off. The desert's track and its oasis are
  * left out of these and of the clearings: everything is tried in turn from the same run of random
  * numbers, so keeping something off them would move everything placed after it. The desert
- * clears its own ground instead (see desertTakes).
+ * clears its own ground instead (see desertTakes). The lakeland's road, tracks and beck are left
+ * out in the same way, and it clears its own ground too (see lakelandTakes).
  */
-export const PLACED_TRACKS = TRACKS.filter(track => !track.desert);
+export const PLACED_TRACKS = VALLEY_TRACKS.filter(track => !track.desert);
+
+/** True near the middle of one of the gravel roads the scenery is kept off: the valley's own. */
+export const onPlacedGravel = (x, z, distance) => onGravel(x, z, distance, VALLEY_GRAVEL);
+
+/** The river the scenery is kept off at a point, if one of the valley's own is within `distance` (see nearRiver). */
+export const nearPlacedRiver = (x, z, distance) => nearRiver(x, z, distance, VALLEY_RIVERS);
 
 /** True in or just around a patch of mud. */
 export const inMud = (x, z) =>
@@ -131,17 +141,17 @@ export function isClearGround(x, z, { road = 9 } = {}) {
   if (nearWalkway(HABITATS.deer, x, z, 5) || nearWalkway(HABITATS.ducks, x, z, 5)) return false;
   if (ROAD.isNear(x, z, road) || CAMP_TRAIL.isNear(x, z, 6) || RAILWAY.isNear(x, z, 9)) return false;
   if (PLACED_TRACKS.some(track => track.path.isNear(x, z, 5))) return false;
-  if (onPaved(x, z, road) || onGravel(x, z, road - 1) || onDriveway(x, z, 4)) return false;
+  if (onPaved(x, z, road) || onPlacedGravel(x, z, road - 1) || onDriveway(x, z, 4)) return false;
   // The airfield's levelled ground is kept as open, mown grass.
   const { ground } = AIRFIELD;
   if (x > ground.x0 - 6 && x < ground.x1 + 6 && z > ground.z0 - 6 && z < ground.z1 + 6) return false;
   if (CREEK.isNear(x, z, 10)) return false;
   if (BROOK.isNear(x, z, 7) || Math.hypot(x - SPRING.x, z - SPRING.z) < SPRING.radius + 6) return false;
   if (OXBOW.path.isNear(x, z, 14)) return false;
-  return !nearRiver(x, z, 11) && !inFjord(x, z, 3);
+  return !nearPlacedRiver(x, z, 11) && !inFjord(x, z, 3);
 }
 
-/** Rise over run of the land at a point, as it was before the desert (see placementHeight). */
+/** Rise over run of the land at a point, as it was before the desert and the lakeland (see placementHeight). */
 export function steepness(x, z) {
   const h = placementHeight(x, z);
   return Math.hypot(placementHeight(x + 1, z) - h, placementHeight(x, z + 1) - h);
@@ -151,6 +161,11 @@ export function steepness(x, z) {
  * False where nothing grows that is placed out in the country: in the crop fields and a couple of
  * metres round them, in the desert, the orchard and the clearings round the places to discover.
  */
-export function grows(x, z) {
+export function growsAnywhere(x, z) {
   return !inCrop(x, z, 2) && !desertTakes(x, z) && !inOrchard(x, z) && !inDiscovery(x, z);
+}
+
+/** The same for what the valley places: it doesn't grow in the lakeland either, which has its own (see lakelandTakes). */
+export function grows(x, z) {
+  return growsAnywhere(x, z) && !lakelandTakes(x, z);
 }

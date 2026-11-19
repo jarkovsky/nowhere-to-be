@@ -41,9 +41,14 @@ import {
   OUTER_ROAD,
   CONNECTORS,
   GRAVEL,
+  VALLEY_GRAVEL,
   GRAVEL_HALF_WIDTH,
   OUTLAND_HILLS,
   RIVERS,
+  VALLEY_RIVERS,
+  VALLEY_TRACKS,
+  LAKELAND,
+  SPANS,
   FORD_DEPTH,
   ROCK_HILL,
   MINE,
@@ -68,11 +73,19 @@ const INNER = 560;
 const MIDDLE = 1060;
 /** The fine cells continue on the negative side of both axes this far, to cover the Lofoten coast. */
 const COAST = 1480;
+/**
+ * Beyond the fence on the positive side the cells were once all this size, out to the edge. Where
+ * they are now finer, to cover the lakeland, four go into each, so every line of the grid as it
+ * was is still a line of it (see legacyLines).
+ */
+const OUTER_CELL = (HALF - MIDDLE) / 40;
+/** The fine cells continue on the positive side this far: 28 of the cells there once were. */
+const LAKES = MIDDLE + 28 * OUTER_CELL;
 
 /**
  * The grid along each axis: fine 3.5 m cells across the middle, cells of about
- * 4.5 m out to the far side of the fence (and on the negative side, out past the Lofoten coast),
- * then coarse ones under the distant mountains.
+ * 4.5 m out to the far side of the fence (on the negative side, out past the Lofoten coast, and
+ * on the positive side past the lakeland), then coarse ones under the distant mountains.
  * Every band starts on a multiple of four grid lines, so the ground can be drawn far off with
  * every second or fourth line (see ground.js).
  */
@@ -82,7 +95,8 @@ const BANDS = [
   { from: -MIDDLE, to: -INNER, cells: 112 },
   { from: -INNER, to: INNER, cells: 320 },
   { from: INNER, to: MIDDLE, cells: 112 },
-  { from: MIDDLE, to: HALF, cells: 40 },
+  { from: MIDDLE, to: LAKES, cells: 112 },
+  { from: LAKES, to: HALF, cells: 12 },
 ];
 {
   let start = 0;
@@ -110,6 +124,22 @@ export function gridCoordinate(value) {
     g = band.start + (value - band.from) / band.size;
   }
   return clamp(g, 0, GRID - 1.000001);
+}
+
+/**
+ * The two grid lines either side of `value` as the grid was before the lakeland, and how far
+ * between them it lies, as [line, next line, 0 to 1]: beyond the fence on the positive side
+ * those were the coarse cells, whose lines are every fourth of the finer ones there now.
+ */
+export function legacyLines(value) {
+  if (value < MIDDLE) {
+    const g = gridCoordinate(value);
+    const line = Math.floor(g);
+    return [line, line + 1, g - line];
+  }
+  const cell = Math.min(39, Math.floor((value - MIDDLE) / OUTER_CELL));
+  const index = k => (k <= 28 ? BANDS[5].start + 4 * k : BANDS[6].start + k - 28);
+  return [index(cell), index(cell + 1), (value - MIDDLE - cell * OUTER_CELL) / OUTER_CELL];
 }
 
 const LAKE_BED = -5.5;
@@ -233,6 +263,170 @@ function jaggedPeaks(x, z, amount) {
   const crag = 1 - Math.abs(2 * fractalNoise(u / 34 + 1.1, v / 34 + 6.2, 2, 337) - 1);
   const spire = Math.max(0, fractalNoise(u / 40 + 2.2, v / 40 + 9.1, 2, 331) - 0.35);
   return amount * (ridge ** 2.2 * 120 + crag * crag * 30 + spire * 90);
+}
+
+// --- The lakeland --------------------------------------------------------------------------
+
+const BECK_RIVER = RIVERS.find(river => river.id === 'beck');
+const BECK = BECK_RIVER.path;
+const RAVINE = TRACKS.find(track => track.id === 'ravine').path;
+
+/** The sample of `path` nearest a point and how far off it is, or null where none is within `reach`. */
+function closest(path, box, x, z, reach) {
+  if (x < box.x0 - reach || x > box.x1 + reach || z < box.z0 - reach || z > box.z1 + reach) return null;
+  let [best, least] = [null, reach * reach];
+  for (const sample of path.samples) {
+    const d2 = (x - sample.x) ** 2 + (z - sample.z) ** 2;
+    if (d2 < least) [best, least] = [sample, d2];
+  }
+  return best && { s: best.s, distance: Math.sqrt(least) };
+}
+const boxOf = ({ samples }) => ({
+  x0: Math.min(...samples.map(p => p.x)),
+  x1: Math.max(...samples.map(p => p.x)),
+  z0: Math.min(...samples.map(p => p.z)),
+  z1: Math.max(...samples.map(p => p.z)),
+});
+const [BECK_BOX, RAVINE_BOX] = [boxOf(BECK), boxOf(RAVINE)];
+
+/**
+ * How high the floor of the gorge lies at each of the beck's samples: it falls steeply at first,
+ * then gently to the lake, and past the beck's mouth it dips under the lake's water. Like any
+ * river's, it lies level where a track fords it.
+ */
+const BECK_FLOOR = (() => {
+  const { level, mouth } = LAKELAND;
+  const floor = BECK.samples.map(({ s }) =>
+    s > mouth ? level + 0.3 - 0.15 * (s - mouth) : level + 0.3 + 26 * (1 - s / mouth) ** 1.6,
+  );
+  for (const site of BECK_RIVER.sites.filter(site => site.kind !== 'pool')) {
+    const here = floor[Math.round(site.s / BECK.spacing)];
+    BECK.samples.forEach(({ s }, i) => {
+      floor[i] = lerp(floor[i], here, 1 - smoothstep(Math.abs(s - site.s), 14, 44));
+    });
+  }
+  return floor;
+})();
+
+/** How high the floor of the gorge lies, `s` metres down the beck. */
+function gorgeFloor(s) {
+  const u = clamp(s / BECK.spacing, 0, BECK_FLOOR.length - 1);
+  const i = Math.min(Math.floor(u), BECK_FLOOR.length - 2);
+  return lerp(BECK_FLOOR[i], BECK_FLOOR[i + 1], u - i);
+}
+
+/**
+ * How far the level floor of the gorge reaches either side of the beck: a round hollow under the
+ * waterfall, wide enough to turn in, a floor that widens and narrows down the gorge, more room
+ * where the side ravine comes in, and a fan spreading out to the lake.
+ */
+function gorgeHalfWidth(s) {
+  const { mouth, confluence } = LAKELAND;
+  const wandering = 9 + 2 * Math.sin(s / 31 + 0.8) + 1.2 * Math.sin(s / 13 + 2.2);
+  return (
+    wandering +
+    8 * (1 - smoothstep(s, 14, 50)) +
+    5 * (1 - smoothstep(Math.abs(s - confluence), 6, 26)) +
+    10 * smoothstep(s, mouth - 60, mouth - 10)
+  );
+}
+
+/**
+ * How much of the ground at a point is the lakeland's: all of it inside its fence and in the
+ * mountains round it, none of it in the valley, where it reaches only into the gap the road
+ * comes through. Its mountains reach further out the further they are from the valley, so they
+ * stay clear of the rivers that run into the valley's rim.
+ */
+export function lakelandHold(x, z) {
+  const d = Math.hypot(x - LAKELAND.x, z - LAKELAND.z);
+  if (d > LAKELAND.radius + 330) return 0;
+  const r = Math.hypot(x, z);
+  const inside = 1 - smoothstep(d, LAKELAND.radius - 40, LAKELAND.radius);
+  const reach = 105 + 220 * smoothstep(r, 1150, 1400);
+  const beyond =
+    smoothstep(r, VALLEY_RADIUS, VALLEY_RADIUS + 60) * (1 - smoothstep(d - LAKELAND.radius, 0.55 * reach, reach));
+  return Math.max(inside, beyond);
+}
+
+/**
+ * The lakeland's ground before the gorge is cut into it: the bed of the lake and the tarn,
+ * shelving from their edges; a shelf of gentle ground along the shore, a bluff up from it, nearer
+ * the water in some places than in others, and a bench of rolling ground above, rising to the
+ * pass; the knoll on the island and the crag; low hills towards the edge, and round it all the
+ * foot of the mountains, which wanders in and out and climbs steeply beyond the fence, except
+ * where the road comes in over the pass.
+ */
+function lakelandBench(x, z) {
+  const { level, radius, crag, shallows } = LAKELAND;
+  const ashore = LAKELAND.ashore(x, z);
+  if (ashore < 0) {
+    const bed = level - 5 * (1 - Math.exp(ashore * 0.05));
+    // The bar across the narrows lies just under the water, and falls away either side of it.
+    const [bx, bz] = [shallows.to.x - shallows.from.x, shallows.to.z - shallows.from.z];
+    const t = clamp(((x - shallows.from.x) * bx + (z - shallows.from.z) * bz) / (bx * bx + bz * bz), 0, 1);
+    const off = Math.hypot(x - shallows.from.x - bx * t, z - shallows.from.z - bz * t);
+    return Math.max(bed, level - shallows.depth - Math.max(0, off - shallows.half) * 0.2);
+  }
+  const wander = (fractalNoise(x / 110 + 5.3, z / 110 + 1.9, 2, 433) - 0.5) * 60;
+  const bluff = (9 + 7 * valueNoise(x / 160, z / 160, 437)) * smoothstep(ashore + wander, 45, 110);
+  const swell = (fractalNoise(x / 95 + 3.1, z / 95 + 8.7, 3, 401) - 0.5) * 8 * smoothstep(ashore, 15, 70);
+  const ripple = (valueNoise(x / 27, z / 27, 409) - 0.5) * 1.2 * smoothstep(ashore, 8, 30);
+  let h =
+    level +
+    1.05 * (1 - Math.exp(-ashore / 2.2)) +
+    0.05 * Math.max(0, ashore - 4) +
+    bluff +
+    0.03 * Math.max(0, ashore - 120) +
+    swell +
+    ripple;
+  const isle = LAKELAND.onIsland(x, z);
+  if (isle > 0) h += 5 * smoothstep(isle, 16, 32);
+  h += bump(x, z, crag.x, crag.z, crag.radius, crag.height) * smoothstep(ashore, 0, 30);
+
+  const d = Math.hypot(x - LAKELAND.x, z - LAKELAND.z);
+  if (d < radius - 220) return h;
+  const { a, c } = LAKELAND.local(x, z);
+  const pass = (1 - smoothstep(Math.abs(c - 26), 55, 120)) * smoothstep(-a, 250, 330);
+  if (pass >= 1) return h;
+  // The mountains' foot is nearer in some places and further off in others.
+  const warp =
+    (fractalNoise(x / 150 + 9.1, z / 150 + 4.4, 2, 421) - 0.5) * 70 * smoothstep(d, radius - 200, radius - 60);
+  const out = d + warp - radius;
+  const turn = Math.atan2(z - LAKELAND.z, x - LAKELAND.x);
+  const lobes = 0.5 + 0.3 * Math.sin(turn * 5 + 0.7) + 0.2 * Math.sin(turn * 11 + 2.9);
+  const hills = 10 * smoothstep(out, -150, -30) * (0.3 + 1.4 * valueNoise(x / 130, z / 130, 447));
+  // The slopes climb about as steeply as the valley's own, so trees stand on them, and steepen
+  // into crags further back.
+  const foot = softplus((out + 12) / 15) * 15 * (0.42 + 0.12 * lobes);
+  const crags = softplus((out - 130) / 40) * 40 * 0.4 + jaggedPeaks(x, z, 0.5 * smoothstep(out, 70, 240));
+  return h + (hills + foot + crags) * (1 - pass);
+}
+
+/** The height the side ravine's track comes down at, `s` metres along it: from the bench at the road to the floor of the gorge. */
+const ravineLevel = (() => {
+  const first = RAVINE.samples[0];
+  const top = lakelandBench(first.x, first.z);
+  const bottom = gorgeFloor(LAKELAND.confluence) + 0.3;
+  return s => lerp(top, bottom, 0.35 * smoothstep(s, 8, RAVINE.length - 6) + (0.65 * s) / RAVINE.length);
+})();
+
+/**
+ * The lakeland's ground: the lie of it (see lakelandBench) with the gorge the beck has cut down
+ * through the bench, between ragged walls of rock, and the side ravine a track comes down into it.
+ */
+function lakelandHeight(x, z) {
+  let h = lakelandBench(x, z);
+  if (LAKELAND.ashore(x, z) < 0) return h;
+  const ragged = 0.75 + 0.5 * valueNoise(x / 19, z / 19, 449);
+  const beck = closest(BECK, BECK_BOX, x, z, 120);
+  if (beck) {
+    // The walls stand steeper the higher they go, so the gorge stays narrow where the mountains are high.
+    const off = Math.max(0, beck.distance - gorgeHalfWidth(beck.s));
+    h = Math.min(h, gorgeFloor(beck.s) + (off * 1.5 + Math.max(0, off - 22) * 1.8) * ragged);
+  }
+  const ravine = closest(RAVINE, RAVINE_BOX, x, z, 40);
+  if (ravine) h = Math.min(h, ravineLevel(ravine.s) + Math.max(0, ravine.distance - 4.5) * 1.1 * ragged);
+  return h;
 }
 
 // The upland road runs along a broad shelf: near its line the ground eases towards
@@ -467,10 +661,23 @@ export function buildHeightField() {
     falloff,
     { window = 14, banks = 0, grade = Infinity, flatEnds = 0, levels } = {},
   ) {
+    // Where a long bridge carries it, it runs straight from the ground at one end of the deck to the
+    // ground at the other, and the ground under the deck is left as it lies unless it stands higher.
+    const decks = SPANS.filter(span => span.path === path).map(span => ({
+      first: path.samples.findIndex(p => p.s >= span.from),
+      last: path.samples.findLastIndex(p => p.s <= span.to),
+    }));
+    const straighten = values => {
+      for (const { first, last } of decks) {
+        for (let i = first + 1; i < last; i++)
+          values[i] = lerp(values[first], values[last], (i - first) / (last - first));
+      }
+      return values;
+    };
     const smooth =
       levels ??
       smoothProfile(
-        path.samples.map(p => sampleGrid(p.x, p.z)),
+        straighten(path.samples.map(p => sampleGrid(p.x, p.z))),
         Math.round(window / path.spacing),
         path.closed,
       );
@@ -504,13 +711,17 @@ export function buildHeightField() {
         profile[i] = lerp(end, profile[i], smoothstep(path.length - s, flatEnds * 0.4, flatEnds * 1.6));
       });
     }
+    straighten(profile);
     const reach = s => flatWidth(s) + falloff;
     const maxReach = Math.max(...path.samples.map(p => reach(p.s))) + (banks ? 24 : 0);
     for (const [vertex, { index, distance }] of nearestSamples(path, maxReach)) {
       const s = path.samples[index].s;
       const bank = banks ? Math.min(24, Math.abs(heights[vertex] - profile[index]) * banks) : 0;
       const weight = 1 - smoothstep(distance, flatWidth(s), reach(s) + bank);
-      heights[vertex] = lerp(heights[vertex], profile[index], weight);
+      // Under a deck only what stands higher than it is cut away, to a little below it.
+      const under = decks.some(({ first, last }) => index > first && index < last);
+      const level = under ? Math.min(heights[vertex], profile[index] - 0.2) : profile[index];
+      heights[vertex] = lerp(heights[vertex], level, weight);
     }
     return profile;
   }
@@ -588,7 +799,7 @@ export function buildHeightField() {
   // Each river runs along a valley floor that falls all the way from its source to its mouth:
   // the lie of the land along it, smoothed, never rising again once it has fallen. It lies level
   // where a road crosses it, ford or bridge, and falls a little more steeply either side of that.
-  const riverFloors = RIVERS.map(({ path, sites }) => {
+  const riverFloors = VALLEY_RIVERS.map(({ path, sites }) => {
     let lowest = Infinity;
     const natural = smoothProfile(
       path.samples.map(p => sampleGrid(p.x, p.z)),
@@ -625,7 +836,8 @@ export function buildHeightField() {
     ...GRAVEL.map(path => ({ path, width: GRAVEL_WIDTH() })),
     ...TRACKS.map(({ path, width = 2 }) => ({ path, width })),
   ];
-  RIVERS.forEach((river, r) => {
+  function findFords(river) {
+    const water = riverWater[RIVERS.indexOf(river)];
     for (const { path, width } of fordable) {
       const n = path.samples.length;
       const apart = path.samples.map(p => (river.path.isNear(p.x, p.z, 3) ? river.path.nearest(p.x, p.z).distance : 9));
@@ -633,12 +845,18 @@ export function buildHeightField() {
       path.samples.forEach((p, i) => {
         if (apart[i] > 2 || apart[i] > at(i - 1) || apart[i] >= at(i + 1) || isBridged(path, p.s)) return;
         const along = river.path.nearest(p.x, p.z).s;
-        const level = riverWater[r][Math.round(along / river.path.spacing)] - FORD_DEPTH;
+        const level = water[Math.round(along / river.path.spacing)] - FORD_DEPTH;
         FORDS.push({ river, path, width, s: p.s, riverS: along, x: p.x, z: p.z, level });
       });
     }
-  });
-  RIVERS.forEach((river, i) => levelAlong(river.path, s => river.halfWidth(s) + 14, 70, { levels: riverFloors[i] }));
+  }
+  /** Levels the floor of a river's valley along it. */
+  const levelValley = river =>
+    levelAlong(river.path, s => river.halfWidth(s) + river.bank, river.spread, {
+      levels: riverFloors[RIVERS.indexOf(river)],
+    });
+  VALLEY_RIVERS.forEach(findFords);
+  VALLEY_RIVERS.forEach(levelValley);
 
   // The fjord is dug out of the land before any road is laid: deep still water, sheer walls
   // along its sides and a gentle slope round its head that steepens further back to meet the hills.
@@ -674,7 +892,7 @@ export function buildHeightField() {
   const offGravel = ({ path }) => GRAVEL.some(road => road.isNear(path.samples[0].x, path.samples[0].z, 1));
   const levelTrack = track =>
     levelAlong(track.path, () => track.width ?? 2, 8, { grade: track.grade, window: track.window });
-  TRACKS.filter(track => !offGravel(track)).forEach(levelTrack);
+  VALLEY_TRACKS.filter(track => !offGravel(track)).forEach(levelTrack);
   const PAVED_WIDTH = () => ROAD_HALF_WIDTH + 1.4;
   const ringLevels = levelAlong(RING_ROAD, PAVED_WIDTH, 10, { window: 30, banks: 1.5, grade: 0.1 });
   // The gravel road round the outlands follows the land a little more closely than the paved ones.
@@ -684,7 +902,7 @@ export function buildHeightField() {
   // The driveways run from their forecourts down to the road; the pads after them level the forecourts.
   for (const { path, halfWidth } of DRIVEWAYS) levelAlong(path, () => halfWidth + 0.6, 6, { grade: 0.12 });
   // Pads come after the side tracks so the tracks run up onto level ground.
-  flattenPads(PADS.filter(pad => !inDesertBox(pad.x, pad.z)));
+  flattenPads(PADS.filter(pad => !pad.land && !inDesertBox(pad.x, pad.z)));
 
   // The tunnel floor is levelled wider than the bore so no ground pokes inside.
   const trailWidth = s => (isInTunnel(s) ? 9 : ROAD_HALF_WIDTH + 1.4);
@@ -702,7 +920,7 @@ export function buildHeightField() {
   for (const [vertex] of nearestSamples(ROUGH.gully.path, ROUGH.gully.halfWidth)) {
     heights[vertex] -= gullyDepth(AXIS[vertex % GRID], AXIS[Math.floor(vertex / GRID)]);
   }
-  TRACKS.filter(track => offGravel(track) && !track.desert).forEach(levelTrack);
+  VALLEY_TRACKS.filter(track => offGravel(track) && !track.desert).forEach(levelTrack);
   // The washed-out track and the dry stream bed are dug into the ground once their tracks are levelled.
   for (const entry of ROUGH_GROUND.filter(rough => rough.dig)) {
     for (const [vertex] of nearestSamples(entry.path, entry.half + 3)) {
@@ -745,10 +963,11 @@ export function buildHeightField() {
     const stretch = createPath(points);
     return { stretch, width, levels: stretch.samples.map(p => sampleGrid(p.x, p.z)) };
   };
-  const fordCrossings = FORDS.map(({ river, riverS, path, s, width }) => {
+  const fordStretch = ({ river, riverS, path, s, width }) => {
     const reach = river.halfWidth(riverS) + 8;
     return roadStretch(path, width, s - reach, s + reach);
-  });
+  };
+  const fordCrossings = FORDS.map(fordStretch);
   // Where a bridge carries a road over a river, the road is put back up to the ends of the deck,
   // and on past them, so the banks the channel is cut with don't cut into it: under the deck the
   // channel is left as it is.
@@ -766,9 +985,11 @@ export function buildHeightField() {
 
   // The channel: deepest in the middle, with banks rising gently from the water's edge. Its width
   // and depth change along the river, its banks wander from side to side, and on the inside of
-  // the bends the gravel lies in bars just above the water, which narrows the stream there.
-  RIVERS.forEach((river, r) => {
-    const water = riverWater[r];
+  // the bends the gravel lies in bars just above the water, which narrows the stream there. The
+  // banks are cut no further out than the level floor of the river's valley reaches, so in a gorge
+  // they leave the walls standing.
+  function digChannel(river) {
+    const water = riverWater[RIVERS.indexOf(river)];
     const { samples } = river.path;
     // How sharply the river is turning at each sample: positive to the right, so the right bank is
     // the inside of the bend.
@@ -776,7 +997,7 @@ export function buildHeightField() {
       const [a, b] = [samples[Math.max(0, i - 12)], samples[Math.min(samples.length - 1, i + 12)]];
       return a.dx * b.dz - a.dz * b.dx;
     });
-    for (const [vertex, { index, distance }] of nearestSamples(river.path, river.widest + 12)) {
+    for (const [vertex, { index, distance }] of nearestSamples(river.path, river.widest + Math.min(12, river.bank))) {
       const sample = samples[index];
       const [x, z] = [AXIS[vertex % GRID], AXIS[Math.floor(vertex / GRID)]];
       const halfWidth = river.halfWidth(sample.s) * (0.82 + 0.36 * valueNoise(x / 10, z / 10, 71));
@@ -796,7 +1017,8 @@ export function buildHeightField() {
       if (bar > 0) surface = lerp(surface, Math.max(surface, water[index] + 0.1), bar);
       heights[vertex] = Math.min(heights[vertex], surface);
     }
-  });
+  }
+  VALLEY_RIVERS.forEach(digChannel);
   for (const { stretch, width, levels } of fordCrossings) levelAlong(stretch, () => width, 3, { levels });
 
   /** Height of the trail surface at the bridge, used to dig the creek deep enough. */
@@ -932,6 +1154,78 @@ export function buildHeightField() {
   digPond(DESERT.oasis, pondLevels[oasis]);
   levelAlong(desertRoad.stretch, GRAVEL_WIDTH, 0.5, { levels: desertRoad.levels });
 
+  // --- The lakeland ---------------------------------------------------------------------------
+
+  // The lakeland is laid last of all: its ground, then its beck, its road and its tracks. The land
+  // as it was before, wherever the lakeland changes it, is kept for placing the valley's scenery
+  // by (see placementHeight).
+  const lakelandBox = (() => {
+    let [ix0, ix1, iz0, iz1] = [GRID, 0, GRID, 0];
+    const reach = LAKELAND.radius + 340;
+    const [fromX, toX] = [gridCoordinate(LAKELAND.x - reach), gridCoordinate(LAKELAND.x + reach)].map(Math.round);
+    const [fromZ, toZ] = [gridCoordinate(LAKELAND.z - reach), gridCoordinate(LAKELAND.z + reach)].map(Math.round);
+    for (let iz = fromZ; iz <= toZ; iz++) {
+      for (let ix = fromX; ix <= toX; ix++) {
+        if (lakelandHold(AXIS[ix], AXIS[iz]) <= 0) continue;
+        [ix0, ix1] = [Math.min(ix0, ix), Math.max(ix1, ix)];
+        [iz0, iz1] = [Math.min(iz0, iz), Math.max(iz1, iz)];
+      }
+    }
+    // Its road reaches back into the valley, and the banks it is laid on reach out either side of it.
+    for (const { x, z } of LAKELAND.road.samples) {
+      [ix0, ix1] = [
+        Math.min(ix0, Math.floor(gridCoordinate(x - 60))),
+        Math.max(ix1, Math.ceil(gridCoordinate(x + 60))),
+      ];
+      [iz0, iz1] = [
+        Math.min(iz0, Math.floor(gridCoordinate(z - 60))),
+        Math.max(iz1, Math.ceil(gridCoordinate(z + 60))),
+      ];
+    }
+    // Out to whole cells of the grid as it was (see legacyLines), which are four of the cells there now.
+    [ix0, iz0] = [Math.max(0, ix0 - 4), Math.max(0, iz0 - 4)];
+    [ix1, iz1] = [Math.min(GRID - 1, ix1 + 4), Math.min(GRID - 1, iz1 + 4)];
+    const columns = ix1 - ix0 + 1;
+    const before = new Float32Array(columns * (iz1 - iz0 + 1));
+    for (let iz = iz0; iz <= iz1; iz++) {
+      for (let ix = ix0; ix <= ix1; ix++) before[(iz - iz0) * columns + ix - ix0] = heights[iz * GRID + ix];
+    }
+    return { ix0, ix1, iz0, iz1, columns, before };
+  })();
+  for (let iz = lakelandBox.iz0; iz <= lakelandBox.iz1; iz++) {
+    for (let ix = lakelandBox.ix0; ix <= lakelandBox.ix1; ix++) {
+      const hold = lakelandHold(AXIS[ix], AXIS[iz]);
+      if (hold <= 0) continue;
+      const i = iz * GRID + ix;
+      heights[i] = lerp(heights[i], lakelandHeight(AXIS[ix], AXIS[iz]), hold);
+    }
+  }
+  // The beck runs down the floor of its gorge, which is cut already, and out into the lake.
+  const beck = RIVERS.find(river => river.id === 'beck');
+  riverFloors.push([...BECK_FLOOR]);
+  riverWater.push(riverFloors.at(-1).map(h => h - 0.4));
+  findFords(beck);
+  // A track that runs beside the beck comes close to it more than once at a crossing: one ford each.
+  for (let i = FORDS.length - 1; i > 0; i--) {
+    const [ford, earlier] = [FORDS[i], FORDS[i - 1]];
+    if (ford.river === beck && earlier.river === beck && earlier.path === ford.path && ford.s - earlier.s < 12)
+      FORDS.splice(i, 1);
+  }
+  levelValley(beck);
+  // The outer road where the lakeland's road leaves it, as it is, to put back once that is laid.
+  const lakelandJoin = (() => {
+    const { s } = OUTER_ROAD.nearest(LAKELAND.road.samples[0].x, LAKELAND.road.samples[0].z);
+    return roadStretch(OUTER_ROAD, GRAVEL_WIDTH(), s - 50, s + 50);
+  })();
+  levelAlong(LAKELAND.road, GRAVEL_WIDTH, 10, { ...GRAVEL_GRADE, flatEnds: 10 });
+  const landTracks = TRACKS.filter(track => track.land);
+  landTracks.forEach(levelTrack);
+  flattenPads(PADS.filter(pad => pad.land));
+  levelAlong(lakelandJoin.stretch, GRAVEL_WIDTH, 0.5, { levels: lakelandJoin.levels });
+  const beckCrossings = FORDS.filter(ford => ford.river === beck).map(fordStretch);
+  digChannel(beck);
+  for (const { stretch, width, levels } of beckCrossings) levelAlong(stretch, () => width, 3, { levels });
+
   // The rail bed's height along the line. Where the trail was levelled across it
   // at the crossing, it eases onto the finished ground instead.
   const railBed = smoothProfile(
@@ -953,6 +1247,7 @@ export function buildHeightField() {
     oxbowLevel: OXBOW_LEVEL,
     railBed,
     desert: desertBox,
+    lakeland: lakelandBox,
   };
 }
 

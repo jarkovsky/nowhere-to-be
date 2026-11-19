@@ -14,6 +14,7 @@ import {
   FORD,
   CAMP_TRAIL,
   TRACKS,
+  VALLEY_TRACKS,
   DRIVEWAYS,
   inOrchard,
   ORCHARD,
@@ -49,10 +50,14 @@ import {
   GRAVEL,
   GRAVEL_HALF_WIDTH,
   RIVERS,
+  OUTER_ROAD,
+  SPANS,
   ROCK_FIELDS,
   FJORD,
   FJORD_VILLAGE,
   LOFOTEN,
+  LAKELAND,
+  inLakeland,
   inFjord,
   FARMS,
   VILLAGE,
@@ -90,7 +95,8 @@ import { createGround } from './ground.js';
 import { createGrass } from './grass.js';
 import { BARE_GROUND, groundColors } from './groundcolor.js';
 import { LONG_GRASS_RANGE, addLongGrass, grassClumpGeometry } from './longgrass.js';
-import { grows, inMud, isClearGround, steepness } from './placing.js';
+import { grows, growsAnywhere, inMud, isClearGround, onPlacedGravel, steepness } from './placing.js';
+import { lakelandTakes } from './lakeland.js';
 import { PAD_RADIUS } from './landmarks/helipad.js';
 import { boulderGeometry, rockMaterial } from './rocks.js';
 import { createScatter } from './scatter.js';
@@ -297,7 +303,7 @@ function buildRipples(scene) {
       const s = random() * length;
       if (random() > 0.25 + 0.75 * river.shallow(s)) continue;
       const near = river.path.at(s);
-      if (Math.hypot(near.x, near.z) > VALLEY_RADIUS + 60) continue;
+      if (Math.hypot(near.x, near.z) > VALLEY_RADIUS + 60 && !inLakeland(near.x, near.z)) continue;
       ripples.push({
         river,
         flows,
@@ -363,6 +369,13 @@ function buildWater(scene) {
   lake.position.set(LAKE.x, LAKE.level, LAKE.z);
   lake.receiveShadow = true;
   scene.add(lake);
+
+  // The lakeland's lake and tarn are one sheet of water at their level, and the ground hides the rest.
+  const tarn = new THREE.Mesh(new THREE.CircleGeometry(275, 48).rotateX(-Math.PI / 2), lakeMaterial);
+  const amid = LAKELAND.spot(52, 60);
+  tarn.position.set(amid.x, LAKELAND.level, amid.z);
+  tarn.receiveShadow = true;
+  scene.add(tarn);
 
   // The creek: a ribbon of water following the bed, stopping where it meets the lake.
   const creekMaterial = flatMaterial('#86bfc0', { emissive: '#285f63', emissiveIntensity: 0.3 });
@@ -932,7 +945,9 @@ function buildRiverStones(scatter, obstacles) {
       const size = 0.3 + stoneRandom() * 0.6;
       const turn = stoneRandom() * 6.3;
       const shape = Math.floor(stoneRandom() * shapes.length);
-      if (Math.hypot(p.x, p.z) > VALLEY_RADIUS + 60 || !clear) continue;
+      if ((Math.hypot(p.x, p.z) > VALLEY_RADIUS + 60 && !inLakeland(p.x, p.z)) || !clear) continue;
+      // None in the ruts of the track that runs beside the beck.
+      if (TRACKS.some(track => track.land && track.path.isNear(p.x, p.z, 2.6))) continue;
       // Only where it stands clear of the water, or is just under it.
       const depth = waterLevel(p.x, p.z) - terrainHeight(p.x, p.z);
       if (depth > 0.5) continue;
@@ -947,14 +962,14 @@ function buildRiverStones(scatter, obstacles) {
       const size = 0.9 + stoneRandom() ** 2 * 1.1;
       const turn = stoneRandom() * 6.3;
       const shape = Math.floor(stoneRandom() * shapes.length);
-      if (near || Math.hypot(p.x, p.z) > VALLEY_RADIUS + 60) continue;
+      if (near || (Math.hypot(p.x, p.z) > VALLEY_RADIUS + 60 && !inLakeland(p.x, p.z))) continue;
       // Not where it would be a stone's throw from the road or the hut's track.
       if (onGravel(p.x, p.z, 8) || TRACKS.some(track => track.path.isNear(p.x, p.z, 7))) continue;
       if (waterLevel(p.x, p.z) - terrainHeight(p.x, p.z) > 0.8) continue;
       if (Math.hypot(p.x - FISHING.x, p.z - FISHING.z) < 14) continue;
       const matrix = stoneMatrix(p.x, p.z, size, size * 1.15, turn);
       boulders.push({ matrix, shape });
-      if (Math.hypot(p.x, p.z) < VALLEY_RADIUS - 2) {
+      if (Math.hypot(p.x, p.z) < VALLEY_RADIUS - 2 || inLakeland(p.x, p.z, 2)) {
         const drawn = winterness(p.x, p.z) > 0.5 ? capped : shapes;
         obstacles.push({ x: p.x, z: p.z, radius: size * 0.95, climb: boulderClimb(drawn[shape], matrix.elements) });
       }
@@ -1113,7 +1128,8 @@ function buildRocks(scatter, obstacles) {
       const x = field.x + Math.cos(a) * d;
       const z = field.z + Math.sin(a) * d;
       if (random() > rockiness(x, z) || !isClearGround(x, z, { road: 7 })) continue;
-      const tower = random() < 0.06 && !onGravel(x, z, 16) && !TRACKS.some(track => track.path.isNear(x, z, 12));
+      const tower =
+        random() < 0.06 && !onPlacedGravel(x, z, 16) && !VALLEY_TRACKS.some(track => track.path.isNear(x, z, 12));
       const size = tower ? 2.4 + random() * 1.8 : 0.5 + random() ** 2 * 2.6;
       const tall = tower ? 2.6 + random() * 1.6 : 1;
       add({ x, z, size, rotation: random() * 6.3, tilt: (random() - 0.5) * 0.3, tall });
@@ -1232,8 +1248,13 @@ function buildGroundCover(scatter) {
   for (let i = 0; i < tufts.length * 4; i++) random();
 }
 
-/** The square the grass mask covers, a metre to a texel: everywhere inside the fence. */
+/** The square the valley's grass mask covers, a metre to a texel: everywhere inside its fence. */
 const GRASS_AREA = { x0: -1024, z0: -1024, size: 2048 };
+/** The square the lakeland's covers. Where the two overlap, the lakeland's grass is the lakeland's. */
+const LAKELAND_GRASS_AREA = (() => {
+  const size = Math.ceil((2 * LAKELAND.radius + 16) / 64) * 64;
+  return { x0: Math.round(LAKELAND.x - size / 2), z0: Math.round(LAKELAND.z - size / 2), size };
+})();
 
 /**
  * Where the grass doesn't grow, or only short, at a metre to a texel (see grass.js): the
@@ -1241,8 +1262,8 @@ const GRASS_AREA = { x0: -1024, z0: -1024, size: 2048 };
  * the ruts of a track, the yards round buildings, the crop fields and the airfield. The water,
  * rock, snow, sand and mud are left out by the ground's colouring instead (see groundcolor.js).
  */
-function grassMask() {
-  const { x0, z0, size } = GRASS_AREA;
+function grassMask(area) {
+  const { x0, z0, size } = area;
   const bytes = new Uint8Array(size * size);
   const mark = (i, value) => {
     if (value > bytes[i]) bytes[i] = value;
@@ -1360,10 +1381,16 @@ function grassMask() {
     where(yard.x - 30, yard.x + 30, yard.z - 30, yard.z + 30, onForecourt);
   }
 
+  // The valley's grass stops at the lakeland's fence, and the lakeland's grows only inside it.
+  const [lx, lz, reach] = [LAKELAND.x, LAKELAND.z, LAKELAND.radius + 2];
+  const ours = area === LAKELAND_GRASS_AREA;
+  where(lx - reach, lx + reach, lz - reach, lz + reach, (x, z) => inLakeland(x, z, 3) !== ours);
+  if (ours) where(x0, x0 + size, z0, z0 + size, (x, z) => !inLakeland(x, z, -2));
+
   const texture = new THREE.DataTexture(bytes, size, size, THREE.RedFormat);
   texture.magFilter = texture.minFilter = THREE.LinearFilter;
   texture.needsUpdate = true;
-  return { clear: texture, clearBytes: bytes, area: GRASS_AREA };
+  return { clear: texture, clearBytes: bytes, area };
 }
 
 /**
@@ -1528,6 +1555,9 @@ function buildPeaks(scene) {
       angle += (off < 0 ? -1 : 1) * 0.02;
     const cx = Math.sin(angle) * distance;
     const cz = Math.cos(angle) * distance;
+    // One that would stand in the lakeland, which has mountains of its own round it, is left out,
+    // once its share of the random numbers has been drawn.
+    const drawn = Math.hypot(cx - LAKELAND.x, cz - LAKELAND.z) > radius + LAKELAND.radius + 40;
     const height = 140 + random() * 150;
     const base = naturalHeight(cx, cz) - 18;
     const ridges = 3 + Math.floor(random() * 3);
@@ -1560,7 +1590,7 @@ function buildPeaks(scene) {
         colors.push(color.r, color.g, color.b);
       }
     }
-    for (let j = 0; j < RINGS; j++) {
+    for (let j = 0; drawn && j < RINGS; j++) {
       for (let k = 0; k < SIDES; k++) {
         const a = first + j * SIDES + k;
         const b = first + j * SIDES + ((k + 1) % SIDES);
@@ -1580,12 +1610,158 @@ function buildPeaks(scene) {
 }
 
 /**
+ * True in the lakeland where one of its own trees or rocks may stand: on dry ground, `room` metres
+ * from its road and tracks, off the floor of the gorge, and clear of its bridges and its places.
+ */
+function lakelandIsClear(x, z, room) {
+  if (LAKELAND.ashore(x, z) < 3) return false;
+  if (LAKELAND.road.isNear(x, z, room + 3) || OUTER_ROAD.isNear(x, z, room + 3)) return false;
+  if (TRACKS.some(track => track.land && track.path.isNear(x, z, room))) return false;
+  if (RIVERS.at(-1).path.isNear(x, z, 16)) return false;
+  if (SPANS.some(span => Math.hypot(x - span.x, z - span.z) < span.length / 2 + 10)) return false;
+  return !LAKELAND.clearings.some(c => (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r);
+}
+
+/**
+ * The lakeland's own trees and rocks, wherever it has cleared the valley's away (see
+ * lakelandTakes): open woods of spruce and larch on the bench and up the slopes round it,
+ * broadleaved trees and birches nearer the water, bushes at their edges, and mossy boulders out
+ * on the open ground, well back from the road and the tracks. They have numbers of their own, so
+ * they move nothing else, and they stand further apart than the valley's, to drive between.
+ */
+function buildLakelandScenery(scatter, obstacles) {
+  const landRandom = createRandom(9721);
+  const reach = LAKELAND.radius + 170;
+  const tinted = name => {
+    const [h, s, l, dh, ds, dl] = TINTS[name];
+    const [a, b, c] = [landRandom() - 0.5, landRandom() - 0.5, landRandom() - 0.5];
+    return new THREE.Color().setHSL(h + a * 2 * dh, s + b * 2 * ds, l + c * 2 * dl);
+  };
+  const steep = (x, z) => {
+    const h = terrainHeight(x, z);
+    return Math.hypot(terrainHeight(x + 1.5, z) - h, terrainHeight(x, z + 1.5) - h) / 1.5;
+  };
+  const pines = [];
+  const rounds = [];
+  const birches = [];
+  const bushes = [];
+  // One try for every 400 square metres.
+  for (let i = 0; i < (2 * reach) ** 2 / 400; i++) {
+    const x = LAKELAND.x + (landRandom() - 0.5) * 2 * reach;
+    const z = LAKELAND.z + (landRandom() - 0.5) * 2 * reach;
+    const scale = 0.65 + landRandom() * 1.0;
+    const rotation = landRandom() * Math.PI * 2;
+    const [chance, thin, kind, bushy] = [landRandom(), landRandom(), landRandom(), landRandom()];
+    if (!lakelandTakes(x, z) || LAKELAND.road.isNear(x, z, 12)) continue;
+    const inside = inLakeland(x, z, 4);
+    // Beyond the fence the woods are thinner: only seen from afar.
+    if ((!inside && thin < 0.45) || !lakelandIsClear(x, z, 7)) continue;
+    const woods = smoothstep(fractalNoise(x / 140 + 7.7, z / 140 + 2.2, 2, 463), 0.38, 0.62);
+    if (chance > 0.07 + woods * 0.8) continue;
+    const height = terrainHeight(x, z);
+    if (thin < smoothstep(height, 84, 104) || steep(x, z) > 0.75) continue;
+    const tree = { x, z, scale, rotation };
+    const shore = LAKELAND.ashore(x, z);
+    if (!inside || height > 47) pines.push(tree);
+    else if (kind < (shore < 60 ? 0.4 : 0.14)) rounds.push(tree);
+    else if (kind < (shore < 60 ? 0.75 : 0.3)) birches.push({ ...tree, scale: 0.8 + (scale - 0.65) * 0.5 });
+    else pines.push(tree);
+    if (inside && bushy < 0.3) {
+      const bush = { x: x + Math.cos(rotation) * 4, z: z + Math.sin(rotation) * 4, scale: 0.7 + bushy * 2, rotation };
+      if (lakelandIsClear(bush.x, bush.z, 6)) bushes.push(bush);
+    }
+  }
+  const leaves = foliageMaterial('crowns');
+  const item =
+    (name, sink = 0.2) =>
+    tree => ({
+      matrix: placed(tree, sink),
+      color: tinted(typeof name === 'function' ? name(tree) : name),
+    });
+  const conifer = tree =>
+    landRandom() < 0.4 * (1 - smoothstep(terrainHeight(tree.x, tree.z), 60, 90)) ? 'larch' : 'spruce';
+  const turned = () => {
+    const roll = landRandom();
+    return roll < 0.2 ? 'green' : roll < 0.52 ? 'yellow' : roll < 0.8 ? 'orange' : 'red';
+  };
+  // No tree stands on the land's fence or within a few metres inside it, where a wide vehicle
+  // driven along the fence would be squeezed between the two. Those are left out only here, once
+  // every tree has had its colour drawn, so the others are the same trees they would have been.
+  const byFence = tree => {
+    const beyond = Math.hypot(tree.x - LAKELAND.x, tree.z - LAKELAND.z) - LAKELAND.radius;
+    return beyond > -6 && beyond < 5.8;
+  };
+  const standing = (trees, name) => trees.map(item(name)).filter((_, i) => !byFence(trees[i]));
+  const [round, birch] = [roundTreeGeometry(), birchGeometry()];
+  scatter.add({
+    geometry: pineGeometry(true),
+    far: pineGeometry(false),
+    near: PINE_DETAIL,
+    cell: FAR_CELL,
+    material: leaves,
+    items: standing(pines, conifer),
+  });
+  scatter.add({ geometry: round, far: round, cell: FAR_CELL, material: leaves, items: standing(rounds, turned) });
+  scatter.add({
+    geometry: birch,
+    far: birch,
+    cell: FAR_CELL,
+    material: leaves,
+    items: standing(birches, () => (landRandom() < 0.75 ? 'yellow' : 'birch')),
+  });
+  scatter.add({
+    geometry: bushGeometry(),
+    near: UNDERGROWTH_RANGE,
+    shadows: false,
+    material: leaves,
+    items: bushes.map(item('bush', 0.1)),
+  });
+  for (const tree of [...pines, ...rounds, ...birches]) {
+    if (!byFence(tree) && inLakeland(tree.x, tree.z, -5))
+      obstacles.push({ x: tree.x, z: tree.z, radius: 0.3 * tree.scale });
+  }
+
+  // Mossy boulders, one try for every 4200 square metres inside the fence, a long way from anything driven on.
+  const shapes = mossyStones();
+  const boulders = [];
+  for (let i = 0; i < (Math.PI * LAKELAND.radius ** 2) / 4200; i++) {
+    const a = landRandom() * Math.PI * 2;
+    const d = Math.sqrt(landRandom()) * (LAKELAND.radius - 12);
+    const [x, z] = [LAKELAND.x + Math.cos(a) * d, LAKELAND.z + Math.sin(a) * d];
+    const size = 0.7 + landRandom() ** 2 * 2;
+    const rock = { x, z, scale: size, rotation: landRandom() * 6.3, tilt: (landRandom() - 0.5) * 0.3, sx: 1.25 };
+    const shape = Math.floor(landRandom() * shapes.length);
+    const shade = 0.92 + landRandom() * 0.14;
+    if (!lakelandTakes(x, z) || !lakelandIsClear(x, z, 14) || steep(x, z) > 0.6) continue;
+    const matrix = placed(rock, 0.18);
+    boulders.push({ matrix, color: new THREE.Color().setScalar(shade), shape });
+    if (size > 0.9) obstacles.push({ x, z, radius: size * 1.05, climb: boulderClimb(shapes[shape], matrix.elements) });
+  }
+  scatter.add({
+    geometry: shapes,
+    far: shapes[0],
+    near: ROCK_DETAIL,
+    cell: FAR_CELL,
+    material: rockMaterial,
+    items: boulders,
+    stones: true,
+  });
+}
+
+/**
  * Split-rail fence around the valley, and round the Lofoten coast wherever that is on land, and
  * low posts beside the trail.
  */
 function buildFences(scene, scatter) {
   const rings = [
-    { x: 0, z: 0, radius: VALLEY_RADIUS + 1.8, kept: () => true },
+    // Open where the lakeland lies beyond it, whose own fence takes over there.
+    { x: 0, z: 0, radius: VALLEY_RADIUS + 1.8, kept: (x, z) => !inLakeland(x, z, -4) },
+    {
+      x: LAKELAND.x,
+      z: LAKELAND.z,
+      radius: LAKELAND.radius + 1.8,
+      kept: (x, z) => Math.hypot(x, z) > VALLEY_RADIUS + 4,
+    },
     // Not across the water, where nothing can be driven in any case.
     {
       x: LOFOTEN.x,
@@ -1761,36 +1937,54 @@ export function buildScenery(parent) {
   // What would grow in the crop fields, or in the desert, is left out as it is added rather than
   // where it is placed, so that leaving it out doesn't move everything placed after it.
   const everything = createScatter(scene);
-  const scatter = {
+  const growing = keeps => ({
     ...everything,
     add: kind => {
-      const items = kind.items.filter(({ matrix: m }) => grows(m.elements[12], m.elements[14]));
+      const items = kind.items.filter(({ matrix: m }) => keeps(m.elements[12], m.elements[14]));
       // The stones that are left are in the height field, for the tyres to ride over.
       if (kind.stones) for (const { matrix, shape } of items) placeBoulder(kind.geometry[shape], matrix.elements);
       everything.add({ ...kind, items });
     },
-  };
+  });
+  // What the valley places is left out of the lakeland too, which has stones along its beck and
+  // scenery of its own.
+  const scatter = growing(grows);
+  const own = growing(growsAnywhere);
+  const ownObstacles = [];
   buildTrees(scatter, obstacles);
   buildRocks(scatter, obstacles);
   buildBrookStones(scene);
   buildTrackRocks(scatter);
   buildRoughRocks(scatter, obstacles);
-  buildRiverStones(scatter, obstacles);
+  buildRiverStones(own, ownObstacles);
   buildGroundCover(scatter);
   addLongGrass(everything);
   buildCoastScenery(scatter, obstacles);
-  const grass = createGrass({ ground: ground.texture, colors: ground.colors, ...grassMask() });
-  scene.add(grass.group);
-  // Wherever it grows, a car driving through lays it over.
-  grass.eachTile((x, z, half) => growsTall(x, z, half));
+  buildLakelandScenery(own, ownObstacles);
+  // The valley's grass, and the lakeland's, which lies beyond the square the valley's covers.
+  const meadows = [GRASS_AREA, LAKELAND_GRASS_AREA].map(area =>
+    createGrass({ ground: ground.texture, colors: ground.colors, ...grassMask(area) }),
+  );
+  const grass = {
+    ...meadows[0],
+    getState: () => meadows.map(meadow => meadow.getState()),
+    amountAt: (x, z) => Math.max(...meadows.map(meadow => meadow.amountAt(x, z))),
+    update: camera => meadows.forEach(meadow => meadow.update(camera)),
+  };
+  for (const meadow of meadows) {
+    scene.add(meadow.group);
+    // Wherever it grows, a car driving through lays it over.
+    meadow.eachTile((x, z, half) => growsTall(x, z, half));
+  }
   buildPeaks(scene);
-  buildFences(scene, scatter);
+  buildFences(scene, own);
   // The logs' obstacles are left out with them, by their middles.
   const kept = obstacles.filter(o => {
     if (o.x !== undefined) return grows(o.x, o.z);
     const [x, z] = [(o.ax + o.bx) / 2, (o.az + o.bz) / 2];
-    return !desertTakes(x, z) && !inOrchard(x, z) && !inDiscovery(x, z);
+    return !desertTakes(x, z) && !lakelandTakes(x, z) && !inOrchard(x, z) && !inDiscovery(x, z);
   });
+  kept.push(...ownObstacles.filter(o => growsAnywhere(o.x, o.z)));
   kept.push(...buildDesertScenery(everything));
   // The roads, tracks and paths, merged by area: from up high, a view takes in dozens of them.
   mergeByArea(scene, RIBBON, 480);

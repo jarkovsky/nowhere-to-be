@@ -31,9 +31,13 @@ import { buildFishing } from '../world/landmarks/fishing.js';
 import { buildCrash } from '../world/landmarks/crash.js';
 import { buildMine } from '../world/landmarks/mine.js';
 import { buildLogging } from '../world/landmarks/logging.js';
+import { buildShallows, buildSpan } from '../world/landmarks/spans.js';
+import { buildBeckFalls } from '../world/landmarks/beckfalls.js';
+import { buildCastle } from '../world/landmarks/castle.js';
+import { buildHamlet } from '../world/landmarks/hamlet.js';
 import { buildRoughGround } from '../world/landmarks/roughground.js';
 import { buildHeaps } from '../world/heaps.js';
-import { HELIPAD, KRYSTOF } from '../world/layout.js';
+import { HELIPAD, KRYSTOF, SPANS } from '../world/layout.js';
 import { drivingHeight, waterLevel } from '../world/terrain.js';
 
 /** What things stand on: the ground, the decks and heaps the car drives on, or still water. */
@@ -83,6 +87,13 @@ export const LANDMARKS = {
   crash: buildCrash,
   mine: buildMine,
   logging: buildLogging,
+  ...Object.fromEntries(
+    SPANS.map(span => [`span-${span.id}`, (group, obstacles) => buildSpan(span, group, obstacles)]),
+  ),
+  shallows: buildShallows,
+  beckfalls: buildBeckFalls,
+  castle: buildCastle,
+  hamlet: buildHamlet,
   roughground: buildRoughGround,
   heaps: scene => buildHeaps(scene),
 };

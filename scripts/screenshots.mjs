@@ -331,7 +331,64 @@ try {
   );
   await capture(page, 'lookout', 2500);
   await inGame(page, `g.followCar();`);
+
+  // The lakeland. Coming down the road to the hamlet, with the lake and the island behind it.
+  await inGame(
+    page,
+    `
+    const p = L.LAKELAND.road.at(L.LAKELAND.road.length - 62);
+    g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz));
+  `,
+  );
+  await page.keyboard.down('ArrowUp');
+  await page.waitForTimeout(1200);
+  await page.keyboard.up('ArrowUp');
+  await capture(page, 'hamlet', 2500);
+
+  // Out along the causeway to the island and the castle on it.
+  await inGame(
+    page,
+    `
+    const span = L.SPANS.find(span => span.id === 'causeway');
+    const p = span.path.at(span.from + 6);
+    g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz));
+  `,
+  );
+  await page.keyboard.down('ArrowUp');
+  await page.waitForTimeout(1500);
+  await page.keyboard.up('ArrowUp');
+  await capture(page, 'causeway', 2500);
+
+  // In the gorge, through the ford below the stone bridge, seen from downstream.
+  await inGame(
+    page,
+    `
+    const track = L.TRACKS.find(t => t.id === 'gorge').path;
+    const span = L.SPANS.find(span => span.id === 'gate');
+    const under = track.nearest(span.x, span.z).s;
+    const p = track.at(under - 24);
+    g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz));
+    const eye = track.offset(under - 44, -5);
+    const top = span.deck.at(span.length / 2);
+    g.shot([eye.x, T.terrainHeight(eye.x, eye.z) + 2.6, eye.z], [top.x, T.spanHeight(top.x, top.z) - 8, top.z]);
+  `,
+  );
+  await capture(page, 'gorge', 2500);
   await inGame(page, `g.followCar();`);
+
+  // The falls at the head of the gorge, where its track ends.
+  await inGame(
+    page,
+    `
+    const track = L.TRACKS.find(t => t.id === 'gorge').path;
+    const p = track.at(track.length - 16);
+    g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz));
+  `,
+  );
+  await page.keyboard.down('ArrowUp');
+  await page.waitForTimeout(900);
+  await page.keyboard.up('ArrowUp');
+  await capture(page, 'falls', 2500);
 
   await inGame(
     page,

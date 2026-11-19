@@ -3,7 +3,7 @@
 // dragged about and zoomed with a finger, a mouse or the keys. Tapping a place's picture picks
 // it as the place to go to, which the minimap then points the way to; tapping it again lets go.
 import { clamp } from '../core/math.js';
-import { FERRY_LANE, LOFOTEN, VALLEY_RADIUS } from '../world/layout.js';
+import { FERRY_LANE, LAKELAND, LOFOTEN, VALLEY_RADIUS } from '../world/layout.js';
 import { MAP_EXTENT, MAP_PLACES, PAPER, STRANDED_MARK, arrowMarkup, badgeMarkup, drawMapLines } from './mapart.js';
 
 /** How many metres fit across the shorter side of the screen when the map opens. */
@@ -90,7 +90,8 @@ export function createMapView(page, picture, car, target = { place: null }, onPi
 
   /**
    * Keeps the zoom in range and the middle of the screen inside the fence: the valley's, the
-   * Lofoten coast's, or the fjord's water between them, which it can be panned along.
+   * lakeland's, the Lofoten coast's, or the fjord's water on the way there, which it can be
+   * panned along.
    */
   function settle() {
     camera.scale = clamp(camera.scale, farthest(), CLOSEST);
@@ -98,6 +99,7 @@ export function createMapView(page, picture, car, target = { place: null }, onPi
     const discs = [
       { x: 0, z: 0, radius: VALLEY_RADIUS },
       { x: LOFOTEN.x, z: LOFOTEN.z, radius: LOFOTEN.radius },
+      { x: LAKELAND.x, z: LAKELAND.z, radius: LAKELAND.radius },
     ];
     let best = null;
     for (const { x, z, radius } of discs) {

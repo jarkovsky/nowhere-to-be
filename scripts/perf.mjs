@@ -58,6 +58,18 @@ const PLACES = [
     'logging camp',
     "const p = L.TRACKS.find(t => t.id === 'logging').path.at(35); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))",
   ],
+  [
+    'lakeland bridge',
+    'const p = L.LAKELAND.road.at(L.SPANS[0].from - 30); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))',
+  ],
+  [
+    'lakeland hamlet',
+    'const p = L.LAKELAND.road.at(L.LAKELAND.road.length - 40); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))',
+  ],
+  [
+    'lakeland gorge',
+    "const p = L.TRACKS.find(t => t.id === 'gorge').path.at(150); g.teleport(p.x, p.z, Math.atan2(-p.dx, -p.dz))",
+  ],
 ];
 
 const server = await startServer();

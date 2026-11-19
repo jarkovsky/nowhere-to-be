@@ -26,6 +26,8 @@ import {
   HALT,
   HELIPAD,
   JETTY,
+  LAKELAND,
+  RIVERS,
   KRYSTOF,
   LOFOTEN,
   LEVEL_CROSSING,
@@ -42,8 +44,12 @@ import {
   VILLAGE,
   WATERFALL,
   WINDMILL,
+  SPANS,
 } from '../world/layout.js';
+import { towerSite } from '../world/landmarks/castle.js';
 
+const beckStart = RIVERS.at(-1).path.at(0);
+const headWall = { x: beckStart.x - beckStart.dx * 14, z: beckStart.z - beckStart.dz * 14 };
 const halt = RAILWAY.offset((HALT.from + HALT.to) / 2, HALT.side * 4);
 const fin = ROCK_FIN.path.at(ROCK_FIN.arch / 2);
 const descent = ROCK_FIN.path.at((ROCK_FIN.archEnd + ROCK_FIN.path.length) / 2);
@@ -194,4 +200,27 @@ export const PLACES = [
     ...ROUGH.gully.path.at(ROUGH.gully.path.length * 0.5),
     radius: 24,
   },
+  { id: 'beckfalls', name: 'Falls at the head of the gorge', landmark: 'beckfalls', ...headWall, radius: 26 },
+  { id: 'beckfalls.foot', name: 'Foot of the falls', landmark: 'beckfalls', ...LAKELAND.falls, radius: 10 },
+  {
+    id: 'span.gate',
+    name: 'Stone bridge over the gorge',
+    landmark: 'span-gate',
+    x: SPANS[0].x,
+    z: SPANS[0].z,
+    radius: 32,
+  },
+  { id: 'span.causeway', name: 'Plank causeway', landmark: 'span-causeway', x: SPANS[1].x, z: SPANS[1].z, radius: 48 },
+  { id: 'span.trestle', name: 'Trestle bridge', landmark: 'span-trestle', x: SPANS[2].x, z: SPANS[2].z, radius: 34 },
+  { id: 'castle', name: 'Castle ruin', landmark: 'castle', ...LAKELAND.castle, radius: 24 },
+  { id: 'castle.tower', name: 'Castle tower', landmark: 'castle', ...towerSite(), radius: 8 },
+  ...LAKELAND.hamlet.houses.map((house, i) => ({
+    id: `hamlet.house${i}`,
+    name: `Hamlet cottage ${i + 1}`,
+    landmark: 'hamlet',
+    ...house,
+    radius: 10,
+  })),
+  { id: 'hamlet', name: 'Hamlet by the lake', landmark: 'hamlet', ...LAKELAND.square, radius: 70 },
+  { id: 'hamlet.boathouse', name: 'Boathouse and boats', landmark: 'hamlet', ...LAKELAND.hamlet.boathouse, radius: 16 },
 ];

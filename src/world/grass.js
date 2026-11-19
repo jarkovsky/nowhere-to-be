@@ -183,10 +183,14 @@ function grassMaterial(uniforms) {
 }
 
 /** A float texture of the ground's heights, one texel to a grid point. */
+/** The ground's heights as a texture, made once and shared by every stretch of grass. */
+let heightMap = null;
 function heightTexture() {
-  const texture = new THREE.DataTexture(heights, GRID, GRID, THREE.RedFormat, THREE.FloatType);
-  texture.needsUpdate = true;
-  return texture;
+  if (!heightMap) {
+    heightMap = new THREE.DataTexture(heights, GRID, GRID, THREE.RedFormat, THREE.FloatType);
+    heightMap.needsUpdate = true;
+  }
+  return heightMap;
 }
 
 /**
